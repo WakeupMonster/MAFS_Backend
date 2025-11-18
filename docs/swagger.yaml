@@ -1,0 +1,19 @@
+openapi: 3.0.0
+info:
+  title: MAFS Dating App API
+  version: 1.0.0
+  description: API documentation for the MAFS backend
+
+servers:
+  - url: http://localhost:3001/api/v1
+    description: Development Server
+
+paths:
+  /health:
+    get:
+      summary: Health Check
+      tags:
+        - Health
+      responses:
+        "200":
+          description: API is running
