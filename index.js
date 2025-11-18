@@ -11,15 +11,15 @@
 // src/server.js
 require('dotenv').config();
 const app = require('./app');
-const { connectWithRetry, registerGracefulShutdown } = require('./config/database');
+// const { connectWithRetry, registerGracefulShutdown } = require('./config/database');
 
 const PORT = process.env.PORT || 3000;
-const MONGODB_URI = process.env.MONGODB_URI;
+// const MONGODB_URI = process.env.MONGODB_URI;
 
 (async () => {
   try {
-    await connectWithRetry(MONGODB_URI);
-    registerGracefulShutdown();
+    // await connectWithRetry(MONGODB_URI);
+    // registerGracefulShutdown();
 
     app.listen(PORT, () => {
       console.log(`Server listening on port ${PORT}`);

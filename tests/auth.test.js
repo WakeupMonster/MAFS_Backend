@@ -8,7 +8,7 @@ describe("Auth Register API", () => {
     const response = await request(app)
       .post("/api/v1/auth/register")
       .send({
-        email: "test@test.com",
+        email: "test1212@test.com",
         password: "123456"
       });
 
@@ -20,8 +20,8 @@ describe("Auth Register API", () => {
     const response = await request(app)
       .post("/api/v1/auth/register")
       .send({
-        username: "raj",
-        email: "test@test.com",
+        name : "rajpatel",
+        email: "test122112@test.com",
         password: "123456"
       });
 
