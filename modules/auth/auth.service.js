@@ -1,19 +1,396 @@
-const User = require("../auth/auth.model");
-const bcrypt = require("bcryptjs");
+const User = require("./auth.model");
+const utils = require("./auth.utils");
 
-module.exports.registerUser = async (name, email, password) => {
-  const existingUser = await User.findOne({ email });
-  if (existingUser) {
-    throw new Error("Email already exists");
+const PHONE_OTP_TTL_MS = Number(1000 * 60 * 5); // 5 min
+const EMAIL_OTP_TTL_MS = Number(1000 * 60 * 10); // 10 min
+const REFRESH_TOKEN_TTL_MS = Number(7 * 24 * 60 * 60 * 1000); // 7 days
+
+async function sendPhoneOtp(phone) {
+  // find or create user row (we create user when phone first used)
+  let user = await User.findOne({ phone });
+  if (!user) {
+    user = await User.create({ phone });
+  }
+  const otp = utils.generateOtp();
+  // const otpHash = await utils.hashOtp(otp);
+  user.phoneOtp = otp;
+  user.phoneOtpExpires = Date.now() + PHONE_OTP_TTL_MS;
+  await user.save();
+  // send SMS (Twilio)
+  const message = `Your verification code is ${otp}`;
+  await utils.sendSms(phone, message);
+  return { ok: true };  
+}
+
+async function verifyPhoneOtp(phone, otp) {
+  const user = await User.findOne({ phone });
+  if (!user) throw new Error("Phone not found");
+
+  if (!user.phoneOtp || user.phoneOtp !== otp) {
+    throw new Error("Invalid OTP");
   }
 
-  const hashedPassword = await bcrypt.hash(password, 10);
+  if (!user.phoneOtp  || !user.phoneOtpExpires || Date.now() > user.phoneOtpExpires) {
+    throw new Error("OTP expired or not found");
+  }
 
-  const user = await User.create({
-    name,
-    email,
-    password: hashedPassword,
-  });
+  // const valid = await utils.verifyOtpHash(otp, user.phoneOtpHash);
+  // if (!valid) throw new Error("Invalid OTP");
+
+  user.isPhoneVerified = true;
+  user.phoneOtpHash = undefined;
+  user.phoneOtpExpires = undefined;
+  await user.save();
 
   return user;
+}
+
+// async function sendEmailOtp(userId, email) {
+//   // Ensure phone verified before email step
+//   const user = await User.findById(userId);
+//   if (!user) throw new Error("User not found");
+//   if (!user.isPhoneVerified) throw new Error("Phone must be verified before email verification");
+
+//   // If email already used by other account
+//   const existing = await User.findOne({ email });
+//   if (existing && existing._id.toString() !== userId.toString()) {
+//     throw new Error("Email already in use");
+//   }
+
+//   // save email to user (staged)
+//   user.email = email;
+//   const otp = utils.generateOtp();
+//   const otpHash = await utils.hashOtp(otp);
+//   user.emailOtpHash = otpHash;
+//   user.emailOtpExpires = Date.now() + EMAIL_OTP_TTL_MS;
+//   await user.save();
+
+//   // send email
+//   const subject = "Your verification code";
+//   const text = `Your email verification code is ${otp}`;
+//   await utils.sendEmail(email, subject, text);
+
+//   return { ok: true };
+// }
+
+
+
+
+async function sendEmailOtp(userId, email) {
+  // Ensure phone verified before email step
+  const user = await User.findById(userId);
+  if (!user) throw new Error("User not found");
+  if (!user.isPhoneVerified) throw new Error("Phone must be verified before email verification");
+
+  // If email already used by another account
+  const existing = await User.findOne({ email });
+  if (existing && existing._id.toString() !== userId.toString()) {
+    throw new Error("Email already in use");
+  }
+
+  // Save email to user
+  user.email = email;
+
+  // Generate RAW OTP
+  const otp = utils.generateOtp(); // e.g., "123456"
+
+  // Store RAW OTP instead of hash
+  user.emailOtp = otp;                           // <-- raw
+  user.emailOtpExpires = Date.now() + EMAIL_OTP_TTL_MS;
+
+  await user.save();
+
+  // send email
+  const subject = "Your verification code";
+  const text = `Your email verification code is ${otp}`;
+  await utils.sendEmail(email, subject, text);
+
+  return { ok: true };
+}
+
+
+
+async function verifyEmailOtp(userId, otp) {
+  const user = await User.findById(userId);
+  if (!user) throw new Error("User not found");
+
+  // Check OTP existence + expiry
+  if (!user.emailOtp || !user.emailOtpExpires) {
+    throw new Error("OTP not found");
+  }
+
+  if (Date.now() > user.emailOtpExpires) {
+    throw new Error("OTP expired");
+  }
+
+  // Validate OTP (plain text)
+  if (otp !== user.emailOtp) {
+    throw new Error("Invalid OTP");
+  }
+
+   user.isEmailVerified = true;
+
+  // Clear OTP fields
+  // user.emailOtp = undefined;
+  // user.emailOtpExpires = undefined;
+
+  // Generate tokens
+  const accessToken = utils.generateAccessToken(user);
+  const refreshTokenRaw = utils.generateRefreshToken();
+  const refreshTokenHash = utils.hashToken(refreshTokenRaw);
+
+  user.refreshTokens.push({
+    tokenHash: refreshTokenHash,
+    expiresAt: Date.now() + REFRESH_TOKEN_TTL_MS
+  });
+
+  await user.save();
+
+  return { user, accessToken, refreshToken: refreshTokenRaw };
+}
+
+
+
+
+
+
+
+// async function verifyEmailOtp(userId, otp) {
+//   const user = await User.findById(userId);
+//   if (!user) throw new Error("User not found");
+
+//   if (!user.emailOtpExpires || Date.now() > user.emailOtpExpires) {
+//     throw new Error("OTP expired or not found");
+//   }
+
+//   // const valid = await utils.verifyOtpHash(otp, user.emailOtpHash);
+//   // if (!valid) throw new Error("Invalid OTP");
+
+//   // user.isEmailVerified/* = true;
+//   user.emailOtpHash = undefined;
+//   user.emailOtpExpires = undefined;
+
+//   // create refresh token and access token (email verified => completed signup)
+//   const accessToken = utils.generateAccessToken(user);
+//   const refreshTokenRaw = utils.generateRefreshToken();
+//   const refreshTokenHash = utils.hashToken(refreshTokenRaw);
+//   user.refreshTokens.push({
+//     tokenHash: refreshTokenHash,
+//     expiresAt: Date.now() + REFRESH_TOKEN_TTL_MS
+//   });
+
+//   await user.save();
+
+//   return { user, accessToken, refreshToken: refreshTokenRaw };
+// }
+
+// login: send otp to phone (if not phone verified, still allow OTP to login? you said login with phone OTP)
+async function loginSendOtp(phone) {
+  // must exist; create if not
+  let user = await User.findOne({ phone });
+  if (!user) {
+    user = await User.create({ phone });
+  }
+
+  const otp = utils.generateOtp();
+  // const otpHash = await utils.hashOtp(otp);
+  user.phoneOtp = otp;
+  user.phoneOtpExpires = Date.now() + PHONE_OTP_TTL_MS;
+  await user.save();
+
+  const message = `Your login code is ${otp}`;
+  await utils.sendSms(phone, message);
+
+  return { ok: true };
+}
+
+
+
+async function loginVerifyOtp(phone, otp) {
+  const user = await User.findOne({ phone });
+  if (!user) throw new Error("User not found");
+
+  // check OTP expiration
+  if (!user.phoneOtp || !user.phoneOtpExpires || Date.now() > user.phoneOtpExpires) {
+    throw new Error("OTP expired or not found");
+  }
+
+  // compare raw OTP
+  if (otp !== user.phoneOtp) {
+    throw new Error("Invalid OTP");
+  }
+
+  // mark phone verified
+  user.isPhoneVerified = true;
+
+  // clear OTP fields
+  // user.phoneOtp = undefined;
+  // user.phoneOtpExpires = undefined;
+
+  // generate tokens
+  const accessToken = utils.generateAccessToken(user);
+  const refreshTokenRaw = utils.generateRefreshToken();
+  const refreshTokenHash = utils.hashToken(refreshTokenRaw);
+
+  user.refreshTokens.push({
+    tokenHash: refreshTokenHash,
+    expiresAt: Date.now() + REFRESH_TOKEN_TTL_MS
+  });
+
+  await user.save();
+
+  return { user, accessToken, refreshToken: refreshTokenRaw };
+}
+
+
+
+
+
+// login verify: if user is phone verified, issue tokens; if not phone verified but OTP matched, mark phone verified and issue tokens?
+// async function loginVerifyOtp(phone, otp) {
+//   const user = await User.findOne({ phone });
+//   if (!user) throw new Error("User not found");
+
+//   if (!user.phoneOtpExpires || Date.now() > user.phoneOtpExpires) {
+//     throw new Error("OTP expired or not found");
+//   }
+
+//   // const valid = await utils.verifyOtpHash(otp, user.phoneOtpHash);
+//   // if (!valid) throw new Error("Invalid OTP");
+
+//   // mark phone verified if not already
+//   user.isPhoneVerified = true;
+//   user.phoneOtpHash = undefined;
+//   user.phoneOtpExpires = undefined;
+
+//   // create tokens
+//   const accessToken = utils.generateAccessToken(user);
+//   const refreshTokenRaw = utils.generateRefreshToken();
+//   const refreshTokenHash = utils.hashToken(refreshTokenRaw);
+//   user.refreshTokens.push({
+//     tokenHash: refreshTokenHash,
+//     expiresAt: Date.now() + REFRESH_TOKEN_TTL_MS
+//   });
+
+//   await user.save();
+
+//   return { user, accessToken, refreshToken: refreshTokenRaw };
+// }
+
+async function refreshAccessToken(userId, refreshTokenRaw) {
+  const user = await User.findById(userId);
+  if (!user) throw new Error("User not found");
+
+  // clean expired tokens
+  user.refreshTokens = user.refreshTokens.filter(rt => rt.expiresAt > Date.now());
+
+  const incomingHash = utils.hashToken(refreshTokenRaw);
+  const found = user.refreshTokens.find(rt => rt.tokenHash === incomingHash);
+  if (!found) throw new Error("Invalid refresh token");
+
+  // issue new access token (and optionally new refresh token)
+  const accessToken = utils.generateAccessToken(user);
+  return { accessToken };
+}
+
+async function logout(userId, refreshTokenRaw) {
+  const user = await User.findById(userId);
+  if (!user) return;
+  const incomingHash = utils.hashToken(refreshTokenRaw);
+  user.refreshTokens = user.refreshTokens.filter(rt => rt.tokenHash !== incomingHash);
+  await user.save();
+  return;
+}
+
+// async function socialAuthHandler(email, provider, providerId) {
+//   let user = await User.findOne({ email });
+
+//   // If first time social login → create new user
+//   if (!user) {
+//     user = await User.create({
+//       email,
+//       isEmailVerified: true,
+//       social: {
+//         provider,
+//         providerId
+//       }
+//     });
+//   }
+
+//   // create access & refresh tokens
+//   const accessToken = utils.generateAccessToken(user);
+//   const refreshTokenRaw = utils.generateRefreshToken();
+//   const refreshTokenHash = utils.hashToken(refreshTokenRaw);
+
+//   user.refreshTokens.push({
+//     tokenHash: refreshTokenHash,
+//     expiresAt: Date.now() + REFRESH_TOKEN_TTL_MS
+//   });
+
+//   await user.save();
+
+//   return {
+//     userId: user._id,
+//     accessToken,
+//     refreshToken: refreshTokenRaw,
+//     isProfileCompleted: user.isProfileCompleted
+//   };
+// }
+// const { OAuth2Client } = require("google-auth-library");
+// const googleClient = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
+// module.exports.googleLogin = async (idToken) => {
+//   const ticket = await googleClient.verifyIdToken({
+//     idToken,
+//     audience: process.env.GOOGLE_CLIENT_ID
+//   });
+
+//   const payload = ticket.getPayload();
+//   if (!payload.email) throw new Error("Google email not found");
+
+//   return socialAuthHandler(
+//     payload.email,
+//     "google",
+//     payload.sub
+//   );
+// };
+// const fetch = require("node-fetch");
+// module.exports.facebookLogin = async (accessToken) => {
+//   const response = await fetch(
+//     `https://graph.facebook.com/me?access_token=${accessToken}&fields=id,email`
+//   );
+
+//   const data = await response.json();
+//   if (!data.email) throw new Error("Facebook email not found");
+
+//   return socialAuthHandler(
+//     data.email,
+//     "facebook",
+//     data.id
+//   );
+// };
+// const jwt = require("jsonwebtoken");
+// module.exports.appleLogin = async (idToken) => {
+//   const decoded = jwt.decode(idToken);
+
+//   if (!decoded || !decoded.email) {
+//     throw new Error("Apple email not found");
+//   }
+
+//   return socialAuthHandler(
+//     decoded.email,
+//     "apple",
+//     decoded.sub
+//   );
+// };
+
+module.exports = {
+  sendPhoneOtp,
+  verifyPhoneOtp,
+  sendEmailOtp,
+  verifyEmailOtp,
+  loginSendOtp,
+  loginVerifyOtp,
+  refreshAccessToken,
+  logout,
+  // socialAuthHandler
 };
