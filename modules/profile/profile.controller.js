@@ -126,7 +126,6 @@ module.exports.updateInterests = async (req, res) => {
       { $set: { interests } },
       { new: true }
     );
-
     return res.json({ success: true, data: profile });
   } catch (err) {
     console.error("updateInterests error:", err);
@@ -213,7 +212,7 @@ module.exports.markProfileCompleted = async (req, res) => {
     if (!profile) return res.status(404).json({ success: false, message: "Profile not found" });
 
     // Example required set - adjust to your rules
-    const requiredOk = profile.dob && profile.gender && profile.photos && profile.photos.length > 0;
+    const requiredOk = profile.dob && profile.gender && profile.interests > 0 && profile.photos && profile.isKycVerified && profile.photos.length > 0 && profile.preferences > 0;
     if (!requiredOk) {
       return res.status(400).json({ success: false, message: "Profile not ready to be marked complete" });
     }
@@ -272,5 +271,138 @@ exports.getPublicProfile = async (req, res) => {
     
   } catch (err) {
     res.status(500).json({ success: false, message: "Server error" });
+  }
+};
+
+
+exports.deletePhoto = async (req, res) => {
+  try {
+    const userId = req.user._id;
+    const { order } = req.body;
+
+    const profile = await Profile.findOne({ userId });
+    if (!profile) {
+      return res.status(404).json({ success: false, message: "Profile not found" });
+    }
+
+    const updatedPhotos = profile.photos.filter(photo => photo.order !== order);
+
+    // If no photo removed
+    if (updatedPhotos.length === profile.photos.length) {
+      return res.status(404).json({ success: false, message: "Photo not found" });
+    }
+
+    profile.photos = updatedPhotos;
+    await profile.save();
+
+    return res.json({ success: true, message: "Photo deleted" });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ success: false, message: "Server error" });
+  }
+};
+
+exports.deleteAllInterests = async (req, res) => {
+  try {
+    const userId = req.user._id;
+
+    const profile = await Profile.findOne({ userId });
+    if (!profile) {
+      return res.status(404).json({ success: false, message: "Profile not found" });
+    }
+
+    profile.interests = [];
+    await profile.save();
+
+    res.json({
+      success: true,
+      message: "All interests deleted",
+      data: profile.interests
+    });
+  } catch (err) {
+    console.error("deleteAllInterests error", err);
+    res.status(500).json({ success: false, message: "Server error" });
+  }
+};
+
+exports.deleteOneInterest = async (req, res) => {
+  try {
+    const userId = req.user._id;
+    const { interest } = req.params;
+
+    const profile = await Profile.findOne({ userId });
+    if (!profile) {
+      return res.status(404).json({ success: false, message: "Profile not found" });
+    }
+
+    const exists = profile.interests.includes(interest);
+    if (!exists) {
+      return res.status(404).json({ success: false, message: "Interest not found" });
+    }
+
+    profile.interests = profile.interests.filter(i => i !== interest);
+    await profile.save();
+
+    res.json({
+      success: true,
+      message: "Interest removed",
+      data: profile.interests
+    });
+  } catch (err) {
+    console.error("deleteOneInterest error", err);
+    res.status(500).json({ success: false, message: "Server error" });
+  }
+};
+
+module.exports.addInterests = async (req, res) => {
+  try {
+    const userId = req.user._id;
+    const { interests } = req.body;
+
+    if (!Array.isArray(interests) || interests.length === 0) {
+      return res.status(400).json({ success: false, message: "interests must be a non-empty array" });
+    }
+
+    await ensureProfile(userId);
+
+    const profile = await Profile.findOne({ userId });
+
+    const updatedInterests = [...new Set([...profile.interests, ...interests])];
+
+    profile.interests = updatedInterests;
+    await profile.save();
+
+    return res.json({ success: true, data: profile.interests });
+
+  } catch (err) {
+    console.error("addInterests error:", err);
+    return res.status(500).json({ success: false, message: err.message });
+  }
+};
+
+
+module.exports.addPreferences = async (req, res) => {
+  try {
+    const userId = req.user._id;
+    const { genderPreference } = req.body;
+
+    if (!Array.isArray(genderPreference) || genderPreference.length === 0) {
+      return res.status(400).json({ success: false, message: "genderPreference must be a non-empty array" });
+    }
+
+    await ensureProfile(userId);
+
+    const profile = await Profile.findOne({ userId });
+    
+    const updatedGenderPreference = [...new Set([...profile.preferences.genderPreference, ...genderPreference])];
+
+    profile.preferences.genderPreference = updatedGenderPreference;
+    await profile.save();
+
+    return res.json({ success: true, data:  profile.preferences.genderPreference });
+
+  } catch (err) {
+    console.error("genderPreference error:", err);
+    return res.status(500).json({ success: false, message: err.message });
   }
 };

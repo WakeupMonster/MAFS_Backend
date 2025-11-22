@@ -151,7 +151,7 @@ const ProfileSchema = new mongoose.Schema({
   bio: { type: String, maxlength: 300 },
 
   dob: { type: Date },
-  gender: { type: String, enum: ["male", "female", "other"] },
+  gender: { type: String, enum: ["male", "female", "other","trans"] },
 
   // INTERESTS
   interests: [{ type: String }],
@@ -197,5 +197,6 @@ const ProfileSchema = new mongoose.Schema({
 
 // SPEED BOOST: compound index for swipe/search
 ProfileSchema.index({ isDiscoverable: 1, gender: 1 });
+
 
 module.exports = mongoose.model("Profile", ProfileSchema);

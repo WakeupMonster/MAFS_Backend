@@ -8,7 +8,7 @@ router.post("/register/phone", validation.validatePhone, controller.registerPhon
 router.post("/verify/phone", validation.validateOtp, controller.verifyPhone);
 
 // Email registration & verify
-router.post("/register/email",controller.registerEmail);
+router.post("/register/email",validation.validateEmail,controller.registerEmail);
 router.post("/verify/email", controller.verifyEmail); // expects { userId, otp } - validate as needed
 
 // Login by phone
