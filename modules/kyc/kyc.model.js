@@ -10,7 +10,7 @@ const KycSchema = new mongoose.Schema({
   },
 
   // Only selfie required for current flow (retake/update allowed)
-  selfieUrl: { type: String, required: true }
+  selfieUrl: { type: String, required: true },
 
 }, { timestamps: true });
 

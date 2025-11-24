@@ -21,7 +21,6 @@ module.exports.submitKyc = async (req, res) => {
   }
 };
 
-
 module.exports.getKyc = async (req, res) => {
   try {
     const { userId } = req.params;

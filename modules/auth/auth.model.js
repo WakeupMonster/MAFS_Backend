@@ -32,7 +32,7 @@ const userSchema = new mongoose.Schema({
 
 
   // profile completion flag (profile fields live in profile module)
-  isProfileCompleted: { type: Boolean, default: false }
+  isProfileCompleted: { type: Boolean, default: false },
 }, { timestamps: true });
 
 userSchema.index({ phone: 1 });
