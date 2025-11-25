@@ -1,32 +1,69 @@
 /* eslint-disable no-undef */
 const request = require("supertest");
 const app = require("../app");
+const User = require("../modules/auth/auth.model");
+const redis = require("../common/redis");
+const mongoose = require("mongoose");
 
-describe("Auth Register API", () => {
+// Test dataa
+const testPhone = "+916261113080";
+const testIp = "127.0.0.1";
 
-  it("should return 400 if username is missing", async () => {
-    const response = await request(app)
-      .post("/api/v1/auth/register")
-      .send({
-        email: "test1212@test.com",
-        password: "123456"
-      });
+// Clean up before and after tests
+beforeAll(async () => {
+  if (mongoose.connection.readyState === 0) {
+    await mongoose.connect(process.env.MONGODB_URI, {
+      useNewUrlParser: true,
+      useUnifiedTopology: true,
+    });
+  }
+  await User.deleteMany({});
+  await redis.flushdb();
+}, 30000);
 
-    expect(response.statusCode).toBe(400);
-    expect(response.body.success).toBe(false);
+afterAll(async () => {
+  if (mongoose.connection.readyState === 1) {
+    await User.deleteMany({});
+    await mongoose.connection.close();
+  }
+  await redis.quit();
+}, 30000);
+
+describe("Phone Registration", () => {
+  it("should register a new phone number and send OTP", async () => {
+    const res = await request(app)
+      .post("/api/v1/auth/register/phone")
+      .set("X-Forwarded-For", testIp)
+      .send({ phone: testPhone });
+
+    expect(res.status).toBe(200);
+    expect(res.body).toHaveProperty("success", true);
+    expect(res.body).toHaveProperty("userId");
   });
 
-  it("should return 201 if user is created", async () => {
-    const response = await request(app)
-      .post("/api/v1/auth/register")
-      .send({
-        name : "rajpatel",
-        email: "test122112@test.com",
-        password: "123456"
-      });
+  it("should return 400 for invalid phone number format", async () => {
+    const res = await request(app)
+      .post("/api/v1/auth/register/phone")
+      .set("X-Forwarded-For", testIp)
+      .send({ phone: "invalid" });
 
-    expect(response.statusCode).toBe(201);
-    expect(response.body.success).toBe(true);
+    expect(res.status).toBe(400);
+    expect(res.body).toHaveProperty("success", false);
   });
 
+  it("should return 429 for too many requests from same IP", async () => {
+    // First request should be successful
+    await request(app)
+      .post("/api/v1/auth/register/phone")
+      .set("X-Forwarded-For", "192.168.1.1")
+      .send({ phone: "+916261113080" });
+
+    // Second request from same IP should be rate limited
+    const res = await request(app)
+      .post("/api/v1/auth/register/phone")
+      .set("X-Forwarded-For", "192.168.1.1")
+      .send({ phone: "+916261113080" });
+
+    expect(res.status).toBe(429);
+  });
 });

@@ -184,6 +184,16 @@ const ProfileSchema = new mongoose.Schema({
     city: String,
     country: String
   },
+  onboardingProgress: {
+  phoneVerified: { type: Boolean, default: false },
+  emailVerified: { type: Boolean, default: false },
+  basicInfo: { type: Boolean, default: false },   // dob, gender
+  updateLocation: { type: Boolean, default: false },
+  interestsSelected: { type: Boolean, default: false },
+  photosUploaded: { type: Boolean, default: false },
+  kycVerified: { type: Boolean, default: false },
+  preferencesSet: { type: Boolean, default: false },
+},
 
   isProfileCompleted: { type: Boolean, default: false },
   isOnboardingCompleted: { type: Boolean, default: false },

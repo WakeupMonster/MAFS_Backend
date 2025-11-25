@@ -15,3 +15,6 @@ const KycSchema = new mongoose.Schema({
 }, { timestamps: true });
 
 module.exports = mongoose.model('Kyc', KycSchema);
+
+
+

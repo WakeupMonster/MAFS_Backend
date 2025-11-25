@@ -16,6 +16,7 @@ router.post("/photos", validation.photoUpload, controller.uploadPhoto);
 router.post("/complete", controller.markProfileCompleted);
 
 router.get("/me", controller.getMyProfile);
+router.get("/status", controller.getStatus); 
 router.get("/:userId", controller.getPublicProfile);
 
 router.delete("/photos", controller.deletePhoto);

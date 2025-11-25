@@ -31,6 +31,9 @@ const userSchema = new mongoose.Schema({
   refreshTokens: [refreshTokenSchema],
 
 
+  // add to your auth.model.js user schema
+// keep any existing isProfileCompleted on UserAuth (mirror to profile doc if you need)
+
   // profile completion flag (profile fields live in profile module)
   isProfileCompleted: { type: Boolean, default: false },
 }, { timestamps: true });

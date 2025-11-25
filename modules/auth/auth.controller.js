@@ -10,9 +10,7 @@ module.exports.registerPhone = async (req, res) => {
   try {
     const { phone } = req.body;
 
-
     const ip = req.ip || req.headers["x-forwarded-for"] || "unknown";
-
   
     const key = `rate:${ip}`;
     const isLimited = await rateLimit(key, 2, 60); // 5 requests per 60 sec

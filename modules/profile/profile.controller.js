@@ -34,6 +34,8 @@
 
 // src/modules/profile/profile.controller.js
 const Profile = require("./profile.model");
+const cache = require("../../config/cache");
+const { updateProfileProgress } = require("./profileProgress.util");
 
 /**
  * Helper: ensure a profile doc exists for this user (creates empty doc if missing)
@@ -51,6 +53,7 @@ async function ensureProfile(userId) {
 /**
  * Allowed fields for /basic (strict)
  */
+
 const BASIC_ALLOWED = ["fullName", "nickname", "bio", "dob", "gender"];
 
 module.exports.updateBasicInfo = async (req, res) => {
@@ -73,10 +76,18 @@ module.exports.updateBasicInfo = async (req, res) => {
     const profile = await Profile.findOneAndUpdate(
       { userId },
       { $set: update },
-      { new: true } // return updated doc
+      { new: true, lean : true } // return updated doc
     );
 
-    return res.json({ success: true, data: profile });
+     // Determine if basic step is complete
+    const basicOk = Boolean(profile.fullName && profile.dob && profile.gender);
+    await updateProfileProgress(userId, { basicInfo: basicOk });
+
+    // invalidate cache
+    await cache.del(`profile:status:${userId}`);
+    await cache.del(`profile:${userId}`);
+
+    return res.json({ success: true, data: profile, progress: profile.onboardingProgress });
   } catch (err) {
     console.error("updateBasicInfo error:", err);
     return res.status(500).json({ success: false, message: err.message });
@@ -100,8 +111,13 @@ module.exports.updateLocation = async (req, res) => {
     const profile = await Profile.findOneAndUpdate(
       { userId },
       { $set: { location } },
-      { new: true }
+      { new: true, lean: true }
     );
+    const locOk = Boolean(location.coordinates && location.coordinates.length === 2 && location.coordinates[0] !== 0 && location.coordinates[1] !== 0);
+    await updateProfileProgress(userId, { location: locOk });
+
+    await cache.del(`profile:status:${userId}`);
+    await cache.del(`profile:${userId}`);
 
     return res.json({ success: true, data: profile });
   } catch (err) {
@@ -124,9 +140,14 @@ module.exports.updateInterests = async (req, res) => {
     const profile = await Profile.findOneAndUpdate(
       { userId },
       { $set: { interests } },
-      { new: true }
+      { new: true, lean : true }
     );
+    const ok = Array.isArray(profile.interests) && profile.interests.length > 0;
+    await updateProfileProgress(userId, { interestsSelected: ok });
+    await cache.del(`profile:status:${userId}`);
+    await cache.del(`profile:${userId}`);
     return res.json({ success: true, data: profile });
+    // return res.json({ success: true, data: profile });
   } catch (err) {
     console.error("updateInterests error:", err);
     return res.status(500).json({ success: false, message: err.message });
@@ -162,10 +183,16 @@ module.exports.updatePreferences = async (req, res) => {
     const profile = await Profile.findOneAndUpdate(
       { userId },
       { $set: update },
-      { new: true }
+      { new: true, lean : true }
     );
 
+     const prefsOk = (profile.preferences && ((profile.preferences.genderPreference && profile.preferences.genderPreference.length > 0) || (profile.preferences.ageRange && profile.preferences.ageRange.min)));
+    await updateProfileProgress(userId, { preferencesSet: Boolean(prefsOk) });
+
+    await cache.del(`profile:status:${userId}`);
+    await cache.del(`profile:${userId}`);
     return res.json({ success: true, data: profile });
+
   } catch (err) {
     console.error("updatePreferences error:", err);
     return res.status(500).json({ success: false, message: err.message });
@@ -193,8 +220,13 @@ module.exports.uploadPhoto = async (req, res) => {
     const profile = await Profile.findOneAndUpdate(
       { userId },
       { $push: { photos: { url, isPrimary, order } } },
-      { new: true }
+      { new: true, upsert: true, lean: true }
     );
+     const photosOk = Array.isArray(profile.photos) && profile.photos.length > 0;
+    await updateProfileProgress(userId, { photosUploaded: photosOk });
+
+    await cache.del(`profile:status:${userId}`);
+    await cache.del(`profile:${userId}`);
 
     return res.json({ success: true, data: profile });
   } catch (err) {
@@ -203,38 +235,143 @@ module.exports.uploadPhoto = async (req, res) => {
   }
 };
 
+// module.exports.markProfileCompleted = async (req, res) => {
+//   try {
+//     const userId = req.user._id;
+
+//     const profile = await Profile.findOne({ userId });
+//     if (!profile) {
+//       return res.status(404).json({ success: false, message: "Profile not found" });
+//     }
+
+//     // --- STEP BASED LOGIC ---
+//     const step = profile.onboardingProgress;
+
+//     step.basicInfo = Boolean(profile.dob && profile.gender);
+//     step.interestsSelected = Array.isArray(profile.interests) && profile.interests.length > 0;
+//     step.photosUploaded = Array.isArray(profile.photos) && profile.photos.length > 0;
+//     step.kycVerified = profile.isKycVerified === true;
+//     step.preferencesSet = profile.preferences && Object.keys(profile.preferences).length > 0;
+
+//     // Update step tracking
+//     await profile.save();
+
+//     // --- FINAL COMPLETION CHECK ---
+//     const allStepsCompleted =
+//       step.basicInfo &&
+//       step.interestsSelected &&
+//       step.photosUploaded &&
+//       step.kycVerified &&
+//       step.preferencesSet;
+
+//     if (!allStepsCompleted) {
+//       return res.status(400).json({
+//         success: false,
+//         message: "Profile is not completely ready",
+//         progress: step
+//       });
+//     }
+
+//     // If all steps are done → mark complete
+//     profile.isProfileCompleted = true;
+//     profile.isOnboardingCompleted = true;
+//     profile.profileCompletedAt = new Date();
+
+//     await profile.save();
+
+//     return res.json({
+//       success: true,
+//       message: "Profile completed successfully",
+//       progress: step,
+//       data: profile
+//     });
+
+//   } catch (err) {
+//     console.error("markProfileCompleted error:", err);
+//     return res.status(500).json({ success: false, message: err.message });
+//   }
+// };
+
+
+
+
+
+// module.exports.markProfileCompleted = async (req, res) => {
+//   try {
+//     const userId = req.user._id;
+
+//     // Optionally validate required fields exist before marking complete
+//     const profile = await Profile.findOne({ userId });
+//     if (!profile) return res.status(404).json({ success: false, message: "Profile not found" });
+
+//     // Example required set - adjust to your rules
+//     const requiredOk = profile.dob && profile.gender && profile.interests > 0 && profile.photos && profile.isKycVerified && profile.photos.length > 0 && profile.preferences > 0;
+//     if (!requiredOk) {
+//       return res.status(400).json({ success: false, message: "Profile not ready to be marked complete" });
+//     }
+
+//     const updated = await Profile.findOneAndUpdate(
+//       { userId },
+//       {
+//         $set: {
+//           isProfileCompleted: true,
+//           isOnboardingCompleted: true,
+//           profileCompletedAt: new Date()
+//         }
+//       },
+//       { new: true }
+//     );
+
+//     return res.json({ success: true, data: updated });
+//   } catch (err) {
+//     console.error("markProfileCompleted error:", err);
+//     return res.status(500).json({ success: false, message: err.message });
+//   }
+// };
+
+
+
 module.exports.markProfileCompleted = async (req, res) => {
   try {
     const userId = req.user._id;
-
-    // Optionally validate required fields exist before marking complete
-    const profile = await Profile.findOne({ userId });
+    const profile = await Profile.findOne({ userId }).lean();
     if (!profile) return res.status(404).json({ success: false, message: "Profile not found" });
 
-    // Example required set - adjust to your rules
-    const requiredOk = profile.dob && profile.gender && profile.interests > 0 && profile.photos && profile.isKycVerified && profile.photos.length > 0 && profile.preferences > 0;
-    if (!requiredOk) {
-      return res.status(400).json({ success: false, message: "Profile not ready to be marked complete" });
-    }
-
-    const updated = await Profile.findOneAndUpdate(
-      { userId },
-      {
-        $set: {
-          isProfileCompleted: true,
-          isOnboardingCompleted: true,
-          profileCompletedAt: new Date()
-        }
-      },
-      { new: true }
+    const progress = profile.onboardingProgress || {};
+    const allComplete = Boolean(
+      progress.basicInfo &&
+      progress.location &&
+      progress.interestsSelected &&
+      progress.preferencesSet &&
+      progress.photosUploaded &&
+      progress.kycVerified
     );
 
-    return res.json({ success: true, data: updated });
+    if (!allComplete) {
+      return res.status(400).json({ success: false, message: "Profile not ready to be marked complete", progress });
+    }
+
+    const updated = await Profile.findOneAndUpdate({ userId }, {
+      $set: {
+        isProfileCompleted: true,
+        isOnboardingCompleted: true,
+        profileCompletedAt: new Date()
+      }
+    }, { new: true, lean: true });
+
+    // optional: update userAuth isProfileCompleted too (if you store there)
+    // await UserAuth.findByIdAndUpdate(userId, { isProfileCompleted: true });
+
+    await cache.del(`profile:status:${userId}`);
+    await cache.del(`profile:${userId}`);
+
+    return res.json({ success: true, message: "Profile completed", data: updated });
   } catch (err) {
     console.error("markProfileCompleted error:", err);
     return res.status(500).json({ success: false, message: err.message });
   }
 };
+
 
 
 exports.getMyProfile = async (req, res) => {
@@ -354,31 +491,57 @@ exports.deleteOneInterest = async (req, res) => {
   }
 };
 
+
 module.exports.addInterests = async (req, res) => {
   try {
     const userId = req.user._id;
     const { interests } = req.body;
-
     if (!Array.isArray(interests) || interests.length === 0) {
       return res.status(400).json({ success: false, message: "interests must be a non-empty array" });
     }
-
     await ensureProfile(userId);
-
-    const profile = await Profile.findOne({ userId });
-
-    const updatedInterests = [...new Set([...profile.interests, ...interests])];
-
-    profile.interests = updatedInterests;
-    await profile.save();
-
+    const profile = await Profile.findOneAndUpdate(
+      { userId },
+      { $addToSet: { interests: { $each: interests } } },
+      { new: true, upsert: true, lean: true }
+    );
+    const ok = Array.isArray(profile.interests) && profile.interests.length > 0;
+    await updateProfileProgress(userId, { interestsSelected: ok });
+    await cache.del(`profile:status:${userId}`);
+    await cache.del(`profile:${userId}`);
     return res.json({ success: true, data: profile.interests });
-
   } catch (err) {
     console.error("addInterests error:", err);
     return res.status(500).json({ success: false, message: err.message });
   }
 };
+
+
+// module.exports.addInterests = async (req, res) => {
+//   try {
+//     const userId = req.user._id;
+//     const { interests } = req.body;
+
+//     if (!Array.isArray(interests) || interests.length === 0) {
+//       return res.status(400).json({ success: false, message: "interests must be a non-empty array" });
+//     }
+
+//     await ensureProfile(userId);
+
+//     const profile = await Profile.findOne({ userId });
+
+//     const updatedInterests = [...new Set([...profile.interests, ...interests])];
+
+//     profile.interests = updatedInterests;
+//     await profile.save();
+
+//     return res.json({ success: true, data: profile.interests });
+
+//   } catch (err) {
+//     console.error("addInterests error:", err);
+//     return res.status(500).json({ success: false, message: err.message });
+//   }
+// };
 
 
 module.exports.addPreferences = async (req, res) => {
@@ -403,6 +566,38 @@ module.exports.addPreferences = async (req, res) => {
 
   } catch (err) {
     console.error("genderPreference error:", err);
+    return res.status(500).json({ success: false, message: err.message });
+  }
+};
+
+
+exports.getStatus = async (req, res) => {
+  try {
+    const userId = req.user._id.toString();
+    const cacheKey = `profile:status:${userId}`;
+
+    const cached = await cache.get(cacheKey);
+    if (cached) {
+      return res.json({ success: true, progress: JSON.parse(cached) });
+    }
+
+    const profile = await Profile.findOne({ userId }).lean();
+    if (!profile) {
+      // If no profile, return defaults
+      const defaultProgress = {
+        basicInfo: false, location: false, interestsSelected: false,
+        preferencesSet: false, photosUploaded: false, kycVerified: false,
+        completion: 0
+      };
+      await cache.set(cacheKey, defaultProgress, { EX: 30 });
+      return res.json({ success: true, progress: defaultProgress });
+    }
+
+    const progress = profile.onboardingProgress || { completion: 0 };
+    await cache.set(cacheKey, progress, { EX: 30 });
+    return res.json({ success: true, progress });
+  } catch (err) {
+    console.error("getStatus error", err);
     return res.status(500).json({ success: false, message: err.message });
   }
 };

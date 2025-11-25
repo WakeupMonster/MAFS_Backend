@@ -29,3 +29,11 @@ const MONGODB_URI = process.env.MONGODB_URI;
     process.exit(1);
   }
 })();
+
+
+// AI check (best AI tool for backend)
+// work on profile completed Step 
+// otp API for testing 
+// relationship goal 
+// Id verification (URL)
+// third parties required 
