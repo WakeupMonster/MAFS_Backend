@@ -2,9 +2,10 @@ const express = require("express");
 const router = express.Router();
 const controller = require("./auth.controller");
 const validation = require("./auth.validation");
+// const { checkPhoneVerified, checkEmailVerified } = require("./verification.middleware");
 
 // Phone registration & verify
-router.post("/register/phone", validation.validatePhone, controller.registerPhone);
+router.post("/register/phone",validation.validatePhone,controller.registerPhone);
 router.post("/verify/phone", validation.validateOtp, controller.verifyPhone);
 
 // Email registration & verify

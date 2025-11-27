@@ -36,6 +36,8 @@
 const Profile = require("./profile.model");
 const cache = require("../../config/cache");
 const { updateProfileProgress } = require("./profileProgress.util");
+const { upload: uploadMiddleware, handleMulterError } = require('../upload/upload.middleware');
+const { uploadStream, destroy } = require('../upload/cloudinary.service');
 
 /**
  * Helper: ensure a profile doc exists for this user (creates empty doc if missing)
@@ -77,7 +79,7 @@ module.exports.updateBasicInfo = async (req, res) => {
       { userId },
       { $set: update },
       { new: true, lean : true } // return updated doc
-    );
+    );  
 
      // Determine if basic step is complete
     const basicOk = Boolean(profile.fullName && profile.dob && profile.gender);
@@ -110,7 +112,7 @@ module.exports.updateLocation = async (req, res) => {
 
     const profile = await Profile.findOneAndUpdate(
       { userId },
-      { $set: { location } },
+      { $set: { location,"onboardingProgress.updateLocation": true } },
       { new: true, lean: true }
     );
     const locOk = Boolean(location.coordinates && location.coordinates.length === 2 && location.coordinates[0] !== 0 && location.coordinates[1] !== 0);
@@ -199,42 +201,183 @@ module.exports.updatePreferences = async (req, res) => {
   }
 };
 
-module.exports.uploadPhoto = async (req, res) => {
+// Update the uploadPhoto function
+module.exports.uploadPhoto = 
+  // uploadMiddleware.array('photos', 6), // Max 6 files
+  // handleMulterError,
+  async (req, res) => {
+    try {
+      const userId = req.user._id;
+      const files = req.files;
+      
+      if (!files || files.length === 0) {
+        return res.status(400).json({ 
+          success: false, 
+          message: 'No files uploaded' 
+        });
+      }
+
+      // Check total photos won't exceed 6
+      const profile = await Profile.findOne({ userId });
+      const currentPhotoCount = profile?.photos?.length || 0;
+      
+      if (currentPhotoCount + files.length > 6) {
+        return res.status(400).json({
+          success: false,
+          message: `Maximum 6 photos allowed. You already have ${currentPhotoCount} photos.`
+        });
+      }
+
+      // Process each file
+      const uploadPromises = files.map(async (file) => {
+        const result = await uploadStream(file.buffer, {
+          transformation: [
+            { width: 1000, height: 1000, crop: 'limit', quality: 'auto' }
+          ]
+        });
+
+        return {
+          url: result.secure_url,
+          publicId: result.public_id,
+          width: result.width,
+          height: result.height,
+          format: result.format,
+          bytes: result.bytes,
+          isPrimary: false,
+          order: (profile?.photos?.length || 0) + 1
+        };
+      });
+
+      const newPhotos = await Promise.all(uploadPromises);
+
+      // Update profile with new photos
+      const updatedProfile = await Profile.findOneAndUpdate(
+        { userId },
+        { $push: { photos: { $each: newPhotos } } },
+        { new: true, upsert: true }
+      );
+
+      // Update onboarding progress
+      const photosOk = updatedProfile.photos.length > 0;
+      await updateProfileProgress(userId, { photosUploaded: photosOk });
+
+      // Clear cache
+      await cache.del(`profile:status:${userId}`);
+      await cache.del(`profile:${userId}`);
+
+      return res.json({ 
+        success: true, 
+        data: updatedProfile,
+        message: 'Photos uploaded successfully'
+      });
+
+    } catch (err) {
+      console.error('Upload error:', err);
+      return res.status(500).json({ 
+        success: false, 
+        message: 'Error uploading photos',
+        error: process.env.NODE_ENV === 'development' ? err.message : undefined
+      });
+    }
+  };
+// Update deletePhoto function
+module.exports.deletePhoto = async (req, res) => {
   try {
     const userId = req.user._id;
-    const { url, isPrimary = false, order = 0 } = req.body;
+    const { publicId } = req.body;
 
-    if (!url) return res.status(400).json({ success: false, message: "url is required" });
-
-    await ensureProfile(userId);
-
-    // If isPrimary true, unset previous primary
-    if (isPrimary) {
-      await Profile.updateOne(
-        { userId },
-        { $set: { "photos.$[p].isPrimary": false } },
-        { arrayFilters: [{ "p.isPrimary": true }] }
-      ).catch(() => {}); // ignore if none
+    if (!publicId) {
+      return res.status(400).json({ 
+        success: false, 
+        message: 'publicId is required' 
+      });
     }
 
-    const profile = await Profile.findOneAndUpdate(
-      { userId },
-      { $push: { photos: { url, isPrimary, order } } },
-      { new: true, upsert: true, lean: true }
-    );
-     const photosOk = Array.isArray(profile.photos) && profile.photos.length > 0;
+    // Find the profile and photo
+    const profile = await Profile.findOne({ userId });
+    if (!profile) {
+      return res.status(404).json({ 
+        success: false, 
+        message: 'Profile not found' 
+      });
+    }
+
+    const photoIndex = profile.photos.findIndex(p => p.publicId === publicId);
+    if (photoIndex === -1) {
+      return res.status(404).json({ 
+        success: false, 
+        message: 'Photo not found' 
+      });
+    }
+
+    // Delete from Cloudinary
+    await destroy(publicId);
+
+    // Remove from profile
+    profile.photos.splice(photoIndex, 1);
+    await profile.save();
+
+    // Update onboarding progress if no photos left
+    const photosOk = profile.photos.length > 0;
     await updateProfileProgress(userId, { photosUploaded: photosOk });
 
+    // Clear cache
     await cache.del(`profile:status:${userId}`);
     await cache.del(`profile:${userId}`);
 
-    return res.json({ success: true, data: profile });
+    return res.json({ 
+      success: true, 
+      message: 'Photo deleted successfully' 
+    });
+
   } catch (err) {
-    console.error("uploadPhoto error:", err);
-    return res.status(500).json({ success: false, message: err.message });
+    console.error('Delete photo error:', err);
+    return res.status(500).json({ 
+      success: false, 
+      message: 'Error deleting photo',
+      error: process.env.NODE_ENV === 'development' ? err.message : undefined
+    });
   }
 };
 
+
+
+// module.exports.uploadPhoto = async (req, res) => {
+//   try {
+//     const userId = req.user._id;
+//     const { url, isPrimary = false, order = 0 } = req.body;
+
+//     if (!url) return res.status(400).json({ success: false, message: "url is required" });
+
+//     await ensureProfile(userId);
+
+//     // If isPrimary true, unset previous primary
+//     if (isPrimary) {
+//       await Profile.updateOne(
+//         { userId },
+//         { $set: { "photos.$[p].isPrimary": false } },
+//         { arrayFilters: [{ "p.isPrimary": true }] }
+//       ).catch(() => {}); // ignore if none
+//     }
+
+//     const profile = await Profile.findOneAndUpdate(
+//       { userId },
+//       { $push: { photos: { url, isPrimary, order } } },
+//       { new: true, upsert: true, lean: true }
+//     );
+//      const photosOk = Array.isArray(profile.photos) && profile.photos.length > 0;
+//     await updateProfileProgress(userId, { photosUploaded: photosOk });
+
+//     await cache.del(`profile:status:${userId}`);
+//     await cache.del(`profile:${userId}`);
+
+//     return res.json({ success: true, data: profile });
+//   } catch (err) {
+//     console.error("uploadPhoto error:", err);
+//     return res.status(500).json({ success: false, message: err.message });
+//   }
+// };
+// ``
 // module.exports.markProfileCompleted = async (req, res) => {
 //   try {
 //     const userId = req.user._id;
@@ -329,8 +472,6 @@ module.exports.uploadPhoto = async (req, res) => {
 //   }
 // };
 
-
-
 module.exports.markProfileCompleted = async (req, res) => {
   try {
     const userId = req.user._id;
@@ -340,11 +481,13 @@ module.exports.markProfileCompleted = async (req, res) => {
     const progress = profile.onboardingProgress || {};
     const allComplete = Boolean(
       progress.basicInfo &&
-      progress.location &&
+      progress.updateLocation &&
       progress.interestsSelected &&
       progress.preferencesSet &&
       progress.photosUploaded &&
-      progress.kycVerified
+      progress.kycVerified &&
+      progress.phoneVerified &&
+      progress.emailVerified 
     );
 
     if (!allComplete) {
@@ -371,8 +514,6 @@ module.exports.markProfileCompleted = async (req, res) => {
     return res.status(500).json({ success: false, message: err.message });
   }
 };
-
-
 
 exports.getMyProfile = async (req, res) => {
   try {

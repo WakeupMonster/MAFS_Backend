@@ -25,8 +25,6 @@ const userSchema = new mongoose.Schema({
 //   provider: { type: String }, 
 //   providerId: { type: String }
 // },
-
-
   // tokens for refresh (store hashes)
   refreshTokens: [refreshTokenSchema],
 
@@ -39,5 +37,9 @@ const userSchema = new mongoose.Schema({
 }, { timestamps: true });
 
 userSchema.index({ phone: 1 });
+refreshTokenSchema.index({ expiresAt: 1 });
+userSchema.index({ isPhoneVerified: 1 });
+userSchema.index({ isEmailVerified: 1 });
+
 
 module.exports = mongoose.model("User", userSchema);

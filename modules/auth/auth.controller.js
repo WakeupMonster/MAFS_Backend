@@ -4,12 +4,14 @@ const { smsQueue } = require("../../common/queues");
 const User = require("../auth/auth.model");
 const utils = require("../auth/auth.utils");
 const { rateLimit } = require("../../common/middlewares/rateLimit");
+const profileModel = require("../profile/profile.model");
 
 
 module.exports.registerPhone = async (req, res) => {
   try {
     const { phone } = req.body;
 
+    
     const ip = req.ip || req.headers["x-forwarded-for"] || "unknown";
   
     const key = `rate:${ip}`;
@@ -89,6 +91,20 @@ module.exports.verifyPhone = async (req, res) => {
       { $set: { isPhoneVerified: true } },
       { new: true }
     );
+     if (!user) {
+      return res.status(404).json({ success: false, message: "User not found" });
+    }
+
+    // Update onboarding progress in Profile
+    await profileModel.findOneAndUpdate(
+      { userId: user._id },
+      { 
+        $set: { 
+          "onboardingProgress.phoneVerified": true 
+        } 
+      },
+      { upsert: true }
+    );
 
     await redis.del(redisKey);
 
@@ -118,14 +134,20 @@ module.exports.verifyEmail = async (req, res) => {
   try {
     const { userId, otp } = req.body;
     const result = await authService.verifyEmailOtp(userId, otp);
+     await profileModel.findOneAndUpdate(
+      { userId: result.user._id },
+      { 
+        $set: { 
+          "onboardingProgress.emailVerified": true 
+        } 
+      },
+      { upsert: true }
+    );
     return res.json({ success: true, message: "Email verified", data: { userId: result.user._id, accessToken: result.accessToken, refreshToken: result.refreshToken } });
   } catch (err) {
     return res.status(400).json({ success: false, message: err.message });
   }
 };
-
-
-
 
 
 module.exports.loginSendOtp = async (req, res) => {

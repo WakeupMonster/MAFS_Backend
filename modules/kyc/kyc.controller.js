@@ -1,5 +1,6 @@
 // src/modules/kyc/kyc.controller.js
 
+const profileModel = require("../profile/profile.model");
 const kycService = require("./kyc.service");
 
 module.exports.submitKyc = async (req, res) => {
@@ -7,11 +8,31 @@ module.exports.submitKyc = async (req, res) => {
     const { userId, selfieUrl } = req.body;
 
     const kyc = await kycService.createOrUpdateKyc(userId, selfieUrl);
-
+const profile = await profileModel.findOneAndUpdate(
+  {
+    userId
+  },
+  {
+    $set : {
+      "onboardingProgress.kycVerified" : true,
+      "isKycVerified": true
+    }
+  },
+   { new: true, upsert: true }
+)
+ if (!profile) {
+      throw new Error("Failed to update profile with KYC status");
+    }
     return res.json({
       success: true,
       message: "KYC submitted successfully",
-      data: kyc
+      data: {
+        kyc,
+        profile: {
+          isKycVerified: true,
+          onboardingProgress: profile.onboardingProgress
+        }
+      }
     });
   } catch (err) {
     return res.status(400).json({

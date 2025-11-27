@@ -122,7 +122,6 @@
 
 // // Create geospatial index for proximity queries
 // ProfileSchema.index({ 'location': '2dsphere' });
-
 // module.exports = mongoose.model('Profile', ProfileSchema);
 
 
@@ -131,8 +130,13 @@ const mongoose = require("mongoose");
 
 const PhotoSchema = new mongoose.Schema({
   url: { type: String, required: true },
+  publicId: { type: String, required: true }, 
   isPrimary: { type: Boolean, default: false },
   order: { type: Number, default: 0 },
+  width: { type: Number },
+  height: { type: Number },
+  format: { type: String },
+  bytes: { type: Number },
   uploadedAt: { type: Date, default: Date.now }
 }, { _id: false });
 
@@ -207,6 +211,6 @@ const ProfileSchema = new mongoose.Schema({
 
 // SPEED BOOST: compound index for swipe/search
 ProfileSchema.index({ isDiscoverable: 1, gender: 1 });
-
+ProfileSchema.index({ "location.coordinates": "2dsphere" });
 
 module.exports = mongoose.model("Profile", ProfileSchema);

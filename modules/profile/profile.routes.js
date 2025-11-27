@@ -3,6 +3,7 @@ const router = express.Router();
 const controller = require("./profile.controller");
 const validation = require("./profile.validation");
 const auth = require("../../modules/auth/auth.middleware");
+const uploadMiddleware = require("../upload/upload.middleware");
 
 router.use(auth);  // protect all routes
 
@@ -12,7 +13,25 @@ router.post("/interests", validation.interests, controller.updateInterests);//Re
 router.post("/interests/add", controller.addInterests);  //Append New
 router.post("/preferences", validation.preferences, controller.updatePreferences);
 router.post("/preferences/gender/add", validation.preferences, controller.addPreferences);
-router.post("/photos", validation.photoUpload, controller.uploadPhoto);
+// router.post("/photos", validation.photoUpload, controller.uploadPhoto);
+// router.post(
+//   '/photos',
+//   uploadMiddleware.array('photos', 6),
+//   uploadMiddleware.handleMulterError,
+//   controller.uploadPhoto
+// );
+router.post(
+  '/photos',
+  (req, res, next) => {
+    uploadMiddleware.uploadPhotos(req, res, (err) => {
+      if (err) {
+        return uploadMiddleware.handleMulterError(err, req, res, next);
+      }
+      next();
+    });
+  },
+  controller.uploadPhoto
+);
 router.post("/complete", controller.markProfileCompleted);
 
 router.get("/me", controller.getMyProfile);
