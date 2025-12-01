@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>FCM Token Generator</title>
+  <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-messaging.js"></script>
+</head>
+<body>
+  <button onclick="getToken()">Get FCM Token</button>
+  <p id="token" style="word-wrap: break-word;"></p>
+
+  <script>
+      if ('serviceWorker' in navigator) {
+    window.addEventListener('load', () => {
+      navigator.serviceWorker.register('/firebase-messaging-sw.js')
+        .then(registration => {
+          console.log('ServiceWorker registration successful');
+        })
+        .catch(err => {
+          console.log('ServiceWorker registration failed: ', err);
+        });
+    });
+  }
+    // Replace with your Firebase config
+    const firebaseConfig = {
+    apiKey: "AIzaSyBe15GMZGXAmaI5NT9_rS4OZjAwSy0oJMo",
+    authDomain: "mafswm.firebaseapp.com",
+    projectId: "mafswm",
+    storageBucket: "mafswm.firebasestorage.app",
+    messagingSenderId: "417407456654",
+    appId: "1:417407456654:web:856d0e143939b9dbe800df",
+    measurementId: "G-R78NDKHSGW"
+  };
+
+    // Initialize Firebase
+    if (!firebase.apps.length) {
+      firebase.initializeApp(firebaseConfig);
+    }
+
+    async function getToken() {
+      try {
+        const messaging = firebase.messaging();
+        const token = await messaging.getToken({ 
+          vapidKey: 'YOUR_VAPID_KEY' // Get this from Firebase Console > Project Settings > Cloud Messaging
+        });
+        document.getElementById('token').textContent = token || 'No token received';
+      } catch (error) {
+        document.getElementById('token').textContent = 'Error: ' + error.message;
+      }
+    }
+  </script>
+</body>
+</html>

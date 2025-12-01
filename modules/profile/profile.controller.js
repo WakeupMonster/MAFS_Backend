@@ -131,30 +131,104 @@ module.exports.updateLocation = async (req, res) => {
 module.exports.updateInterests = async (req, res) => {
   try {
     const userId = req.user._id;
-    const { interests } = req.body;
+    const { add, remove, replace } = req.body;
 
-    if (!Array.isArray(interests) || interests.length === 0) {
-      return res.status(400).json({ success: false, message: "interests must be a non-empty array" });
+    // Profile ensure
+    await ensureProfile(userId);
+
+    // CASE 1 → Replace all interests
+    if (Array.isArray(replace)) {
+      const profile = await Profile.findOneAndUpdate(
+        { userId },
+        { $set: { interests: replace } },
+        { new: true, lean: true }
+      );
+      return res.json({ success: true, data: profile.interests });
+    }
+
+    // CASE 2 → Add new interests
+    if (Array.isArray(add) && add.length > 0) {
+      await Profile.updateOne(
+        { userId },
+        { $addToSet: { interests: { $each: add } } }  // atomic + no duplicates
+      );
+    }
+
+    // CASE 3 → Remove interests
+    if (Array.isArray(remove) && remove.length > 0) {
+      await Profile.updateOne(
+        { userId },
+        { $pull: { interests: { $in: remove } } } // remove many
+      );
+    }
+
+    // Return final result with 1 optimized read
+    const finalProfile = await Profile.findOne({ userId }).select("interests").lean();
+    return res.json({ success: true, data: finalProfile.interests });
+
+  } catch (err) {
+    console.error("updateInterests error:", err);
+    return res.status(500).json({ success: false, message: err.message });
+  }
+};
+
+
+// module.exports.updateInterests = async (req, res) => {
+//   try {
+//     const userId = req.user._id;
+//     const { interests } = req.body;
+
+//     if (!Array.isArray(interests) || interests.length === 0) {
+//       return res.status(400).json({ success: false, message: "interests must be a non-empty array" });
+//     }
+
+//     await ensureProfile(userId);
+
+//     const profile = await Profile.findOneAndUpdate(
+//       { userId },
+//       { $set: { interests } },
+//       { new: true, lean : true }
+//     );
+//     const ok = Array.isArray(profile.interests) && profile.interests.length > 0;
+//     await updateProfileProgress(userId, { interestsSelected: ok });
+//     await cache.del(`profile:status:${userId}`);
+//     await cache.del(`profile:${userId}`);
+//     return res.json({ success: true, data: profile });
+//     // return res.json({ success: true, data: profile });
+//   } catch (err) {
+//     console.error("updateInterests error:", err);
+//     return res.status(500).json({ success: false, message: err.message });
+//   }
+// };
+
+module.exports.updaterelationshipGoal = async (req, res) => {
+  try {
+    const userId = req.user._id;
+    const { relationgoal } = req.body;
+
+    if (!Array.isArray(relationgoal) || relationgoal.length === 0) {
+      return res.status(400).json({ success: false, message: "relationgoal must be a non-empty array" });
     }
 
     await ensureProfile(userId);
 
     const profile = await Profile.findOneAndUpdate(
       { userId },
-      { $set: { interests } },
+      { $set: { relationgoal } },
       { new: true, lean : true }
     );
-    const ok = Array.isArray(profile.interests) && profile.interests.length > 0;
-    await updateProfileProgress(userId, { interestsSelected: ok });
+    const ok = Array.isArray(profile.relationgoal) && profile.relationgoal.length > 0;
+    await updateProfileProgress(userId, { relationgoalSelected: ok });
     await cache.del(`profile:status:${userId}`);
     await cache.del(`profile:${userId}`);
     return res.json({ success: true, data: profile });
     // return res.json({ success: true, data: profile });
   } catch (err) {
-    console.error("updateInterests error:", err);
+    console.error("relationgoal error:", err);
     return res.status(500).json({ success: false, message: err.message });
   }
 };
+
 
 module.exports.updatePreferences = async (req, res) => {
   try {

@@ -8,15 +8,18 @@ const options = {
       title: "MAFS Dating App API",
       version: "1.0.0",
       description: "API documentation for the MAFS backend",
+      contact: {
+        name: "API Support",
+        email: "support@mafs.com"
+      }
     },
     servers: [
       {
-        url: "http://localhost:3001",
+        url: "/api/v1",  // Relative URL
         description: "Development server",
       },
     ],
     components: {
-      schemas: {},
       securitySchemes: {
         bearerAuth: {
           type: "http",
@@ -26,12 +29,21 @@ const options = {
       },
     },
   },
-
-//   apis: ["./src/modules/**/*.routes.js", "./src/docs/swagger.yaml"],
-  apis: ["./src/docs/swagger.yaml"],
-
+  apis: ["./docs/swagger.yaml"],
 };
 
 const swaggerSpec = swaggerJsdoc(options);
 
-module.exports = { swaggerUi, swaggerSpec };
+// Serve Swagger UI
+const swaggerUiOptions = {
+  explorer: true,
+  customSiteTitle: "MAFS API Documentation",
+  customCss: '.swagger-ui .topbar { display: none }',
+  customfavIcon: '/favicon.ico'
+};
+
+module.exports = {
+  swaggerUi,
+  swaggerSpec,
+  swaggerUiOptions
+};

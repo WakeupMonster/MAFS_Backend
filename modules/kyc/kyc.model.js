@@ -4,17 +4,33 @@ const mongoose = require('mongoose');
 const KycSchema = new mongoose.Schema({
   userId: {
     type: mongoose.Schema.Types.ObjectId,
-    ref: 'User',   // must match model name in auth.model.js
+    ref: 'User',
     required: true,
     index: true
   },
-
-  // Only selfie required for current flow (retake/update allowed)
-  selfieUrl: { type: String, required: true },
-
-}, { timestamps: true });
+  selfieUrl: { 
+    type: String, 
+    required: true 
+  },
+  IDVerificationUrl: { 
+    type: String, 
+    required: true 
+  },
+  verificationStatus: {
+    type: String,
+    enum: ['pending', 'approved', 'rejected'],
+    default: 'pending'
+  },
+  rejectionReason: {
+    type: String,
+    default: ''
+  },
+  verifiedAt: {
+    type: Date,
+    default: null
+  }
+}, { 
+  timestamps: true 
+});
 
 module.exports = mongoose.model('Kyc', KycSchema);
-
-
-

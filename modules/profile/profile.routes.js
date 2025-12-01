@@ -9,17 +9,11 @@ router.use(auth);  // protect all routes
 
 router.post("/basic", controller.updateBasicInfo);
 router.post("/location", validation.location, controller.updateLocation);
-router.post("/interests", validation.interests, controller.updateInterests);//Replace All
+router.post("/interests", controller.updateInterests);//Replace All
 router.post("/interests/add", controller.addInterests);  //Append New
+router.post("/relationship-goal", validation.relationshipGoal, controller.updaterelationshipGoal);
 router.post("/preferences", validation.preferences, controller.updatePreferences);
 router.post("/preferences/gender/add", validation.preferences, controller.addPreferences);
-// router.post("/photos", validation.photoUpload, controller.uploadPhoto);
-// router.post(
-//   '/photos',
-//   uploadMiddleware.array('photos', 6),
-//   uploadMiddleware.handleMulterError,
-//   controller.uploadPhoto
-// );
 router.post(
   '/photos',
   (req, res, next) => {

@@ -159,7 +159,7 @@ const ProfileSchema = new mongoose.Schema({
 
   // INTERESTS
   interests: [{ type: String }],
-
+  relationshipGoal : [{ type: String }],
   // PREFERENCES
   preferences: {
     ageRange: {

@@ -69,3 +69,12 @@ function validate(schema, req, res, next) {
   if (error) return res.status(400).json({ message: error.details[0].message });
   next();
 }
+
+// Add this after the interests validation in profile.validation.js
+exports.relationshipGoal = (req, res, next) => {
+  const schema = Joi.object({
+    relationshipGoal: Joi.array().items(Joi.string()).min(1).required()
+  });
+
+  validate(schema, req, res, next);
+};

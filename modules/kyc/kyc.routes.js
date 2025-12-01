@@ -1,13 +1,36 @@
-// src/modules/kyc/kyc.routes.js
+// // // src/modules/kyc/kyc.routes.js
 
-const express = require("express");
+// const express = require("express");
+// const router = express.Router();
+// const kycController = require("./kyc.controller");
+
+// // POST → Submit or Update KYC
+// router.post("/submit", kycController.submitKyc);
+
+// // GET → Fetch KYC
+// router.get("/:userId", kycController.getKyc);
+
+// module.exports = router;
+
+
+
+const express = require('express');
 const router = express.Router();
-const kycController = require("./kyc.controller");
+const kycController = require('./kyc.controller');
+const multer = require('multer');
+const upload = multer();
 
-// POST → Submit or Update KYC
-router.post("/submit", kycController.submitKyc);
+// Submit KYC with files
+router.post(
+  '/submit',
+  upload.fields([
+    { name: 'selfie', maxCount: 1 },
+    { name: 'idVerification', maxCount: 1 }
+  ]),
+  kycController.submitKyc
+);
 
-// GET → Fetch KYC
-router.get("/:userId", kycController.getKyc);
+// Get KYC
+router.get('/:userId', kycController.getKyc);
 
 module.exports = router;

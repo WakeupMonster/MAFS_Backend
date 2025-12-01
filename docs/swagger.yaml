@@ -3,17 +3,707 @@ info:
   title: MAFS Dating App API
   version: 1.0.0
   description: API documentation for the MAFS backend
+  contact:
+    name: API Support
+    email: support@mafs.com
 
 servers:
-  - url: http://localhost:3001/api/v1
+  - url: /api/v1
     description: Development Server
 
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  schemas:
+    # Common Schemas
+    Error:
+      type: object
+      properties:
+        status:
+          type: string
+          example: "error"
+        message:
+          type: string
+          example: "Error message description"
+
+    Success:
+      type: object
+      properties:
+        status:
+          type: string
+          example: "success"
+        message:
+          type: string
+          example: "Operation successful"
+
+    # Auth Schemas
+    User:
+      type: object
+      properties:
+        id:
+          type: string
+          example: "507f1f77bcf86cd799439011"
+        email:
+          type: string
+          example: "user@example.com"
+        phone:
+          type: string
+          example: "+1234567890"
+        isEmailVerified:
+          type: boolean
+          example: true
+        isPhoneVerified:
+          type: boolean
+          example: true
+
+    AuthResponse:
+      type: object
+      properties:
+        accessToken:
+          type: string
+          example: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+        refreshToken:
+          type: string
+          example: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+        user:
+          $ref: '#/components/schemas/User'
+
+    # Profile Schemas
+    Profile:
+      type: object
+      properties:
+        userId:
+          type: string
+          example: "507f1f77bcf86cd799439011"
+        nickname:
+          type: string
+          example: "John Doe"
+        dob:
+          type: string
+          format: date
+          example: "1990-01-01"
+        gender:
+          type: string
+          example: "Male"
+        bio:
+          type: string
+          example: "I love hiking and photography"
+        location:
+          type: object
+          properties:
+            type:
+              type: string
+              example: "Point"
+            coordinates:
+              type: array
+              items:
+                type: number
+              example: [77.5946, 12.9716]
+        interests:
+          type: array
+          items:
+            type: string
+          example: ["Hiking", "Photography"]
+        photos:
+          type: array
+          items:
+            type: string
+          example: ["https://example.com/photo1.jpg"]
+
+    # Swipe Schemas
+    UserProfile:
+      type: object
+      properties:
+        _id:
+          type: string
+          example: "507f1f77bcf86cd799439011"
+        name:
+          type: string
+          example: "Alex Johnson"
+        age:
+          type: number
+          example: 28
+        photos:
+          type: array
+          items:
+            type: string
+            example: "https://example.com/profile1.jpg"
+        bio:
+          type: string
+          example: "Adventure seeker and coffee enthusiast"
+        distance:
+          type: number
+          example: 5.2
+
+    SwipeAction:
+      type: object
+      properties:
+        targetId:
+          type: string
+          example: "507f1f77bcf86cd799439012"
+        action:
+          type: string
+          enum: [like, pass, superlike]
+          example: "like"
+
+    Match:
+      type: object
+      properties:
+        _id:
+          type: string
+          example: "507f1f77bcf86cd799439013"
+        users:
+          type: array
+          items:
+            type: string
+          example: ["507f1f77bcf86cd799439011", "507f1f77bcf86cd799439012"]
+        createdAt:
+          type: string
+          format: date-time
+          example: "2025-12-01T14:30:00Z"
+
+    FeedResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/UserProfile'
+
+    SwipeResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        message:
+          type: string
+          example: "Swipe recorded"
+        matchId:
+          type: string
+          example: "507f1f77bcf86cd799439013"
+          description: "Present only when there's a match"
+
+    MatchesResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/Match'
+
+  responses:
+    UnauthorizedError:
+      description: Unauthorized - Missing or invalid token
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    ServerError:
+      description: Internal server error
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+
 paths:
-  /health:
-    get:
-      summary: Health Check
-      tags:
-        - Health
+  # ========== AUTH ENDPOINTS ==========
+  /auth/register/phone:
+    post:
+      summary: Register with phone number
+      tags: [Authentication]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [phone, countryCode]
+              properties:
+                phone:
+                  type: string
+                  example: "9876543210"
+                countryCode:
+                  type: string
+                  example: "+91"
       responses:
-        "200":
-          description: API is running
+        '200':
+          description: OTP sent successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: "OTP sent successfully"
+                  tempToken:
+                    type: string
+                    example: "temp_token_for_verification"
+
+  /auth/verify/phone:
+    post:
+      summary: Verify phone OTP
+      tags: [Authentication]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [phone, otp]
+              properties:
+                phone:
+                  type: string
+                  example: "9876543210"
+                otp:
+                  type: string
+                  example: "123456"
+      responses:
+        '200':
+          description: Phone verified successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResponse'
+
+  /auth/register/email:
+    post:
+      summary: Register with email
+      tags: [Authentication]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, password]
+              properties:
+                email:
+                  type: string
+                  format: email
+                  example: "user@example.com"
+                password:
+                  type: string
+                  format: password
+                  example: "SecurePass123!"
+      responses:
+        '200':
+          description: Registration successful
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResponse'
+
+  /auth/login:
+    post:
+      summary: Login with phone number
+      tags: [Authentication]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [phone, countryCode]
+              properties:
+                phone:
+                  type: string
+                  example: "9876543210"
+                countryCode:
+                  type: string
+                  example: "+91"
+      responses:
+        '200':
+          description: OTP sent successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: "OTP sent successfully"
+                  tempToken:
+                    type: string
+                    example: "temp_token_for_verification"
+
+  /auth/login/verify:
+    post:
+      summary: Verify login OTP
+      tags: [Authentication]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [phone, otp]
+              properties:
+                phone:
+                  type: string
+                  example: "9876543210"
+                otp:
+                  type: string
+                  example: "123456"
+      responses:
+        '200':
+          description: Login successful
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResponse'
+
+  /auth/refresh:
+    post:
+      summary: Refresh access token
+      tags: [Authentication]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [refreshToken]
+              properties:
+                refreshToken:
+                  type: string
+                  example: "your_refresh_token_here"
+      responses:
+        '200':
+          description: Token refreshed successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  accessToken:
+                    type: string
+                    example: "new_access_token_here"
+                  refreshToken:
+                    type: string
+                    example: "new_refresh_token_here"
+
+  # ========== PROFILE ENDPOINTS ==========
+  /profile/me:
+    get:
+      summary: Get current user's profile
+      tags: [Profile]
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Profile retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Profile'
+
+  /profile/basic:
+    post:
+      summary: Update basic profile information
+      tags: [Profile]
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name:
+                  type: string
+                  example: "John Doe"
+                dob:
+                  type: string
+                  format: date
+                  example: "1990-01-01"
+                gender:
+                  type: string
+                  example: "Male"
+                bio:
+                  type: string
+                  example: "Love hiking and photography"
+      responses:
+        '200':
+          description: Profile updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Success'
+
+  /profile/location:
+    post:
+      summary: Update user's location
+      tags: [Profile]
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [latitude, longitude]
+              properties:
+                latitude:
+                  type: number
+                  format: float
+                  example: 12.9716
+                longitude:
+                  type: number
+                  format: float
+                  example: 77.5946
+      responses:
+        '200':
+          description: Location updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Success'
+
+  /profile/interests:
+    post:
+      summary: Replace all interests
+      tags: [Profile]
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [interests]
+              properties:
+                interests:
+                  type: array
+                  items:
+                    type: string
+                  example: ["Hiking", "Photography", "Cooking"]
+      responses:
+        '200':
+          description: Interests updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Success'
+
+    delete:
+      summary: Delete all interests
+      tags: [Profile]
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: All interests deleted successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Success'
+
+  /profile/interests/add:
+    post:
+      summary: Add new interests
+      tags: [Profile]
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [interests]
+              properties:
+                interests:
+                  type: array
+                  items:
+                    type: string
+                  example: ["Swimming"]
+      responses:
+        '200':
+          description: Interests added successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Success'
+
+  /profile/photos:
+    post:
+      summary: Upload profile photos
+      tags: [Profile]
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                photos:
+                  type: array
+                  items:
+                    type: string
+                    format: binary
+      responses:
+        '200':
+          description: Photos uploaded successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Success'
+                properties:
+                  photoUrls:
+                    type: array
+                    items:
+                      type: string
+                    example: ["https://example.com/photo1.jpg"]
+
+    delete:
+      summary: Delete a profile photo
+      tags: [Profile]
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [photoUrl]
+              properties:
+                photoUrl:
+                  type: string
+                  example: "https://example.com/photo1.jpg"
+      responses:
+        '200':
+          description: Photo deleted successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Success'
+
+  # ========== SWIPE ENDPOINTS ==========
+  /swipe/feed:
+    get:
+      summary: Get user feed for swiping
+      description: Returns a list of potential matches for the user to swipe on
+      tags: [Swipe]
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: query
+          name: limit
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 50
+            default: 20
+          description: Number of profiles to return
+        - in: query
+          name: cursor
+          schema:
+            type: string
+          description: Cursor for pagination
+      responses:
+        '200':
+          description: Successfully retrieved feed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FeedResponse'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '500':
+          $ref: '#/components/responses/ServerError'
+
+  /swipe/action:
+    post:
+      summary: Perform a swipe action
+      description: Like, pass, or superlike a profile
+      tags: [Swipe]
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SwipeAction'
+      responses:
+        '200':
+          description: Swipe action successful
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SwipeResponse'
+        '400':
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+
+  /swipe/undo:
+    post:
+      summary: Undo the last swipe
+      description: Reverts the most recent swipe action
+      tags: [Swipe]
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [targetId]
+              properties:
+                targetId:
+                  type: string
+                  example: "507f1f77bcf86cd799439012"
+      responses:
+        '200':
+          description: Swipe successfully undone
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Success'
+        '400':
+          $ref: '#/components/responses/BadRequestError'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+
+  /swipe/matches:
+    get:
+      summary: Get user's matches
+      description: Returns a list of users who have mutually liked each other
+      tags: [Swipe]
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Successfully retrieved matches
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MatchesResponse'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '500':
+          $ref: '#/components/responses/ServerError'

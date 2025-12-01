@@ -26,6 +26,19 @@ const userSchema = new mongoose.Schema({
 //   providerId: { type: String }
 // },
   // tokens for refresh (store hashes)
+
+   fcmTokens: [{
+    token: String,
+    deviceId: String,
+    createdAt: { type: Date, default: Date.now }
+  }],
+  notificationSettings: {
+    likes: { type: Boolean, default: true },
+    messages: { type: Boolean, default: true },
+    matches: { type: Boolean, default: true },
+    // Add more notification types as needed
+  },
+
   refreshTokens: [refreshTokenSchema],
 
 
