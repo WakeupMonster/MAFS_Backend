@@ -40,8 +40,6 @@
 
 // module.exports = router;
 
-
-
 const express = require("express");
 const router = express.Router();
 const controller = require("./profile.controller");
@@ -49,7 +47,7 @@ const auth = require("../auth/auth.middleware");
 const uploadMiddleware = require("../upload/upload.middleware");
 const validation = require("./profile.validation");
 // const ENUMS = require("../../config/enums");
-const { getAllEnums } = require("./profile.enums.controller");
+const { getAllEnums, getDetails } = require("./profile.enums.controller");
 
 router.use(auth);
 
@@ -110,13 +108,16 @@ router.get("/:userId", controller.getPublicProfile);
 // });
 
 
-
 router.get("/enums/all", getAllEnums);
+
 router.get("/enums/all", (req, res) => {
   res.json({
     success: true,
     data: validation.ENUMS
   });
 });
+
+// Get APIs for fetch this field data genderPreference, relationshipGoal, distance, interest, age(min,max)
+router.get("/getdetails", getDetails);
 
 module.exports = router;

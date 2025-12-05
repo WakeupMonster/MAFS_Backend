@@ -8,8 +8,6 @@
 
 // module.exports = app;
 
-
-
 const express = require("express");
 const app = express();
 
@@ -17,5 +15,9 @@ app.use(express.json());
 
 // Load versioned API routes
 app.use("/api/v1", require("./routes/v1"));
+
+app.get("/", (req, res) => {
+  res.json({ message: "Your app has started" });
+});
 
 module.exports = app;
