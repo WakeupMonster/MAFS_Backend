@@ -41,7 +41,6 @@
 //   }
 // };
 
-
 const jwt = require("jsonwebtoken");
 const User = require("../auth/auth.model");
 

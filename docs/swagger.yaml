@@ -203,6 +203,12 @@ components:
             $ref: '#/components/schemas/Match'
 
   responses:
+    BadRequestError:
+      description: Bad Request - Invalid input data
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
     UnauthorizedError:
       description: Unauthorized - Missing or invalid token
       content:
@@ -398,20 +404,30 @@ paths:
   /profile/me:
     get:
       summary: Get current user's profile
+      description: Retrieve the complete profile of the currently authenticated user
       tags: [Profile]
       security:
         - bearerAuth: []
       responses:
         '200':
-          description: Profile retrieved successfully
+          description: Successfully retrieved profile
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Profile'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '404':
+          description: Profile not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
 
-  /profile/basic:
-    post:
-      summary: Update basic profile information
+  /profile/update:
+    patch:
+      summary: Update profile information
+      description: Update one or more profile fields
       tags: [Profile]
       security:
         - bearerAuth: []
@@ -422,30 +438,76 @@ paths:
             schema:
               type: object
               properties:
-                name:
+                nickname:
                   type: string
+                  maxLength: 50
+                  example: "JohnDoe"
+                fullName:
+                  type: string
+                  maxLength: 100
                   example: "John Doe"
+                bio:
+                  type: string
+                  maxLength: 300
+                  example: "Love hiking and traveling!"
                 dob:
                   type: string
                   format: date
                   example: "1990-01-01"
                 gender:
                   type: string
-                  example: "Male"
-                bio:
-                  type: string
-                  example: "Love hiking and photography"
+                  enum: ["male", "female", "other"]
+                interests:
+                  type: array
+                  items:
+                    type: string
+                  example: ["hiking", "photography"]
+                relationshipGoal:
+                  type: array
+                  items:
+                    type: string
+                  example: ["long-term", "marriage"]
+                preferences:
+                  type: object
+                  properties:
+                    ageRange:
+                      type: object
+                      properties:
+                        min:
+                          type: integer
+                          minimum: 18
+                          example: 21
+                        max:
+                          type: integer
+                          maximum: 100
+                          example: 35
+                    distanceRange:
+                      type: integer
+                      minimum: 1
+                      maximum: 500
+                      example: 50
+                    genderPreference:
+                      type: array
+                      items:
+                        type: string
+                        enum: ["male", "female", "other"]
+                      example: ["female"]
       responses:
         '200':
           description: Profile updated successfully
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Success'
+                $ref: '#/components/schemas/Profile'
+        '400':
+          $ref: '#/components/responses/BadRequestError'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
 
   /profile/location:
     post:
-      summary: Update user's location
+      summary: Update user location
+      description: Update the user's current location
       tags: [Profile]
       security:
         - bearerAuth: []
@@ -455,94 +517,38 @@ paths:
           application/json:
             schema:
               type: object
-              required: [latitude, longitude]
+              required: [lat, lon]
               properties:
-                latitude:
+                lat:
                   type: number
                   format: float
-                  example: 12.9716
-                longitude:
+                  example: 40.7128
+                lon:
                   type: number
                   format: float
-                  example: 77.5946
+                  example: -74.0060
+                city:
+                  type: string
+                  example: "New York"
+                country:
+                  type: string
+                  example: "USA"
       responses:
         '200':
           description: Location updated successfully
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Success'
-
-  /profile/interests:
-    post:
-      summary: Replace all interests
-      tags: [Profile]
-      security:
-        - bearerAuth: []
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              required: [interests]
-              properties:
-                interests:
-                  type: array
-                  items:
-                    type: string
-                  example: ["Hiking", "Photography", "Cooking"]
-      responses:
-        '200':
-          description: Interests updated successfully
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Success'
-
-    delete:
-      summary: Delete all interests
-      tags: [Profile]
-      security:
-        - bearerAuth: []
-      responses:
-        '200':
-          description: All interests deleted successfully
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Success'
-
-  /profile/interests/add:
-    post:
-      summary: Add new interests
-      tags: [Profile]
-      security:
-        - bearerAuth: []
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              required: [interests]
-              properties:
-                interests:
-                  type: array
-                  items:
-                    type: string
-                  example: ["Swimming"]
-      responses:
-        '200':
-          description: Interests added successfully
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Success'
+                $ref: '#/components/schemas/Profile'
+        '400':
+          $ref: '#/components/responses/BadRequestError'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
 
   /profile/photos:
     post:
       summary: Upload profile photos
+      description: Upload one or more photos to the user's profile (max 6 total)
       tags: [Profile]
       security:
         - bearerAuth: []

@@ -12,7 +12,7 @@ const userSchema = new mongoose.Schema({
   email: { type: String, unique: true, sparse: true },
   isEmailVerified: { type: Boolean, default: false },
 
-  // OTP hashes (never store raw OTP)
+  // OTP hashes (never store raw OTP)0
   // phoneOtpHash: { type: String },
   phoneOtp: { type: String },
   phoneOtpExpires: { type: Date },
@@ -40,6 +40,8 @@ const userSchema = new mongoose.Schema({
   },
 
   refreshTokens: [refreshTokenSchema],
+
+  isNewUser: { type: Boolean, default: true, index: true },
 
 
   // add to your auth.model.js user schema

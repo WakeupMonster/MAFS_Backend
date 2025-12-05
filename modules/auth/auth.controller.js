@@ -1,120 +1,313 @@
 const authService = require("./auth.service");
-const redis = require("../../common/redis");
-const { smsQueue } = require("../../common/queues");
-const User = require("../auth/auth.model");
-const utils = require("../auth/auth.utils");
+// const redis = require("../../common/redis");
+// const { smsQueue } = require("../../common/queues");
+// const User = require("../auth/auth.model");
+// const utils = require("../auth/auth.utils");
 const { rateLimit } = require("../../common/middlewares/rateLimit");
 const profileModel = require("../profile/profile.model");
 
 
-module.exports.registerPhone = async (req, res) => {
+
+module.exports.sendOtp = async (req, res) => {
   try {
     const { phone } = req.body;
 
-    
-    const ip = req.ip || req.headers["x-forwarded-for"] || "unknown";
-  
-    const key = `rate:${ip}`;
-    const isLimited = await rateLimit(key, 2, 60); // 5 requests per 60 sec
+    const ip = req.ip;
+    if (!phone) return res.status(400).json({ success: false, message: "Phone is required" });
 
+    // RATE LIMIT (optional, same rehta hai)
+    const isLimited = await rateLimit(`otp:${ip}`, 3, 60);
     if (isLimited) {
-      return res.status(429).json({
-        success: false,
-        message: "Too many requests. Try again after 1 minute."
-      });
+      return res.status(429).json({ success: false, message: "Too many requests. Try again later." });
     }
 
+    // ✅ Unified OTP send (login + register dono ke liye same service)
+    await authService.sendPhoneOtp(phone);
 
-    // Rate limit OTP requests
-// const phoneLimit = await rateLimit(`otp:${phone}`, 5, 60 * 60); // 5 OTP per hour
+    return res.json({ success: true, message: "If the number is valid, OTP has been sent." });
 
-// if (!phoneLimit) {
-//   return res.status(429).json({
-//     success: false,
-//     message: "Too many OTP requests. Please wait 1 hour."
-//   });
-// }
+  } catch (err) {
+    return res.status(500).json({ success: false, message: err.message });
+  }
+};
+module.exports.verifyOtp = async (req, res) => {
+  try {
+    const { phone, otp} = req.body;
+    if (!phone || !otp) {
+      return res.status(400).json({ success: false, message: "Phone and OTP are required" });
+    }
 
-// // Also limit fast spam (30 sec)
-// const phoneFastLimit = await rateLimit(`otp_fast:${phone}`, 1, 30);
-
-// if (!phoneFastLimit) {
-//   return res.status(429).json({
-//     success: false,
-//     message: "Please wait 30 seconds before requesting a new OTP."
-//   });
-// }
-
-    
-
-    const user = await User.findOneAndUpdate(
-      { phone },
-      { $setOnInsert: { phone } },
-      { upsert: true, new: true, lean: true }
-    );
-
-    const otp = utils.generateOtp();
-    const redisKey = `otp:${phone}`;
-
-    await redis.set(redisKey, otp, "EX", 300); // expires in 5 min
-
-    await smsQueue.add("send-otp", { phone, otp });
-
-    return res.json({
+    const result = await authService.verifyPhoneOtpUnified(phone, otp);
+ return res.json({
       success: true,
-      message: "OTP will be sent shortly",
-      userId: user._id
+      message: result.isNewUser 
+        ? "Welcome! Phone verified successfully" 
+        : "Welcome back! Login successful",
+      data: {
+        userId: result.userId,
+        accessToken: result.accessToken,        // ✅ Token
+        refreshToken: result.refreshToken,      // ✅ Token
+        isNewUser: result.isNewUser,            // ✅ NEW!
+        isPhoneVerified: result.isPhoneVerified,
+        isEmailVerified: result.isEmailVerified,
+        nextStep: result.nextStep
+      }
     });
   } catch (err) {
-    return res.status(500).json({ success: false, message: err.message });
+    return res.status(400).json({
+      success: false,
+      message: err.message
+    });
   }
 };
 
 
-module.exports.verifyPhone = async (req, res) => {
-  try {
-    const { phone, otp } = req.body;
-
-    const redisKey = `otp:${phone}`;
-    const savedOtp = await redis.get(redisKey);
-
-    if (!savedOtp) {
-      return res.status(400).json({ success: false, message: "OTP expired" });
-    }
-
-    if (savedOtp !== otp) {
-      return res.status(400).json({ success: false, message: "Wrong OTP" });
-    }
-
-    const user = await User.findOneAndUpdate(
-      { phone },
-      { $set: { isPhoneVerified: true } },
-      { new: true }
-    );
-     if (!user) {
-      return res.status(404).json({ success: false, message: "User not found" });
-    }
-
-    // Update onboarding progress in Profile
-    await profileModel.findOneAndUpdate(
-      { userId: user._id },
-      { 
-        $set: { 
-          "onboardingProgress.phoneVerified": true 
-        } 
-      },
-      { upsert: true }
-    );
-
-    await redis.del(redisKey);
-
-    return res.json({ success: true, message: "Phone Verified", userId: user._id });
-  } catch (err) {
-    return res.status(500).json({ success: false, message: err.message });
-  }
-};
 
 
+// module.exports.sendOtp = async (req, res) => {
+//   try {
+//     const { phone,action } = req.body;
+    
+//     const ip = req.ip || req.headers["x-forwarded-for"] || "unknown";
+  
+//     const key = `rate:${ip}`;
+//     const isLimited = await rateLimit(key, 2, 60); 
+
+//     if (isLimited) {
+//       return res.status(429).json({
+//         success: false,
+//         message: "Too many requests. Try again after 1 minute."
+//       });
+//     }
+
+
+//     // Rate limit OTP requests
+// // const phoneLimit = await rateLimit(`otp:${phone}`, 5, 60 * 60); // 5 OTP per hour
+
+// // if (!phoneLimit) {
+// //   return res.status(429).json({
+// //     success: false,
+// //     message: "Too many OTP requests. Please wait 1 hour."
+// //   });
+// // }
+
+// // // Also limit fast spam (30 sec)
+// // const phoneFastLimit = await rateLimit(`otp_fast:${phone}`, 1, 30);
+
+// // if (!phoneFastLimit) {
+// //   return res.status(429).json({
+// //     success: false,
+// //     message: "Please wait 30 seconds before requesting a new OTP."
+// //   });
+// // }
+
+//     // const user = await User.findOneAndUpdate(
+//     //   { phone },
+//     //   { $setOnInsert: { phone } },
+//     //   { upsert: true, new: true, lean: true }
+//     // );
+
+//     const userExists = await User.findOne({ phone }).lean();
+
+//     // Validation logic
+//     if (action === "register" && userExists?.isPhoneVerified) {
+//       return res.status(400).json({
+//         success: false,
+//         message: "Phone already registered. Please login."
+//       });
+//     }
+
+//     if (action === "login" && !userExists) {
+//       return res.status(404).json({
+//         success: false,
+//         message: "User not found. Please register first."
+//       });
+//     }
+
+//     // Create user if registering
+//     // if (action === "register" && !userExists) {
+//     //   await User.create({ phone });
+//     // }
+
+//     // const otp = utils.generateOtp();
+//     // const redisKey = `otp:${phone}`;
+
+//     // await redis.set(redisKey, otp, "EX", 300); // expires in 5 min
+
+//     // await smsQueue.add("send-otp", { phone, otp });
+
+//       if (action === "register") {
+//       // Uses authService.sendPhoneOtp (stores in User model)
+//       await authService.sendPhoneOtp(phone);
+//     } else if (action === "login") {
+//       // Uses authService.loginSendOtp (stores in Redis)
+//       await authService.loginSendOtp(phone, ip);
+//     }
+
+//     return res.json({
+//       success: true,
+//       message: "OTP sent successfully"
+//     });
+//   } catch (err) {
+//     return res.status(500).json({ success: false, message: err.message });
+//   }
+// };
+
+
+// module.exports.verifyOtp = async (req, res) => {
+//   try {
+//     const { phone, otp, action } = req.body;
+
+//     const redisKey = `otp:${phone}`;
+//     const savedOtp = await redis.get(redisKey);
+
+//     if (!savedOtp) {
+//       return res.status(400).json({ success: false, message: "OTP expired" });
+//     }
+
+//     if (savedOtp !== otp) {
+//       return res.status(400).json({ success: false, message: "Invalid OTP" });
+//     }
+
+//      if (savedOtp !== otp) {
+//       return res.status(400).json({ success: false, message: "Invalid OTP" });
+//     }
+
+//     await redis.del(redisKey);
+
+//     const user = await User.findOne({ phone });
+
+//     if (!user) {
+//       return res.status(404).json({ success: false, message: "User not found" });
+//     }
+
+//     // Register flow
+//     if (action === "register") {
+//       await User.findOneAndUpdate(
+//         { phone },
+//         { $set: { isPhoneVerified: true } }
+//       );
+
+//       await profileModel.findOneAndUpdate(
+//         { userId: user._id },
+//         { $set: { "onboardingProgress.phoneVerified": true } },
+//         { upsert: true }
+//       );
+
+//       return res.json({
+//         success: true,
+//         message: "Phone verified successfully",
+//         userId: user._id
+//       });
+//     }
+
+//     // Login flow
+//     if (action === "login") {
+//       const result = await authService.loginVerifyOtp(phone, otp);
+
+//       return res.json({
+//         success: true,
+//         message: "Login successful",
+//         data: {
+//            userId: result.user._id,
+//           accessToken: result.accessToken,
+//           refreshToken: result.refreshToken
+//         }
+//       });
+//     }
+
+//     // const user = await User.findOneAndUpdate(
+//     //   { phone },
+//     //   { $set: { isPhoneVerified: true } },
+//     //   { new: true }
+//     // );
+//     //  if (!user) {
+//     //   return res.status(404).json({ success: false, message: "User not found" });
+//     // }
+
+//     // // Update onboarding progress in Profile
+//     // await profileModel.findOneAndUpdate(
+//     //   { userId: user._id },
+//     //   { 
+//     //     $set: { 
+//     //       "onboardingProgress.phoneVerified": true 
+//     //     } 
+//     //   },
+//     //   { upsert: true }
+//     // );
+
+//     // await redis.del(redisKey);
+
+//     // return res.json({ success: true, message: "Phone Verified", userId: user._id });
+//   } catch (err) {
+//     return res.status(500).json({ success: false, message: err.message });
+//   }
+// };
+
+
+// module.exports.verifyOtp = async (req, res) => {
+//   try {
+//     const { phone, otp, action } = req.body;
+
+//     // REGISTER FLOW
+//     if (action === "register") {
+//       // Uses authService.verifyPhoneOtp (checks User model)
+//       const user = await authService.verifyPhoneOtp(phone, otp);
+
+//       // Update profile onboarding progress
+//       await profileModel.findOneAndUpdate(
+//         { userId: user._id },
+//         { $set: { "onboardingProgress.phoneVerified": true } },
+//         { upsert: true }
+//       );
+
+//       return res.json({
+//         success: true,
+//         message: "Phone verified successfully",
+//         userId: user._id
+//       });
+//     }
+
+//     // LOGIN FLOW
+//     if (action === "login") {
+//       // Uses authService.loginVerifyOtp (checks Redis)
+//       const result = await authService.loginVerifyOtp(phone, otp);
+
+//       return res.json({
+//         success: true,
+//         message: "Login successful",
+//         data: {
+//           userId: result.user._id,
+//           accessToken: result.accessToken,
+//           refreshToken: result.refreshToken
+//         }
+//       });
+//     }
+
+//   } catch (err) {
+//     console.error('Verify OTP Error:', err);
+    
+//     // Handle specific error messages
+//     if (err.message.includes("expired") || err.message.includes("not found")) {
+//       return res.status(400).json({ 
+//         success: false, 
+//         message: "OTP expired or not found. Please request a new OTP."
+//       });
+//     }
+    
+//     if (err.message.includes("Invalid")) {
+//       return res.status(400).json({ 
+//         success: false, 
+//         message: "Invalid OTP. Please check and try again."
+//       });
+//     }
+
+//     return res.status(400).json({ 
+//       success: false, 
+//       message: err.message || "Verification failed"
+//     });
+//   }
+// };
 
 module.exports.registerEmail = async (req, res) => {
   try {
@@ -143,7 +336,8 @@ module.exports.verifyEmail = async (req, res) => {
       },
       { upsert: true }
     );
-    return res.json({ success: true, message: "Email verified", data: { userId: result.user._id, accessToken: result.accessToken, refreshToken: result.refreshToken } });
+    return res.json({ success: true, message: "Email verified", data: { userId: result.user._id, accessToken: result.accessToken, refreshToken: result.refreshToken, isEmailVerified: result.isEmailVerified,
+        nextStep: result.nextStep } });
   } catch (err) {
     return res.status(400).json({ success: false, message: err.message });
   }

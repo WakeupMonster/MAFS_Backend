@@ -1,9 +1,10 @@
 const { smsQueue } = require("../../common/queues");
 const redis = require("../../common/redis");
+const profileModel = require("../profile/profile.model");
 const User = require("./auth.model");
 const utils = require("./auth.utils");
 
-const PHONE_OTP_TTL_MS = Number(1000 * 60 * 5); // 5 min
+// const PHONE_OTP_TTL_MS = Number(1000 * 60 * 5); // 5 min
 const EMAIL_OTP_TTL_MS = Number(1000 * 60 * 10); // 10 min
 const REFRESH_TOKEN_TTL_MS = Number(7 * 24 * 60 * 60 * 1000); // 7 days
 
@@ -12,20 +13,118 @@ const RATE_LIMIT_MAX = 2; // max OTP requests allowed
 const RATE_LIMIT_WINDOW = 60; // per 60 seconds
 
 async function sendPhoneOtp(phone) {
-  // find or create user row (we create user when phone first used)
+  const normalizedPhone = phone.trim(); 
+  console.log("📲 Saving OTP for:", normalizedPhone);
+
+  let user = await User.findOne({ phone: normalizedPhone });
+  if (!user) user = await User.create({ phone: normalizedPhone });
+
+  const otp = utils.generateOtp();
+
+  const redisKey = `login:${normalizedPhone}`; // ✅ exact same key format
+  console.log("🔑 OTP saved in Redis Key:", redisKey);
+
+  await redis.set(redisKey, otp, "EX", 300);
+
+  await utils.sendSms(normalizedPhone, `Your MAFS OTP is ${otp}`);
+
+  // Save device + fcm if new login attempt
+  // user.devices.push({ deviceId, deviceType, fcmToken });
+  await user.save();
+
+  return { ok: true };
+}
+
+
+// async function sendPhoneOtp(phone) {
+//   // find or create user row (we create user when phone first used)
+//   let user = await User.findOne({ phone });
+//   if (!user) {
+//     user = await User.create({ phone });
+//   }
+//   const otp = utils.generateOtp();
+//   // const otpHash = await utils.hashOtp(otp);
+//   user.phoneOtp = otp;
+//   user.phoneOtpExpires = Date.now() + PHONE_OTP_TTL_MS;
+//   await user.save();
+//   // send SMS (Twilio)
+//   const message = `Your verification code is ${otp}`;
+//   await utils.sendSms(phone, message);
+//   return { ok: true };  
+// }
+
+async function verifyPhoneOtpUnified(phone, otp) {
+  const redisKey = `login:${phone}`;
+  const storedOtp = await redis.get(redisKey);
+
+  if (!storedOtp) throw new Error("OTP expired or not found");
+  if (storedOtp !== otp) throw new Error("Invalid OTP");
+
+  // ✅ Find user or create user automatically
   let user = await User.findOne({ phone });
+  const isNewUser = !user;
   if (!user) {
     user = await User.create({ phone });
   }
-  const otp = utils.generateOtp();
-  // const otpHash = await utils.hashOtp(otp);
-  user.phoneOtp = otp;
-  user.phoneOtpExpires = Date.now() + PHONE_OTP_TTL_MS;
+
+  user.isPhoneVerified = true; // phone verified in both case
+
+  // // ✅ Device save karo if provided
+  // if (deviceId) {
+  //   user.devices = user.devices || [];
+  //   user.devices.push({ deviceId, deviceType, fcmToken });
+  // }
+
+  // ✅ Tokens generate karo
+  const accessToken = utils.generateAccessToken(user);
+  const refreshTokenRaw = utils.generateRefreshToken();
+  const refreshHash = utils.hashToken(refreshTokenRaw);
+
+  user.refreshTokens.push({
+    tokenHash: refreshHash,
+    expiresAt: Date.now() + REFRESH_TOKEN_TTL_MS
+  });
+
   await user.save();
-  // send SMS (Twilio)
-  const message = `Your verification code is ${otp}`;
-  await utils.sendSms(phone, message);
-  return { ok: true };  
+  await profileModel.findOneAndUpdate(
+  { userId: user._id },
+  { 
+    $set: { 
+      "onboardingProgress.phoneVerified": true 
+    } 
+  },
+  { upsert: true }
+);
+
+  await redis.del(redisKey); // OTP delete after verify
+
+  return {
+
+    userId: user._id,
+    accessToken,
+    refreshToken: refreshTokenRaw,
+    isNewUser: isNewUser,
+    isPhoneVerified: true,
+    isEmailVerified: user.isEmailVerified,
+    nextStep: getNextStep(user),
+    hasCompletedProfile: user.isProfileCompleted
+  };
+}
+function getNextStep(user) {
+  if (!user.isEmailVerified) {
+    return {
+      screen: "email_verification",
+      message: "Verify your email"
+    };
+  }
+  
+  // Check profile completion via Profile model
+  // Return appropriate next step
+  
+  return {
+    screen: "profile_setup",
+    message: "Complete your profile"
+  };
 }
 
 async function verifyPhoneOtp(phone, otp) {
@@ -118,7 +217,7 @@ async function verifyEmailOtp(userId, otp) {
 
   await user.save();
 
-  return { user, accessToken, refreshToken: refreshTokenRaw };
+  return { user, accessToken, refreshToken: refreshTokenRaw ,nextStep: getNextStep(user)};
 }
 
 
@@ -196,6 +295,44 @@ async function loginVerifyOtp(phone, otp) {
 
 
 
+async function refreshAccessToken(userId, refreshTokenRaw) {
+  const user = await User.findById(userId);
+  if (!user) throw new Error("User not found");
+
+  // clean expired tokens
+  user.refreshTokens = user.refreshTokens.filter(rt => rt.expiresAt > Date.now());
+
+  const incomingHash = utils.hashToken(refreshTokenRaw);
+  const found = user.refreshTokens.find(rt => rt.tokenHash === incomingHash);
+  if (!found) throw new Error("Invalid refresh token");
+
+  // issue new access token (and optionally new refresh token)
+  const accessToken = utils.generateAccessToken(user);
+  return { accessToken };
+}
+
+async function logout(userId, refreshTokenRaw) {
+  const user = await User.findById(userId);
+  if (!user) return;
+  const incomingHash = utils.hashToken(refreshTokenRaw);
+  user.refreshTokens = user.refreshTokens.filter(rt => rt.tokenHash !== incomingHash);
+  await user.save();
+  return;
+}
+
+
+module.exports = {
+  sendPhoneOtp,
+  verifyPhoneOtpUnified,
+  verifyPhoneOtp,
+  sendEmailOtp,
+  verifyEmailOtp,
+  loginSendOtp,
+  loginVerifyOtp,
+  refreshAccessToken,
+  logout,
+  // socialAuthHandler
+};
 
 
 
@@ -322,30 +459,7 @@ async function loginVerifyOtp(phone, otp) {
 //   return { user, accessToken, refreshToken: refreshTokenRaw };
 // }
 
-async function refreshAccessToken(userId, refreshTokenRaw) {
-  const user = await User.findById(userId);
-  if (!user) throw new Error("User not found");
 
-  // clean expired tokens
-  user.refreshTokens = user.refreshTokens.filter(rt => rt.expiresAt > Date.now());
-
-  const incomingHash = utils.hashToken(refreshTokenRaw);
-  const found = user.refreshTokens.find(rt => rt.tokenHash === incomingHash);
-  if (!found) throw new Error("Invalid refresh token");
-
-  // issue new access token (and optionally new refresh token)
-  const accessToken = utils.generateAccessToken(user);
-  return { accessToken };
-}
-
-async function logout(userId, refreshTokenRaw) {
-  const user = await User.findById(userId);
-  if (!user) return;
-  const incomingHash = utils.hashToken(refreshTokenRaw);
-  user.refreshTokens = user.refreshTokens.filter(rt => rt.tokenHash !== incomingHash);
-  await user.save();
-  return;
-}
 
 // async function socialAuthHandler(email, provider, providerId) {
 //   let user = await User.findOne({ email });
@@ -428,14 +542,3 @@ async function logout(userId, refreshTokenRaw) {
 //   );
 // };
 
-module.exports = {
-  sendPhoneOtp,
-  verifyPhoneOtp,
-  sendEmailOtp,
-  verifyEmailOtp,
-  loginSendOtp,
-  loginVerifyOtp,
-  refreshAccessToken,
-  logout,
-  // socialAuthHandler
-};

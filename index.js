@@ -37,3 +37,29 @@ const MONGODB_URI = process.env.MONGODB_URI;
 // relationship goal 
 // Id verification (URL)
 // third parties required 
+
+
+
+
+
+// missing:
+// visibility
+// error handling -- structure rmeove array.
+// hasSelfie -- isSelfieVerified
+
+
+
+
+// Kyc
+
+// kyc has enums : [pending,approve,rejected]
+// kyc hasa object : selfie {
+//   url
+//   Status
+//   msg 
+// }
+
+// // block and deactivate
+
+
+// in photos user can change the order

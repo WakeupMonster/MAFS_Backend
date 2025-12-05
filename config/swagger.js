@@ -41,7 +41,7 @@ const swaggerUiOptions = {
   customCss: '.swagger-ui .topbar { display: none }',
   customfavIcon: '/favicon.ico'
 };
-
+  
 module.exports = {
   swaggerUi,
   swaggerSpec,

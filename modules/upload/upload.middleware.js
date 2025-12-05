@@ -163,8 +163,15 @@ const handleMulterError = (err, req, res, next) => {
   }
   next();
 };
+const uploadSingle = (field) => upload.single(field);
+const uploadFields = upload.fields([
+  { name: "front", maxCount: 1 },
+  { name: "back", maxCount: 1 }
+]);
 
 module.exports = {
   uploadPhotos,  // This is the pre-configured middleware
-  handleMulterError
+  handleMulterError,
+  uploadSingle,
+  uploadFields
 };

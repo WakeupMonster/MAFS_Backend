@@ -39,7 +39,7 @@ module.exports.generateRefreshToken = () => {
 
 module.exports.generateAccessToken = (user) => {
   const payload = { userId: user._id.toString(), role: user.role };
-  return jwt.sign(payload, process.env.JWT_SECRET, { expiresIn: process.env.ACCESS_TOKEN_TTL || "120m" });
+  return jwt.sign(payload, process.env.JWT_SECRET, { expiresIn: process.env.ACCESS_TOKEN_TTL || "1200m" });
 };
 
 module.exports.REFRESH_TOKEN_TTL = 30 * 24 * 60 * 60 * 1000; // 30 days
