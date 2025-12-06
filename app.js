@@ -11,6 +11,9 @@
 const express = require("express");
 const app = express();
 
+// Load cron jobs
+// require("./jobs/cron/fwbCron"); // <-- cron auto starts
+
 app.use(express.json());
 
 // Load versioned API routes

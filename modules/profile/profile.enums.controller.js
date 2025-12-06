@@ -29,7 +29,7 @@ module.exports.getAllEnums = async (req, res) => {
 
     // 2. Enums ko optimized + duplicate free format me map karo
     const format = (list = []) => [
-      ...new Set(list.map((e) => `${e.label}${e.emoji}`)),
+      ...new Set(list.map((e) => `${e.label} ${e.emoji}`)),
     ];
 
     const data = {
@@ -52,6 +52,99 @@ module.exports.getAllEnums = async (req, res) => {
   }
 };
 
+// module.exports.getAllEnums = async (req, res) => {
+//   try {
+//     const version = req.query.v || "1";
+//     const search = (req.query.search || "").toLowerCase();
+//     const cacheKey = `profile_enums_v_${version}_search_${search}`;
+
+//     // 1. Try Redis cache
+//     const cached = await client.get(cacheKey);
+//     if (cached) {
+//       return sendSuccess(res, JSON.parse(cached), "cache");
+//     }
+
+//     // --- SEARCH FUNCTION ---
+//     const filterList = (list = []) => {
+//       if (!search) return list; // no search → return full list
+//       return list.filter((item) => item.value.toLowerCase().includes(search));
+//     };
+
+//     // Final structured response
+//     const data = {
+//       gender: filterList(ENUMS.gender),
+//       genderPreference: filterList(ENUMS.genderPreference),
+//       religion: filterList(ENUMS.religion),
+//       relationshipGoals: filterList(ENUMS.relationshipGoals),
+//       interests: filterList(ENUMS.interests),
+//     };
+
+//     // Save to Redis cache for 24 hours
+//     await client.set(cacheKey, JSON.stringify(data), { EX: 86400 });
+
+//     return sendSuccess(res, data, "api");
+//   } catch (err) {
+//     console.error("enum load crash →", err);
+//     return sendError(res, 500, "ENUM_SERVER_ERROR", "failed loading enums");
+//   }
+// };
+
+// module.exports.getAllEnums = async (req, res) => {
+//   try {
+//     const version = req.query.v || "1";
+
+//     // Extract category-wise search filters
+//     const q = {
+//       gender: (req.query.gen || "").toLowerCase(),
+//       genderPreference: (req.query.genPref || "").toLowerCase(),
+//       religion: (req.query.rel || "").toLowerCase(),
+//       relationshipGoals: (req.query.goal || "").toLowerCase(),
+//       interests: (req.query.int || "").toLowerCase(),
+//     };
+
+//     const cacheKey = `profile_enums_v_${version}_${JSON.stringify(q)}`;
+
+//     console.log("cacheKey: ", cacheKey);
+
+//     if (cached.genderPreference)
+//       cached.genderPreference = filterList(
+//         ENUMS.genderPreference,
+//         q.genderPreference
+//       );
+
+//     // Try Redis
+//     const cached = await client.get(cacheKey);
+//     if (cached) {
+//       return sendSuccess(res, JSON.parse(cached), "cache");
+//     }
+
+//     // Filter function
+//     const filterList = (list = [], search = "") => {
+//       if (!search) return list;
+//       return list.filter((item) => item.value.toLowerCase().includes(search));
+//     };
+
+//     const data = {
+//       gender: filterList(ENUMS.gender, q.gender),
+//       genderPreference: filterList(ENUMS.genderPreference, q.genderPreference),
+//       religion: filterList(ENUMS.religion, q.religion),
+//       relationshipGoals: filterList(
+//         ENUMS.relationshipGoals,
+//         q.relationshipGoals
+//       ),
+//       interests: filterList(ENUMS.interests, q.interests),
+//     };
+
+//     // Cache for 24 hours
+//     await client.set(cacheKey, JSON.stringify(data), { EX: 86400 });
+
+//     return sendSuccess(res, data, "api");
+//   } catch (err) {
+//     console.error("enum load crash →", err);
+//     return sendError(res, 500, "ENUM_SERVER_ERROR", "failed loading enums");
+//   }
+// };
+
 /*==================================================
 2. GET Details for Enums data and GET details based search query intQry , lanQry
 ===================================================*/
@@ -62,7 +155,7 @@ exports.getDetails = async (req, res) => {
     // Case 1️⃣ Searching interests only
     if (intQry && intQry.trim() !== "") {
       const interest = await Interest.find({
-        label: { $regex: intQry, $options: "i" },
+        value: { $regex: intQry, $options: "i" },
       });
 
       return res.json({
@@ -75,7 +168,7 @@ exports.getDetails = async (req, res) => {
     // Case 2️⃣ Searching languages only
     if (lanQry && lanQry.trim() !== "") {
       const language = await Language.find({
-        label: { $regex: lanQry, $options: "i" },
+        value: { $regex: lanQry, $options: "i" },
       });
 
       return res.json({
@@ -86,14 +179,21 @@ exports.getDetails = async (req, res) => {
     }
 
     // Case 3️⃣ No search → return all three
-    const interest = (await Interest.find({})) || [];
-    const language = (await Language.find({})) || [];
-    let religion = (await Religion.find({})) || [];
+    // const interest = (await Interest.find({})) || [];
+    // const language = (await Language.find({})) || [];
+    // let religion = (await Religion.find({})) || [];
+
+    // Case 3️⃣ No search → Fetch all (parallel)
+    let [interest = [], language = [], religion = []] = await Promise.all([
+      Interest.find({}).lean(),
+      Language.find({}).lean(),
+      Religion.find({}).lean(),
+    ]);
 
     // Auto insert "Other" if religion empty
     if (!religion.length) {
-      await Religion.create({ label: "Other" });
-      religion = await Religion.find({});
+      await Religion.create({ label: "Other", value: "other" });
+      religion = await Religion.find({}).sort(-1);
     }
 
     return res.json({
@@ -110,134 +210,200 @@ exports.getDetails = async (req, res) => {
 /*==================================================
 3. ADD or UPDATE Details for Interests Enums data 
 ===================================================*/
-// exports.addOrUpdateInterest = async (req, res) => {
-//   try {
-//     const { id, label } = req.body;
+exports.addOrUpdateInterest = async (req, res) => {
+  try {
+    const { id, label, value } = req.body;
 
-//     // If id exists → update interest
-//     if (id) {
-//       const updatedInterest = await Interest.findByIdAndUpdate( id, { label }, { new: true, runValidators: true });
+    // If id exists → update interest
+    if (id) {
+      const updatedInterest = await Interest.findByIdAndUpdate(
+        id,
+        { label, value },
+        { new: true, runValidators: true }
+      );
 
-//       if (!updatedInterest) {
-//         return res.status(404).json({ success: false, message: "Interest not found with this ID" });
-//       }
+      if (!updatedInterest) {
+        return res
+          .status(404)
+          .json({ success: false, message: "Interest not found with this ID" });
+      }
 
-//       return res.status(200).json({ success: true, message: "Interest updated successfully", data: updatedInterest });
-//     }
+      return res.status(200).json({
+        success: true,
+        message: "Interest updated successfully",
+        data: updatedInterest,
+      });
+    }
 
-//     // If id not exists → create new
-//     if (!label) {
-//       return res.status(400).json({ success: false, message: "Label field is required" });
-//     }
+    // If id not exists → create new
+    if (!label || !value) {
+      return res
+        .status(400)
+        .json({ success: false, message: "Label and value field is required" });
+    }
 
-//     // Check duplicate label
-//     const exists = await Interest.findOne({ label });
-//     if (exists) {
-//       return res.status(409).json({ success: false, message: "Label already exists" });
-//     }
+    // Check duplicate label
+    const exists = await Interest.findOne({
+      $or: [{ label }, { value }],
+    });
 
-//     const newInterest = await Interest.create({ label });
+    if (exists) {
+      return res
+        .status(409)
+        .json({ success: false, message: "Label or value already exists" });
+    }
 
-//     // message: `${label} interest added successfully`
-//     return res.status(201).json({ success: true, message: "Interest added successfully", data: newInterest });
-//   } catch (err) {
-//     console.error(err);
+    const newInterest = await Interest.create({ label, value });
 
-//     // Handle MongoDB unique constraint error
-//     if (err.code === 11000) {
-//       return res.status(409).json({ success: false, message: "Duplicate label not allowed" });
-//     }
+    // message: `${label} interest added successfully`
+    return res.status(201).json({
+      success: true,
+      message: "Interest added successfully",
+      data: newInterest,
+    });
+  } catch (err) {
+    console.error(err);
 
-//     res.status(500).json({ success: false, message: "Server error" });
-//   }
-// };
+    // Handle MongoDB unique constraint error
+    if (err.code === 11000) {
+      return res
+        .status(409)
+        .json({ success: false, message: "Duplicate label not allowed" });
+    }
+
+    res.status(500).json({ success: false, message: "Server error" });
+  }
+};
 
 /*==================================================
 4. ADD or UPDATE Details for Language Enums data 
 ===================================================*/
-// exports.addOrUpdateLanguage = async (req, res) => {
-//   try {
-//     const { id, label } = req.body;
+exports.addOrUpdateLanguage = async (req, res) => {
+  try {
+    const { id, label, value } = req.body;
 
-//     // If id exists → update language
-//     if (id) {
-//       const updatedLanguage = await Language.findByIdAndUpdate( id, { label }, { new: true, runValidators: true });
+    // If id exists → update language
+    if (id) {
+      const updatedLanguage = await Language.findByIdAndUpdate(
+        id,
+        { label, value },
+        { new: true, runValidators: true }
+      );
 
-//       if (!updatedLanguage) {
-//         return res.status(404).json({ success: false, message: "Language not found with this ID" });
-//       }
+      if (!updatedLanguage) {
+        return res
+          .status(404)
+          .json({ success: false, message: "Language not found with this ID" });
+      }
 
-//       return res.status(200).json({ success: true, message: "Language updated successfully", data: updatedLanguage });
-//     }
+      return res.status(200).json({
+        success: true,
+        message: "Language updated successfully",
+        data: updatedLanguage,
+      });
+    }
 
-//     // If id not exists → create new
-//     if (!label) {
-//       return res.status(400).json({ success: false, message: "Label field is required" });
-//     }
+    // If id not exists → create new
+    if (!label || !value) {
+      return res
+        .status(400)
+        .json({ success: false, message: "Label and value field is required" });
+    }
 
-//     // Check duplicate label
-//     const exists = await Language.findOne({ label });
-//     if (exists) {
-//       return res.status(409).json({ success: false, message: "Label already exists" });
-//     }
+    // Check duplicate label
+    const exists = await Language.findOne({ $or: [{ label }, { value }] });
+    if (exists) {
+      return res
+        .status(409)
+        .json({ success: false, message: "Label or value already exists" });
+    }
 
-//     const newLanguage = await Language.create({ label });
+    const newLanguage = await Language.create({ label, value });
 
-//     // message: `${label} language added successfully`
-//     return res.status(201).json({ success: true, message: "Language added successfully", data: newLanguage });
-//   } catch (err) {
-//     console.error(err);
+    // message: `${label} language added successfully`
+    return res.status(201).json({
+      success: true,
+      message: "Language added successfully",
+      data: newLanguage,
+    });
+  } catch (err) {
+    console.error(err);
 
-//     // Handle MongoDB unique constraint error
-//     if (err.code === 11000) {
-//       return res.status(409).json({ success: false, message: "Duplicate label not allowed" });
-//     }
+    // Handle MongoDB unique constraint error
+    if (err.code === 11000) {
+      return res
+        .status(409)
+        .json({ success: false, message: "Duplicate label not allowed" });
+    }
 
-//     res.status(500).json({ success: false, message: "Server error" });
-//   }
-// };
+    res.status(500).json({ success: false, message: "Server error" });
+  }
+};
 
 /*==================================================
 5. ADD or UPDATE Details for Religion Enums data 
 ===================================================*/
-// exports.addOrUpdateReligion = async (req, res) => {
-//   try {
-//     const { id, label } = req.body;
+exports.addOrUpdateReligion = async (req, res) => {
+  try {
+    const { id, label, value } = req.body;
 
-//     // If id exists → update religion
-//     if (id) {
-//       const updatedReligion = await Religion.findByIdAndUpdate( id, { label }, { new: true, runValidators: true });
+    // If id exists → update religion
+    if (id) {
+      const updatedReligion = await Religion.findByIdAndUpdate(
+        id,
+        { label, value },
+        { new: true, runValidators: true }
+      );
 
-//       if (!updatedReligion) {
-//         return res.status(404).json({ success: false, message: "Religion not found with this ID" });
-//       }
+      if (!updatedReligion) {
+        return res
+          .status(404)
+          .json({ success: false, message: "Religion not found with this ID" });
+      }
 
-//       return res.status(200).json({ success: true, message: "Religion updated successfully", data: updatedReligion });
-//     }
+      return res.status(200).json({
+        success: true,
+        message: "Religion updated successfully",
+        data: updatedReligion,
+      });
+    }
 
-//     // If id not exists → create new
-//     if (!label) {
-//       return res.status(400).json({ success: false, message: "Label field is required" });
-//     }
+    // If id not exists → create new
+    if (!label || !value) {
+      return res
+        .status(400)
+        .json({ success: false, message: "Label and value field is required" });
+    }
 
-//     // Check duplicate label
-//     const exists = await Religion.findOne({ label });
-//     if (exists) {
-//       return res.status(409).json({ success: false, message: "Label already exists" });
-//     }
+    // Check duplicate label
+    const exists = await Religion.findOne({
+      $or: [{ label }, { value }],
+    });
 
-//     const newReligion = await Religion.create({ label });
+    if (exists) {
+      return res
+        .status(409)
+        .json({ success: false, message: "Label or value already exists" });
+    }
 
-//     // message: `${label} religion added successfully`
-//     return res.status(201).json({ success: true, message: "Religion added successfully", data: newReligion });
-//   } catch (err) {
-//     console.error(err);
+    const newReligion = await Religion.create({ label, value });
 
-//     // Handle MongoDB unique constraint error
-//     if (err.code === 11000) {
-//       return res.status(409).json({ success: false, message: "Duplicate label not allowed" });
-//     }
+    // message: `${label} religion added successfully`
+    return res.status(201).json({
+      success: true,
+      message: "Religion added successfully",
+      data: newReligion,
+    });
+  } catch (err) {
+    console.error(err);
 
-//     res.status(500).json({ success: false, message: "Server error" });
-//   }
-// };
+    // Handle MongoDB unique constraint error
+    if (err.code === 11000) {
+      return res
+        .status(409)
+        .json({ success: false, message: "Duplicate label not allowed" });
+    }
+
+    res.status(500).json({ success: false, message: "Server error" });
+  }
+};
