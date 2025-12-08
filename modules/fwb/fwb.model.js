@@ -7,8 +7,8 @@ const FwbSchema = new mongoose.Schema(
     website: { type: String, required: true },
     code: { type: String, required: true },
 
-    com_logo: { type: String },
-    prod_img: { type: String },
+    com_logo: { url: String, publicId: String, uploadedAt: Date },
+    prod_img: { url: String, publicId: String, uploadedAt: Date },
 
     expire_time: { type: Date, required: true },
 

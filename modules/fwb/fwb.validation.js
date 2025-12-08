@@ -10,13 +10,15 @@ const fwbValidation = Joi.object({
   expire_time: Joi.date().greater("now").required(),
   off_details: Joi.object({
     description: Joi.array().items(Joi.string().min(3)).min(1).required(),
-    note: Joi.string().allow("", null),
+    note: Joi.string().required(),
   }).required(),
-  about_des: Joi.string().allow("", null),
+  about_des: Joi.string().required(),
   is_active: Joi.boolean().optional(),
   // myapp.com/fwb/wrangler [not use this] -> myapp.com/fwb/67236b163f8e9dd9230c7a32
-  slug: Joi.string().allow("", null), // optional because auto-set in schema
+  slug: Joi.string().required(), // optional because auto-set in schema
 });
+
+// note: Joi.string().allow("", null),
 
 const fwbUpdateValidation = Joi.object({
   id: Joi.string().optional(), // for update only
