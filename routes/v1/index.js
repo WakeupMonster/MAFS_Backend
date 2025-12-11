@@ -9,4 +9,7 @@ router.use("/kyc", require("../../modules/profile/profile.routes"));
 router.use("/health", require("../public/health.routes"));
 router.use("/docs", require("../public/docs.routes"));
 router.use("/notifications", require("../../modules/notifications/notification.routes"));
+
+router.use("/fwb", require("../../modules/fwb/fwb.routes"));
+
 module.exports = router;
