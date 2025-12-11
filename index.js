@@ -63,3 +63,11 @@ const MONGODB_URI = process.env.MONGODB_URI;
 
 
 // in photos user can change the order
+
+
+
+
+// 1) add superlike in get feed API
+// 2) social auth -- google, facebook
+// 3) Get matches API
+// 4) Discovery preference
