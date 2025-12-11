@@ -30,12 +30,12 @@ exports.action = async (req, res) => {
     // }
 
     if (result.match) {
-  return res.json({ 
-    success: true, 
-    message: "It's a match!",
-    matchId: result.matchId
-  });
-}
+      return res.json({
+        success: true,
+        message: "It's a match!",
+        matchId: result.matchId,
+      });
+    }
 
     return res.json({ success: true, message: "Swipe recorded" });
   } catch (err) {
@@ -61,7 +61,9 @@ exports.undo = async (req, res) => {
 exports.getMatches = async (req, res) => {
   try {
     const userId = req.user._id;
-    const matches = await require("./swipe.model").Match.find({ users: userId }).lean();
+    const matches = await require("./swipe.model")
+      .Match.find({ users: userId })
+      .lean();
     return res.json({ success: true, data: matches });
   } catch (err) {
     console.error("swipe.getMatches", err);
