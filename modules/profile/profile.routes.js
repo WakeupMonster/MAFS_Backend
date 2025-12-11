@@ -29,18 +29,16 @@
 // router.post("/complete", controller.markProfileCompleted);
 
 // router.get("/me", controller.getMyProfile);
-// router.get("/status", controller.getStatus); 
+// router.get("/status", controller.getStatus);
 // router.get("/:userId", controller.getPublicProfile);
 
 // router.delete("/photos", controller.deletePhoto);
 // router.delete("/interests", controller.deleteAllInterests);
-// router.delete("/interests/:interest", controller.deleteOneInterest); 
+// router.delete("/interests/:interest", controller.deleteOneInterest);
 
 // // router.delete("/", controller.deleteProfile);
 
 // module.exports = router;
-
-
 
 const express = require("express");
 const router = express.Router();
@@ -49,11 +47,21 @@ const auth = require("../auth/auth.middleware");
 const uploadMiddleware = require("../upload/upload.middleware");
 const validation = require("./profile.validation");
 // const ENUMS = require("../../config/enums");
-const { getAllEnums } = require("./profile.enums.controller");
+const {
+  getAllEnums,
+  getDetails,
+  addOrUpdateInterest,
+  addOrUpdateLanguage,
+  addOrUpdateReligion,
+} = require("./profile.enums.controller");
 
 router.use(auth);
 
-router.patch("/update", validation.validateProfileUpdate ,controller.updateProfile);
+router.patch(
+  "/update",
+  validation.validateProfileUpdate,
+  controller.updateProfile
+);
 
 router.post(
   "/photos",
@@ -90,13 +98,23 @@ router.post(
   controller.uploadIDDocument
 );
 
-router.post("/location", validation.validateLocation,controller.updateLocation);
+router.post(
+  "/location",
+  validation.validateLocation,
+  controller.updateLocation
+);
 
 router.get("/status", controller.getStatus);
 
 router.get("/me", controller.getMyProfile);
 
+router.get("/getdetails", getDetails); // fixed route
+router.post("/addOrUpdateInterest", addOrUpdateInterest);
+router.post("/addOrUpdateLanguage", addOrUpdateLanguage);
+router.post("/addOrUpdateReligion", addOrUpdateReligion);
+
 router.get("/:userId", controller.getPublicProfile);
+
 // router.get("/enums/all", (req, res) => {
 //   const data = {
 //     gender: ENUMS.gender.map(e => `${e.label}${e.emoji}`),
@@ -109,14 +127,16 @@ router.get("/:userId", controller.getPublicProfile);
 //   res.json({ success: true, data });
 // });
 
-
-
 router.get("/enums/all", getAllEnums);
+
 router.get("/enums/all", (req, res) => {
   res.json({
     success: true,
-    data: validation.ENUMS
+    data: validation.ENUMS,
   });
 });
+
+// Get APIs for fetch this field data genderPreference, relationshipGoal, distance, interest, age(min,max)
+// router.get("/getdetails", getDetails);
 
 module.exports = router;

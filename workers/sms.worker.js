@@ -45,9 +45,7 @@ connectMongo();
 // ------------------------------
 // 2. CREATE WORKER
 // ------------------------------
-const worker = new Worker(
-  "smsQueue",
-  async (job) => {
+const worker = new Worker("smsQueue", async (job) => {
     if (job.name === "send-otp") {
       const { phone, otp, userId } = job.data;
 

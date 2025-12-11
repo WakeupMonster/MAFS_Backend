@@ -314,7 +314,6 @@ const ProfileSchema = new mongoose.Schema({
       enum: ["never", "sometimes", "regularly", "daily"]
     }
   },
-
   basics : {
     education: {
     level: {
@@ -632,6 +631,8 @@ ProfileSchema.pre("save", function(next) {
   this.calculateCompletion();
   
   // Enable swipe access
+  this.onboardingProgress.isProfileComplete = this.isProfileComplete;
+  this.onboardingProgress.canAccessSwipe = this.canAccessSwipe;
   this.canAccessSwipe = this.isMandatoryComplete && this.kyc.status === "approved";
   this.isDiscoverable = this.canAccessSwipe;
   

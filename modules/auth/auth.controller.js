@@ -6,72 +6,84 @@ const authService = require("./auth.service");
 const { rateLimit } = require("../../common/middlewares/rateLimit");
 const profileModel = require("../profile/profile.model");
 
-
-
+/*==================================================
+1. POST For Send OTP on Phone no.
+===================================================*/
 module.exports.sendOtp = async (req, res) => {
   try {
     const { phone } = req.body;
 
     const ip = req.ip;
-    if (!phone) return res.status(400).json({ success: false, message: "Phone is required" });
+    if (!phone)
+      return res
+        .status(400)
+        .json({ success: false, message: "Phone is required" });
 
     // RATE LIMIT (optional, same rehta hai)
     const isLimited = await rateLimit(`otp:${ip}`, 3, 60);
     if (isLimited) {
-      return res.status(429).json({ success: false, message: "Too many requests. Try again later." });
+      return res.status(429).json({
+        success: false,
+        message: "Too many requests. Try again later.",
+      });
     }
 
     // ✅ Unified OTP send (login + register dono ke liye same service)
     await authService.sendPhoneOtp(phone);
 
-    return res.json({ success: true, message: "If the number is valid, OTP has been sent." });
-
+    return res.json({
+      success: true,
+      message: "If the number is valid, OTP has been sent.",
+    });
   } catch (err) {
     return res.status(500).json({ success: false, message: err.message });
   }
 };
+
+/*==================================================
+2. POST For  Verify OTP on through Phone no.
+===================================================*/
 module.exports.verifyOtp = async (req, res) => {
   try {
-    const { phone, otp} = req.body;
+    const { phone, otp } = req.body;
     if (!phone || !otp) {
-      return res.status(400).json({ success: false, message: "Phone and OTP are required" });
+      return res
+        .status(400)
+        .json({ success: false, message: "Phone and OTP are required" });
     }
 
     const result = await authService.verifyPhoneOtpUnified(phone, otp);
- return res.json({
+    return res.json({
       success: true,
-      message: result.isNewUser 
-        ? "Welcome! Phone verified successfully" 
+      message: result.isNewUser
+        ? "Welcome! Phone verified successfully"
         : "Welcome back! Login successful",
       data: {
         userId: result.userId,
-        accessToken: result.accessToken,        // ✅ Token
-        refreshToken: result.refreshToken,      // ✅ Token
-        isNewUser: result.isNewUser,            // ✅ NEW!
+        accessToken: result.accessToken, // ✅ Token
+        refreshToken: result.refreshToken, // ✅ Token
+        isNewUser: result.isNewUser, // ✅ NEW!
         isPhoneVerified: result.isPhoneVerified,
         isEmailVerified: result.isEmailVerified,
-        nextStep: result.nextStep
-      }
+        nextStep: result.nextStep,
+      },
     });
   } catch (err) {
     return res.status(400).json({
       success: false,
-      message: err.message
+      message: err.message,
     });
   }
 };
 
-
-
-
 // module.exports.sendOtp = async (req, res) => {
 //   try {
 //     const { phone,action } = req.body;
-    
+
 //     const ip = req.ip || req.headers["x-forwarded-for"] || "unknown";
-  
+
 //     const key = `rate:${ip}`;
-//     const isLimited = await rateLimit(key, 2, 60); 
+//     const isLimited = await rateLimit(key, 2, 60);
 
 //     if (isLimited) {
 //       return res.status(429).json({
@@ -79,7 +91,6 @@ module.exports.verifyOtp = async (req, res) => {
 //         message: "Too many requests. Try again after 1 minute."
 //       });
 //     }
-
 
 //     // Rate limit OTP requests
 // // const phoneLimit = await rateLimit(`otp:${phone}`, 5, 60 * 60); // 5 OTP per hour
@@ -152,7 +163,6 @@ module.exports.verifyOtp = async (req, res) => {
 //     return res.status(500).json({ success: false, message: err.message });
 //   }
 // };
-
 
 // module.exports.verifyOtp = async (req, res) => {
 //   try {
@@ -228,10 +238,10 @@ module.exports.verifyOtp = async (req, res) => {
 //     // // Update onboarding progress in Profile
 //     // await profileModel.findOneAndUpdate(
 //     //   { userId: user._id },
-//     //   { 
-//     //     $set: { 
-//     //       "onboardingProgress.phoneVerified": true 
-//     //     } 
+//     //   {
+//     //     $set: {
+//     //       "onboardingProgress.phoneVerified": true
+//     //     }
 //     //   },
 //     //   { upsert: true }
 //     // );
@@ -243,7 +253,6 @@ module.exports.verifyOtp = async (req, res) => {
 //     return res.status(500).json({ success: false, message: err.message });
 //   }
 // };
-
 
 // module.exports.verifyOtp = async (req, res) => {
 //   try {
@@ -286,64 +295,79 @@ module.exports.verifyOtp = async (req, res) => {
 
 //   } catch (err) {
 //     console.error('Verify OTP Error:', err);
-    
+
 //     // Handle specific error messages
 //     if (err.message.includes("expired") || err.message.includes("not found")) {
-//       return res.status(400).json({ 
-//         success: false, 
+//       return res.status(400).json({
+//         success: false,
 //         message: "OTP expired or not found. Please request a new OTP."
 //       });
 //     }
-    
+
 //     if (err.message.includes("Invalid")) {
-//       return res.status(400).json({ 
-//         success: false, 
+//       return res.status(400).json({
+//         success: false,
 //         message: "Invalid OTP. Please check and try again."
 //       });
 //     }
 
-//     return res.status(400).json({ 
-//       success: false, 
+//     return res.status(400).json({
+//       success: false,
 //       message: err.message || "Verification failed"
 //     });
 //   }
 // };
 
+/*==================================================
+3. POST For register Email Id with userId
+===================================================*/
 module.exports.registerEmail = async (req, res) => {
   try {
     const { userId, email } = req.body;
     await authService.sendEmailOtp(userId, email);
-    
+
     return res.json({ success: true, message: "Email OTP sent" });
-   
   } catch (err) {
-    console.log("Error hai")
+    console.log("Error hai");
     return res.status(400).json({ success: false, message: err.message });
   }
 };
 
-
+/*==================================================
+4. POST For  Verify userId with otp
+===================================================*/
 module.exports.verifyEmail = async (req, res) => {
   try {
     const { userId, otp } = req.body;
     const result = await authService.verifyEmailOtp(userId, otp);
-     await profileModel.findOneAndUpdate(
+    await profileModel.findOneAndUpdate(
       { userId: result.user._id },
-      { 
-        $set: { 
-          "onboardingProgress.emailVerified": true 
-        } 
+      {
+        $set: {
+          "onboardingProgress.emailVerified": true,
+        },
       },
       { upsert: true }
     );
-    return res.json({ success: true, message: "Email verified", data: { userId: result.user._id, accessToken: result.accessToken, refreshToken: result.refreshToken, isEmailVerified: result.isEmailVerified,
-        nextStep: result.nextStep } });
+    return res.json({
+      success: true,
+      message: "Email verified",
+      data: {
+        userId: result.user._id,
+        accessToken: result.accessToken,
+        refreshToken: result.refreshToken,
+        isEmailVerified: result.isEmailVerified,
+        nextStep: result.nextStep,
+      },
+    });
   } catch (err) {
     return res.status(400).json({ success: false, message: err.message });
   }
 };
 
-
+/*==================================================
+5. POST Login For Send OTP on Phone no.
+===================================================*/
 module.exports.loginSendOtp = async (req, res) => {
   try {
     const { phone } = req.body;
@@ -353,17 +377,19 @@ module.exports.loginSendOtp = async (req, res) => {
 
     return res.json({
       success: true,
-      message: "OTP sent successfully"
+      message: "OTP sent successfully",
     });
-
   } catch (err) {
     return res.status(429).json({
       success: false,
-      message: err.message
+      message: err.message,
     });
   }
 };
 
+/*==================================================
+6. POST Login For Verify OTP on through Phone no.
+===================================================*/
 module.exports.loginVerify = async (req, res) => {
   try {
     const { phone, otp } = req.body;
@@ -377,22 +403,20 @@ module.exports.loginVerify = async (req, res) => {
       data: {
         userId: user._id,
         accessToken,
-        refreshToken
-      }
+        refreshToken,
+      },
     });
-
   } catch (err) {
     return res.status(400).json({
       success: false,
-      message: err.message
+      message: err.message,
     });
   }
 };
 
-
-
-
-
+/*==================================================
+7. POST Referesh Token
+===================================================*/
 module.exports.refreshToken = async (req, res) => {
   try {
     const { userId, refreshToken } = req.body;
@@ -403,6 +427,9 @@ module.exports.refreshToken = async (req, res) => {
   }
 };
 
+/*==================================================
+8. POST For Logout API
+===================================================*/
 module.exports.logout = async (req, res) => {
   try {
     const { userId, refreshToken } = req.body;
@@ -412,12 +439,6 @@ module.exports.logout = async (req, res) => {
     return res.status(400).json({ success: false, message: err.message });
   }
 };
-
-
-
-
-
-
 
 // const User = require("../auth/auth.model")
 
@@ -452,7 +473,6 @@ module.exports.logout = async (req, res) => {
 //   }
 // };
 
-
 // module.exports.verifyPhone = async (req, res) => {
 //   try {
 //     const { phone, otp } = req.body;
@@ -463,12 +483,11 @@ module.exports.logout = async (req, res) => {
 //   }
 // };
 
-
 // Login flow (phone-based)
 // module.exports.loginSendOtp = async (req, res) => {
 //   try {
 //     const { phone } = req.body;
-    
+
 //     await authService.loginSendOtp(phone);
 //     return res.json({ success: true, message: "OTP sent to phone" });
 //   } catch (err) {
@@ -485,11 +504,6 @@ module.exports.logout = async (req, res) => {
 //     return res.status(400).json({ success: false, message: err.message });
 //   }
 // };
-
-
-
-
-
 
 // module.exports.googleLogin = async (req, res) => {
 //   try {

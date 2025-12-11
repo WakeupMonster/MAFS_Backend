@@ -6,13 +6,12 @@ const User = require("../../auth/auth.model");
 const Swipe = require("./swipe.model"); // may export Swipe and Match - adjust import
 const { Match } = require("./swipe.model");
 const mongoose = require("mongoose");
+const userActionsModel = require("./BlockReport/userActions.model");
 
 let redis;
-// Try common redis export paths (adjust to your project)
 try {
   redis = require("../../config/cache").redis || require("../../config/redis").redis;
 } catch (e) {
-  // if not found, require will throw; instruct user to set redis variable later
   redis = null;
 }
 
@@ -23,99 +22,42 @@ const SWIPE_RATE_PREFIX = "swipe_count:";      // rate limit counter
 const DEFAULT_FETCH_LIMIT = 20;
 const SWIPE_QUEUE_TTL = 60; // seconds cache lifetime for prefetch
 
-// Helper: build candidate Mongo query for feed
-function buildCandidateQuery(myProfile, excludeIds = []) {
-  const genderFilter = Array.isArray(myProfile.preferences.genderPreference) && myProfile.preferences.genderPreference.length > 0
-    ? { gender: { $in: myProfile.preferences.genderPreference } }
-    : {}; // if no pref, don't filter by gender
 
-  const ageMin = myProfile.preferences.ageRange?.min || 18;
-  const ageMax = myProfile.preferences.ageRange?.max || 60;
+
+function buildCandidateQuery(myProfile, excludeIds = []) {
+  // Gender filter
+  const genderFilter = myProfile.preferences?.genderPreference?.length > 0
+    ? { gender: { $in: myProfile.preferences.genderPreference } }
+    : {};
+
+  // Age filter
+  const ageMin = myProfile.preferences?.ageRange?.min || 18;
+  const ageMax = myProfile.preferences?.ageRange?.max || 60;
   const now = new Date();
   const maxDob = new Date(now.getFullYear() - ageMin, now.getMonth(), now.getDate());
   const minDob = new Date(now.getFullYear() - ageMax - 1, now.getMonth(), now.getDate());
 
-  const base = {
+  return {
     isDiscoverable: true,
     isProfileCompleted: true,
-    userId: { $ne: myProfile.userId },
+    userId: { 
+      $ne: myProfile.userId,
+      $nin: excludeIds
+    },
     ...genderFilter,
     dob: { $lte: maxDob, $gte: minDob }
   };
-
-  if (excludeIds && excludeIds.length) base["userId"].$nin = excludeIds;
-
-  return base;
 }
 
-// Prefetch candidates into redis list for user
-async function prefetchCandidates(userId, myProfile, limit = DEFAULT_FETCH_LIMIT) {
-  if (!redis) return [];
-
-  const queueKey = SWIPE_QUEUE_PREFIX + userId;
-  // if queue exists return length quickly
-  const existing = await redis.lLen(queueKey).catch(() => 0);
-  if (existing && existing > 0) {
-    // return up to limit without removing (use lrange)
-    const ids = await redis.lRange(queueKey, 0, limit - 1);
-    return ids;
-  }
-
-  // Build exclude list from swiped set and matches
-  const swipedSetKey = SWIPED_SET_PREFIX + userId;
-  const swipedIds = (await redis.sMembers(swipedSetKey).catch(() => [])) || [];
-
-  // Query DB for candidates
-  const query = buildCandidateQuery(myProfile, swipedIds.map(id => mongoose.Types.ObjectId(id)));
-  // geospatial near if location present
-  if (myProfile.location && Array.isArray(myProfile.location.coordinates) && myProfile.location.coordinates[0] !== 0) {
-    query["location.coordinates"] = {
-      $nearSphere: {
-        $geometry: {
-          type: "Point",
-          coordinates: myProfile.location.coordinates
-        },
-        $maxDistance: (myProfile.preferences?.distanceRange || 50) * 1000
-      }
-    };
-  }
-
-  const candidates = await Profile.find(query)
-    .limit(limit * 2) // fetch more, we'll filter later
-    .select("userId fullName nickname bio photos location dob gender interests")
-    .lean();
-
-  // filter out any duplicates or null userId
-  const candidateIds = [];
-  for (const c of candidates) {
-    if (!c.userId) continue;
-    const id = c.userId.toString();
-    if (candidateIds.includes(id) || swipedIds.includes(id) || id === userId.toString()) continue;
-    candidateIds.push(id);
-    if (candidateIds.length >= limit) break;
-  }
-
-  if (candidateIds.length === 0) return [];
-
-  // push into redis list
-  const pushOps = candidateIds.map(id => id);
-  await redis.rPush(queueKey, pushOps).catch(() => {});
-  // set TTL so queue replenishes later
-  await redis.expire(queueKey, SWIPE_QUEUE_TTL).catch(() => {});
-
-  return candidateIds;
-}
-
-// Get next candidate(s) (pop from redis queue if possible), fallback to DB
-async function getFeed(userId, limit = DEFAULT_FETCH_LIMIT) {
-  // load profile (lean)
-  const myProfile = await Profile.findOne({ userId }).lean();
-  if (!myProfile) throw new Error("Profile not found");
-
-  if (!redis) {
-    // No redis: run DB query directly
-    const query = buildCandidateQuery(myProfile, []);
-    if (myProfile.location && Array.isArray(myProfile.location.coordinates) && myProfile.location.coordinates[0] !== 0) {
+async function prefetchCandidates(userId, myProfile, limit, blockedUserIds = []) {
+  try {
+    const queueKey = SWIPE_QUEUE_PREFIX + userId;
+    
+    // Build query to find potential candidates
+    const query = buildCandidateQuery(myProfile, blockedUserIds);
+    
+    // Add location filter if available
+    if (myProfile.location?.coordinates?.length > 0) {
       query["location.coordinates"] = {
         $nearSphere: {
           $geometry: {
@@ -126,113 +68,444 @@ async function getFeed(userId, limit = DEFAULT_FETCH_LIMIT) {
         }
       };
     }
-    const results = await Profile.find(query)
-      .limit(limit)
-      .select("userId fullName nickname bio photos location dob gender interests")
+
+    // Find candidates not in redis already
+    const existingIds = await redis.lRange(queueKey, 0, -1).catch(() => []);
+    if (existingIds.length > 0) {
+      query._id = { $nin: existingIds.map(id => new mongoose.Types.ObjectId(id)) };
+    }
+
+    // Fetch candidates from DB
+    const candidates = await Profile.find(query)
+      .limit(limit * 2) // Fetch more to account for filtering
+      .select("_id")
       .lean();
-    return results;
+
+    if (candidates.length === 0) return [];
+
+    // Add new candidates to Redis queue
+    const newIds = candidates.map(c => c._id.toString());
+    if (newIds.length > 0) {
+      await redis.lPush(queueKey, newIds);
+      await redis.expire(queueKey, SWIPE_QUEUE_TTL);
+    }
+
+    return newIds;
+  } catch (error) {
+    console.error('Error in prefetchCandidates:', error);
+    return [];
   }
-
-  const queueKey = SWIPE_QUEUE_PREFIX + userId;
-  // try pop N items without removing permanently (we'll lPop per card when delivered)
-  const ids = await redis.lRange(queueKey, 0, limit - 1).catch(() => []);
-  if (!ids || ids.length === 0) {
-    await prefetchCandidates(userId, myProfile, limit);
-  }
-
-  const finalIds = await redis.lRange(queueKey, 0, limit - 1).catch(() => []);
-  if (!finalIds || finalIds.length === 0) {
-    return []; // nothing found
-  }
-
-  // fetch profile details for these ids from DB
-  const objIds = finalIds.map(id => mongoose.Types.ObjectId(id));
-  const profiles = await Profile.find({ userId: { $in: objIds } })
-    .select("userId fullName nickname bio photos location dob gender interests")
-    .lean();
-
-  // preserve order of finalIds
-  const map = new Map(profiles.map(p => [p.userId.toString(), p]));
-  const ordered = finalIds.map(id => map.get(id)).filter(Boolean).slice(0, limit);
-
-  return ordered;
 }
 
-// record a swipe and detect match
-async function doSwipe(swiperId, targetId, action) {
-  // basic validations
-  if (swiperId.toString() === targetId.toString()) throw new Error("Cannot swipe self");
+async function getFeed(userId, limit = 20) {
+  const CACHE_KEY = `feed:${userId}`;
+  const CACHE_TTL = 300; // 5 minutes
 
-  // rate-limiting example (increase if necessary)
-  if (redis) {
-    const rateKey = SWIPE_RATE_PREFIX + swiperId;
-    const count = await redis.incr(rateKey).catch(() => null);
-    if (count === 1) await redis.expire(rateKey, 24 * 60 * 60);
-    // example: block once count > 1000 per day (adjust to your plan)
-    if (count && count > 5000) throw new Error("Rate limit exceeded");
-  }
-
-  // try inserting swipe (unique index will prevent duplicate)
   try {
-    await Swipe.create({
-      swiperId,
-      targetId,
-      action
-    });
-  } catch (err) {
-    // duplicate swipe triggers E11000 code
-    if (err.code === 11000) {
-      return { already: true };
-    }
-    throw err;
-  }
-
-  // add to redis swiped set for quick exclusion
-  if (redis) await redis.sAdd(SWIPED_SET_PREFIX + swiperId, targetId.toString()).catch(() => {});
-
-  // If action is like/superlike, check reverse like
-  if (action === "like" || action === "superlike") {
-    // Find if the other user has already liked you
-    const reverseSwipe = await Swipe.findOne({
-      swiperId: targetId,
-      targetId: swiperId,
-      action: { $in: ["like", "superlike"] }
-    }).lean();
-
-    if (reverseSwipe) {
-      // Create match if it doesn't exist
-      const user1 = new mongoose.Types.ObjectId(swiperId);
-      const user2 = new mongoose.Types.ObjectId(targetId);
-      const users = [user1, user2].sort((a, b) => a.toString().localeCompare(b.toString()));
-
-      // Check if match already exists
-      let match = await Match.findOne({
-        users: { $all: [users[0], users[1]] }
-      });
-
-      if (!match) {
-        match = await Match.create({
-          users: users,
-          matchedAt: new Date()
-        });
+    // 1. Try to get from Redis cache first
+    if (redis && redis.get) {
+      try {
+        const cachedFeed = await redis.get(CACHE_KEY);
+        if (cachedFeed) {
+          console.log('Serving feed from Redis cache for user:', userId);
+          return JSON.parse(cachedFeed);
+        }
+      } catch (redisErr) {
+        console.error('Redis cache get error:', redisErr);
+        // Continue to fetch from DB if Redis fails
       }
-
-      // remove both from redis queues (best-effort)
-      if (redis) {
-        await redis.lRem(SWIPE_QUEUE_PREFIX + swiperId, 0, targetId.toString()).catch(()=>{});
-        await redis.lRem(SWIPE_QUEUE_PREFIX + targetId, 0, swiperId.toString()).catch(()=>{});
-      }
-
-      // return { match: true, match };
-       return { match: true, matchId: match._id };
     }
-  }
-   return { success: true };
 
-  // return { ok: true };
+    console.log(`Fetching feed for user: ${userId} from DB`);
+    
+    // 2. Get current user's profile
+    const myProfile = await Profile.findOne({ userId }).lean();
+    if (!myProfile) {
+      console.log('User profile not found');
+      return [];
+    }
+
+    // 3. Build the query
+    const query = { 
+      userId: { $ne: new mongoose.Types.ObjectId(userId) }
+    };
+
+    // 4. Add gender preference if set
+    if (myProfile.preferences?.genderPreference?.length > 0) {
+      query.gender = { $in: myProfile.preferences.genderPreference };
+    }
+
+    // 5. Add age range filter
+    const ageMin = myProfile.preferences?.ageRange?.min || 18;
+    const ageMax = myProfile.preferences?.ageRange?.max || 60;
+    const now = new Date();
+    query.dob = {
+      $lte: new Date(now.getFullYear() - ageMin, now.getMonth(), now.getDate()),
+      $gte: new Date(now.getFullYear() - ageMax - 1, now.getMonth(), now.getDate())
+    };
+
+    // 6. Add location filter
+    if (myProfile.location?.coordinates?.length === 2) {
+      query["location.coordinates"] = {
+        $near: {
+          $geometry: {
+            type: "Point",
+            coordinates: myProfile.location.coordinates
+          },
+          $maxDistance: (myProfile.preferences?.distanceRange || 50) * 1000
+        }
+      };
+      console.log('Location filter applied with coordinates:', myProfile.location.coordinates);
+    }
+
+    // 7. Exclude swiped users
+    const swipedUsers = await Swipe.find({ swiperId: userId }).distinct('targetId');
+    if (swipedUsers.length > 0) {
+      query.userId.$nin = swipedUsers.map(id => new mongoose.Types.ObjectId(id));
+    }
+
+    // 8. Exclude blocked users
+    const blockedUsers = await userActionsModel.find({
+      $or: [
+        { actorId: userId, actionType: 'block' },
+        { targetId: userId, actionType: 'block' }
+      ]
+    }).distinct('targetId');
+    
+    if (blockedUsers.length > 0) {
+      query.userId.$nin = [...(query.userId.$nin || []), ...blockedUsers.map(id => new mongoose.Types.ObjectId(id))];
+    }
+
+    // 9. Execute the query
+    const profiles = await Profile.find(query)
+      .limit(limit)
+      .select('userId fullName nickname bio photos location dob gender interests')
+      .sort({ createdAt: -1 })
+      .lean();
+
+    // 10. Cache the results in Redis
+    if (redis && redis.set && profiles.length > 0) {
+      try {
+        await redis.set(
+          CACHE_KEY,
+          JSON.stringify(profiles),
+          { EX: CACHE_TTL }
+        );
+        console.log('Feed cached in Redis for user:', userId);
+      } catch (cacheErr) {
+        console.error('Error caching feed in Redis:', cacheErr);
+      }
+    }
+
+    return profiles;
+
+  } catch (error) {
+    console.error('Error in getFeed:', error);
+    throw error;
+  }
 }
 
-// undo last swipe (soft). Simpler API: remove swipe record and redis membership
+// async function getFeed(userId, limit = 20) {
+//   const CACHE_KEY = `feed:${userId}`;
+//   const CACHE_TTL = 300; // 5 minutes
+//   try {
+//     // 1. Try to get from Redis cache first
+//     if (redis) {
+//       const cachedFeed = await redis.get(CACHE_KEY);
+//       if (cachedFeed) {
+//         console.log('Serving feed from Redis cache');
+//         return JSON.parse(cachedFeed);
+//       }
+//     }
+
+//     console.log(`Fetching feed for user: ${userId} from DB`);
+    
+//     // 2. Get current user's profile
+//     const myProfile = await Profile.findOne({ userId }).lean();
+//     if (!myProfile) {
+//       console.log('User profile not found');
+//       return [];
+//     }
+
+//     // 3. Build basic query
+//     const query = { 
+//       userId: { $ne: new mongoose.Types.ObjectId(userId) }
+//     };
+
+//     // 4. Add gender preference if set
+//     if (myProfile.preferences?.genderPreference?.length > 0) {
+//       query.gender = { $in: myProfile.preferences.genderPreference };
+//     }
+
+//     // 5. Add age range filter
+//     const ageMin = myProfile.preferences?.ageRange?.min || 18;
+//     const ageMax = myProfile.preferences?.ageRange?.max || 60;
+//     const now = new Date();
+//     query.dob = {
+//       $lte: new Date(now.getFullYear() - ageMin, now.getMonth(), now.getDate()),
+//       $gte: new Date(now.getFullYear() - ageMax - 1, now.getMonth(), now.getDate())
+//     };
+
+//     // 6. Add location filter
+//     if (myProfile.location?.coordinates?.length === 2) {
+//       query["location.coordinates"] = {
+//         $near: {
+//           $geometry: {
+//             type: "Point",
+//             coordinates: myProfile.location.coordinates
+//           },
+//           $maxDistance: (myProfile.preferences?.distanceRange || 50) * 1000
+//         }
+//       };
+//       console.log('Location filter applied with coordinates:', myProfile.location.coordinates);
+//     }
+
+//     // 7. Exclude swiped users
+//     const swipedUsers = await Swipe.find({ swiperId: userId }).distinct('targetId');
+//     if (swipedUsers.length > 0) {
+//       query.userId.$nin = swipedUsers.map(id => new mongoose.Types.ObjectId(id));
+//     }
+
+//     // 8. Exclude blocked users
+//     const blockedUsers = await userActionsModel.find({
+//       $or: [
+//         { actorId: userId, actionType: 'block' },
+//         { targetId: userId, actionType: 'block' }
+//       ]
+//     }).distinct('targetId');
+    
+//     if (blockedUsers.length > 0) {
+//       query.userId.$nin = [...(query.userId.$nin || []), ...blockedUsers.map(id => new mongoose.Types.ObjectId(id))];
+//     }
+
+//     // 9. Execute the query
+//     const profiles = await Profile.find(query)
+//       .limit(limit)
+//       .select('userId fullName nickname bio photos location dob gender interests')
+//       .sort({ createdAt: -1 })
+//       .lean();
+
+//     // 10. Cache the results in Redis
+//     if (redis && profiles.length > 0) {
+//       await redis.set(
+//         CACHE_KEY,
+//         JSON.stringify(profiles),
+//         'EX', // Set expiry
+//         CACHE_TTL
+//       );
+//       console.log('Feed cached in Redis for user:', userId);
+//     }
+
+//     return profiles;
+
+//   } catch (error) {
+//     console.error('Error in getFeed:', error);
+//     throw error;
+//   }
+// }
+
+// async function getFeed(userId, limit = 20) {
+//    const CACHE_KEY = `feed:${userId}`;
+//   const CACHE_TTL = 300;
+//   try {
+//      if (redis) {
+//       const cachedFeed = await redis.get(CACHE_KEY);
+//       if (cachedFeed) {
+//         console.log('Serving feed from Redis cache');
+//         return JSON.parse(cachedFeed);
+//       }
+//     }
+
+//     console.log(`Fetching feed for user: ${userId}`);
+    
+//     // 1. Get current user's profile
+//     const myProfile = await Profile.findOne({ userId }).lean();
+//     if (!myProfile) {
+//       console.log('User profile not found');
+//       return [];
+//     }
+
+//     // 2. Build basic query
+//     const query = { 
+//       userId: { $ne: new mongoose.Types.ObjectId(userId) 
+//       },
+//       //  isDiscoverable: true,
+//       // isProfileComplete: true,
+//     };
+
+//     // 3. Add gender preference if set
+//     if (myProfile.preferences?.genderPreference?.length > 0) {
+//       query.gender = { $in: myProfile.preferences.genderPreference };
+//     }
+
+//     // 4. Add age range filter
+//     const ageMin = myProfile.preferences?.ageRange?.min || 18;
+//     const ageMax = myProfile.preferences?.ageRange?.max || 60;
+//     const now = new Date();
+//     query.dob = {
+//       $lte: new Date(now.getFullYear() - ageMin, now.getMonth(), now.getDate()),
+//       $gte: new Date(now.getFullYear() - ageMax - 1, now.getMonth(), now.getDate())
+//     };
+
+
+// if (myProfile.location?.coordinates?.length === 2) {
+//   query["location.coordinates"] = {
+//     $near: {
+//       $geometry: {
+//         type: "Point",
+//         coordinates: myProfile.location.coordinates
+//       },
+//       $maxDistance: (myProfile.preferences?.distanceRange || 50) * 1000
+//     }
+//   };
+//   console.log('Location filter applied with coordinates:', myProfile.location.coordinates);
+// }
+
+//     const swipedUsers = await Swipe.find({ swiperId: userId }).distinct('targetId');
+//     if (swipedUsers.length > 0) {
+//       query.userId.$nin = swipedUsers.map(id => new mongoose.Types.ObjectId(id));
+//     }
+
+//     const blockedUsers = await userActionsModel.find({
+//       $or: [
+//         { actorId: userId, actionType: 'block' },
+//         { targetId: userId, actionType: 'block' }
+//       ]
+//     }).distinct('targetId');
+    
+//     if (blockedUsers.length > 0) {
+//       query.userId.$nin = [...(query.userId.$nin || []), ...blockedUsers.map(id => new mongoose.Types.ObjectId(id))];
+//     }
+
+    
+//     // 9. Execute the query with a simpler approach first
+//     // First, try without location filter
+//     const testQuery = { ...query };
+//     delete testQuery.location;
+    
+//     const testResults = await Profile.find(testQuery)
+//       .limit(limit)
+//       .select('userId fullName gender location.coordinates')
+//       .lean();
+//     testResults.forEach(p => console.log(p.userId, p.gender, p.location?.coordinates));
+//     const profiles = await Profile.find(query)
+//       .limit(limit)
+//       .select('userId fullName nickname bio photos location dob gender interests')
+//       .sort({ createdAt: -1 })
+//       .lean();
+//     return profiles;
+
+//   } catch (error) {
+//     console.error('Error in getFeed:', error);
+//     throw error;
+//   }
+// }
+
+
+async function doSwipe(swiperId, targetId, action) {
+  if (swiperId.toString() === targetId.toString()) {
+    throw new Error("Cannot swipe on your own profile");
+  }
+
+  const session = await mongoose.startSession();
+  let result = { success: true, match: false, message: "Swipe processed" };
+  
+  try {
+    await session.withTransaction(async () => {
+      // 1. Check for existing block
+         const targetProfile = await Profile.findOne({ userId: targetId }).session(session);
+      if (!targetProfile) {
+        throw new Error('Target profile not found');
+      }
+      const blockExists = await userActionsModel.exists({
+        $or: [
+          { actorId: swiperId, targetId, actionType: 'block' },
+          { actorId: targetId, targetId: swiperId, actionType: 'block' }
+        ]
+      }).session(session);
+
+      if (blockExists) {
+        throw new Error("Action not allowed. User is blocked.");
+      }
+
+      // 2. Check for existing swipe
+      const existingSwipe = await Swipe.findOne({
+        swiperId,
+        targetId
+      }).session(session);
+
+      if (existingSwipe) {
+        result = { 
+          success: true, 
+          already: true, 
+          message: "Already swiped",
+          match: false
+        };
+        return;
+      }
+
+      // 3. Create new swipe
+      await Swipe.create([{
+        swiperId,
+        targetId,
+        action,
+        createdAt: new Date()
+      }], { session });
+
+      // 4. Check for mutual like
+      if (['like', 'superlike'].includes(action)) {
+        const mutualSwipe = await Swipe.findOne({
+          swiperId: targetId,
+          targetId: swiperId,
+          action: { $in: ['like', 'superlike'] }
+        }).session(session);
+
+        if (mutualSwipe) {
+          // Create match
+          const [match] = await Match.create([{
+            users: [swiperId, targetId],
+            status: 'matched',
+            lastActivity: new Date()
+          }], { session });
+
+          // Update Redis if needed
+          if (redis) {
+            const queueKey1 = `${SWIPE_QUEUE_PREFIX}${swiperId}`;
+            const queueKey2 = `${SWIPE_QUEUE_PREFIX}${targetId}`;
+            
+            await Promise.all([
+              redis.lRem(queueKey1, 0, targetId.toString()),
+              redis.lRem(queueKey2, 0, swiperId.toString())
+            ]);
+          }
+
+          result = {
+            success: true,
+            match: true,
+            matchId: match._id,
+            message: "It's a match!"
+          };
+          return;
+        }
+      }
+
+      result = { 
+        success: true, 
+        match: false, 
+        message: "Swipe recorded" 
+      };
+    });
+
+    return result;
+
+  } catch (error) {
+    console.error('Swipe error:', error);
+    throw error;
+  } finally {
+    await session.endSession();
+  }
+}
+
 async function undoSwipe(swiperId, targetId) {
   const res = await Swipe.findOneAndDelete({ swiperId, targetId });
   if (!res) throw new Error("Swipe not found or cannot undo");
@@ -253,3 +526,380 @@ module.exports = {
   // constants exported for tests or admin
   SWIPE_QUEUE_PREFIX, SWIPED_SET_PREFIX
 };
+
+
+
+
+
+// async function getFeed(userId, limit = DEFAULT_FETCH_LIMIT) {
+//   try {
+//     // Load profile
+//     const myProfile = await Profile.findOne({ userId }).lean();
+//     if (!myProfile) throw new Error("Profile not found");
+
+//     // Get list of blocked users
+//     const blockedUsers = await userActionsModel.find({
+//       $or: [
+//         { actorId: userId, actionType: 'block' },
+//         { targetId: userId, actionType: 'block' }
+//       ]
+//     }).select('actorId targetId').lean();
+
+//     // Extract all user IDs involved in blocks
+//     const blockedUserIds = blockedUsers.map(b => 
+//       b.actorId.toString() === userId.toString() ? b.targetId : b.actorId
+//     );
+
+//     // If Redis is not available, fetch directly from DB
+//     if (!redis) {
+//       const query = buildCandidateQuery(myProfile, blockedUserIds);
+//       // Add location filter if available
+//       if (myProfile.location?.coordinates?.length > 0) {
+//         query["location.coordinates"] = {
+//           $nearSphere: {
+//             $geometry: {
+//               type: "Point",
+//               coordinates: myProfile.location.coordinates
+//             },
+//             $maxDistance: (myProfile.preferences?.distanceRange || 50) * 1000
+//           }
+//         };
+//       }
+//       return await Profile.find(query)
+//         .limit(limit)
+//         .select("userId fullName nickname bio photos location dob gender interests")
+//         .lean();
+//     }
+
+//     // Redis is available - check cache first
+//     const queueKey = SWIPE_QUEUE_PREFIX + userId;
+//     let ids = await redis.lRange(queueKey, 0, limit - 1).catch(() => []);
+    
+//     // If queue is empty, prefetch candidates
+//     if (!ids || ids.length === 0) {
+//       await prefetchCandidates(userId, myProfile, limit, blockedUserIds);
+//       ids = await redis.lRange(queueKey, 0, limit - 1).catch(() => []);
+//     }
+
+//     if (!ids || ids.length === 0) {
+//       return []; // No candidates found
+//     }
+
+//     // Fetch profiles from DB for the IDs in Redis
+//     const objIds = ids.map(id => new mongoose.Types.ObjectId(id));
+//     const profiles = await Profile.find({ 
+//       _id: { $in: objIds },
+//       userId: { $nin: blockedUserIds } // Exclude blocked users
+//     })
+//     .select("userId fullName nickname bio photos location dob gender interests")
+//     .lean();
+
+//     // Preserve order from Redis
+//     const map = new Map(profiles.map(p => [p.userId.toString(), p]));
+//     return ids.map(id => map.get(id)).filter(Boolean).slice(0, limit);
+
+//   } catch (error) {
+//     console.error('Error in getFeed:', error);
+//     throw error;
+//   }
+// }
+
+
+
+
+// Get next candidate(s) (pop from redis queue if possible), fallback to DB
+// async function getFeed(userId, limit = DEFAULT_FETCH_LIMIT) {
+//   // load profile (lean)
+//   const myProfile = await Profile.findOne({ userId }).lean();
+//   if (!myProfile) throw new Error("Profile not found");
+
+//   if (!redis) {
+//     // No redis: run DB query directly
+//     const query = buildCandidateQuery(myProfile, []);
+//     if (myProfile.location && Array.isArray(myProfile.location.coordinates) && myProfile.location.coordinates[0] !== 0) {
+//       query["location.coordinates"] = {
+//         $nearSphere: {
+//           $geometry: {
+//             type: "Point",
+//             coordinates: myProfile.location.coordinates
+//           },
+//           $maxDistance: (myProfile.preferences?.distanceRange || 50) * 1000
+//         }
+//       };
+//     }
+//     const results = await Profile.find(query)
+//       .limit(limit)
+//       .select("userId fullName nickname bio photos location dob gender interests")
+//       .lean();
+//     return results;
+//   }
+
+//   const queueKey = SWIPE_QUEUE_PREFIX + userId;
+//   // try pop N items without removing permanently (we'll lPop per card when delivered)
+//   const ids = await redis.lRange(queueKey, 0, limit - 1).catch(() => []);
+//   if (!ids || ids.length === 0) {
+//     await prefetchCandidates(userId, myProfile, limit);
+//   }
+
+//   const finalIds = await redis.lRange(queueKey, 0, limit - 1).catch(() => []);
+//   if (!finalIds || finalIds.length === 0) {
+//     return []; // nothing found
+//   }
+
+//   // fetch profile details for these ids from DB
+//   const objIds = finalIds.map(id => mongoose.Types.ObjectId(id));
+//   const profiles = await Profile.find({ userId: { $in: objIds } })
+//     .select("userId fullName nickname bio photos location dob gender interests")
+//     .lean();
+
+//   // preserve order of finalIds
+//   const map = new Map(profiles.map(p => [p.userId.toString(), p]));
+//   const ordered = finalIds.map(id => map.get(id)).filter(Boolean).slice(0, limit);
+
+//   return ordered;
+// }
+
+// record a swipe and detect match
+// async function doSwipe(swiperId, targetId, action) {
+//   // basic validations
+//   if (swiperId.toString() === targetId.toString()) throw new Error("Cannot swipe self");
+
+//   // rate-limiting example (increase if necessary)
+//   if (redis) {
+//     const rateKey = SWIPE_RATE_PREFIX + swiperId;
+//     const count = await redis.incr(rateKey).catch(() => null);
+//     if (count === 1) await redis.expire(rateKey, 24 * 60 * 60);
+//     // example: block once count > 1000 per day (adjust to your plan)
+//     if (count && count > 5000) throw new Error("Rate limit exceeded");
+//   }
+
+//   // try inserting swipe (unique index will prevent duplicate)
+//   try {
+//     await Swipe.create({
+//       swiperId,
+//       targetId,
+//       action
+//     });
+//   } catch (err) {
+//     // duplicate swipe triggers E11000 code
+//     if (err.code === 11000) {
+//       return { already: true };
+//     }
+//     throw err;
+//   }
+
+//   // add to redis swiped set for quick exclusion
+//   if (redis) await redis.sAdd(SWIPED_SET_PREFIX + swiperId, targetId.toString()).catch(() => {});
+
+//   // If action is like/superlike, check reverse like
+//   if (action === "like" || action === "superlike") {
+//     // Find if the other user has already liked you
+//     const reverseSwipe = await Swipe.findOne({
+//       swiperId: targetId,
+//       targetId: swiperId,
+//       action: { $in: ["like", "superlike"] }
+//     }).lean();
+
+//     if (reverseSwipe) {
+//       // Create match if it doesn't exist
+//       const user1 = new mongoose.Types.ObjectId(swiperId);
+//       const user2 = new mongoose.Types.ObjectId(targetId);
+//       const users = [user1, user2].sort((a, b) => a.toString().localeCompare(b.toString()));
+
+//       // Check if match already exists
+//       let match = await Match.findOne({
+//         users: { $all: [users[0], users[1]] }
+//       });
+
+//       if (!match) {
+//         match = await Match.create({
+//           users: users,
+//           matchedAt: new Date()
+//         });
+//       }
+
+//       // remove both from redis queues (best-effort)
+//       if (redis) {
+//         await redis.lRem(SWIPE_QUEUE_PREFIX + swiperId, 0, targetId.toString()).catch(()=>{});
+//         await redis.lRem(SWIPE_QUEUE_PREFIX + targetId, 0, swiperId.toString()).catch(()=>{});
+//       }
+
+//       // return { match: true, match };
+//        return { match: true, matchId: match._id };
+//     }
+//   }
+//    return { success: true };
+
+//   // return { ok: true };
+// }
+
+
+// In swipe.service.js
+// async function doSwipe(swiperId, targetId, action) {
+//   // Basic validation
+//   if (swiperId.toString() === targetId.toString()) {
+//     throw new Error("Cannot swipe on your own profile");
+//   }
+
+//   const session = await mongoose.startSession();
+  
+//   try {
+//     await session.withTransaction(async () => {
+//       // 1. Check for existing block
+//       const blockExists = await userActionsModel.exists({
+//         $or: [
+//           { actorId: swiperId, targetId, actionType: 'block' },
+//           { actorId: targetId, targetId: swiperId, actionType: 'block' }
+//         ]
+//       }).session(session);
+
+//       if (blockExists) {
+//         throw new Error("Action not allowed. User is blocked.");
+//       }
+
+//       // 2. Check for existing swipe
+//       const existingSwipe = await Swipe.findOne({
+//         userId: swiperId,
+//         targetId
+//       }).session(session);
+
+//       if (existingSwipe) {
+//         return { 
+//           success: true, 
+//           already: true, 
+//           message: "Already swiped",
+//           match: false
+//         };
+//       }
+
+//       // 3. Create new swipe
+//       await Swipe.create([{
+//         swiperId,
+//         targetId,
+//         action,
+//         createdAt: new Date()
+//       }], { session });
+
+//       // 4. Check for mutual like
+//       if (['like', 'superlike'].includes(action)) {
+//         const mutualSwipe = await Swipe.findOne({
+//           userId: targetId,
+//           targetId: swiperId,
+//           action: { $in: ['like', 'superlike'] }
+//         }).session(session);
+
+//         if (mutualSwipe) {
+//           // Create match
+//           const match = await Match.create([{
+//             users: [swiperId, targetId],
+//             status: 'matched',
+//             lastActivity: new Date()
+//           }], { session });
+
+//           // Update Redis if needed
+//           if (redis) {
+//             const queueKey1 = `${SWIPE_QUEUE_PREFIX}${swiperId}`;
+//             const queueKey2 = `${SWIPE_QUEUE_PREFIX}${targetId}`;
+            
+//             await Promise.all([
+//               redis.lRem(queueKey1, 0, targetId.toString()),
+//               redis.lRem(queueKey2, 0, swiperId.toString())
+//             ]);
+//           }
+
+//           return {
+//             match: true,
+//             matchId: match[0]._id,
+//             message: "It's a match!"
+//           };
+//         }
+//       }
+
+//       return { match: false, message: "Swipe recorded" };
+//     });
+
+//     return { success: true, match: false, message: "Swipe processed" };
+
+//   } catch (error) {
+//     console.error('Swipe error:', error);
+//     throw error;
+//   } finally {
+//     await session.endSession();
+//   }
+// }
+
+
+// async function getFeed(userId, limit = 10) {
+//   try {
+//     console.log('=== डीबगिंग शुरू ===');
+    
+//     // 1. पहले यूजर प्रोफाइल फेच करें
+//     const myProfile = await Profile.findOne({ userId }).lean();
+//     console.log('यूजर ID:', userId);
+//     console.log('प्रोफाइल मिली?', !!myProfile);
+    
+//     if (!myProfile) {
+//       console.log('प्रोफाइल नहीं मिली');
+//       return [];
+//     }
+
+//     // 2. ब्लॉक किए गए यूजर्स की लिस्ट बनाएं
+//     const blockedUsers = await userActionsModel.find({
+//       $or: [
+//         { actorId: userId, actionType: 'block' },
+//         { targetId: userId, actionType: 'block' }
+//       ]
+//     }).select('actorId targetId').lean();
+
+//     const blockedUserIds = blockedUsers.map(b => 
+//       b.actorId.toString() === userId.toString() ? b.targetId : b.actorId
+//     );
+//     console.log('ब्लॉक किए गए यूजर्स:', blockedUserIds);
+
+//     // 3. डायरेक्ट क्वेरी चलाकर देखें
+//     const query = {
+//       userId: { 
+//         $ne: userId,  // खुद को न दिखाएं
+//         $nin: blockedUserIds  // ब्लॉक किए हुए यूजर्स को न दिखाएं
+//       },
+//       "photos.0": { $exists: true }  // कम से कम एक फोटो हो
+//     };
+
+//     // 4. जेंडर प्रेफरेंस जोड़ें (अगर सेट है)
+//     if (myProfile.preferences?.genderPreference?.length > 0) {
+//       query.gender = { $in: myProfile.preferences.genderPreference };
+//     }
+//     console.log('जेंडर प्रेफरेंस:', myProfile.preferences?.genderPreference);
+
+//     // 5. लोकेशन फिल्टर (अगर उपलब्ध हो)
+//     if (myProfile.location?.coordinates?.length === 2) {
+//       query["location.coordinates"] = {
+//         $nearSphere: {
+//           $geometry: {
+//             type: "Point",
+//             coordinates: myProfile.location.coordinates
+//           },
+//           $maxDistance: (myProfile.preferences?.distanceRange || 50) * 1000
+//         }
+//       };
+//       console.log('लोकेशन फिल्टर लगा हुआ है');
+//     } else {
+//       console.log('लोकेशन डेटा नहीं मिला या अमान्य है');
+//     }
+
+//     console.log('फाइनल क्वेरी:', JSON.stringify(query, null, 2));
+
+//     // 6. क्वेरी चलाएं
+//     const profiles = await Profile.find(query)
+//       .limit(limit)
+//       .select("userId fullName nickname bio photos location dob gender interests")
+//       .lean();
+
+//     console.log('कुल मिले प्रोफाइल्स:', profiles.length);
+//     return profiles;
+
+//   } catch (error) {
+//     console.error('फीड फेच करने में त्रुटि:', error);
+//     return [];
+//   }
+// }
