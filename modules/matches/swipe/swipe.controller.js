@@ -3,7 +3,7 @@
 
 const { Match } = require("./swipe.model");
 const service = require("./swipe.service");
-const swipeLimiter = require('./limit.service');
+const swipeLimiter = require("./limit.service");
 const ApiError = require("../../../common/errors/ApiError");
 
 // GET /swipe/feed?limit=10
@@ -30,16 +30,16 @@ exports.action = async (req, res) => {
     const { targetId, action } = req.body;
 
     // === RATE LIMIT CHECK (like / superlike only) ===
-    if (['like', 'superlike'].includes(action)) {
+    if (["like", "superlike"].includes(action)) {
       const limitCheck = await swipeLimiter.checkAndIncrement(userId, action);
 
       if (!limitCheck.allowed) {
         throw new ApiError(`Daily ${action} limit reached`, 429, {
-          type: 'RATE_LIMIT_EXCEEDED',
-          limitType: action === 'like' ? 'dailyLikes' : 'dailySuperlikes',
+          type: "RATE_LIMIT_EXCEEDED",
+          limitType: action === "like" ? "dailyLikes" : "dailySuperlikes",
           current: limitCheck.count,
           max: limitCheck.limit,
-          resetsIn: limitCheck.resetTime - Math.floor(Date.now() / 1000)
+          resetsIn: limitCheck.resetTime - Math.floor(Date.now() / 1000),
         });
       }
     }
@@ -59,14 +59,13 @@ exports.action = async (req, res) => {
     // Default response
     return res.json({
       success: true,
-      ...result
+      ...result,
     });
-
   } catch (error) {
-    console.error('Swipe error:', error);
+    console.error("Swipe error:", error);
     return res.status(400).json({
       success: false,
-      message: error.message || 'Error processing swipe'
+      message: error.message || "Error processing swipe",
     });
   }
 };
@@ -79,7 +78,7 @@ exports.getLimits = async (req, res, next) => {
 
     return res.json({
       success: true,
-      data: usage
+      data: usage,
     });
   } catch (err) {
     next(err);
@@ -109,23 +108,23 @@ exports.getMatches = async (req, res) => {
     // Better / full implementation from feature/rajeev
     const matches = await Match.find({
       users: userId,
-      status: { $ne: 'blocked' }
+      status: { $ne: "blocked" },
     })
       .populate({
-        path: 'users',
+        path: "users",
         match: { _id: { $ne: userId } },
-        select: 'fullName photos isOnline lastSeen'
+        select: "fullName photos isOnline lastSeen",
       })
       .sort({ updatedAt: -1 })
       .lean();
 
     const validMatches = matches
-      .filter(match => match.users && match.users.length > 0)
-      .map(match => ({
+      .filter((match) => match.users && match.users.length > 0)
+      .map((match) => ({
         matchId: match._id,
         user: match.users[0],
         matchedAt: match.createdAt,
-        status: match.status || 'matched'
+        status: match.status || "matched",
       }));
 
     if (validMatches.length === 0) {
@@ -133,22 +132,21 @@ exports.getMatches = async (req, res) => {
         success: true,
         data: [],
         message: "No matches found. Keep swiping to find your perfect match!",
-        meta: { total: 0 }
+        meta: { total: 0 },
       });
     }
 
     return res.json({
       success: true,
       data: validMatches,
-      meta: { total: validMatches.length }
+      meta: { total: validMatches.length },
     });
-
   } catch (err) {
     console.error("Error in getMatches:", err);
     return res.status(500).json({
       success: false,
       message: "Error fetching matches",
-      error: process.env.NODE_ENV === 'development' ? err.message : undefined
+      error: process.env.NODE_ENV === "development" ? err.message : undefined,
     });
   }
 };

@@ -19,8 +19,6 @@ app.use(express.json());
 // Load versioned API routes
 app.use("/api/v1", require("./routes/v1"));
 
-app.get("/", (req, res) => {
-  res.json({ message: "Your app has started" });
-});
+app.get("/", (req, res) => res.json({ message: "API running" }));
 
 module.exports = app;

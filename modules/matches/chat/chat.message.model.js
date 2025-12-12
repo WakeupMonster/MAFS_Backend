@@ -1,15 +1,20 @@
 const mongoose = require("mongoose");
 const Schema = mongoose.Schema;
 
-const MessageSchema = new Schema(
+const ChatMessageSchema = new Schema(
   {
-    matchId: { 
-        type: mongoose.Schema.Types.ObjectId, ref: "Match", required: true, index: true 
+    matchId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Match",
+      required: true,
+      index: true,
     },
-    from: {
-      type: mongoose.Schema.Types.ObjectId, ref: "User", required: true
+    sender: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+      required: true,
     },
-    to: {
+    receiver: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",
       required: true,
@@ -18,21 +23,27 @@ const MessageSchema = new Schema(
 
     // For image/video messages
     media: {
-      url: String, publicId: String,
+      url: String,
+      publicId: String,
       type: { type: String, enum: ["image", "video"], default: null },
     },
-    
+
     // Read receipts (WhatsApp-style)
-    isRead: {
-      type: Boolean, default: false,
+    read: {
+      type: Boolean,
+      default: false,
     },
 
     // Timestamps
-    createdAt: {
-      type: Date, default: Date.now,
+    readAt: {
+      type: Date,
+      default: null,
     },
+
+    // ⭐ Soft delete → deleted only for specific user(s)
+    deletedFor: [{ type: mongoose.Schema.Types.ObjectId, ref: "User" }],
   },
-  { timestamps: false }
+  { timestamps: true }
 );
 
-module.exports = mongoose.model("Message", MessageSchema);
+module.exports = mongoose.model("ChatMessage", ChatMessageSchema);

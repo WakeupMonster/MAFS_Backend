@@ -11,5 +11,6 @@ router.use("/docs", require("../public/docs.routes"));
 router.use("/notifications", require("../../modules/notifications/notification.routes"));
 
 router.use("/fwb", require("../../modules/fwb/fwb.routes"));
+router.use("/chat", require("../../modules/matches/chat/chat.route"));
 
 module.exports = router;

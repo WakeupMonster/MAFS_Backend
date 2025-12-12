@@ -22,8 +22,6 @@ const SWIPE_RATE_PREFIX = "swipe_count:";      // rate limit counter
 const DEFAULT_FETCH_LIMIT = 20;
 const SWIPE_QUEUE_TTL = 60; // seconds cache lifetime for prefetch
 
-
-
 function buildCandidateQuery(myProfile, excludeIds = []) {
   // Gender filter
   const genderFilter = myProfile.preferences?.genderPreference?.length > 0
@@ -401,7 +399,6 @@ async function getFeed(userId, limit = 20) {
 //   }
 // }
 
-
 async function doSwipe(swiperId, targetId, action) {
   if (swiperId.toString() === targetId.toString()) {
     throw new Error("Cannot swipe on your own profile");
@@ -435,37 +432,21 @@ async function doSwipe(swiperId, targetId, action) {
       }).session(session);
 
       if (existingSwipe) {
-        result = { 
-          success: true, 
-          already: true, 
-          message: "Already swiped",
-          match: false
-        };
+        result = { success: true, already: true, message: "Already swiped",match: false };
         return;
       }
 
       // 3. Create new swipe
-      await Swipe.create([{
-        swiperId,
-        targetId,
-        action,
-        createdAt: new Date()
-      }], { session });
+      await Swipe.create([{ swiperId, targetId, action, createdAt: new Date() }], { session });
 
       // 4. Check for mutual like
       if (['like', 'superlike'].includes(action)) {
-        const mutualSwipe = await Swipe.findOne({
-          swiperId: targetId,
-          targetId: swiperId,
-          action: { $in: ['like', 'superlike'] }
+        const mutualSwipe = await Swipe.findOne({ swiperId: targetId, targetId: swiperId, action: { $in: ['like', 'superlike'] }
         }).session(session);
 
         if (mutualSwipe) {
           // Create match
-          const [match] = await Match.create([{
-            users: [swiperId, targetId],
-            status: 'matched',
-            lastActivity: new Date()
+          const [match] = await Match.create([{ users: [swiperId, targetId], status: 'matched', lastActivity: new Date()
           }], { session });
 
           // Update Redis if needed
@@ -479,21 +460,12 @@ async function doSwipe(swiperId, targetId, action) {
             ]);
           }
 
-          result = {
-            success: true,
-            match: true,
-            matchId: match._id,
-            message: "It's a match!"
-          };
+          result = { success: true, match: true, matchId: match._id, message: "It's a match!" };
           return;
         }
       }
 
-      result = { 
-        success: true, 
-        match: false, 
-        message: "Swipe recorded" 
-      };
+      result = { success: true, match: false, message: "Swipe recorded" };
     });
 
     return result;
@@ -526,10 +498,6 @@ module.exports = {
   // constants exported for tests or admin
   SWIPE_QUEUE_PREFIX, SWIPED_SET_PREFIX
 };
-
-
-
-
 
 // async function getFeed(userId, limit = DEFAULT_FETCH_LIMIT) {
 //   try {
