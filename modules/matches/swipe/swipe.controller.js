@@ -86,7 +86,7 @@ exports.getMatches = async (req, res) => {
   try {
     const userId = req.user._id;
     
-    // Get all non-blocked matches
+    // Get all non-blocked matchess
     const matches = await Match.find({ 
       users: userId,
       status: { $ne: 'blocked' }
