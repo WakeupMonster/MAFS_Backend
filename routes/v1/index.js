@@ -12,4 +12,7 @@ router.use("/notifications", require("../../modules/notifications/notification.r
 
 // Use routes
 router.use('/socket', socketRoutes);
+router.use("/fwb", require("../../modules/fwb/fwb.routes"));
+router.use("/chat", require("../../modules/matches/chat/chat.route"));
+
 module.exports = router;

@@ -19,8 +19,6 @@
 // worker.on("completed", (job) => console.log("Job done:", job.id));
 // worker.on("failed", (job, err) => console.error("Job failed:", job.id, err));
 
-
-
 require("dotenv").config({ path: "./.env" });
 const mongoose = require("mongoose");
 const { Worker } = require("bullmq");
@@ -45,9 +43,7 @@ connectMongo();
 // ------------------------------
 // 2. CREATE WORKER
 // ------------------------------
-const worker = new Worker(
-  "smsQueue",
-  async (job) => {
+const worker = new Worker("smsQueue", async (job) => {
     if (job.name === "send-otp") {
       const { phone, otp, userId } = job.data;
 

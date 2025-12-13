@@ -51,7 +51,7 @@ const userSchema = new mongoose.Schema({
   isProfileCompleted: { type: Boolean, default: false },
 }, { timestamps: true });
 
-userSchema.index({ phone: 1 });
+// userSchema.index({ phone: 1 });
 refreshTokenSchema.index({ expiresAt: 1 });
 userSchema.index({ isPhoneVerified: 1 });
 userSchema.index({ isEmailVerified: 1 });

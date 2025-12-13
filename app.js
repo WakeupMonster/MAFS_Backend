@@ -8,22 +8,12 @@
 
 // module.exports = app;
 
-
-
-// const express = require("express");
-// const app = express();
-
-// app.use(express.json());
-
-// // Load versioned API routes
-// app.use("/api/v1", require("./routes/v1"));
-
-// module.exports = app;
-
 const express = require("express");
 const app = express();
 
-// Middleware
+// Load cron jobs
+// require("./jobs/cron/fwbCron"); // <-- cron auto starts
+
 app.use(express.json());
 
 // Import routes
@@ -37,5 +27,7 @@ app.use((err, req, res) => {
   console.error(err.stack);
   res.status(500).json({ error: 'Something went wrong!' });
 });
+
+app.get("/", (req, res) => res.json({ message: "API running" }));
 
 module.exports = app;

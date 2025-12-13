@@ -76,7 +76,7 @@ module.exports = {
   ],
 
   religion: [
-    { label: "hindu", value: "hindu", emoji: "🕉️" },
+    { label: "hindu", value: "hindu ", emoji: "🕉️" },
     { label: "muslim", value: "muslim", emoji: "☪️" },
     { label: "sikh", value: "sikh", emoji: "🪯" },
     { label: "christian", value: "christian", emoji: "✝️" },

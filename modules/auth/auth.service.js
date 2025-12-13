@@ -13,7 +13,7 @@ const RATE_LIMIT_MAX = 2; // max OTP requests allowed
 const RATE_LIMIT_WINDOW = 60; // per 60 seconds
 
 async function sendPhoneOtp(phone) {
-  const normalizedPhone = phone.trim(); 
+  const normalizedPhone = phone.trim();
   console.log("📲 Saving OTP for:", normalizedPhone);
 
   let user = await User.findOne({ phone: normalizedPhone });
@@ -35,7 +35,6 @@ async function sendPhoneOtp(phone) {
   return { ok: true };
 }
 
-
 // async function sendPhoneOtp(phone) {
 //   // find or create user row (we create user when phone first used)
 //   let user = await User.findOne({ phone });
@@ -50,7 +49,7 @@ async function sendPhoneOtp(phone) {
 //   // send SMS (Twilio)
 //   const message = `Your verification code is ${otp}`;
 //   await utils.sendSms(phone, message);
-//   return { ok: true };  
+//   return { ok: true };
 // }
 
 async function verifyPhoneOtpUnified(phone, otp) {
@@ -82,24 +81,23 @@ async function verifyPhoneOtpUnified(phone, otp) {
 
   user.refreshTokens.push({
     tokenHash: refreshHash,
-    expiresAt: Date.now() + REFRESH_TOKEN_TTL_MS
+    expiresAt: Date.now() + REFRESH_TOKEN_TTL_MS,
   });
 
   await user.save();
   await profileModel.findOneAndUpdate(
-  { userId: user._id },
-  { 
-    $set: { 
-      "onboardingProgress.phoneVerified": true 
-    } 
-  },
-  { upsert: true }
-);
+    { userId: user._id },
+    {
+      $set: {
+        "onboardingProgress.phoneVerified": true,
+      },
+    },
+    { upsert: true }
+  );
 
   await redis.del(redisKey); // OTP delete after verify
 
   return {
-
     userId: user._id,
     accessToken,
     refreshToken: refreshTokenRaw,
@@ -107,23 +105,24 @@ async function verifyPhoneOtpUnified(phone, otp) {
     isPhoneVerified: true,
     isEmailVerified: user.isEmailVerified,
     nextStep: getNextStep(user),
-    hasCompletedProfile: user.isProfileCompleted
+    hasCompletedProfile: user.isProfileCompleted,
   };
 }
+
 function getNextStep(user) {
   if (!user.isEmailVerified) {
     return {
       screen: "email_verification",
-      message: "Verify your email"
+      message: "Verify your email",
     };
   }
-  
+
   // Check profile completion via Profile model
   // Return appropriate next step
-  
+
   return {
     screen: "profile_setup",
-    message: "Complete your profile"
+    message: "Complete your profile",
   };
 }
 
@@ -135,7 +134,11 @@ async function verifyPhoneOtp(phone, otp) {
     throw new Error("Invalid OTP");
   }
 
-  if (!user.phoneOtp  || !user.phoneOtpExpires || Date.now() > user.phoneOtpExpires) {
+  if (
+    !user.phoneOtp ||
+    !user.phoneOtpExpires ||
+    Date.now() > user.phoneOtpExpires
+  ) {
     throw new Error("OTP expired or not found");
   }
 
@@ -154,7 +157,8 @@ async function sendEmailOtp(userId, email) {
   // Ensure phone verified before email step
   const user = await User.findById(userId);
   if (!user) throw new Error("User not found");
-  if (!user.isPhoneVerified) throw new Error("Phone must be verified before email verification");
+  if (!user.isPhoneVerified)
+    throw new Error("Phone must be verified before email verification");
 
   // If email already used by another account
   const existing = await User.findOne({ email });
@@ -169,7 +173,7 @@ async function sendEmailOtp(userId, email) {
   const otp = utils.generateOtp(); // e.g., "123456"
 
   // Store RAW OTP instead of hash
-  user.emailOtp = otp;                           // <-- raw
+  user.emailOtp = otp; // <-- raw
   user.emailOtpExpires = Date.now() + EMAIL_OTP_TTL_MS;
 
   await user.save();
@@ -181,6 +185,7 @@ async function sendEmailOtp(userId, email) {
 
   return { ok: true };
 }
+
 async function verifyEmailOtp(userId, otp) {
   const user = await User.findById(userId);
   if (!user) throw new Error("User not found");
@@ -199,7 +204,7 @@ async function verifyEmailOtp(userId, otp) {
     throw new Error("Invalid OTP");
   }
 
-   user.isEmailVerified = true;
+  user.isEmailVerified = true;
 
   // Clear OTP fields
   // user.emailOtp = undefined;
@@ -212,14 +217,18 @@ async function verifyEmailOtp(userId, otp) {
 
   user.refreshTokens.push({
     tokenHash: refreshTokenHash,
-    expiresAt: Date.now() + REFRESH_TOKEN_TTL_MS
+    expiresAt: Date.now() + REFRESH_TOKEN_TTL_MS,
   });
 
   await user.save();
 
-  return { user, accessToken, refreshToken: refreshTokenRaw ,nextStep: getNextStep(user)};
+  return {
+    user,
+    accessToken,
+    refreshToken: refreshTokenRaw,
+    nextStep: getNextStep(user),
+  };
 }
-
 
 async function loginSendOtp(phone, ip) {
   if (!phone) throw new Error("Phone is required");
@@ -282,7 +291,7 @@ async function loginVerifyOtp(phone, otp) {
 
   user.refreshTokens.push({
     tokenHash: refreshTokenHash,
-    expiresAt: Date.now() + utils.REFRESH_TOKEN_TTL
+    expiresAt: Date.now() + utils.REFRESH_TOKEN_TTL,
   });
 
   await user.save();
@@ -293,17 +302,17 @@ async function loginVerifyOtp(phone, otp) {
   return { user, accessToken, refreshToken: refreshTokenRaw };
 }
 
-
-
 async function refreshAccessToken(userId, refreshTokenRaw) {
   const user = await User.findById(userId);
   if (!user) throw new Error("User not found");
 
   // clean expired tokens
-  user.refreshTokens = user.refreshTokens.filter(rt => rt.expiresAt > Date.now());
+  user.refreshTokens = user.refreshTokens.filter(
+    (rt) => rt.expiresAt > Date.now()
+  );
 
   const incomingHash = utils.hashToken(refreshTokenRaw);
-  const found = user.refreshTokens.find(rt => rt.tokenHash === incomingHash);
+  const found = user.refreshTokens.find((rt) => rt.tokenHash === incomingHash);
   if (!found) throw new Error("Invalid refresh token");
 
   // issue new access token (and optionally new refresh token)
@@ -315,11 +324,12 @@ async function logout(userId, refreshTokenRaw) {
   const user = await User.findById(userId);
   if (!user) return;
   const incomingHash = utils.hashToken(refreshTokenRaw);
-  user.refreshTokens = user.refreshTokens.filter(rt => rt.tokenHash !== incomingHash);
+  user.refreshTokens = user.refreshTokens.filter(
+    (rt) => rt.tokenHash !== incomingHash
+  );
   await user.save();
   return;
 }
-
 
 module.exports = {
   sendPhoneOtp,
@@ -333,9 +343,6 @@ module.exports = {
   logout,
   // socialAuthHandler
 };
-
-
-
 
 // async function verifyEmailOtp(userId, otp) {
 //   const user = await User.findById(userId);
@@ -386,8 +393,6 @@ module.exports = {
 //   return { ok: true };
 // }
 
-
-
 // async function loginVerifyOtp(phone, otp) {
 //   const user = await User.findOne({ phone });
 //   if (!user) throw new Error("User not found");
@@ -424,10 +429,6 @@ module.exports = {
 //   return { user, accessToken, refreshToken: refreshTokenRaw };
 // }
 
-
-
-
-
 // login verify: if user is phone verified, issue tokens; if not phone verified but OTP matched, mark phone verified and issue tokens?
 // async function loginVerifyOtp(phone, otp) {
 //   const user = await User.findOne({ phone });
@@ -458,8 +459,6 @@ module.exports = {
 
 //   return { user, accessToken, refreshToken: refreshTokenRaw };
 // }
-
-
 
 // async function socialAuthHandler(email, provider, providerId) {
 //   let user = await User.findOne({ email });
@@ -541,4 +540,3 @@ module.exports = {
 //     decoded.sub
 //   );
 // };
-
