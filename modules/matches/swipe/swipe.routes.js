@@ -1,7 +1,6 @@
 // const express = require("express");
 // const router = express.Router();
-const controllerOld = require("./swipe.controller");
-const validation = require("./swipe.validation");
+
 // const auth = require("../../auth/auth.middleware");
 
 // router.use(auth);
@@ -10,9 +9,9 @@ const validation = require("./swipe.validation");
 // router.post("/action", validation.action, controller.action);
 // router.post("/undo", validation.undo, controller.undo);
 // router.get("/matches", controller.getMatches);
-
 // module.exports = router;
-
+const controllerOld = require("./swipe.controller");
+const validation = require("./swipe.validation");
 
 const express = require("express");
 const router = express.Router();
@@ -41,5 +40,9 @@ router.get("/reported", controller.getReportedUsers);
 router.delete("/", controller.unblockUser);
 
 router.get("/limits", controllerOld.getLimits);
+
+router.get("/keen", controllerOld.getKeen);
+router.get("/superkeen", controllerOld.getSuperKeen);
+
 
 module.exports = router;

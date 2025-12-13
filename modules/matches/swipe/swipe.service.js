@@ -97,6 +97,164 @@ async function prefetchCandidates(userId, myProfile, limit, blockedUserIds = [])
   }
 }
 
+// async function getFeed(userId, limit = 20) {
+//   const CACHE_KEY = `feed:${userId}`;
+//   const CACHE_TTL = 300; // 5 minutes
+
+//   try {
+//     // 1. Try to get from Redis cache first
+//     if (redis && redis.get) {
+//       try {
+//         const cachedFeed = await redis.get(CACHE_KEY);
+//         if (cachedFeed) {
+//           console.log('Serving feed from Redis cache for user:', userId);
+//           return JSON.parse(cachedFeed);
+//         }
+//       } catch (redisErr) {
+//         console.error('Redis cache get error:', redisErr);
+//       }
+//     }
+
+//     console.log(`Fetching feed for user: ${userId} from DB`);
+    
+//     // 2. Get current user's profile
+//     const myProfile = await Profile.findOne({ userId }).lean();
+//     if (!myProfile) {
+//       console.log('User profile not found');
+//       return [];
+//     }
+
+//     // 3. Get all users who have superliked the current user
+//     const superlikes = await Swipe.find({
+//       targetId: userId,
+//       action: 'superlike'
+//     }).select('swiperId').lean();
+
+//     // 4. Get list of users I've already interacted with (except superlikes)
+//     const myInteractions = await Swipe.find({
+//       swiperId: userId,
+//       action: { $ne: 'superlike' } // We'll handle superlikes separately
+//     }).select('targetId').lean();
+
+//     // 5. Build the query for fresh profiles (excluding superlikes)
+//     const query = { 
+//       userId: { 
+//         $ne: new mongoose.Types.ObjectId(userId),
+//         $nin: myInteractions.map(swipe => swipe.targetId) // Exclude users I've interacted with
+//       },
+//       isDiscoverable: true,
+//       isProfileCompleted: true
+//     };
+
+//     // 6. Add gender preference if set
+//     if (myProfile.preferences?.genderPreference?.length > 0) {
+//       query.gender = { $in: myProfile.preferences.genderPreference };
+//     }
+
+//     // 7. Add age range filter
+//     const ageMin = myProfile.preferences?.ageRange?.min || 18;
+//     const ageMax = myProfile.preferences?.ageRange?.max || 60;
+//     const now = new Date();
+//     query.dob = {
+//       $lte: new Date(now.getFullYear() - ageMin, now.getMonth(), now.getDate()),
+//       $gte: new Date(now.getFullYear() - ageMax - 1, now.getMonth(), now.getDate())
+//     };
+
+//     // 8. Add location filter
+//     if (myProfile.location?.coordinates?.length === 2) {
+//       query["location.coordinates"] = {
+//         $near: {
+//           $geometry: {
+//             type: "Point",
+//             coordinates: myProfile.location.coordinates
+//           },
+//           $maxDistance: (myProfile.preferences?.distanceRange || 50) * 1000
+//         }
+//       };
+//       console.log('Location filter applied with coordinates:', myProfile.location.coordinates);
+//     }
+
+//     // 9. Exclude blocked users
+//     const blockedUsers = await userActionsModel.find({
+//       $or: [
+//         { actorId: userId, actionType: 'block' },
+//         { targetId: userId, actionType: 'block' }
+//       ]
+//     }).distinct('targetId');
+    
+//     if (blockedUsers.length > 0) {
+//       query.userId.$nin = [...(query.userId.$nin || []), ...blockedUsers.map(id => new mongoose.Types.ObjectId(id))];
+//     }
+
+//     // 10. Execute the query to get fresh profiles
+//     let profiles = await Profile.find(query)
+//       .limit(limit)
+//       .select('userId fullName nickname bio photos location dob gender interests')
+//       .sort({ createdAt: -1 })
+//       .lean();
+
+//     // 11. Create a map of users who superliked me
+//     const superlikeMap = {};
+//     superlikes.forEach(swipe => {
+//       superlikeMap[swipe.swiperId.toString()] = true;
+//     });
+
+//     // 12. Add superlike information to profiles
+//     profiles = profiles.map(profile => ({
+//       ...profile,
+//       superlikedBy: superlikeMap[profile.userId.toString()] || false
+//     }));
+
+//     // 13. Now add profiles of users who superliked me but might have been excluded
+//     const superlikersNotInFeed = await Profile.find({
+//       userId: {
+//         $in: superlikes
+//           .map(sl => sl.swiperId)
+//           .filter(id => {
+//             // Only include superlikers who aren't already in the feed
+//             return !profiles.some(p => p.userId.toString() === id.toString());
+//           }),
+//         // Make sure we don't include blocked users
+//         $nin: blockedUsers
+//       }
+//     })
+//     .select('userId fullName nickname bio photos location dob gender interests')
+//     .lean();
+
+//     // 14. Add superlikers to the feed
+//     const superlikersWithFlag = superlikersNotInFeed.map(profile => ({
+//       ...profile,
+//       superlikedBy: true
+//     }));
+
+//     // 15. Combine both arrays (fresh profiles + superlikers) and limit to the requested limit
+//     const combinedProfiles = [...profiles, ...superlikersWithFlag];
+//     const finalProfiles = combinedProfiles.slice(0, limit);
+
+//     // 16. Cache the results in Redis
+//     if (redis && redis.set && finalProfiles.length > 0) {
+//       try {
+//         await redis.set(
+//           CACHE_KEY,
+//           JSON.stringify(finalProfiles),
+//           { EX: CACHE_TTL }
+//         );
+//         console.log('Feed cached in Redis for user:', userId);
+//       } catch (cacheErr) {
+//         console.error('Error caching feed in Redis:', cacheErr);
+//       }
+//     }
+
+//     return finalProfiles;
+
+//   } catch (error) {
+//     console.error('Error in getFeed:', error);
+//     throw error;
+//   }
+// }
+
+
+
 async function getFeed(userId, limit = 20) {
   const CACHE_KEY = `feed:${userId}`;
   const CACHE_TTL = 300; // 5 minutes
@@ -112,7 +270,6 @@ async function getFeed(userId, limit = 20) {
         }
       } catch (redisErr) {
         console.error('Redis cache get error:', redisErr);
-        // Continue to fetch from DB if Redis fails
       }
     }
 
@@ -125,17 +282,34 @@ async function getFeed(userId, limit = 20) {
       return [];
     }
 
-    // 3. Build the query
+    // 3. Get all users who have superliked the current user
+    const superlikes = await Swipe.find({
+      targetId: userId,
+      action: 'superlike'
+    }).select('swiperId').lean();
+
+    // 4. Get list of users I've already interacted with
+    const myInteractions = await Swipe.find({
+      swiperId: userId
+    }).select('targetId action').lean();
+
+    // 5. Build the query
     const query = { 
-      userId: { $ne: new mongoose.Types.ObjectId(userId) }
+      userId: { 
+        $ne: new mongoose.Types.ObjectId(userId),
+        // Exclude users I've interacted with, except those who superliked me
+        $nin: myInteractions
+          .filter(swipe => !superlikes.some(sl => sl.swiperId.equals(swipe.targetId)))
+          .map(swipe => swipe.targetId)
+      }
     };
 
-    // 4. Add gender preference if set
+    // 6. Add gender preference if set
     if (myProfile.preferences?.genderPreference?.length > 0) {
       query.gender = { $in: myProfile.preferences.genderPreference };
     }
 
-    // 5. Add age range filter
+    // 7. Add age range filter
     const ageMin = myProfile.preferences?.ageRange?.min || 18;
     const ageMax = myProfile.preferences?.ageRange?.max || 60;
     const now = new Date();
@@ -144,7 +318,7 @@ async function getFeed(userId, limit = 20) {
       $gte: new Date(now.getFullYear() - ageMax - 1, now.getMonth(), now.getDate())
     };
 
-    // 6. Add location filter
+    // 8. Add location filter
     if (myProfile.location?.coordinates?.length === 2) {
       query["location.coordinates"] = {
         $near: {
@@ -158,13 +332,7 @@ async function getFeed(userId, limit = 20) {
       console.log('Location filter applied with coordinates:', myProfile.location.coordinates);
     }
 
-    // 7. Exclude swiped users
-    const swipedUsers = await Swipe.find({ swiperId: userId }).distinct('targetId');
-    if (swipedUsers.length > 0) {
-      query.userId.$nin = swipedUsers.map(id => new mongoose.Types.ObjectId(id));
-    }
-
-    // 8. Exclude blocked users
+    // 9. Exclude blocked users
     const blockedUsers = await userActionsModel.find({
       $or: [
         { actorId: userId, actionType: 'block' },
@@ -176,19 +344,52 @@ async function getFeed(userId, limit = 20) {
       query.userId.$nin = [...(query.userId.$nin || []), ...blockedUsers.map(id => new mongoose.Types.ObjectId(id))];
     }
 
-    // 9. Execute the query
-    const profiles = await Profile.find(query)
+    // 10. Execute the query to get fresh profiles
+    let profiles = await Profile.find(query)
       .limit(limit)
       .select('userId fullName nickname bio photos location dob gender interests')
       .sort({ createdAt: -1 })
       .lean();
 
-    // 10. Cache the results in Redis
-    if (redis && redis.set && profiles.length > 0) {
+    // 11. Add superlike information to profiles
+    const superlikeMap = {};
+    superlikes.forEach(swipe => {
+      superlikeMap[swipe.swiperId.toString()] = true;
+    });
+
+    // 12. Add superlike flag to profiles
+    profiles = profiles.map(profile => ({
+      ...profile,
+      superlikedBy: superlikeMap[profile.userId.toString()] || false
+    }));
+
+    // 13. Add superlikers who might have been excluded
+    const superlikersNotInFeed = await Profile.find({
+      userId: {
+        $in: superlikes
+          .map(sl => sl.swiperId)
+          .filter(id => !profiles.some(p => p.userId.toString() === id.toString())),
+        $nin: blockedUsers
+      }
+    })
+    .select('userId fullName nickname bio photos location dob gender interests')
+    .lean();
+
+    // 14. Add superlikers to the feed
+    const superlikersWithFlag = superlikersNotInFeed.map(profile => ({
+      ...profile,
+      superlikedBy: true
+    }));
+
+    // 15. Combine both arrays and limit to the requested limit
+    const allProfiles = [...profiles, ...superlikersWithFlag].slice(0, limit);
+
+    // 16. Cache the results in Redis
+    if (redis && redis.set && allProfiles.length > 0) {
       try {
         await redis.set(
           CACHE_KEY,
-          JSON.stringify(profiles),
+          JSON.stringify(allProfiles),
           { EX: CACHE_TTL }
         );
         console.log('Feed cached in Redis for user:', userId);
@@ -197,13 +398,150 @@ async function getFeed(userId, limit = 20) {
       }
     }
 
-    return profiles;
+    return allProfiles;
 
   } catch (error) {
     console.error('Error in getFeed:', error);
     throw error;
   }
 }
+
+
+
+
+
+
+
+
+
+
+// async function getFeed(userId, limit = 20) {
+//   const CACHE_KEY = `feed:${userId}`;
+//   const CACHE_TTL = 300; // 5 minutes
+
+//   try {
+//     // 1. Try to get from Redis cache first
+//     if (redis && redis.get) {
+//       try {
+//         const cachedFeed = await redis.get(CACHE_KEY);
+//         if (cachedFeed) {
+//           console.log('Serving feed from Redis cache for user:', userId);
+//           return JSON.parse(cachedFeed);
+//         }
+//       } catch (redisErr) {
+//         console.error('Redis cache get error:', redisErr);
+//         // Continue to fetch from DB if Redis fails
+//       }
+//     }
+
+//     console.log(`Fetching feed for user: ${userId} from DB`);
+    
+//     // 2. Get current user's profile
+//     const myProfile = await Profile.findOne({ userId }).lean();
+//     if (!myProfile) {
+//       console.log('User profile not found');
+//       return [];
+//     }
+
+//     // 3. Build the query
+//     const query = { 
+//       userId: { $ne: new mongoose.Types.ObjectId(userId) }
+//     };
+
+//     // 4. Add gender preference if set
+//     if (myProfile.preferences?.genderPreference?.length > 0) {
+//       query.gender = { $in: myProfile.preferences.genderPreference };
+//     }
+
+//     // 5. Add age range filter
+//     const ageMin = myProfile.preferences?.ageRange?.min || 18;
+//     const ageMax = myProfile.preferences?.ageRange?.max || 60;
+//     const now = new Date();
+//     query.dob = {
+//       $lte: new Date(now.getFullYear() - ageMin, now.getMonth(), now.getDate()),
+//       $gte: new Date(now.getFullYear() - ageMax - 1, now.getMonth(), now.getDate())
+//     };
+
+//     // 6. Add location filter
+//     if (myProfile.location?.coordinates?.length === 2) {
+//       query["location.coordinates"] = {
+//         $near: {
+//           $geometry: {
+//             type: "Point",
+//             coordinates: myProfile.location.coordinates
+//           },
+//           $maxDistance: (myProfile.preferences?.distanceRange || 50) * 1000
+//         }
+//       };
+//       console.log('Location filter applied with coordinates:', myProfile.location.coordinates);
+//     }
+
+//     // 7. Exclude swiped users
+//     const swipedUsers = await Swipe.find({ swiperId: userId }).distinct('targetId');
+//     if (swipedUsers.length > 0) {
+//       query.userId.$nin = swipedUsers.map(id => new mongoose.Types.ObjectId(id));
+//     }
+
+//     // 8. Exclude blocked users
+//     const blockedUsers = await userActionsModel.find({
+//       $or: [
+//         { actorId: userId, actionType: 'block' },
+//         { targetId: userId, actionType: 'block' }
+//       ]
+//     }).distinct('targetId');
+    
+//     if (blockedUsers.length > 0) {
+//       query.userId.$nin = [...(query.userId.$nin || []), ...blockedUsers.map(id => new mongoose.Types.ObjectId(id))];
+//     }
+//     const superlikes = await Swipe.find({
+//   targetId: userId,  // Who received the superlike
+//   action: 'superlike'
+// }).select('swiperId').lean();
+// // Create a map of userId -> true for users who superliked current user
+// const usersWhoSuperlikedMe = {};
+// superlikes.forEach(swipe => {
+//   usersWhoSuperlikedMe[swipe.swiperId.toString()] = true;
+// });
+    
+
+//     // 9. Execute the query
+//     const profileResults = await Profile.find(query)
+//       .limit(limit)
+//       .select('userId fullName nickname bio photos location dob gender interests')
+//       .sort({ createdAt: -1 })
+//       .lean();
+// const profiles = profileResults.map(profile => {
+//   // Check if this profile's user has superliked the current user
+//   const hasSuperlikedMe = usersWhoSuperlikedMe[profile.userId.toString()] || false;
+  
+//   return {
+//     ...profile,
+//     superlikedBy: hasSuperlikedMe
+//   };
+// });
+//     // 10. Cache the results in Redis
+//     if (redis && redis.set && profileResults.length > 0) {
+//       try {
+//         await redis.set(
+//           CACHE_KEY,
+//           JSON.stringify(profiles),
+//           { EX: CACHE_TTL }
+//         );
+//         console.log('Feed cached in Redis for user:', userId);
+//       } catch (cacheErr) {
+//         console.error('Error caching feed in Redis:', cacheErr);
+//       }
+//     }
+
+//     return profileResults;
+
+//   } catch (error) {
+//     console.error('Error in getFeed:', error);
+//     throw error;
+//   }
+// }
+
+
 
 // async function getFeed(userId, limit = 20) {
 //   const CACHE_KEY = `feed:${userId}`;
