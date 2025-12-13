@@ -37,13 +37,13 @@ const { Match } = require("../swipe/swipe.model");
 // GET /api/v1/messages/:matchId?limit=20&page=1
 exports.getChatMessages = async (req, res) => {
   try {
-    const userId = req.user._id;
+    const receiverUid = req.user._id;
     const { matchId } = req.params;
     const limit = Math.min(parseInt(req.query.limit) || 20, 100);
     const page = Math.max(parseInt(req.query.page) || 1, 1);
 
     console.log("matchId:", matchId);
-    console.log("userId: ", userId.toString());
+    console.log("receiverUId: ", receiverUid.toString());
 
     // 1. Check match exist
     const match = await Match.findById(matchId).lean();
@@ -55,7 +55,7 @@ exports.getChatMessages = async (req, res) => {
     }
 
     // 2. Check if user is part of the match
-    if (!match.users.some((u) => u.toString() === userId.toString())) {
+    if (!match.users.some((u) => u.toString() === receiverUid.toString())) {
       return res.status(403).json({
         success: false,
         message: "Forbidden — You are not part of this match",
@@ -66,15 +66,15 @@ exports.getChatMessages = async (req, res) => {
     // 3. Fetch messages
     const messages = await ChatMessage.find({
       matchId,
-      deletedFor: { $ne: userId },
+      deletedFor: { $ne: receiverUid },
     })
-      .sort({ createdAt: -1 })
+      .sort({ createdAt: 1 })
       .skip(skip)
       .limit(limit)
       .lean();
 
     // return in ascending order to client (older -> newer) # check this reverse logic
-    messages.reverse();
+    // messages.reverse();
 
     return res.json({
       success: true,
@@ -88,41 +88,95 @@ exports.getChatMessages = async (req, res) => {
 };
 
 // PATCH /api/v1/messages/:matchId/read   // mark messages read or seen
+// exports.updateChatMsgRead = async (req, res) => {
+//   try {
+//     const userId = req.user._id;
+//     const { matchId } = req.params;
+
+//     // 1. Ensure match exists
+//     const match = await Match.findById(matchId).lean();
+//     if (!match) {
+//       return res
+//         .status(404)
+//         .json({ success: false, message: "Match not found" });
+//     }
+
+//     // 2. Ensure user is part of the match
+//     if (!match.users.some((u) => u.toString() === userId.toString())) {
+//       return res.status(403).json({
+//         success: false,
+//         message: "Forbidden — You are not part of this match",
+//       });
+//     }
+
+//     // 3. Update unread messages where receiver = userId
+//     const result = await ChatMessage.updateMany(
+//       { matchId, receiver: userId, read: false },
+//       { $set: { read: true, readAt: new Date() } }
+//     );
+
+//     return res.json({ success: true, readCount: result.modifiedCount });
+//   } catch (err) {
+//     console.error("ERROR updating chat read status:", err);
+//     return res.status(500).json({ success: false, message: "Server error" });
+//   }
+// };
+
 exports.updateChatMsgRead = async (req, res) => {
   try {
-    const userId = req.user._id;
+    const receiverUid = req.user._id;
     const { matchId } = req.params;
 
-    // 1. Ensure match exists
+    // 1️⃣ Validate match
     const match = await Match.findById(matchId).lean();
     if (!match) {
-      return res
-        .status(404)
-        .json({ success: false, message: "Match not found" });
-    }
-
-    // 2. Ensure user is part of the match
-    if (!match.users.some((u) => u.toString() === userId.toString())) {
-      return res.status(403).json({
+      return res.status(404).json({
         success: false,
-        message: "Forbidden — You are not part of this match",
+        message: "Match not found",
       });
     }
 
-    // 3. Update unread messages where receiver = userId
+    // 2️⃣ Validate membership
+    if (!match.users.some((u) => u.toString() === receiverUid.toString())) {
+      return res.status(403).json({
+        success: false,
+        message: "Forbidden — not part of this match",
+      });
+    }
+
+    // 3️⃣ Mark messages as READ
     const result = await ChatMessage.updateMany(
-      { matchId, receiver: userId, read: false },
-      { $set: { read: true, readAt: new Date() } }
+      {
+        matchId,
+        receiver: receiverUid,
+        status: { $ne: "read" },
+      },
+      {
+        status: "read",
+        readAt: new Date(),
+      }
     );
 
-    return res.json({ success: true, readCount: result.modifiedCount });
+    // 4️⃣ Notify sender (socket)
+    req.io?.to(`chat:${matchId}`).emit("messages_read", {
+      matchId,
+      readerId: receiverUid,
+    });
+
+    return res.json({
+      success: true,
+      readCount: result.modifiedCount,
+    });
   } catch (err) {
-    console.error("ERROR updating chat read status:", err);
-    return res.status(500).json({ success: false, message: "Server error" });
+    console.error("UPDATE READ STATUS ERROR:", err);
+    return res.status(500).json({
+      success: false,
+      message: "Server error",
+    });
   }
 };
 
-// DELETE /api/v1/messages/:matchId/:messageId
+// DELETE for Single message /api/v1/messages/:matchId/:messageId
 exports.deleteChatMessage = async (req, res) => {
   try {
     const userId = req.user._id;

@@ -4,46 +4,47 @@ const Schema = mongoose.Schema;
 const ChatMessageSchema = new Schema(
   {
     matchId: {
-      type: mongoose.Schema.Types.ObjectId,
+      type: Schema.Types.ObjectId,
       ref: "Match",
       required: true,
       index: true,
     },
-    sender: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "User",
-      required: true,
-    },
-    receiver: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "User",
-      required: true,
-    },
+
+    sender: { type: Schema.Types.ObjectId, ref: "User", required: true },
+
+    receiver: { type: Schema.Types.ObjectId, ref: "User", required: true },
+
     text: { type: String, default: "" },
 
-    // For image/video messages
     media: {
       url: String,
       publicId: String,
-      type: { type: String, enum: ["image", "video"], default: null },
+      type: {
+        type: String,
+        enum: ["image", "video", "gif"],
+        default: null,
+      },
     },
 
-    // Read receipts (WhatsApp-style)
-    read: {
-      type: Boolean,
-      default: false,
+    status: {
+      type: String,
+      enum: ["sent", "unread", "delivered", "read"],
+      // "sent = grey ✓ ", "unread = grey ✓✓", "delivered = grey ✓✓", "read = blue ✓✓"
+      default: "sent",
     },
 
-    // Timestamps
-    readAt: {
-      type: Date,
-      default: null,
-    },
+    deliveredAt: { type: Date, default: null },
 
-    // ⭐ Soft delete → deleted only for specific user(s)
-    deletedFor: [{ type: mongoose.Schema.Types.ObjectId, ref: "User" }],
+    readAt: { type: Date, default: null },
+
+    deletedFor: [{ type: Schema.Types.ObjectId, ref: "User" }],
   },
   { timestamps: true }
 );
+
+// 🔥 Indexes
+// ChatMessageSchema.index({ matchId: 1, createdAt: -1 });
+// ChatMessageSchema.index({ receiver: 1, status: 1 });
+// ChatMessageSchema.index({ sender: 1 });
 
 module.exports = mongoose.model("ChatMessage", ChatMessageSchema);

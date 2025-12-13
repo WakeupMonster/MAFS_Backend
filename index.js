@@ -60,6 +60,7 @@ let redisClient;
     // 2) Create Socket.IO instance // when backend deploy then update cors origin & url
     const io = new Server(http, {
       cors: { origin: "*" },
+      // ⚠️ Production me "*" isko replace krna hn frontend domain ke se
     });
 
     // 3) Create Redis pub/sub clients
@@ -79,8 +80,8 @@ let redisClient;
     io.use(async (socket, next) => {
       try {
         const token = socket.handshake.auth?.token;
-        // const auth = require("../auth/auth.middleware");
-        // router.use(auth);
+        // Imp. Check isko modify krna ho toh
+        if (!token) return next(new Error("unauthorized"));
 
         const user = await verifyTokenAndGetUser(token);
         if (!user) return next(new Error("unauthorized"));
@@ -88,7 +89,10 @@ let redisClient;
         socket.user = user;
 
         // store this socketId for direct emit
-        await redisClient.sAdd(`sockets:${user._id}`, socket.id);
+        await redisClient
+          .sAdd(`sockets:${user._id}`, socket.id)
+          .then(() => console.log("Redis socket working."))
+          .catch((e) => console.error("Redis socket tracking failed", e));
 
         next();
       } catch (err) {

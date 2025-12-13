@@ -1,9 +1,9 @@
 // socket-server.js
-const User = require("../modules/auth/auth.model");
 const { Match } = require("../modules/matches/swipe/swipe.model");
 const ChatRoom = require("../modules/matches/chat/chat.room.model");
 const ChatMessage = require("../modules/matches/chat/chat.message.model");
-const { sendNotification } = require("../modules/notifications/firebase-admin");
+const messageQueue = require("../queues/message.queue");
+const Block = require("../modules/matches/swipe/block.model");
 
 module.exports = (io, redis) => {
   // connection build after match
@@ -14,29 +14,39 @@ module.exports = (io, redis) => {
     // Join chat room for a match
     socket.on("join_chat", async ({ matchId }) => {
       try {
-        if (!match) return;
+        if (!matchId) return;
 
-        const userId = socket.user._id;
+        const senderUid = socket.user._id;
+        const isBlocked = await Block.exists({
+          blocker: { $ne: senderUid },
+          blocked: senderUid,
+        });
+
+        if (isBlocked) return;
 
         // 1️⃣ Validate match exists & belongs to user
         const match = await Match.findById(matchId).lean();
-        if (!match.users.some((u) => u.toString() === userId.toString())) {
+
+        if (!match) return;
+        if (!match.users.some((u) => u.toString() === senderUid.toString())) {
           return; // not part of match
         }
 
         // 2️⃣ Create or update chat room
         const chatRoom = await ChatRoom.findOneAndUpdate(
           { matchId },
-          { $addToSet: { participants: userId } }, // add only if not exists
+          { $addToSet: { participants: senderUid } }, // add only if not exists
           { upsert: true, new: true }
         );
 
         // 3️⃣ Join socket room
-        socket.join(`chat:${matchId}`);
+        const room = `chat:${matchId}`;
+        if (socket.rooms.has(room)) return; // 👈 anti-spam
+        socket.join(room);
 
         // 4️⃣ Notify other participant
         socket.to(`chat:${matchId}`).emit("user_joined", {
-          userId,
+          senderUid,
           roomId: chatRoom._id,
         });
       } catch (err) {
@@ -71,76 +81,103 @@ module.exports = (io, redis) => {
         .emit("stop_typing", { sender: socket.user._id, matchId });
     });
 
-    // send message  // tempry id
-    socket.on("send_message", async (payload) => {
+    // send message  // tempry id // Apply Ack for Acknowledge
+    socket.on("send_message", async (payload, ack) => {
       try {
-        // send mesg from sender side.
         const sender = socket.user._id;
         const { matchId, receiver, text, media } = payload;
 
-        if (!matchId || !receiver) return;
+        // validate match id and reveive id
+        if (!matchId || !receiver) {
+          return ack({
+            success: false,
+            error: "Invalid payload",
+          });
+        }
 
-        // 1️⃣ Save message. This msg data save to DB from sender side.
+        // 1️⃣ 🔐 sender + receiver match dono match users hai ya nhi hn
+        const match = await Match.findById(matchId).lean();
+
+        if (
+          !match ||
+          !match.users.some((u) => u.toString() === sender.toString()) ||
+          !match.users.some((u) => u.toString() === receiver.toString())
+        ) {
+          if (typeof ack === "function") {
+            return ack({
+              success: false,
+              error: "Unauthorized message",
+            });
+          }
+          return;
+        }
+
+        // 2️⃣ 🔥 BLOCK CHECK (CRITICAL) -> check user block hn ya nhi hn
+        const isBlocked = await Block.exists({
+          blocker: receiver, // User A
+          blocked: sender, // User B
+        });
+
+        if (isBlocked) {
+          if (typeof ack === "function") {
+            return ack({
+              success: false,
+              error: "You cannot message this user",
+              code: "USER_BLOCKED",
+            });
+          }
+          return;
+        }
+
+        // 3️⃣ Save message krega DB me
         const msg = await ChatMessage.create({
           matchId,
           sender,
           receiver,
           text: text || "",
           media: media || null,
+          status: "sent",
         });
 
-        // Update last msg date in match schema from sender side and save DB
-        await Match.findByIdAndUpdate(matchId, { lastMessageAt: new Date() });
+        // 4️⃣ Update match -> last message ko match me update krega
+        await Match.findByIdAndUpdate(matchId, {
+          lastMessageAt: new Date(),
+        });
 
-        // 3️⃣ Stop typing automatically jese hi message sent hua
-        socket.to(`chat:${matchId}`).emit("stop_typing", { sender, matchId });
+        // 5️⃣ Stop typing indicator
+        socket.to(`chat:${matchId}`).emit("stop_typing", {
+          sender,
+          matchId,
+        });
 
-        // 4️⃣ This Emit to room event trigger.
-        // Jab ⚠️ Room me join kiya hua user hi realtime receive karega.
-        io.to(`chat:${matchId}`).emit("new_message", msg);
+        // 6️⃣ Push job into queue 🔥 -> Bullq or Havily task ke liye mesg que me push kr dega
+        await messageQueue.add("deliver-message", {
+          msgId: msg._id.toString(),
+          matchId: matchId.toString(),
+          receiver: receiver.toString(),
+        });
 
-        // 5️⃣ Detect if receiver is already inside the chat room
-        const roomSockets = await io.in(`chat:${matchId}`).fetchSockets();
-        const isReceiverInRoom = roomSockets.some(
-          (s) => s.user._id.toString() === receiver.toString()
-        );
-
-        // 6️⃣ Emit direct message only if receiver has sockets OUTSIDE chat room.
-        if (!isReceiverInRoom) {
-          const recipientSockets = await redis.sMembers(`sockets:${receiver}`);
-
-          if (recipientSockets?.length) {
-            for (const sid of recipientSockets) {
-              if (sid !== socket.id) io.to(sid).emit("new_message", msg);
-            }
-          }
-        }
-
-        // 7️⃣ Send push notification only if receiver NOT active in chat room
-        if (!isReceiverInRoom) {
-          const recipient = await User.findById(receiver).lean();
-
-          if (recipient?.fcmTokens?.length) {
-            // sendFCM dummy hn abhi ke liye
-
-            for (const tkObj of recipient.fcmTokens) {
-              await sendNotification(
-                tkObj.token,
-                {
-                  title: "New message",
-                  body: msg.text || "Photo",
-                },
-                {
-                  type: "NEW_MESSAGE",
-                  matchId: matchId.toString(),
-                }
-              );
-            }
-          }
-        }
+        // 7️⃣ ACK to sender success response 🔥
+        ack({
+          success: true,
+          data: {
+            _id: msg._id,
+            matchId,
+            sender,
+            receiver,
+            text: msg.text,
+            status: msg.status,
+            createdAt: msg.createdAt,
+          },
+        });
       } catch (err) {
-        console.error("send_message err", err);
-        socket.emit("error", { message: err.message });
+        console.error("send_message error:", err);
+
+        // 8️⃣ ACK failure response
+        ack({
+          success: false,
+          error: "Message send failed",
+        });
       }
     });
 
