@@ -1,4 +1,5 @@
 // routes/messages.js
+const { uploadStream } = require("../../upload/cloudinary.service");
 const ChatMessage = require("../chat/chat.message.model");
 const { Match } = require("../swipe/swipe.model");
 
@@ -72,9 +73,6 @@ exports.getChatMessages = async (req, res) => {
       .skip(skip)
       .limit(limit)
       .lean();
-
-    // return in ascending order to client (older -> newer) # check this reverse logic
-    // messages.reverse();
 
     return res.json({
       success: true,
@@ -180,10 +178,10 @@ exports.updateChatMsgRead = async (req, res) => {
 exports.deleteChatMessage = async (req, res) => {
   try {
     const userId = req.user._id;
-    const { matchId, messageId } = req.params;
+    const { matchId, mesId } = req.params;
 
     console.log("matchId:", matchId);
-    console.log("messageId:", messageId);
+    console.log("messageId:", mesId);
     console.log("userId:", userId.toString());
 
     // 1) Validate match
@@ -203,7 +201,7 @@ exports.deleteChatMessage = async (req, res) => {
     }
 
     // 2) Validate message
-    const message = await ChatMessage.findById(messageId);
+    const message = await ChatMessage.findById(mesId);
     if (!message) {
       return res
         .status(404)
@@ -220,7 +218,7 @@ exports.deleteChatMessage = async (req, res) => {
 
     // 3) Perform soft delete for this user
     const delUpdate = await ChatMessage.findByIdAndUpdate(
-      messageId,
+      mesId,
       { $addToSet: { deletedFor: userId } },
       { new: true }
     ).lean();
@@ -235,3 +233,116 @@ exports.deleteChatMessage = async (req, res) => {
     return res.status(500).json({ success: false, message: "Server error" });
   }
 };
+
+// DELETE ALL messages (soft delete) for user, jese hi ye api hi hogi then jiske side se call hui hn ab usko koi old messages nhi show honge.
+exports.deleteAllChatMessagesForUser = async (req, res) => {
+  try {
+    const userId = req.user._id;
+    const { matchId } = req.params;
+
+    // 1) Validate match
+    const match = await Match.findById(matchId).lean();
+    if (!match) {
+      return res
+        .status(404)
+        .json({ success: false, message: "Match not found" });
+    }
+
+    // Ensure user is part of match hai ki nhi hn
+    if (!match.users.some((u) => u.toString() === userId.toString())) {
+      return res.status(403).json({
+        success: false,
+        message: "Forbidden — You are not part of this match",
+      });
+    }
+
+    // 2) Soft delete all messages for this user, sirf user ko dikhane ke liye delete hogye hn
+    const result = await ChatMessage.updateMany(
+      {
+        matchId,
+        deletedFor: { $ne: userId }, // avoid duplicate push
+      },
+      {
+        $addToSet: { deletedFor: userId },
+      }
+    );
+
+    return res.json({
+      success: true,
+      message: "All messages deleted for user",
+      modifiedCount: result.modifiedCount,
+    });
+  } catch (error) {
+    console.error("DELETE ALL MESSAGES ERROR:", error);
+    return res.status(500).json({ success: false, message: "Server error" });
+  }
+};
+
+// POST Upload media controller to upload image, video, and GIFs
+exports.uploadChatMediaController = async (req, res) => {
+  try {
+    if (!req.files || !req.files.length) {
+      return res.status(400).json({
+        success: false,
+        message: "No media files uploaded",
+      });
+    }
+
+    const uploads = await Promise.all(
+      req.files.map(async (file) => {
+        let folder = "mafs/chatsMedia";
+        let resourceType = "image";
+        let type = "image";
+
+        if (file.mimetype.startsWith("video")) {
+          resourceType = "video";
+          type = "video";
+        } else if (file.mimetype === "image/gif") {
+          type = "gif";
+        }
+
+        const originalName = file.originalname
+          .split(".")
+          .slice(0, -1)
+          .join("."); // remove extension
+
+        const result = await uploadStream(file.buffer, {
+          folder,
+          resource_type: resourceType,
+          use_filename: true,
+          unique_filename: true, // prevent overwrite
+          filename_override: originalName,
+        });
+
+        return {
+          url: result.secure_url,
+          publicId: result.public_id,
+          originalName: file.originalname,
+          type,
+        };
+      })
+    );
+
+    return res.status(200).json({
+      success: true,
+      media: uploads, // 🔥 always array
+    });
+  } catch (error) {
+    return res.status(500).json({
+      success: false,
+      message: error.message,
+    });
+  }
+};
+
+/*
+media:[
+   {
+     "url": "https://res.cloudinary.com/.../chat-media/photo_abc123.jpg",
+     "publicId": "chat-media/photo_abc123",
+     "originalName": "photo.jpg",
+     "type": "image"
+   }, 
+   ....
+]
+*/

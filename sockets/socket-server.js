@@ -85,7 +85,7 @@ module.exports = (io, redis) => {
     socket.on("send_message", async (payload, ack) => {
       try {
         const sender = socket.user._id;
-        const { matchId, receiver, text, media } = payload;
+        const { matchId, receiver, text, media = [], clientTempId } = payload;
 
         // validate match id and reveive id
         if (!matchId || !receiver) {
@@ -135,7 +135,7 @@ module.exports = (io, redis) => {
           sender,
           receiver,
           text: text || "",
-          media: media || null,
+          media: Array.isArray(media) ? media : [],
           status: "sent",
         });
 
@@ -160,15 +160,8 @@ module.exports = (io, redis) => {
         // 7️⃣ ACK to sender success response 🔥
         ack({
           success: true,
-          data: {
-            _id: msg._id,
-            matchId,
-            sender,
-            receiver,
-            text: msg.text,
-            status: msg.status,
-            createdAt: msg.createdAt,
-          },
+          clientTempId, // map temp → real
+          data: msg,
         });
       } catch (err) {
         console.error("send_message error:", err);

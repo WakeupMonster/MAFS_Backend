@@ -16,15 +16,17 @@ const ChatMessageSchema = new Schema(
 
     text: { type: String, default: "" },
 
-    media: {
-      url: String,
-      publicId: String,
-      type: {
-        type: String,
-        enum: ["image", "video", "gif"],
-        default: null,
+    media: [
+      {
+        url: String,
+        publicId: String,
+        originalName: String,
+        type: {
+          type: String,
+          enum: ["image", "video", "gif"],
+        },
       },
-    },
+    ],
 
     status: {
       type: String,

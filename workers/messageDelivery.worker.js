@@ -16,6 +16,9 @@ new Worker(
     const sockets = await redis.sMembers(`sockets:${receiver}`);
     const isOnline = sockets.length > 0;
 
+    // receive = 123
+    // socket : 123
+
     // 🔐 Status update (NO DOWNGRADE)
     if (msg.status === "sent") {
       if (isOnline) {
@@ -36,18 +39,34 @@ new Worker(
       }
     }
 
+    // if (!isOnline) {
+    //   const user = await User.findById(receiver).lean();
+    //   if (user?.fcmTokens?.length) {
+    //     for (const tk of user.fcmTokens) {
+    //       await sendNotification(
+    //         tk.token,
+    //         { title: "New Message", body: msg.text },
+    //         { matchId }
+    //       );
+    //     }
+    //   }
+    // }
+
+    // Only send to latest active fcm token
     if (!isOnline) {
       const user = await User.findById(receiver).lean();
-      if (user?.fcmTokens?.length) {
-        for (const tk of user.fcmTokens) {
-          await sendNotification(
-            tk.token,
-            { title: "New Message", body: msg.text },
-            { matchId }
-          );
-        }
+      const token = user?.fcmTokens?.at(-1);
+
+      if (token) {
+        await sendNotification(
+          token.token,
+          { title: "New Message", body: msg.text },
+          { matchId }
+        );
       }
     }
   },
   { connection }
 );
+
+console.log("📧 message Delivery worker running...");
