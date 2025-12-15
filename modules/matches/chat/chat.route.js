@@ -9,7 +9,7 @@ const auth = require("../../auth/auth.middleware");
 router.use(auth);
 
 // GET messages /api/v1/messages/:matchId?limit=20&page=1
-router.get("/messages/:matchId", getChatMessages);
+router.get("/messages", getChatMessages);
 
 // PATCH mark messages read or seen /api/v1/messages/:matchId/read
 router.patch("/messages/:matchId/read", updateChatMsgRead);

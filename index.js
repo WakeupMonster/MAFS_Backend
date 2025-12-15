@@ -124,30 +124,90 @@ let redisClient;
 
     // 5) Attach redis pub/sub adapter to the io server
     io.adapter(createAdapter(pubClient, subClient));
+    io.use(async (socket, next) => {
+  try {
+    let token = null;
+
+    // 1️⃣ frontend (socket.io-client)
+    if (socket.handshake.auth?.token) {
+      token = socket.handshake.auth.token;
+    }
+
+    // 2️⃣ Postman / query param
+    if (!token && socket.handshake.query?.token) {
+      token = socket.handshake.query.token;
+    }
+
+    // 3️⃣ Authorization header (Bearer)
+    if (!token && socket.handshake.headers?.authorization) {
+      const authHeader = socket.handshake.headers.authorization;
+      if (authHeader.startsWith("Bearer ")) {
+        token = authHeader.split(" ")[1];
+      }
+    }
+
+    if (!token) {
+      return next(new Error("unauthorized: token missing"));
+    }
+
+    const user = await verifyTokenAndGetUser(token);
+    if (!user) {
+      return next(new Error("unauthorized: invalid token"));
+    }
+
+    socket.user = user;
+
+    await redisClient.set(`user:online:${user._id}`, "1");
+
+    // socket mapping (good practice 👍)
+    await redisClient.sAdd(`sockets:${user._id}`, socket.id);
+
+    console.log("✅ Socket authenticated:", user._id.toString());
+
+    next();
+  // eslint-disable-next-line no-unused-vars
+  } catch (err) {
+    next(new Error("unauthorized"));
+  }
+});
+
 
     // 6) Authentication middleware
-    io.use(async (socket, next) => {
-      try {
-        const token = socket.handshake.auth?.token;
-        // const auth = require("../auth/auth.middleware");
-        // router.use(auth);
+    // io.use(async (socket, next) => {
+    //   try {
+    //     const token = socket.handshake.auth?.token;
+    //     // const auth = require("../auth/auth.middleware");
+    //     // router.use(auth);
 
-        const user = await verifyTokenAndGetUser(token);
-        if (!user) return next(new Error("unauthorized"));
+    //     const user = await verifyTokenAndGetUser(token);
+    //     if (!user) return next(new Error("unauthorized"));
 
-        socket.user = user;
+    //     socket.user = user;
 
-        // store this socketId for direct emit
-        await redisClient.sAdd(`sockets:${user._id}`, socket.id);
+    //     // store this socketId for direct emit
+    //     await redisClient.sAdd(`sockets:${user._id}`, socket.id);
 
-        next();
-      } catch (err) {
-        next(err);
-      }
-    });
+    //     next();
+    //   } catch (err) {
+    //     next(err);
+    //   }
+    // });
+
+//     io.use((socket, next) => {
+//   // ⚠️ ONLY FOR TESTING (NO TOKEN)
+//   const userId = socket.handshake.query.userId;
+
+//   if (!userId) {
+//     return next(new Error("unauthorized"));
+//   }
+
+//   socket.user = { _id: userId };
+//   next();
+// });
+
 
     // 7) Load socket handlers
-    require("./sockets/socket-server")(io, redisClient);
+    require("./sockets/chat.socket")(io, redisClient);
 
     // 8) Start server or listen
     http.listen(PORT, () => {
@@ -158,4 +218,3 @@ let redisClient;
     process.exit(1);
   }
 })();
-

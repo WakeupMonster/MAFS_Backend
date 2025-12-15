@@ -45,4 +45,11 @@ router.get("/keen", controllerOld.getKeen);
 router.get("/superkeen", controllerOld.getSuperKeen);
 
 
+router.get(
+  '/discover',
+  auth,
+  controllerOld.getProfiles
+);
+
+
 module.exports = router;

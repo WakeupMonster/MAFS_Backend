@@ -63,6 +63,12 @@ router.patch(
   controller.updateProfile
 );
 
+router.patch(
+  "/discovery-preference",
+  auth,
+  controller.updateDiscoveryPreference
+);
+
 router.post(
   "/photos",
   (req, res, next) => {
@@ -114,6 +120,12 @@ router.post("/addOrUpdateLanguage", addOrUpdateLanguage);
 router.post("/addOrUpdateReligion", addOrUpdateReligion);
 
 router.get("/:userId", controller.getPublicProfile);
+
+router.patch(
+  "/visibility",
+  auth,  // Ensure user is authenticated
+  controller.updateVisibility
+);
 
 // router.get("/enums/all", (req, res) => {
 //   const data = {

@@ -264,6 +264,40 @@ const ProfileSchema = new mongoose.Schema({
     }]
   },
 
+
+  discoveryFilters: {
+  hasBio: { type: Boolean, default: false },
+
+  relationshipGoals: [{
+    type: String,
+    enum: ["dating", "friendship", "casual", "serious", "networking", "open_to_options"]
+  }],
+
+  interests: [{ type: String }],
+
+  basics: {
+    zodiac: [{ type: String }],
+    education: [{ type: String }],
+    familyPlans: [{ type: String }],
+    PersonalityType: [{ type: String }],
+    communicationStyle: [{ type: String }],
+    loveStyle: [{ type: String }]
+  },
+
+  lifestyle: {
+    pets: [{ type: String }],
+    drinking: [{ type: String }],
+    smokingHabits: [{ type: String }],
+    exercise: [{ type: String }]
+  }
+},
+
+
+
+
+
+
+
   // Interests (5%)
   interests: [{ type: String }], // Min 3, Max 15
 
@@ -403,6 +437,16 @@ const ProfileSchema = new mongoose.Schema({
     rejectionReason: String
   },
 
+
+
+   visibility: {
+    type: String,
+    enum: ["everyone", "matches_only", "nobody"],
+    default: "everyone"
+  },
+  
+
+
   // ========================================
   // PROGRESS TRACKING (Auto-calculated)
   // ========================================
@@ -453,6 +497,9 @@ const ProfileSchema = new mongoose.Schema({
   lastProfileUpdate: Date
 
 }, { timestamps: true });
+
+
+
 
 // ========================================
 // METHODS (Auto-calculate everything)

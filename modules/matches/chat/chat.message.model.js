@@ -28,6 +28,15 @@ const ChatMessageSchema = new Schema(
       type: { type: String, enum: ["image", "video"], default: null },
     },
 
+    delivered: {
+      type: Boolean,
+      default: false,
+    },
+    deliveredAt: {
+      type: Date,
+      default: null,
+    },
+
     // Read receipts (WhatsApp-style)
     read: {
       type: Boolean,

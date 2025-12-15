@@ -101,6 +101,36 @@ exports.undo = async (req, res) => {
   }
 };
 
+
+
+// swipe.controller.js में
+const { getDiscoverableProfiles } = require('./swipe.service');
+
+// Existing code...
+
+exports.getProfiles = async (req, res) => {
+  try {
+    const userId = req.user._id;
+    const filters = req.query; // Optional filters from query params
+
+    const profiles = await getDiscoverableProfiles(userId, filters);
+    
+    return res.json({
+      success: true,
+      count: profiles.length,
+      data: profiles
+    });
+
+  } catch (error) {
+    console.error("Error getting profiles:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Failed to fetch profiles",
+      error: error.message
+    });
+  }
+};
+
 // exports.getMatches = async (req, res) => {
 //   try {
 //     const userId = req.user._id;

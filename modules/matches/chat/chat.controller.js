@@ -38,7 +38,7 @@ const { Match } = require("../swipe/swipe.model");
 exports.getChatMessages = async (req, res) => {
   try {
     const userId = req.user._id;
-    const { matchId } = req.params;
+    const { matchId } = req.body;
     const limit = Math.min(parseInt(req.query.limit) || 20, 100);
     const page = Math.max(parseInt(req.query.page) || 1, 1);
 
