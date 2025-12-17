@@ -8,8 +8,10 @@ module.exports = async function verifyTokenAndGetUser(token) {
 
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
 
+    // console.log("decoded: ", decoded);
+
     // decoded.id or decoded.userId depending on your JWT payload
-    const user = await User.findById(decoded.id).lean();
+    const user = await User.findById(decoded.userId).lean();
     return user || null;
   } catch (err) {
     return null;

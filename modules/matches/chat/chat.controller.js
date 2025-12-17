@@ -2,6 +2,7 @@
 const { uploadStream } = require("../../upload/cloudinary.service");
 const ChatMessage = require("../chat/chat.message.model");
 const { Match } = require("../swipe/swipe.model");
+const ChatRoom = require("./chat.room.model");
 
 // GET /api/v1/messages/:matchId
 // exports.getChatMessages = async (req, res) => {
@@ -74,10 +75,19 @@ exports.getChatMessages = async (req, res) => {
       .limit(limit)
       .lean();
 
+    const totalMessages = await ChatMessage.countDocuments({
+      matchId,
+      deletedFor: { $ne: receiverUid },
+    });
+
     return res.json({
       success: true,
-      message: "Fetched all messages",
       data: messages,
+      pagination: {
+        total: totalMessages,
+        page,
+        pages: Math.ceil(totalMessages / limit),
+      },
     });
   } catch (err) {
     console.error("GET CHAT MESSAGES ERROR:", err);
@@ -152,6 +162,16 @@ exports.updateChatMsgRead = async (req, res) => {
       {
         status: "read",
         readAt: new Date(),
+      }
+    );
+
+    // Reset unreadCount
+    await ChatRoom.findOneAndUpdate(
+      { matchId },
+      {
+        $set: {
+          [`unreadCount.${receiverUid}`]: 0,
+        },
       }
     );
 

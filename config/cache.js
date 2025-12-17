@@ -1,5 +1,7 @@
 const { createClient } = require("redis");
-const client = createClient({ url: process.env.REDIS_URL || "redis://127.0.0.1:6379" });
+const client = createClient({
+  url: process.env.REDIS_URL || "redis://127.0.0.1:6379",
+});
 client.on("error", (e) => console.error("Redis error", e));
 client.connect().catch(() => {});
 
@@ -14,5 +16,5 @@ module.exports = {
     return client.set(k, val);
   },
   del: async (k) => client.del(k),
-  client
+  client,
 };

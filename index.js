@@ -48,8 +48,8 @@ const { createAdapter } = require("@socket.io/redis-adapter");
 const { createClient } = require("redis");
 const verifyTokenAndGetUser = require("./modules/auth/verifyTokenAndGetUser");
 
-// GLOBAL assign redis client
-let redisClient;
+// // GLOBAL assign redis client
+// let redisClient;
 
 (async () => {
   try {
@@ -71,7 +71,7 @@ let redisClient;
     await subClient.connect();
 
     // 4) Assign global redis variable for middleware use
-    redisClient = pubClient;
+    // redisClient = pubClient;
 
     // 5) Attach redis pub/sub adapter to the io server
     io.adapter(createAdapter(pubClient, subClient));
@@ -80,17 +80,23 @@ let redisClient;
     io.use(async (socket, next) => {
       try {
         const token = socket.handshake.auth?.token;
-        // Imp. Check isko modify krna ho toh
-        if (!token) return next(new Error("unauthorized"));
+        // console.log("token server: ", token);
+
+        if (!token)
+          return next(new Error("Authentication error: No token provided"));
 
         const user = await verifyTokenAndGetUser(token);
-        if (!user) return next(new Error("unauthorized"));
+
+        if (!user) return next(new Error("Authentication error: Invalid user"));
 
         socket.user = user;
 
+        const userKey = `sockets:${user._id}`;
+
         // store this socketId for direct emit
-        await redisClient
-          .sAdd(`sockets:${user._id}`, socket.id)
+        // Add to Redis
+        await pubClient
+          .sAdd(userKey, socket.id)
           .then(() => console.log("Redis socket working."))
           .catch((e) => console.error("Redis socket tracking failed", e));
 
@@ -101,7 +107,8 @@ let redisClient;
     });
 
     // 7) Load socket handlers
-    require("./sockets/socket-server")(io, redisClient);
+    require("./sockets/socket-server")(io, pubClient);
+    require("./sockets/redis-subscriber")(io, subClient);
 
     // 8) Start server or listen
     http.listen(PORT, () => {

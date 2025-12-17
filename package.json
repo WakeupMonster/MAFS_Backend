@@ -8,7 +8,8 @@
     "build": "echo Build completed",
     "lint": "eslint .",
     "test": "jest --runInBand",
-    "test:user": "node scripts/testUser.js"
+    "test:user": "node scripts/testUser.js",
+    "worker:messages": "node workers/messageDelivery.worker.js"
   },
   "keywords": [],
   "author": "",
@@ -35,6 +36,7 @@
     "nodemon": "^3.1.11",
     "redis": "^5.10.0",
     "socket.io": "^4.8.1",
+    "socket.io-client": "^4.8.1",
     "swagger-jsdoc": "^6.2.8",
     "swagger-ui-express": "^5.0.1",
     "twilio": "^5.10.5"
