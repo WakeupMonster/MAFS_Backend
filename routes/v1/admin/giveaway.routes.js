@@ -86,6 +86,37 @@ router.get("/audit",adminGiveawayController.getGiveawayAuditReport)
 // GET  /admin/giveaway/audit
 
 
+/**
+ * 📅 BULK CREATE GIVEAWAY CAMPAIGNS
+ * Create multiple daily campaigns using date range
+ */
+router.post(
+  "/campaigns/bulk",
+  // validate("adminBulkCreateCampaign"),
+  adminGiveawayController.bulkCreateCampaignByRanges
+);
+
+
+/**
+ * 🚫 DISABLE A CAMPAIGN (Permanent / Manual)
+ * Use case: Admin wants to completely disable a campaign
+ */
+router.patch(
+  "/campaigns/:id/disable",
+  adminGiveawayController.disableCampaign
+);
+
+/**
+ * ⏸️ PAUSE A CAMPAIGN (Temporary)
+ * Use case: Pause for a specific reason/day
+ */
+router.patch(
+  "/campaigns/:campaignId/pause",
+  adminGiveawayController.pauseCampaign
+);
+
+
+
 
 /**
  * ⚠️ TEMPORARY – CRON TEST ROUTE
@@ -117,3 +148,6 @@ module.exports = router;
 
 // GET  /admin/giveaway/config
 // PATCH /admin/giveaway/config
+
+
+// PATCH /admin/giveaway/settings for yealy limit

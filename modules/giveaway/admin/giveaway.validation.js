@@ -36,3 +36,31 @@ module.exports = {
     })
   }
 };
+
+
+
+const adminBulkCreateCampaign = Joi.object({
+  startDate: Joi.date().iso().required(),
+  endDate: Joi.date().iso().required(),
+  prizeId: Joi.string().hex().length(24).required(),
+  isActive: Joi.boolean().optional()
+});
+
+module.exports = (type) => {
+  switch (type) {
+    case "adminBulkCreateCampaign":
+      return (req, res, next) => {
+        const { error } = adminBulkCreateCampaign.validate(req.body);
+        if (error) {
+          return res.status(400).json({
+            success: false,
+            message: error.details[0].message
+          });
+        }
+        next();
+      };
+
+    default:
+      return (req, res, next) => next();
+  }
+};

@@ -4,6 +4,8 @@ const GiveawayCampaign = require("../giveawayCampaign.model");
 const GiveawayWinHistory = require("../giveawayWinHistory.model");
 const notificationService = require("../../notifications/notification.service");
 const User = require("../../../modules/auth/auth.model")
+const Prize = require("../prize.model");
+
 // const GiveawayWinHistory = require("../giveawayWinHistory.model");
 
 /**
@@ -366,6 +368,7 @@ exports.resendPrize = async (req, res) => {
  * 👉 Claim ke baad hi allowed
  * 👉 Audit safe
  */
+  
 
 exports.markPrizeAsDelivered = async (req, res) => {
   try {
@@ -405,8 +408,11 @@ exports.markPrizeAsDelivered = async (req, res) => {
 
 
   
-    const prize = await GiveawayCampaign.findById(winHistory.prizeId);
+    const prize = await GiveawayCampaign.findById(winHistory.campaignId);
     const user = await User.findById(winHistory.userId);
+
+    console.log(prize,"prize")
+    console.log("user",user)
 
     if (!prize || !user) {
       return res.status(400).json({ success: false, message: "Prize or User not found" });
@@ -704,3 +710,540 @@ exports.getGiveawayAuditReport = async (req, res) => {
 
 
 
+/**
+ * 📅 BULK CREATE GIVEAWAY CAMPAIGNS
+ * Admin can create daily campaigns using date range
+ */
+
+
+
+
+
+exports.bulkCreateCampaignByRanges = async (req, res) => {
+  try {
+    const { ranges, isActive = true } = req.body;
+
+    if (!Array.isArray(ranges) || ranges.length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: "Ranges array is required"
+      });
+    }
+
+    // 🔒 Today (local midnight)
+    const now = new Date();
+    const today = new Date(
+      now.getFullYear(),
+      now.getMonth(),
+      now.getDate()
+    );
+
+    const campaignsToInsert = [];
+    const skippedDates = [];
+
+    for (const range of ranges) {
+      const {
+        startDate,
+        endDate,
+        prizeId,
+        supportiveItems
+      } = range;
+
+      /**
+       * 1️⃣ Validate prize
+       */
+      const prize = await Prize.findById(prizeId);
+      if (!prize || !prize.isActive) {
+        return res.status(400).json({
+          success: false,
+          message: `Invalid or inactive prize: ${prizeId}`
+        });
+      }
+
+      /**
+       * 2️⃣ Normalize dates (LOCAL SAFE)
+       */
+      const [sy, sm, sd] = startDate.split("-").map(Number);
+      const [ey, em, ed] = endDate.split("-").map(Number);
+
+      const start = new Date(sy, sm - 1, sd);
+      const end = new Date(ey, em - 1, ed);
+
+      if (start > end) {
+        return res.status(400).json({
+          success: false,
+          message: "Start date cannot be after end date"
+        });
+      }
+
+      /**
+       * 3️⃣ Normalize supportive items ONCE per range
+       */
+      const normalizedSupportiveItems = Array.isArray(supportiveItems)
+        ? supportiveItems.filter(Boolean)
+        : [];
+
+      /**
+       * 4️⃣ Expand range day-by-day
+       */
+      for (
+        let d = new Date(start);
+        d <= end;
+        d.setDate(d.getDate() + 1)
+      ) {
+        const campaignDate = new Date(
+          d.getFullYear(),
+          d.getMonth(),
+          d.getDate()
+        );
+
+        // ❌ Skip past dates
+        if (campaignDate < today) {
+          skippedDates.push({
+            date: campaignDate,
+            reason: "Past date"
+          });
+          continue;
+        }
+
+        // ❌ Skip if campaign already exists
+        const exists = await GiveawayCampaign.findOne({
+          date: campaignDate
+        }).lean();
+
+        if (exists) {
+          skippedDates.push({
+            date: campaignDate,
+            reason: "Campaign already exists"
+          });
+          continue;
+        }
+
+        /**
+         * ✅ Push final campaign object
+         */
+        campaignsToInsert.push({
+          date: campaignDate,
+          prizeId,
+          supportiveItems: normalizedSupportiveItems, // 🔥 FIXED
+          isActive,
+          drawStatus: "PENDING"
+        });
+      }
+    }
+
+    /**
+     * 5️⃣ Bulk insert
+     */
+    if (campaignsToInsert.length > 0) {
+      await GiveawayCampaign.insertMany(campaignsToInsert);
+    }
+
+    return res.status(201).json({
+      success: true,
+      message: "Range-based campaigns processed successfully",
+      summary: {
+        created: campaignsToInsert.length,
+        skipped: skippedDates.length
+      },
+      skippedDates
+    });
+
+  } catch (error) {
+    console.error("bulkCreateCampaignByRanges error:", error);
+    return res.status(500).json({
+      success: false,
+      message: error.message || "Failed to bulk create campaigns"
+    });
+  }
+};
+
+
+
+
+
+/**
+ * 🚫 Disable Giveaway Campaign
+ * Permanent admin action
+ */
+exports.disableCampaign = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const campaign = await GiveawayCampaign.findById(id);
+    if (!campaign) {
+      return res.status(404).json({
+        success: false,
+        message: "Campaign not found"
+      });
+    }
+
+    // Already disabled
+    if (!campaign.isActive) {
+      return res.status(400).json({
+        success: false,
+        message: "Campaign is already disabled"
+      });
+    }
+
+    campaign.isActive = false;
+    campaign.failureReason = "Disabled by admin";
+    await campaign.save();
+
+    return res.json({
+      success: true,
+      message: "Campaign disabled successfully"
+    });
+
+  } catch (error) {
+    console.error("Disable campaign error:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Failed to disable campaign"
+    });
+  }
+};
+
+
+
+/**
+ * ⏸️ Pause Giveaway Campaign
+ * Temporary admin action (can be resumed later)
+ */
+exports.pauseCampaign = async (req, res) => {
+  try {
+    const { campaignId } = req.params;
+
+    const campaign = await GiveawayCampaign.findById(campaignId);
+    if (!campaign) {
+      return res.status(404).json({
+        success: false,
+        message: "Campaign not found"
+      });
+    }
+
+    if (!campaign.isActive) {
+      return res.status(400).json({
+        success: false,
+        message: "Campaign is already paused"
+      });
+    }
+
+    campaign.isActive = false;
+    campaign.failureReason = "Paused by admin";
+    await campaign.save();
+
+    return res.json({
+      success: true,
+      message: "Campaign paused successfully"
+    });
+
+  } catch (error) {
+    console.error("Pause campaign error:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Failed to pause campaign"
+    });
+  }
+};
+
+
+
+
+
+
+
+
+/**
+ * 📅 RANGE BASED BULK CREATE GIVEAWAY CAMPAIGNS
+ * Admin can define multiple date ranges with different prizes
+ */
+// exports.bulkCreateCampaignByRanges = async (req, res) => {
+//   try {
+//     const { ranges, isActive = true } = req.body;
+
+//     if (!Array.isArray(ranges) || ranges.length === 0) {
+//       return res.status(400).json({
+//         success: false,
+//         message: "Ranges array is required"
+//       });
+//     }
+
+//     /**
+//      * 1️⃣ Normalize & validate ranges
+//      */
+//     const normalizedRanges = ranges.map((r) => {
+//       const start = new Date(r.startDate);
+//       const end = new Date(r.endDate);
+
+//       start.setHours(0, 0, 0, 0);
+//       end.setHours(0, 0, 0, 0);
+
+//       if (start > end) {
+//         throw new Error("Start date cannot be after end date");
+//       }
+
+//       return {
+//         startDate: start,
+//         endDate: end,
+//         prizeId: r.prizeId
+//       };
+//     });
+
+//     /**
+//      * 2️⃣ Overlapping range detection
+//      */
+//     const sortedRanges = [...normalizedRanges].sort(
+//       (a, b) => a.startDate - b.startDate
+//     );
+
+//     for (let i = 1; i < sortedRanges.length; i++) {
+//       if (sortedRanges[i].startDate <= sortedRanges[i - 1].endDate) {
+//         return res.status(400).json({
+//           success: false,
+//           message: "Overlapping date ranges are not allowed"
+//         });
+//       }
+//     }
+
+//     /**
+//      * 3️⃣ Validate all prizes
+//      */
+//     const prizeIds = [...new Set(normalizedRanges.map(r => r.prizeId))];
+//     const prizes = await Prize.find({ _id: { $in: prizeIds }, isActive: true });
+
+//     if (prizes.length !== prizeIds.length) {
+//       return res.status(400).json({
+//         success: false,
+//         message: "One or more prizes are invalid or inactive"
+//       });
+//     }
+
+//     // const today = new Date();
+//     // today.setHours(0, 0, 0, 0);
+
+//     const now = new Date();
+// const today = new Date(
+//   now.getFullYear(),
+//   now.getMonth(),
+//   now.getDate()
+// );
+
+
+//     const campaignsToInsert = [];
+//     const skippedDates = [];
+
+//     /**
+//      * 4️⃣ Expand ranges into daily campaigns
+//      */
+//     for (const range of normalizedRanges) {
+//       for (
+//         let date = new Date(range.startDate);
+//         date <= range.endDate;
+//         date.setDate(date.getDate() + 1)
+//       ) {
+//         const campaignDate = new Date(date);
+
+//         // ❌ Skip past dates
+//         if (campaignDate < today) {
+//           skippedDates.push({
+//             date: campaignDate,
+//             reason: "Past date"
+//           });
+//           continue;
+//         }
+
+//         // ❌ Skip if campaign already exists
+//         const existing = await GiveawayCampaign.findOne({
+//           date: campaignDate
+//         });
+
+//         if (existing) {
+//           skippedDates.push({
+//             date: campaignDate,
+//             reason: "Campaign already exists"
+//           });
+//           continue;
+//         }
+
+//         campaignsToInsert.push({
+//           date: campaignDate,
+//           prizeId: range.prizeId,
+//            supportiveItems: Array.isArray(range.supportiveItems)
+//             ? range.supportiveItems
+//             : [],
+//           isActive,
+//           drawStatus: "PENDING"
+//         });
+//       }
+//     }
+
+//     /**
+//      * 5️⃣ Insert campaigns
+//      */
+//     if (campaignsToInsert.length > 0) {
+//       await GiveawayCampaign.insertMany(campaignsToInsert);
+//     }
+
+//     /**
+//      * 6️⃣ Response
+//      */
+//     return res.status(201).json({
+//       success: true,
+//       message: "Range-based campaigns processed successfully",
+//       summary: {
+//         created: campaignsToInsert.length,
+//         skipped: skippedDates.length
+//       },
+//       skippedDates
+//     });
+
+//   } catch (error) {
+//     console.error("Range bulk campaign error:", error);
+//     return res.status(500).json({
+//       success: false,
+//       message: error.message || "Failed to bulk create campaigns"
+//     });
+//   }
+// };
+
+
+
+
+
+
+// {
+//   "ranges": [
+//     {
+//       "startDate": "2025-12-01",
+//       "endDate": "2025-12-05",
+//       "prizeId": "PRIZE_ID_1"
+//     },
+//     {
+//       "startDate": "2025-12-06",
+//       "endDate": "2025-12-11",
+//       "prizeId": "PRIZE_ID_2"
+//     },
+//     {
+//       "startDate": "2025-12-12",
+//       "endDate": "2025-12-15",
+//       "prizeId": "PRIZE_ID_3"
+//     }
+//   ],
+//   "isActive": true
+// }
+
+
+
+
+
+
+
+
+
+
+// exports.bulkCreateCampaign = async (req, res) => {
+//   try {
+//     const { startDate, endDate, prizeId, isActive = true } = req.body;
+
+//     /**
+//      * 1️⃣ Prize validation
+//      */
+//     const prize = await Prize.findById(prizeId);
+//     if (!prize || !prize.isActive) {
+//       return res.status(400).json({
+//         success: false,
+//         message: "Invalid or inactive prize"
+//       });
+//     }
+
+//     /**
+//      * 2️⃣ Date validation
+//      */
+//     const start = new Date(startDate);
+//     const end = new Date(endDate);
+//     start.setHours(0, 0, 0, 0);
+//     end.setHours(0, 0, 0, 0);
+
+//     if (start > end) {
+//       return res.status(400).json({
+//         success: false,
+//         message: "Start date cannot be after end date"
+//       });
+//     }
+
+//     const today = new Date();
+//     today.setHours(0, 0, 0, 0);
+
+//     /**
+//      * 3️⃣ Loop through date range
+//      */
+//     const campaignsToInsert = [];
+//     const skippedDates = [];
+
+//     for (
+//       let date = new Date(start);
+//       date <= end;
+//       date.setDate(date.getDate() + 1)
+//     ) {
+//       const campaignDate = new Date(date);
+
+//       // ❌ Past dates skip
+//       if (campaignDate < today) {
+//         skippedDates.push({
+//           date: campaignDate,
+//           reason: "Past date"
+//         });
+//         continue;
+//       }
+
+//       // ❌ Already exists?
+//       const existingCampaign = await GiveawayCampaign.findOne({
+//         date: campaignDate
+//       });
+
+//       if (existingCampaign) {
+//         skippedDates.push({
+//           date: campaignDate,
+//           reason: "Campaign already exists"
+//         });
+//         continue;
+//       }
+
+//       // ✅ Ready to create
+//       campaignsToInsert.push({
+//         date: campaignDate,
+//         prizeId,
+//         isActive,
+//         drawStatus: "PENDING"
+//       });
+//     }
+
+//     /**
+//      * 4️⃣ Insert campaigns
+//      */
+//     if (campaignsToInsert.length > 0) {
+//       await GiveawayCampaign.insertMany(campaignsToInsert);
+//     }
+
+//     /**
+//      * 5️⃣ Response
+//      */
+//     return res.status(201).json({
+//       success: true,
+//       message: "Bulk campaigns processed",
+//       summary: {
+//         created: campaignsToInsert.length,
+//         skipped: skippedDates.length
+//       },
+//       skippedDates
+//     });
+
+//   } catch (error) {
+//     console.error("Bulk create campaign error:", error);
+//     return res.status(500).json({
+//       success: false,
+//       message: "Failed to bulk create campaigns"
+//     });
+//   }
+// };

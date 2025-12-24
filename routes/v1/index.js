@@ -22,6 +22,10 @@ router.use("/account", require("../../modules/Account/deactivate & active/accoun
 
 router.use("/content",require("../../modules/content/content.routes"))
 
+// BOOST
+
+router.use("/boost",require("../../modules/Boost/boost.route"))
+
 
 // ADMIN routes
 

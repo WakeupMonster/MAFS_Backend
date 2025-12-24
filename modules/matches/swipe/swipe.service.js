@@ -331,15 +331,17 @@ async function getFeedService(userId, limit = 20) {
   const CACHE_KEY = `feed:${userId.toString()}`;
   const CACHE_TTL = 300; // 5 minutes
 
-  let boostedSet = new Set();
+  // let boostedSet = new Set();
 
   // if (redis) {
   //   const boostedUsers = await redis.sMembers("boost:active");
   //   boostedSet = new Set(boostedUsers);
   // }
 
+  console.log(CACHE_KEY,"cache key")
 
-  // ================================
+
+  // ===============================
   // STEP 1️⃣ : Redis se feed try karo
   // ================================
   if (redis) {
@@ -560,12 +562,13 @@ if (blockedPhoneHashes.length) {
   // STEP 🔟 : Redis cache save
   // ================================
   if (redis && result.length) {
-    // await redis.set(
-    //   CACHE_KEY,
-    //   JSON.stringify(result),
-    //   { EX: CACHE_TTL }
-    // );
+    await redis.set(
+      CACHE_KEY,
+      JSON.stringify(result),
+      { EX: CACHE_TTL }
+    );
     await redis.set(CACHE_KEY, result, CACHE_TTL);
+    
   }
 
   return result;

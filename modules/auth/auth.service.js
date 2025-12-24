@@ -331,6 +331,39 @@ async function logout(userId, refreshTokenRaw) {
   return;
 }
 
+
+// In auth.service.js - Update sendPhoneOtp function
+async function sendPhoneOtpTest(phone, testMode = false) {
+  const normalizedPhone = phone.trim();
+  console.log("📲 Processing OTP for:", normalizedPhone);
+
+  // Find or create user
+  let user = await User.findOne({ phone: normalizedPhone });
+  if (!user) user = await User.create({ phone: normalizedPhone });
+
+  // Generate OTP
+  const otp = utils.generateOtp();
+  const redisKey = `login:${normalizedPhone}`;
+  
+  // Store in Redis with TTL
+  await redis.set(redisKey, otp, "EX", 300);
+  console.log(`🔑 OTP saved in Redis (${redisKey}):`, otp);
+
+  // In test mode, don't send actual SMS
+  if (!testMode) {
+    await utils.sendSms(normalizedPhone, `Your MAFS OTP is ${otp}`);
+  }
+
+  // Save device + fcm if new login attempt
+  await user.save();
+
+  return { 
+    success: true, 
+    otp, // Always return OTP in response
+    message: testMode ? "OTP generated (test mode)" : "OTP sent successfully"
+  };
+}
+
 module.exports = {
   sendPhoneOtp,
   verifyPhoneOtpUnified,
@@ -341,6 +374,7 @@ module.exports = {
   loginVerifyOtp,
   refreshAccessToken,
   logout,
+   sendPhoneOtpTest
   // socialAuthHandler
 };
 
@@ -540,3 +574,7 @@ module.exports = {
 //     decoded.sub
 //   );
 // };
+
+
+
+

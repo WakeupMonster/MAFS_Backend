@@ -137,7 +137,9 @@ module.exports = async function runGiveawayWorker() {
   const today = new Date();
   today.setHours(0, 0, 0, 0);
 
-  
+//   const settings = await GiveawaySettings.findOne();
+// const yearlyLimit = settings?.yearlyWinLimitPerUser || 2;
+
 
 
   /**

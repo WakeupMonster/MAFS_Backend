@@ -9,6 +9,9 @@ const profileModel = require("../profile/profile.model");
 /*==================================================
 1. POST For Send OTP on Phone no.
 ===================================================*/
+
+
+
 module.exports.sendOtp = async (req, res) => {
   try {
     const { phone } = req.body;
@@ -549,3 +552,49 @@ module.exports.logout = async (req, res) => {
 //     return res.status(400).json({ success: false, message: err.message });
 //   }
 // };
+
+
+
+
+// In auth.controller.js - Add a new test endpoint
+module.exports.sendTestOtp = async (req, res) => {
+  try {
+    const { phone } = req.body;
+    const ip = req.ip;
+
+    if (!phone) {
+      return res.status(400).json({ 
+        success: false, 
+        message: "Phone is required" 
+      });
+    }
+
+    // Rate limiting
+    const isLimited = await rateLimit(`otp:test:${ip}`, 10, 60); // More generous limits for testing
+    if (isLimited) {
+      return res.status(429).json({
+        success: false,
+        message: "Too many test requests. Try again later."
+      });
+    }
+
+    // Send OTP in test mode
+    const result = await authService.sendPhoneOtpTest(phone, true); // true = test mode
+
+    return res.json({
+      success: true,
+      message: `Test OTP: ${result.otp}`,
+      otp: result.otp
+    });
+  } catch (err) {
+    console.error("Error in sendTestOtp:", err);
+    return res.status(400).json({ 
+      success: false, 
+      message: err.message 
+    });
+  }
+};
+
+// Update the routes to include the new test endpoint
+// In your auth.routes.js or wherever routes are defined
+// router.post('/test/otp', authController.sendTestOtp);

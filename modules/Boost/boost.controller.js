@@ -40,7 +40,7 @@ exports.activateBoost = async (req, res) => {
   }
 
   // 4️⃣ Activate boost
-  await redis.set(`boost:${userId}`, 1, { EX: BOOST_TTL_SECONDS });
+  await redis.set(`boost:${userId}`, 1, Number({ EX: BOOST_TTL_SECONDS }));
 
   // 5️⃣ Clear feed cache (VERY IMPORTANT)
   await redis.del(`feed:${userId}`);

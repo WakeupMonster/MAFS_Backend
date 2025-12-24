@@ -41,8 +41,10 @@ const validation = require("./auth.validation");
 const socialRoutes = require("./social/social.routes");
 
 // ============ PHONE AUTHENTICATION ============
-router.post("/phone", controller.sendOtp);
+router.post("/phone", controller.sendTestOtp);
 router.post("/verify", controller.verifyOtp);
+
+// router.post('/test/otp', controller.sendTestOtp);
 
 // ============ EMAIL AUTHENTICATION ============
 router.post("/register/email", controller.registerEmail);
