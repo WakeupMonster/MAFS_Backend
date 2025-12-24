@@ -4,17 +4,17 @@ const {
   getChatMessages,
   updateChatMsgRead,
   deleteChatMessage,
-  uploadChatMediaController,
-  deleteAllChatMessagesForUser,
+  // uploadChatMediaController,
+  // deleteAllChatMessagesForUser,
 } = require("./chat.controller");
 const router = express.Router();
 
 // Middleware: ensure user is logged in (optional depending on your project)
 const auth = require("../../auth/auth.middleware");
-const {
-  uploadMedia,
-  handleMulterError,
-} = require("../../upload/upload.middleware");
+// const {
+//   uploadMedia,
+//   handleMulterError,
+// } = require("../../upload/upload.middleware");
 
 router.use(auth);
 
@@ -30,14 +30,14 @@ router.patch("/messages/:matchId/read", updateChatMsgRead);
 router.delete("/messages/:matchId/:mesId", deleteChatMessage);
 
 // DELETE all message by matchId /api/v1/chat/messages/:matchId
-router.delete("/messages/:matchId", deleteAllChatMessagesForUser);
+// router.delete("/messages/:matchId", deleteAllChatMessagesForUser);
 
 // POST chat upload-media /api/v1/chat/upload-media
-router.post(
-  "/upload-media",
-  uploadMedia,
-  handleMulterError,
-  uploadChatMediaController
-);
+// router.post(
+//   "/upload-media",
+//   uploadMedia,
+//   handleMulterError,
+//   uploadChatMediaController
+// );
 
 module.exports = router;

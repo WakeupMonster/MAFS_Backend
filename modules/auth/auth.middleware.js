@@ -52,16 +52,26 @@ module.exports = async function authMiddleware(req, res, next) {
       return res.status(401).json({ message: "No token provided" });
     }
 
+  
+
     const token = authHeader.split(" ")[1];
 
     // Verify token
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
 
     // Attach user to request
+    
     const user = await User.findById(decoded.userId);
     if (!user) {
       return res.status(401).json({ message: "Invalid token user not found" });
     }
+    if (user.accountStatus === "deleted") {
+      return res.status(401).json({
+        success: false,
+        message: "Account no longer exists"
+      });
+    }
+
     
     req.user = user;
     next();
@@ -70,3 +80,5 @@ module.exports = async function authMiddleware(req, res, next) {
     return res.status(401).json({ message: "Invalid or expired token" });
   }
 };
+
+

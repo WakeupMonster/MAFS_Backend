@@ -10,6 +10,7 @@
 // router.post("/undo", validation.undo, controller.undo);
 // router.get("/matches", controller.getMatches);
 // module.exports = router;
+
 const controllerOld = require("./swipe.controller");
 const validation = require("./swipe.validation");
 
@@ -20,10 +21,11 @@ const controller = require("./BlockReport/userActions.controller");
 // Middleware: ensure user is logged in (optional depending on your project)
 const auth = require("../../auth/auth.middleware");
 
+const { allowDating } = require("../../../common/middlewares/allowDating.middleware");
 router.use(auth);
-
+router.use(allowDating)
 router.get("/feed", validation.feed, controllerOld.getFeed);
-router.post("/action", validation.action, controllerOld.action);
+router.post("/action",  controllerOld.action);
 router.post("/undo", validation.undo, controllerOld.undo);
 router.get("/matches", controllerOld.getMatches);
 
@@ -43,13 +45,6 @@ router.get("/limits", controllerOld.getLimits);
 
 router.get("/keen", controllerOld.getKeen);
 router.get("/superkeen", controllerOld.getSuperKeen);
-
-
-router.get(
-  '/discover',
-  auth,
-  controllerOld.getProfiles
-);
 
 
 module.exports = router;

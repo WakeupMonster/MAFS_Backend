@@ -46,6 +46,7 @@ const controller = require("./profile.controller");
 const auth = require("../auth/auth.middleware");
 const uploadMiddleware = require("../upload/upload.middleware");
 const validation = require("./profile.validation");
+const controllerDis = require("../discovery/discovery.controller");
 // const ENUMS = require("../../config/enums");
 const {
   getAllEnums,
@@ -68,6 +69,8 @@ router.patch(
   auth,
   controller.updateDiscoveryPreference
 );
+
+router.patch("/", controllerDis.updatePreference);
 
 router.post(
   "/photos",
@@ -127,18 +130,6 @@ router.patch(
   controller.updateVisibility
 );
 
-// router.get("/enums/all", (req, res) => {
-//   const data = {
-//     gender: ENUMS.gender.map(e => `${e.label}${e.emoji}`),
-//     genderPreference: ENUMS.genderPreference.map(e => `${e.label}${e.emoji}`),
-//     religion: ENUMS.religion.map(e => `${e.label}${e.emoji}`),
-//     relationshipGoals: ENUMS.relationshipGoals.map(e => `${e.label}${e.emoji}`),
-//     interests: ENUMS.interests.map(e => `${e.label}${e.emoji}`)
-//   };
-
-//   res.json({ success: true, data });
-// });
-
 router.get("/enums/all", getAllEnums);
 
 router.get("/enums/all", (req, res) => {
@@ -150,5 +141,15 @@ router.get("/enums/all", (req, res) => {
 
 // Get APIs for fetch this field data genderPreference, relationshipGoal, distance, interest, age(min,max)
 // router.get("/getdetails", getDetails);
+// router.get("/enums/all", (req, res) => {
+//   const data = {
+//     gender: ENUMS.gender.map(e => `${e.label}${e.emoji}`),
+//     genderPreference: ENUMS.genderPreference.map(e => `${e.label}${e.emoji}`),
+//     religion: ENUMS.religion.map(e => `${e.label}${e.emoji}`),
+//     relationshipGoals: ENUMS.relationshipGoals.map(e => `${e.label}${e.emoji}`),
+//     interests: ENUMS.interests.map(e => `${e.label}${e.emoji}`)
+//   };
 
+//   res.json({ success: true, data });
+// });
 module.exports = router;

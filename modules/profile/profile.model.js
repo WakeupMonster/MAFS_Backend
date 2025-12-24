@@ -165,18 +165,6 @@
 //     ageRange: {
 //       min: { type: Number, default: 18 },
 //       max: { type: Number, default: 60 }
-//     },
-//     distanceRange: { type: Number, default: 50 },
-//     genderPreference: [{ type: String, enum: ["male", "female", "other"] }]
-//   },
-
-//   // PHOTOS
-//   photos: [PhotoSchema],
-
-//   // LOCATION (GEO)
-//   location: {
-//     type: {
-//       type: String,
 //       enum: ["Point"],
 //       default: "Point"
 //     },
@@ -302,22 +290,59 @@ const ProfileSchema = new mongoose.Schema({
   interests: [{ type: String }], // Min 3, Max 15
 
   // Photos (10%)
-  photos: [{
-    url: String,
+  // photos: [{
+  //   url: { type: String, sparse: true },
+  //   publicId: String,
+  //   isPrimary: Boolean,
+  //   order: Number,
+  //   uploadedAt: Date
+  // }],
+
+  photos: {
+  type: [{
+    url: { type: String, sparse: true },
     publicId: String,
     isPrimary: Boolean,
     order: Number,
     uploadedAt: Date
   }],
+  default: []
+},
 
-  // Location (5%)
   location: {
-    type: { type: String, enum: ["Point"], default: "Point" },
-    coordinates: [Number], // [lon, lat]
-    city: String,
-    state: String,
-    country: String
+  type: { 
+    type: String, 
+    enum: ["Point"], 
+    default: "Point" 
   },
+  coordinates: { 
+    type: [Number], 
+    default: [0, 0],  // This ensures new profiles get default coordinates
+    validate: {
+      validator: function(v) {
+        return Array.isArray(v) && 
+               v.length === 2 && 
+               typeof v[0] === 'number' && 
+               typeof v[1] === 'number';
+      },
+      message: 'Coordinates must be an array of two numbers [longitude, latitude]'
+    }
+  },
+  city: String,
+  state: String,
+  country: String
+  },
+  // Location (5%)
+  // location: {
+  //   type: { type: String, enum: ["Point"], default: "Point" },
+  //    coordinates: { 
+  //   type: [Number], 
+  //   default: [0, 0]  // Add this default
+  // },
+  //   city: String,
+  //   state: String,
+  //   country: String
+  // },
 
   // ========================================
   // TIER 2: OPTIONAL FIELDS (40%)
@@ -680,12 +705,25 @@ ProfileSchema.pre("save", function(next) {
   // Enable swipe access
   this.onboardingProgress.isProfileComplete = this.isProfileComplete;
   this.onboardingProgress.canAccessSwipe = this.canAccessSwipe;
-  this.canAccessSwipe = this.isMandatoryComplete && this.kyc.status === "approved";
+  // this.canAccessSwipe = this.isMandatoryComplete && this.kyc.status === "approved";
+  // this.isDiscoverable = this.canAccessSwipe;
+
+  // 🔒 If profile is manually hidden (deactivated), do NOT override
+if (this.visibility === "nobody") {
+  this.canAccessSwipe = false;
+  this.isDiscoverable = false;
+} else {
+  this.canAccessSwipe =
+    this.isMandatoryComplete && this.kyc.status === "approved";
   this.isDiscoverable = this.canAccessSwipe;
+}
+
   
   this.lastProfileUpdate = new Date();
   
   next();
 });
+
+ProfileSchema.index({ location: "2dsphere" });
 
 module.exports = mongoose.model("Profile", ProfileSchema);

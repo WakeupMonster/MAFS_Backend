@@ -8,6 +8,7 @@
 
 // module.exports = app;
 
+
 const express = require("express");
 const app = express();
 
@@ -22,11 +23,13 @@ const v1Routes = require("./routes/v1");
 // Use routes with proper middleware pattern
 app.use("/api/v1", v1Routes);
 
-// Error handling middleware
-app.use((err, req, res) => {
-  console.error(err.stack);
-  res.status(500).json({ error: 'Something went wrong!' });
-});
+
+// // Error handling middleware
+// app.use((err, req, res) => {
+//   console.error(err.stack);
+//   res.status(500).json({ error: 'Something went wrong!' });
+// });
+
 
 app.get("/", (req, res) => res.json({ message: "API running" }));
 

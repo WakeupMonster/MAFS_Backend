@@ -5,56 +5,102 @@ const refreshTokenSchema = new mongoose.Schema({
   expiresAt: { type: Date, required: true },
 }, { _id: false });
 
+// Social Provider Schema
+const socialProviderSchema = new mongoose.Schema({
+  id: { type: String, required: true },           // Provider's user ID
+  email: { type: String },                        // Email from provider
+  name: { type: String },                         // Name from provider
+  picture: { type: String },                      // Profile picture URL
+  linkedAt: { type: Date, default: Date.now },    // When linked
+  lastLoginAt: { type: Date }                     // Last login with this provider
+}, { _id: false });
+
 const userSchema = new mongoose.Schema({
-  phone: { type: String, required: true, unique: true },     
+  // ============ PHONE AUTHENTICATION ============
+  phone: { type: String, unique: true, sparse: true },     
   isPhoneVerified: { type: Boolean, default: false },
-
-  email: { type: String, unique: true, sparse: true },
-  isEmailVerified: { type: Boolean, default: false },
-
-  // OTP hashes (never store raw OTP)0
-  // phoneOtpHash: { type: String },
   phoneOtp: { type: String },
   phoneOtpExpires: { type: Date },
 
-  // emailOtpHash: { type: String },
+  // ============ EMAIL AUTHENTICATION ============
+  email: { type: String, unique: true, sparse: true },
+  isEmailVerified: { type: Boolean, default: false },
   emailOtp: { type: String },
   emailOtpExpires: { type: Date },
 
-//   social: {
-//   provider: { type: String }, 
-//   providerId: { type: String }
-// },
-  // tokens for refresh (store hashes)
-
-   fcmTokens: [{
-    token: String,
-    deviceId: String,
-    createdAt: { type: Date, default: Date.now }
-  }],
-  notificationSettings: {
-    likes: { type: Boolean, default: true },
-    messages: { type: Boolean, default: true },
-    matches: { type: Boolean, default: true },
-    // Add more notification types as needed
+  // ============ SOCIAL AUTHENTICATION ============
+  social: {
+    google: socialProviderSchema,
+    facebook: socialProviderSchema,
+    apple: socialProviderSchema
   },
+
+  // ============ TOKENS & SESSIONS ============
+  // fcmTokens: [{
+  //   token: String,
+  //   deviceId: String,
+  //   createdAt: { type: Date, default: Date.now }
+  // }],
 
   refreshTokens: [refreshTokenSchema],
 
+  // ============ NOTIFICATION SETTINGS ============
+  // notificationSettings: {
+  //   likes: { type: Boolean, default: true },
+  //   messages: { type: Boolean, default: true },
+  //   matches: { type: Boolean, default: true }
+  // },
+
+  // ============ STATUS FLAGS ============
   isNewUser: { type: Boolean, default: true, index: true },
-
-
-  // add to your auth.model.js user schema
-// keep any existing isProfileCompleted on UserAuth (mirror to profile doc if you need)
-
-  // profile completion flag (profile fields live in profile module)
   isProfileCompleted: { type: Boolean, default: false },
+
+  role: {
+  type: String,
+  enum: ["USER", "ADMIN"],
+  default: "USER",
+  index: true
+},
+
+
+
+  accountStatus: {
+  type: String,
+  enum: ["active", "deactivated", "married", "deleted"],
+  default: "active",
+  index: true
+},
+
+isPremium: {
+  type: Boolean,
+  default: false
+},
+
+premiumExpiresAt: {
+  type: Date,
+  default: null
+},
+
+
+
+authMethod: {
+    type: String,
+    enum: ["phone", "email", "google", "facebook", "apple"],
+    default: "phone"
+  }
 }, { timestamps: true });
 
-// userSchema.index({ phone: 1 });
-refreshTokenSchema.index({ expiresAt: 1 });
+
+
+
+// ============ INDEXES ============
+userSchema.index({ phone: 1 });
+userSchema.index({ email: 1 });
+userSchema.index({ "social.google.id": 1 });
+userSchema.index({ "social.facebook.id": 1 });
+userSchema.index({ "social.apple.id": 1 });
 userSchema.index({ isPhoneVerified: 1 });
 userSchema.index({ isEmailVerified: 1 });
-
+refreshTokenSchema.index({ expiresAt: 1 });
 
 module.exports = mongoose.model("User", userSchema);

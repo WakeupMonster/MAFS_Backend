@@ -39,6 +39,7 @@ module.exports.generateRefreshToken = () => {
 
 module.exports.generateAccessToken = (user) => {
   const payload = { userId: user._id.toString(), role: user.role };
+  // const expiresIn = user.role === "ADMIN" ? "30d" : "7d";
   return jwt.sign(payload, process.env.JWT_SECRET, { expiresIn: process.env.ACCESS_TOKEN_TTL || "1200m" });
 };
 
@@ -95,7 +96,18 @@ module.exports.sendEmail = async (to, subject, text) => {
 };
 
 
-
+// exports.sendPrizeDeliveredEmail = async (toEmail, prizeTitle) => {
+//   await transporter.sendMail({
+//     from: '"Giveaway Team" <no-reply@app.com>',
+//     to: toEmail,
+//     subject: "🎉 Your Giveaway Prize is Delivered!",
+//     html: `
+//       <h2>Congratulations 🎉</h2>
+//       <p>Your prize <b>${prizeTitle}</b> has been successfully delivered.</p>
+//       <p>Thank you for participating!</p>
+//     `
+//   });
+// };
 
 
 

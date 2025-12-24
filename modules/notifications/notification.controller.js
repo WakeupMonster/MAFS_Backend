@@ -3,7 +3,9 @@ const User = require('../auth/auth.model');
 
 const registerDeviceToken = async (req, res) => {
   try {
-    const { userId } = req.user;
+    // const { userId } = req.user;
+    const userId = req.user._id;
+
     const { token, deviceId } = req.body;
 
     if (!token || !deviceId) {

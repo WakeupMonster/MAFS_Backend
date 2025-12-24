@@ -107,6 +107,8 @@ let redisClient;
       },
     });
 
+    require("./jobs/giveaway/giveaway.cron");
+
     // 3) Create Redis pub/sub clients
     const pubClient = createClient({ url: process.env.REDIS_URL });
     const subClient = pubClient.duplicate();
@@ -182,3 +184,8 @@ let redisClient;
     process.exit(1);
   }
 })();
+
+
+
+
+// block wala dekhna hain.

@@ -823,6 +823,7 @@ const Profile = require("./profile.model");
 // const User = require("../auth/auth.model");
 const cache = require("../../config/cache");
 const { uploadStream, destroy } = require("../upload/cloudinary.service");
+const redis = require("../../config/cache");
 
 // ========================================
 // HELPER: Get or Create Profile
@@ -1496,13 +1497,20 @@ module.exports.updateLocation = async (req, res) => {
     const userId = req.user._id;
     const { latitude, longitude, city, state, country } = req.body;
 
-    if (!latitude || !longitude) {
-      return res.status(400).json({
-        success: false,
-        code: "MISSING_COORDS",
-        message: "Latitude and longitude are required"
-      });
-    }
+    if (!latitude || !longitude || isNaN(latitude) || isNaN(longitude)) {
+  return res.status(400).json({
+    success: false,
+    message: "Valid latitude and longitude are required"
+  });
+}
+
+    // if (!latitude || !longitude) {
+    //   return res.status(400).json({
+    //     success: false,
+    //     code: "MISSING_COORDS",
+    //     message: "Latitude and longitude are required"
+    //   });
+    // }
 
     // Get profile
     let profile = await getOrCreateProfile(userId);
@@ -1625,14 +1633,182 @@ module.exports.getMyProfile = async (req, res) => {
 // ========================================
 // 9. GET PUBLIC PROFILE
 // ========================================
+// module.exports.getPublicProfile = async (req, res) => {
+//   try {
+//     const targetUserId = req.params.userId;
+
+//     const profile = await Profile.findOne({
+//       userId: targetUserId,
+//       isDiscoverable: true
+//     })
+//       .select("-preferences -kyc -onboardingProgress")
+//       .lean();
+
+//     if (!profile) {
+//       return res.status(404).json({
+//         success: false,
+//         code: "PROFILE_NOT_FOUND",
+//         message: "Profile not found or not discoverable"
+//       });
+//     }
+
+//     return res.json({
+//       success: true,
+//       data: profile
+//     });
+
+//   } catch (err) {
+//     console.error("Get public profile error:", err);
+//     return res.status(500).json({
+//       success: false,
+//       message: err.message
+//     });
+//   }
+// };
+
+// const Match = require("../matches/swipe/swipe.model");
+
+
+
+// module.exports.getPublicProfile = async (req, res) => {
+//   try {
+//     const viewerId = req.user._id.toString();
+//     const targetUserId = req.params.userId;
+
+//     console.log("Viewer ID:", viewerId)
+//     console.log("Target User ID:", targetUserId)
+    
+//     const profile = await Profile.findOne({ userId: targetUserId })
+//       .select("-preferences -kyc -onboardingProgress")
+//       .lean();
+
+//     if (!profile) {
+//       return res.status(404).json({
+//         success: false,
+//         code: "PROFILE_NOT_FOUND",
+//         message: "Profile not found"
+//       });
+//     }
+
+//     // 🔒 VISIBILITY LOGIC
+//     if (profile.visibility === "nobody") {
+//       return res.status(403).json({
+//         success: false,
+//         code: "PROFILE_HIDDEN",
+//         message: "This profile is not visible"
+//       });
+//     }
+
+//     if (profile.visibility === "matches_only") {
+//       // ✅ CORRECT FIX: new keyword ke saath
+//       const mongoose = require('mongoose');
+//       const isMatch = await Match.exists({
+//         users: { 
+//           $all: [
+//             new mongoose.Types.ObjectId(viewerId),
+//             new mongoose.Types.ObjectId(targetUserId)
+//           ] 
+//         }
+//       });
+
+//       console.log("isMatch value:", isMatch);
+      
+//       if (!isMatch) {
+//         return res.status(403).json({
+//           success: false,
+//           code: "MATCH_REQUIRED",
+//           message: "Only matches can view this profile"
+//         });
+//       }
+//     }
+   
+//     return res.json({
+//       success: true,
+//       data: profile
+//     });
+
+//   } catch (err) {
+//     console.error("Get public profile error:", err);
+//     return res.status(500).json({
+//       success: false,
+//       message: "Internal server error"
+//     });
+//   }
+// };
+
+
+
+
+
+
+// module.exports.getPublicProfile = async (req, res) => {
+//   try {
+//     const viewerId = req.user._id.toString();   // 🔥 convert to string
+//     const targetUserId = req.params.userId;     // already string
+
+//     console.log("Viewer ID:", viewerId)
+//     console.log("Target User ID:", targetUserId)
+//     const profile = await Profile.findOne({ userId: targetUserId })
+//       .select("-preferences -kyc -onboardingProgress")
+//       .lean();
+
+//     if (!profile) {
+//       return res.status(404).json({
+//         success: false,
+//         code: "PROFILE_NOT_FOUND",
+//         message: "Profile not found"
+//       });
+//     }
+
+//     // 🔒 VISIBILITY LOGIC
+//     if (profile.visibility === "nobody") {
+//       return res.status(403).json({
+//         success: false,
+//         code: "PROFILE_HIDDEN",
+//         message: "This profile is not visible"
+//       });
+//     }
+//   const isMatch = await Match.exists({
+//         users: { $all: [viewerId, targetUserId] } // ✅ STRING vs STRING
+//       });
+
+//       console.log("isMatch value :",isMatch)
+//    if (!isMatch) {
+//         return res.status(403).json({
+//           success: false,
+//           code: "MATCH_REQUIRED",
+//           message: "Only matches can view this profile"
+//         });
+//       }
+   
+//     return res.json({
+//       success: true,
+//       data: profile
+//     });
+
+//   } catch (err) {
+//     console.error("Get public profile error:", err);
+//     return res.status(500).json({
+//       success: false,
+//       message: "Internal server error"
+//     });
+//   }
+// };
+
+
+
+const { Match } = require("../matches/swipe/swipe.model"); // ✅ Yeh line top pe add karo
+
 module.exports.getPublicProfile = async (req, res) => {
   try {
-    const targetUserId = req.params.userId;
+    const mongoose = require('mongoose');
+    const viewerId = req.user._id; // Already ObjectId
+    const targetUserId = req.params.userId; // String format
 
-    const profile = await Profile.findOne({
-      userId: targetUserId,
-      isDiscoverable: true
-    })
+    console.log("Viewer ID:", viewerId);
+    console.log("Target User ID:", targetUserId);
+    
+    const profile = await Profile.findOne({ userId: targetUserId })
       .select("-preferences -kyc -onboardingProgress")
       .lean();
 
@@ -1640,10 +1816,49 @@ module.exports.getPublicProfile = async (req, res) => {
       return res.status(404).json({
         success: false,
         code: "PROFILE_NOT_FOUND",
-        message: "Profile not found or not discoverable"
+        message: "Profile not found"
       });
     }
 
+    // 🔒 VISIBILITY LOGIC
+    if (profile.visibility === "nobody") {
+      return res.status(403).json({
+        success: false,
+        code: "PROFILE_HIDDEN",
+        message: "This profile is not visible"
+      });
+    }
+
+    if (profile.visibility === "matches_only") {
+      // ✅ Convert both to ObjectId properly
+      const viewerObjectId = mongoose.Types.ObjectId.isValid(viewerId) 
+        ? new mongoose.Types.ObjectId(viewerId) 
+        : viewerId;
+      
+      const targetObjectId = new mongoose.Types.ObjectId(targetUserId);
+
+      console.log("Viewer ObjectId:", viewerObjectId);
+      console.log("Target ObjectId:", targetObjectId);
+
+      // ✅ Array order matter karta hai, so $or use karo
+      const isMatch = await Match.findOne({
+        $or: [
+          { users: [viewerObjectId, targetObjectId] },
+          { users: [targetObjectId, viewerObjectId] }
+        ]
+      });
+
+      console.log("Match found:", isMatch);
+      
+      if (!isMatch) {
+        return res.status(403).json({
+          success: false,
+          code: "MATCH_REQUIRED",
+          message: "Only matches can view this profile"
+        });
+      }
+    }
+   
     return res.json({
       success: true,
       data: profile
@@ -1653,11 +1868,10 @@ module.exports.getPublicProfile = async (req, res) => {
     console.error("Get public profile error:", err);
     return res.status(500).json({
       success: false,
-      message: err.message
+      message: "Internal server error"
     });
   }
 };
-
 
 
 
@@ -1685,23 +1899,24 @@ exports.updateDiscoveryPreference = async (req, res) => {
     // =========================
     // SOFT FILTERS (OPTIONAL)
     // =========================
-    if (body.discoveryFilters) {
-      if (body.discoveryFilters.hasBio !== undefined)
-        update["discoveryFilters.hasBio"] = body.discoveryFilters.hasBio;
+  if (body.discoveryFilters) {
+  if (body.discoveryFilters.hasBio !== undefined)
+    update["discoveryFilters.hasBio"] = body.discoveryFilters.hasBio;
 
-      update["interests"] = body.discoveryFilters.interests;
+  if (body.discoveryFilters.interests)
+    update["discoveryFilters.interests"] = body.discoveryFilters.interests;
 
-      update["relationshipGoals"] = body.discoveryFilters.relationshipGoals;
+  if (body.discoveryFilters.relationshipGoals)
+    update["discoveryFilters.relationshipGoals"] =
+      body.discoveryFilters.relationshipGoals;
 
+  if (body.discoveryFilters.basics)
+    update["discoveryFilters.basics"] = body.discoveryFilters.basics;
 
-      if (body.discoveryFilters.basics)
-        update["discoveryFilters.basics"] =
-          body.discoveryFilters.basics;
+  if (body.discoveryFilters.lifestyle)
+    update["discoveryFilters.lifestyle"] = body.discoveryFilters.lifestyle;
+}
 
-      if (body.discoveryFilters.lifestyle)
-        update["discoveryFilters.lifestyle"] =
-          body.discoveryFilters.lifestyle;
-    }
 
     const profile = await Profile.findOneAndUpdate(
       { userId },
@@ -1735,63 +1950,109 @@ exports.updateDiscoveryPreference = async (req, res) => {
 
 
 
-exports.updateVisibility = async (req, res) => {
-  try {
-    const { visibility } = req.body;
-    const userId = req.user._id;
+// exports.updateVisibility = async (req, res) => {
+//   try {
+//     const { visibility } = req.body;
+//     const userId = req.user._id;
 
-    // Validate input
-    if (!["everyone", "matches_only", "nobody"].includes(visibility)) {
-      return res.status(400).json({
-        success: false,
-        message: "Invalid visibility setting. Must be one of: everyone, matches_only, nobody"
-      });
-    }
+//     // Validate input
+//     if (!["everyone", "matches_only", "nobody"].includes(visibility)) {
+//       return res.status(400).json({
+//         success: false,
+//         message: "Invalid visibility setting. Must be one of: everyone, matches_only, nobody"
+//       });
+//     }
 
-    // Update profile
-    const profile = await Profile.findOneAndUpdate(
-      { userId },
-      { 
-        $set: { 
-          visibility,
-          // For backward compatibility
-          isDiscoverable: visibility !== "nobody" 
-        } 
-      },
-      { new: true, runValidators: true }
-    );
+//     // Update profile
+//     const profile = await Profile.findOneAndUpdate(
+//       { userId },
+//       { 
+//         $set: { 
+//           visibility,
+//           // For backward compatibility
+//           isDiscoverable: visibility !== "nobody" 
+//         } 
+//       },
+//       { new: true, runValidators: true }
+//     );
 
-    if (!profile) {
-      return res.status(404).json({
-        success: false,
-        message: "Profile not found"
-      });
-    }
+//     if (!profile) {
+//       return res.status(404).json({
+//         success: false,
+//         message: "Profile not found"
+//       });
+//     }
 
-    // Clear any cached profile data
-    await clearProfileCache(userId);
+//     // Clear any cached profile data
+//     await clearProfileCache(userId);
 
-    return res.json({
-      success: true,
-      message: "Visibility updated successfully",
-      data: {
-        visibility: profile.visibility,
-        isDiscoverable: profile.isDiscoverable
-      }
-    });
+//     return res.json({
+//       success: true,
+//       message: "Visibility updated successfully",
+//       data: {
+//         visibility: profile.visibility,
+//         isDiscoverable: profile.isDiscoverable
+//       }
+//     });
 
-  } catch (error) {
-    console.error("Error updating visibility:", error);
-    return res.status(500).json({
-      success: false,
-      message: "Failed to update visibility settings",
-      error: error.message
-    });
-  }
-};
+//   } catch (error) {
+//     console.error("Error updating visibility:", error);
+//     return res.status(500).json({
+//       success: false,
+//       message: "Failed to update visibility settings",
+//       error: error.message
+//     });
+//   }
+// };
 
 // // Helper function to clear profile cache
 // async function clearProfileCache(userId) {
 //   // Implement your cache clearing logic here if you're using caching
 //   // Example: await cache.del(`profile:${userId}`);
 // }
+
+
+
+
+exports.updateVisibility = async (req, res) => {
+  try {
+    const { visibility } = req.body;
+    const userId = req.user._id;
+
+    if (!["everyone", "matches_only", "nobody"].includes(visibility)) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid visibility value"
+      });
+    }
+
+    const update = {
+      visibility,
+      // sirf 'nobody' me completely hide
+      isDiscoverable: visibility !== "nobody"
+    };
+
+    const profile = await Profile.findOneAndUpdate(
+      { userId },
+      { $set: update },
+      { new: true }
+    );
+
+    // 🔥 VERY IMPORTANT: feed cache clear
+    await redis?.del(`feed:${userId}`);
+
+    return res.json({
+      success: true,
+      data: {
+        visibility: profile.visibility,
+        isDiscoverable: profile.isDiscoverable
+      }
+    });
+
+  } catch (err) {
+    return res.status(500).json({
+      success: false,
+      message: err.message
+    });
+  }
+};
