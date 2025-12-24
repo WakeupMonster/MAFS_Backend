@@ -333,10 +333,10 @@ async function getFeedService(userId, limit = 20) {
 
   let boostedSet = new Set();
 
-  if (redis) {
-    const boostedUsers = await redis.sMembers("boost:active");
-    boostedSet = new Set(boostedUsers);
-  }
+  // if (redis) {
+  //   const boostedUsers = await redis.sMembers("boost:active");
+  //   boostedSet = new Set(boostedUsers);
+  // }
 
 
   // ================================
