@@ -46,6 +46,22 @@ module.exports.generateAccessToken = (user) => {
 module.exports.REFRESH_TOKEN_TTL = 30 * 24 * 60 * 60 * 1000; // 30 days
 
 
+// exports.verifyRefreshToken = (token) => {
+//   try {
+//     return jwt.verify(token, process.env.JWT_SECRET);
+//   // eslint-disable-next-line no-unused-vars
+//   } catch (err) {
+//     throw new Error("Invalid refresh token");
+//   }
+// };
+
+exports.hashToken = (token) => {
+  return crypto
+    .createHash("sha256")
+    .update(token)
+    .digest("hex");
+};
+
 module.exports.sendSms = async (to, message) => {
   const client = initTwilio();
 

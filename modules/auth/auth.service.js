@@ -302,34 +302,102 @@ async function loginVerifyOtp(phone, otp) {
   return { user, accessToken, refreshToken: refreshTokenRaw };
 }
 
-async function refreshAccessToken(userId, refreshTokenRaw) {
-  const user = await User.findById(userId);
-  if (!user) throw new Error("User not found");
+// async function refreshAccessToken(userId, refreshTokenRaw) {
+//   console.log("userId:", userId);
+//   const user = await User.findById(userId);
+//   if (!user) throw new Error("User not found");
 
-  // clean expired tokens
+//   // clean expired tokens
+//   user.refreshTokens = user.refreshTokens.filter(
+//     (rt) => rt.expiresAt > Date.now()
+//   );
+
+//   const incomingHash = utils.hashToken(refreshTokenRaw);
+//   const found = user.refreshTokens.find((rt) => rt.tokenHash === incomingHash);
+//   if (!found) throw new Error("Invalid refresh token");
+
+//   // issue new access token (and optionally new refresh token)
+//   const accessToken = utils.generateAccessToken(user);
+//   return { accessToken };
+// }
+
+
+
+
+async function refreshAccessToken(refreshTokenRaw) {
+  // 🔐 1) Hash incoming token
+  const incomingHash = utils.hashToken(refreshTokenRaw);
+
+  // 👤 2) Find user by refresh token
+  const user = await User.findOne({
+    "refreshTokens.tokenHash": incomingHash
+  });
+
+  if (!user) {
+    throw new Error("Invalid refresh token");
+  }
+
+  // 🧹 3) Remove expired tokens
   user.refreshTokens = user.refreshTokens.filter(
-    (rt) => rt.expiresAt > Date.now()
+    rt => rt.expiresAt > Date.now()
   );
 
-  const incomingHash = utils.hashToken(refreshTokenRaw);
-  const found = user.refreshTokens.find((rt) => rt.tokenHash === incomingHash);
-  if (!found) throw new Error("Invalid refresh token");
+  // 🔍 4) Ensure token still exists
+  const stillValid = user.refreshTokens.some(
+    rt => rt.tokenHash === incomingHash
+  );
 
-  // issue new access token (and optionally new refresh token)
+  if (!stillValid) {
+    throw new Error("Refresh token expired");
+  }
+
+  // 🔑 5) Generate new access token
   const accessToken = utils.generateAccessToken(user);
+
+  await user.save();
+
   return { accessToken };
 }
 
-async function logout(userId, refreshTokenRaw) {
-  const user = await User.findById(userId);
-  if (!user) return;
+
+
+
+// async function logout(userId, refreshTokenRaw) {
+//   const user = await User.findById(userId);
+//   if (!user) return;
+//   const incomingHash = utils.hashToken(refreshTokenRaw);
+//   user.refreshTokens = user.refreshTokens.filter(
+//     (rt) => rt.tokenHash !== incomingHash
+//   );
+//   await user.save();
+//   return;
+// }
+
+
+// auth.service.js
+async function logout(refreshTokenRaw) {
   const incomingHash = utils.hashToken(refreshTokenRaw);
+
+  const user = await User.findOne({
+    "refreshTokens.tokenHash": incomingHash
+  });
+
+  if (!user) {
+    // Security reason: logout should be idempotent
+    // Agar token already invalid hai toh bhi success
+    return;
+  }
+
   user.refreshTokens = user.refreshTokens.filter(
-    (rt) => rt.tokenHash !== incomingHash
+    rt => rt.tokenHash !== incomingHash
   );
+
   await user.save();
-  return;
 }
+
+module.exports = {
+  logout
+};
 
 
 // In auth.service.js - Update sendPhoneOtp function

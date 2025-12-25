@@ -60,7 +60,7 @@ router.use(auth);
 
 router.patch(
   "/update",
-  validation.validateProfileUpdate,
+  // validation.validateProfileUpdate,
   controller.updateProfile
 );
 

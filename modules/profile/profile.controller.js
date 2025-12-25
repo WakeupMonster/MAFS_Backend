@@ -820,6 +820,8 @@
 // // };
 
 const Profile = require("./profile.model");
+const { Match } = require("../matches/swipe/swipe.model");
+const { formatProfileResponse } = require("./profile.service");
 // const User = require("../auth/auth.model");
 const cache = require("../../config/cache");
 const { uploadStream, destroy } = require("../upload/cloudinary.service");
@@ -858,51 +860,54 @@ async function clearProfileCache(userId) {
 // HELPER: Format Response
 // ========================================
 function formatResponse(profile) {
-  const completion = profile.calculateCompletion();
-  const nextStep = profile.getNextStep();
+  // const completion = profile.calculateCompletion();
+  // const nextStep = profile.getNextStep();
 
   return {
     userId: profile.userId,
-    profile: {
-      nickname: profile.nickname,
-      fullName: profile.fullName,
-      bio: profile.bio,
-      age: profile.age,
-      gender: profile.gender,
-      dob: profile.dob,
-      relationshipGoals: profile.relationshipGoals,
-      interests: profile.interests,
-      photos: profile.photos,
-      location: profile.location,
-      lifestyle: profile.lifestyle,
-      languages: profile.languages,
-      education: profile.education,
-      communicationStyle: profile.communicationStyle,
-      musicPreference: profile.musicPreference,
-      bookPreference: profile.bookPreference,
-      travelPreference: profile.travelPreference
-    },
-    preferences: profile.preferences,
-    kyc: {
-      status: profile.kyc?.status || "not_started",
-      hasSelfie: Boolean(profile.kyc?.selfie?.url),
-      hasIDDocument: Boolean(profile.kyc?.idDocument?.frontUrl),
-      rejectionReason: profile.kyc?.rejectionReason
-    },
-    progress: {
-      mandatory: completion.mandatory,
-      optional: completion.optional,
-      total: completion.total,
-      isMandatoryComplete: profile.isMandatoryComplete,
-      isProfileComplete: profile.isProfileComplete,
-      canAccessSwipe: profile.canAccessSwipe,
-      isDiscoverable: profile.isDiscoverable,
-      onboardingProgress: profile.onboardingProgress
-    },
-    nextStep: nextStep,
-    lastUpdated: profile.lastProfileUpdate || profile.updatedAt
+    photos: profile.photos,
+    // preferences: profile.preferences,
+    // location: profile.location
+    // profile: {
+    //   // nickname: profile.nickname,
+    //   // fullName: profile.fullName,
+    //   // bio: profile.bio,
+    //   // age: profile.age,
+    //   // gender: profile.gender,
+    //   // dob: profile.dob,
+    //   // relationshipGoal: profile.relationshipGoal,
+    //   // interests: profile.interests,
+    //   photos: profile.photos,
+    //   // location: profile.location,
+    //   // lifestyle: profile.lifestyle,
+    //   // languages: profile.languages,
+    //   // education: profile.education,
+    //   // communicationStyle: profile.communicationStyle,
+    //   // musicPreference: profile.musicPreference,
+    //   // bookPreference: profile.bookPreference,
+    //   // travelPreference: profile.travelPreference
+    // },
+    // preferences: profile.preferences,
+    // kyc: {
+    //   status: profile.kyc?.status || "not_started",
+    //   hasSelfie: Boolean(profile.kyc?.selfie?.url),
+    //   hasIDDocument: Boolean(profile.kyc?.idDocument?.frontUrl),
+    //   rejectionReason: profile.kyc?.rejectionReason
+    // },
+    // progress: {
+    //   mandatory: completion.mandatory,
+    //   optional: completion.optional,
+    //   total: completion.total,
+    //   isMandatoryComplete: profile.isMandatoryComplete,
+    //   isProfileComplete: profile.isProfileComplete,
+    //   canAccessSwipe: profile.canAccessSwipe,
+    //   isDiscoverable: profile.isDiscoverable,
+    //   onboardingProgress: profile.onboardingProgress
+    // },
+    // nextStep: nextStep,
+    // lastUpdated: profile.lastProfileUpdate || profile.updatedAt
   };
-}
+} 
 
 // ========================================
 // 1. UNIFIED UPDATE API
@@ -911,6 +916,7 @@ module.exports.updateProfile = async (req, res) => {
   try {
     const userId = req.user._id;
     const updateData = req.body;
+
 
     // Validate at least one field
     if (Object.keys(updateData).length === 0) {
@@ -984,16 +990,55 @@ module.exports.updateProfile = async (req, res) => {
     // ========================================
     // UPDATE RELATIONSHIP GOALS
     // ========================================
-    if (updateData.relationshipGoals !== undefined) {
-      if (!Array.isArray(updateData.relationshipGoals) || updateData.relationshipGoals.length === 0) {
-        return res.status(400).json({
-          success: false,
-          code: "INVALID_GOALS",
-          message: "At least one relationship goal is required"
-        });
-      }
-      profile.relationshipGoals = updateData.relationshipGoals;
-    }
+    // if (updateData.relationshipGoals !== undefined) {
+    //   if (!Array.isArray(updateData.relationshipGoals) || updateData.relationshipGoals.length === 0) {
+    //     return res.status(400).json({
+    //       success: false,
+    //       code: "INVALID_GOALS",
+    //       message: "At least one relationship goal is required"
+    //     });
+    //   }
+    //   profile.relationshipGoals = updateData.relationshipGoals;
+    // }
+
+    // ========================================
+// UPDATE RELATIONSHIP GOAL (FINAL – OBJECT BASED)
+// ========================================
+if (updateData.relationshipGoal !== undefined) {
+  const { key, title, subtitle } = updateData.relationshipGoal;
+
+  if (!key || !title || !subtitle) {
+    return res.status(400).json({
+      success: false,
+      code: "INVALID_RELATIONSHIP_GOAL",
+      message: "relationshipGoal requires key, title and subtitle"
+    });
+  }
+
+  const allowedKeys = [
+    "dating",
+    "friendship",
+    "casual",
+    "serious",
+    "networking",
+    "open_to_options"
+  ];
+
+  if (!allowedKeys.includes(key)) {
+    return res.status(400).json({
+      success: false,
+      code: "INVALID_RELATIONSHIP_GOAL_KEY",
+      message: "Invalid relationship goal key"
+    });
+  }
+
+  profile.relationshipGoal = {
+    key,
+    title,
+    subtitle
+  };
+}
+
 
     // ========================================
     // UPDATE PREFERENCES
@@ -1139,12 +1184,12 @@ module.exports.updateProfile = async (req, res) => {
     await clearProfileCache(userId);
 
     // Format response
-    const response = formatResponse(profile);
+    // const response = formatResponse(profile);
 
     return res.json({
       success: true,
       message: "Profile updated successfully",
-      data: response
+      // data: response
     });
 
   } catch (err) {
@@ -1225,7 +1270,7 @@ module.exports.uploadPhotos = async (req, res) => {
 
     return res.json({
       success: true,
-      message: `${newPhotos.length} photo(s) uploaded successfully`,
+      message: `${newPhotos.length} photo uploaded successfully`,
       data: response
     });
 
@@ -1536,7 +1581,8 @@ module.exports.updateLocation = async (req, res) => {
     return res.json({
       success: true,
       message: "Location updated successfully",
-      data: response
+      data: response.location
+      
     });
 
   } catch (err) {
@@ -1602,33 +1648,33 @@ module.exports.getStatus = async (req, res) => {
 // ========================================
 // 8. GET FULL PROFILE
 // ========================================
-module.exports.getMyProfile = async (req, res) => {
-  try {
-    const userId = req.user._id;
+// module.exports.getMyProfile = async (req, res) => {
+//   try {
+//     const userId = req.user._id;
 
-    const profile = await Profile.findOne({ userId }).lean();
+//     const profile = await Profile.findOne({ userId }).lean();
 
-    if (!profile) {
-      return res.status(404).json({
-        success: false,
-        code: "PROFILE_NOT_FOUND",
-        message: "Profile not found"
-      });
-    }
+//     if (!profile) {
+//       return res.status(404).json({
+//         success: false,
+//         code: "PROFILE_NOT_FOUND",
+//         message: "Profile not found"
+//       });
+//     }
 
-    return res.json({
-      success: true,
-      data: profile
-    });
+//     return res.json({
+//       success: true,
+//       data: profile
+//     });
 
-  } catch (err) {
-    console.error("Get profile error:", err);
-    return res.status(500).json({
-      success: false,
-      message: err.message
-    });
-  }
-};
+//   } catch (err) {
+//     console.error("Get profile error:", err);
+//     return res.status(500).json({
+//       success: false,
+//       message: err.message
+//     });
+//   }
+// };
 
 // ========================================
 // 9. GET PUBLIC PROFILE
@@ -1797,7 +1843,42 @@ module.exports.getMyProfile = async (req, res) => {
 
 
 
-const { Match } = require("../matches/swipe/swipe.model"); // ✅ Yeh line top pe add karo
+
+
+
+
+
+module.exports.getMyProfile = async (req, res) => {
+  try {
+    const userId = req.user._id;
+
+    const profile = await Profile.findOne({ userId }).lean();
+    if (!profile) {
+      return res.status(404).json({
+        success: false,
+        code: "PROFILE_NOT_FOUND",
+        message: "Profile not found"
+      });
+    }
+
+    // req.user se email / phone aa raha hoga
+    const formattedProfile = formatProfileResponse(profile, req.user);
+
+    return res.json({
+      success: true,
+      data: formattedProfile
+    });
+
+  } catch (err) {
+    console.error("Get profile error:", err);
+    return res.status(500).json({
+      success: false,
+      message: err.message
+    });
+  }
+};
+
+
 
 module.exports.getPublicProfile = async (req, res) => {
   try {

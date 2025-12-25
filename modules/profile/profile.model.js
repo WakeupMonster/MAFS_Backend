@@ -234,10 +234,33 @@ const ProfileSchema = new mongoose.Schema({
   },
 
   // Relationship Goals (5%)
-  relationshipGoals: [{
+  // relationshipGoal: [{
+  //   type: String,
+  //   enum: ["dating", "friendship", "casual", "serious", "networking", "open_to_options"]
+  // }],
+
+ relationshipGoal: {
+  key: {
     type: String,
-    enum: ["dating", "friendship", "casual", "serious", "networking", "open_to_options"]
-  }],
+    enum: [
+      "dating",
+      "friendship",
+      "casual",
+      "serious",
+      "networking",
+      "open_to_options"
+    ],
+    // required: true
+  },
+  title: {
+    type: String,
+    // required: true
+  },
+  subtitle: {
+    type: String,
+    // required: true
+  }
+},
 
   // Preferences (15%)
   preferences: {
@@ -255,11 +278,6 @@ const ProfileSchema = new mongoose.Schema({
 
   discoveryFilters: {
   hasBio: { type: Boolean, default: false },
-
-  relationshipGoals: [{
-    type: String,
-    enum: ["dating", "friendship", "casual", "serious", "networking", "open_to_options"]
-  }],
 
   interests: [{ type: String }],
 
@@ -308,7 +326,6 @@ const ProfileSchema = new mongoose.Schema({
   }],
   default: []
 },
-
   location: {
   type: { 
     type: String, 
@@ -482,7 +499,7 @@ const ProfileSchema = new mongoose.Schema({
     nicknameSet: { type: Boolean, default: false },
     dobSet: { type: Boolean, default: false },
     genderSet: { type: Boolean, default: false },
-    relationshipGoalsSet: { type: Boolean, default: false },
+    relationshipGoalSet: { type: Boolean, default: false },
     genderPreferenceSet: { type: Boolean, default: false },
     ageRangeSet: { type: Boolean, default: false },
     distanceRangeSet: { type: Boolean, default: false },
@@ -540,7 +557,7 @@ ProfileSchema.methods.calculateCompletion = function() {
     nicknameSet: 5,
     dobSet: 5,
     genderSet: 5,
-    relationshipGoalsSet: 5,
+    relationshipGoalSet: 5,
     genderPreferenceSet: 5,
     ageRangeSet: 5,
     distanceRangeSet: 5,
@@ -604,7 +621,7 @@ ProfileSchema.methods.getNextStep = function() {
     { key: "nicknameSet", screen: "nickname", message: "Choose nickname" },
     { key: "dobSet", screen: "birthdate", message: "Enter birthdate" },
     { key: "genderSet", screen: "gender", message: "Select gender" },
-    { key: "relationshipGoalsSet", screen: "relationship_goals", message: "What are you looking for?" },
+    { key: "relationshipGoalSet", screen: "relationship_goals", message: "What are you looking for?" },
     { key: "genderPreferenceSet", screen: "gender_preference", message: "Who do you want to meet?" },
     { key: "ageRangeSet", screen: "age_range", message: "Set age range" },
     { key: "distanceRangeSet", screen: "distance_range", message: "Set distance" },
@@ -679,7 +696,7 @@ ProfileSchema.pre("save", function(next) {
   this.onboardingProgress.nicknameSet = Boolean(this.nickname);
   this.onboardingProgress.dobSet = Boolean(this.dob);
   this.onboardingProgress.genderSet = Boolean(this.gender);
-  this.onboardingProgress.relationshipGoalsSet = this.relationshipGoals?.length > 0;
+  this.onboardingProgress.relationshipGoalSet = this.relationshipGoal?.length > 0;
   this.onboardingProgress.genderPreferenceSet = this.preferences?.genderPreference?.length > 0;
   this.onboardingProgress.ageRangeSet = Boolean(this.preferences?.ageRange?.min);
   this.onboardingProgress.distanceRangeSet = Boolean(this.preferences?.distanceRange);
