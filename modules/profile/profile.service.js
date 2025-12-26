@@ -70,8 +70,8 @@ module.exports.formatProfileResponse = (profile, user = {}) => {
     canAccessSwipe: profile.canAccessSwipe ?? false,
 
     // 🔹 Flatten discoveryFilters
-    basics: profile.discoveryFilters?.basics || {
-      PersonalityType: [],
+    basics: profile.basics || {
+      PersonalityType: profile.basics.PersonalityType || [],
       communicationStyle: [],
       education: [],
       familyPlans: [],

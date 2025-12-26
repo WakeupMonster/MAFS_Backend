@@ -912,31 +912,351 @@ function formatResponse(profile) {
 // ========================================
 // 1. UNIFIED UPDATE API
 // ========================================
-module.exports.updateProfile = async (req, res) => {
+// module.exports.updateProfile = async (req, res) => {
+//   try {
+//     const userId = req.user._id;
+//     const updateData = req.body;
+
+
+//     // Validate at least one field
+//     if (Object.keys(updateData).length === 0) {
+//       return res.status(400).json({
+//         success: false,
+//         code: "NO_DATA",
+//         message: "No update data provided"
+//       });
+//     }
+
+//     // Get profile
+//     let profile = await getOrCreateProfile(userId);
+
+//     // ========================================
+//     // UPDATE BASIC INFO
+//     // ========================================
+//     if (updateData.nickname !== undefined) {
+//       // Check uniqueness
+//       const existing = await Profile.findOne({
+//         nickname: updateData.nickname,
+//         userId: { $ne: userId }
+//       });
+//       if (existing) {
+//         return res.status(400).json({
+//           success: false,
+//           code: "NICKNAME_TAKEN",
+//           message: "Nickname already taken"
+//         });
+//       }
+//       profile.nickname = updateData.nickname.trim();
+//     }
+
+//     if (updateData.fullName !== undefined) {
+//       profile.fullName = updateData.fullName.trim();
+//     }
+
+//     if (updateData.bio !== undefined) {
+//       if (updateData.bio.length > 500) {
+//         return res.status(400).json({
+//           success: false,
+//           code: "BIO_TOO_LONG",
+//           message: "Bio must be under 500 characters"
+//         });
+//       }
+//       profile.bio = updateData.bio.trim();
+//     }
+
+//     if (updateData.dob !== undefined) {
+//       const dob = new Date(updateData.dob);
+//       const today = new Date();
+//       let age = today.getFullYear() - dob.getFullYear();
+//       const m = today.getMonth() - dob.getMonth();
+//       if (m < 0 || (m === 0 && today.getDate() < dob.getDate())) age--;
+
+//       if (age < 18) {
+//         return res.status(400).json({
+//           success: false,
+//           code: "AGE_RESTRICTION",
+//           message: "You must be at least 18 years old"
+//         });
+//       }
+
+//       profile.dob = dob;
+//       profile.age = age;
+//     }
+
+//     if (updateData.gender !== undefined) {
+//       profile.gender = updateData.gender;
+//     }
+
+//     // ========================================
+//     // UPDATE RELATIONSHIP GOALS
+//     // ========================================
+//     // if (updateData.relationshipGoals !== undefined) {
+//     //   if (!Array.isArray(updateData.relationshipGoals) || updateData.relationshipGoals.length === 0) {
+//     //     return res.status(400).json({
+//     //       success: false,
+//     //       code: "INVALID_GOALS",
+//     //       message: "At least one relationship goal is required"
+//     //     });
+//     //   }
+//     //   profile.relationshipGoals = updateData.relationshipGoals;
+//     // }
+
+//     // ========================================
+// // UPDATE RELATIONSHIP GOAL (FINAL – OBJECT BASED)
+// // ========================================
+// if (updateData.relationshipGoal !== undefined) {
+//   const { key, title, subtitle } = updateData.relationshipGoal;
+
+//   if (!key || !title || !subtitle) {
+//     return res.status(400).json({
+//       success: false,
+//       code: "INVALID_RELATIONSHIP_GOAL",
+//       message: "relationshipGoal requires key, title and subtitle"
+//     });
+//   }
+
+//   const allowedKeys = [
+//     "dating",
+//     "friendship",
+//     "casual",
+//     "serious",
+//     "networking",
+//     "open_to_options",
+//      'height', 'jobtitle', 'occupation', 'about_me', 
+//       'company', 'school', 'basics', 'lifestyle', 'interests'
+//   ];
+
+//   if (!allowedKeys.includes(key)) {
+//     return res.status(400).json({
+//       success: false,
+//       code: "INVALID_RELATIONSHIP_GOAL_KEY",
+//       message: "Invalid relationship goal key"
+//     });
+//   }
+
+//   profile.relationshipGoal = {
+//     key,
+//     title,
+//     subtitle
+//   };
+// }
+
+
+
+
+//     // ========================================
+//     // UPDATE PREFERENCES
+//     // ========================================
+//     if (updateData.genderPreference !== undefined) {
+//       if (!Array.isArray(updateData.genderPreference) || updateData.genderPreference.length === 0) {
+//         return res.status(400).json({
+//           success: false,
+//           code: "INVALID_PREFERENCE",
+//           message: "At least one gender preference is required"
+//         });
+//       }
+//       profile.preferences.genderPreference = updateData.genderPreference;
+//     }
+
+//     if (updateData.ageRange !== undefined) {
+//       const { min, max } = updateData.ageRange;
+//       if (!min || !max || min < 18 || max > 100 || min >= max) {
+//         return res.status(400).json({
+//           success: false,
+//           code: "INVALID_AGE_RANGE",
+//           message: "Invalid age range. Min must be 18+, max 100, and min < max"
+//         });
+//       }
+//       profile.preferences.ageRange = { min, max };
+//     }
+
+//     if (updateData.distanceRange !== undefined) {
+//       const distance = Number(updateData.distanceRange);
+//       if (distance < 1 || distance > 500) {
+//         return res.status(400).json({
+//           success: false,
+//           code: "INVALID_DISTANCE",
+//           message: "Distance must be between 1 and 500 km"
+//         });
+//       }
+//       profile.preferences.distanceRange = distance;
+//     }
+
+//     if(updateData.height !== undefined){
+//       profile.height = updateData.height;
+//     }
+//       if(updateData.jobtitle !== undefined){
+//       profile.jobtitle = updateData.jobtitle;
+//     }
+//       if(updateData.occupation !== undefined){
+//       profile.occupation = updateData.occupation;
+//     }
+//        if(updateData.about_me !== undefined){
+//       profile.about_me = updateData.about_me;
+//     }
+//      if(updateData.company !== undefined){
+//       profile.company = updateData.company;
+//     }
+//       if(updateData.school !== undefined){
+//       profile.school = updateData.school;
+//     }
+//     // ========================================
+//     // UPDATE INTERESTS
+//     // ========================================
+//     if (updateData.interests !== undefined) {
+//       if (!Array.isArray(updateData.interests)) {
+//         return res.status(400).json({
+//           success: false,
+//           code: "INVALID_INTERESTS",
+//           message: "Interests must be an array"
+//         });
+//       }
+
+//       if (updateData.interests.length < 3) {
+//         return res.status(400).json({
+//           success: false,
+//           code: "MIN_INTERESTS",
+//           message: "Please select at least 3 interests"
+//         });
+//       }
+
+//       if (updateData.interests.length > 15) {
+//         return res.status(400).json({
+//           success: false,
+//           code: "MAX_INTERESTS",
+//           message: "Maximum 15 interests allowed"
+//         });
+//       }
+
+//       profile.interests = updateData.interests;
+//     }
+
+//     // ========================================
+//     // UPDATE TIER 2 (OPTIONAL FIELDS)
+//     // ========================================
+
+//     // Lifestyle
+//     if (updateData.lifestyle !== undefined) {
+//       profile.lifestyle = {
+//         ...profile.lifestyle,
+//         ...updateData.lifestyle
+//       };
+//     }
+
+//     // Languages
+//     if (updateData.languages !== undefined) {
+//       if (!Array.isArray(updateData.languages)) {
+//         return res.status(400).json({
+//           success: false,
+//           code: "INVALID_LANGUAGES",
+//           message: "Languages must be an array"
+//         });
+//       }
+//       profile.languages = updateData.languages;
+//     }
+
+//     // Education
+//     if (updateData.education !== undefined) {
+//       profile.education = {
+//         ...profile.education,
+//         ...updateData.education
+//       };
+//     }
+
+//     // Communication Style
+//     if (updateData.communicationStyle !== undefined) {
+//       profile.communicationStyle = updateData.communicationStyle;
+//     }
+
+//     // Music Preference
+//     if (updateData.musicPreference !== undefined) {
+//       if (!Array.isArray(updateData.musicPreference)) {
+//         return res.status(400).json({
+//           success: false,
+//           code: "INVALID_MUSIC",
+//           message: "Music preference must be an array"
+//         });
+//       }
+//       profile.musicPreference = updateData.musicPreference;
+//     }
+
+//     // Book Preference
+//     if (updateData.bookPreference !== undefined) {
+//       if (!Array.isArray(updateData.bookPreference)) {
+//         return res.status(400).json({
+//           success: false,
+//           code: "INVALID_BOOKS",
+//           message: "Book preference must be an array"
+//         });
+//       }
+//       profile.bookPreference = updateData.bookPreference;
+//     }
+
+//     // Travel Preference
+//     if (updateData.travelPreference !== undefined) {
+//       profile.travelPreference = updateData.travelPreference;
+//     }
+
+    
+//     // ========================================
+//     // SAVE & CALCULATE (Triggers pre-save hook)
+//     // ========================================
+//     await profile.save();
+
+//     // Clear cache
+//     await clearProfileCache(userId);
+
+//     // Format response
+//     // const response = formatResponse(profile);
+
+//     return res.json({
+//       success: true,
+//       message: "Profile updated successfully",
+//       // data: response
+//     });
+
+//   } catch (err) {
+//     console.error("Update profile error:", err);
+//     return res.status(500).json({
+//       success: false,
+//       code: "UPDATE_FAILED",
+//       message: err.message
+//     });
+//   }
+// };
+
+
+// In your profile.controller.js
+exports.updateProfile = async (req, res) => {
   try {
     const userId = req.user._id;
     const updateData = req.body;
+    const profile = await Profile.findOne({ userId });
 
-
-    // Validate at least one field
-    if (Object.keys(updateData).length === 0) {
-      return res.status(400).json({
+    if (!profile) {
+      return res.status(404).json({
         success: false,
-        code: "NO_DATA",
-        message: "No update data provided"
+        code: "PROFILE_NOT_FOUND",
+        message: "Profile not found"
       });
     }
 
-    // Get profile
-    let profile = await getOrCreateProfile(userId);
+    // Helper function to safely update fields
+    const updateField = (field, value, trim = true) => {
+      if (value !== undefined) {
+        profile[field] = trim ? String(value).trim() : value;
+      }
+    };
 
-    // ========================================
-    // UPDATE BASIC INFO
-    // ========================================
+    // Basic Info
+    if (updateData.fullName !== undefined) {
+      profile.fullName = updateData.fullName.trim();
+    }
+
     if (updateData.nickname !== undefined) {
-      // Check uniqueness
+      const nickname = updateData.nickname.trim();
       const existing = await Profile.findOne({
-        nickname: updateData.nickname,
+        nickname,
         userId: { $ne: userId }
       });
       if (existing) {
@@ -946,282 +1266,291 @@ module.exports.updateProfile = async (req, res) => {
           message: "Nickname already taken"
         });
       }
-      profile.nickname = updateData.nickname.trim();
+      profile.nickname = nickname;
     }
 
-    if (updateData.fullName !== undefined) {
-      profile.fullName = updateData.fullName.trim();
-    }
-
-    if (updateData.bio !== undefined) {
-      if (updateData.bio.length > 500) {
+    if (updateData.gender !== undefined) {
+      const validGenders = ["male", "female", "non-binary", "trans-man", "trans-women", "genderqueer", "everyone", "other"];
+      if (!validGenders.includes(updateData.gender)) {
         return res.status(400).json({
           success: false,
-          code: "BIO_TOO_LONG",
-          message: "Bio must be under 500 characters"
+          code: "INVALID_GENDER",
+          message: "Invalid gender value"
         });
       }
-      profile.bio = updateData.bio.trim();
+      profile.gender = updateData.gender;
     }
 
     if (updateData.dob !== undefined) {
       const dob = new Date(updateData.dob);
-      const today = new Date();
-      let age = today.getFullYear() - dob.getFullYear();
-      const m = today.getMonth() - dob.getMonth();
-      if (m < 0 || (m === 0 && today.getDate() < dob.getDate())) age--;
-
-      if (age < 18) {
+      if (isNaN(dob.getTime())) {
         return res.status(400).json({
           success: false,
-          code: "AGE_RESTRICTION",
-          message: "You must be at least 18 years old"
+          code: "INVALID_DOB",
+          message: "Invalid date of birth"
         });
       }
-
       profile.dob = dob;
+      // Calculate age
+      const today = new Date();
+      const birthDate = new Date(dob);
+      let age = today.getFullYear() - birthDate.getFullYear();
+      const m = today.getMonth() - birthDate.getMonth();
+      if (m < 0 || (m === 0 && today.getDate() < birthDate.getDate())) {
+        age--;
+      }
       profile.age = age;
     }
 
-    if (updateData.gender !== undefined) {
-      profile.gender = updateData.gender;
-    }
-
-    // ========================================
-    // UPDATE RELATIONSHIP GOALS
-    // ========================================
-    // if (updateData.relationshipGoals !== undefined) {
-    //   if (!Array.isArray(updateData.relationshipGoals) || updateData.relationshipGoals.length === 0) {
-    //     return res.status(400).json({
-    //       success: false,
-    //       code: "INVALID_GOALS",
-    //       message: "At least one relationship goal is required"
-    //     });
-    //   }
-    //   profile.relationshipGoals = updateData.relationshipGoals;
-    // }
-
-    // ========================================
-// UPDATE RELATIONSHIP GOAL (FINAL – OBJECT BASED)
-// ========================================
-if (updateData.relationshipGoal !== undefined) {
-  const { key, title, subtitle } = updateData.relationshipGoal;
-
-  if (!key || !title || !subtitle) {
-    return res.status(400).json({
-      success: false,
-      code: "INVALID_RELATIONSHIP_GOAL",
-      message: "relationshipGoal requires key, title and subtitle"
-    });
-  }
-
-  const allowedKeys = [
-    "dating",
-    "friendship",
-    "casual",
-    "serious",
-    "networking",
-    "open_to_options",
-     'height', 'jobtitle', 'occupation', 'about_me', 
-      'company', 'school', 'basics', 'lifestyle', 'interests'
-  ];
-
-  if (!allowedKeys.includes(key)) {
-    return res.status(400).json({
-      success: false,
-      code: "INVALID_RELATIONSHIP_GOAL_KEY",
-      message: "Invalid relationship goal key"
-    });
-  }
-
-  profile.relationshipGoal = {
-    key,
-    title,
-    subtitle
-  };
-}
-
-
-    // ========================================
-    // UPDATE PREFERENCES
-    // ========================================
-    if (updateData.genderPreference !== undefined) {
-      if (!Array.isArray(updateData.genderPreference) || updateData.genderPreference.length === 0) {
-        return res.status(400).json({
-          success: false,
-          code: "INVALID_PREFERENCE",
-          message: "At least one gender preference is required"
-        });
-      }
-      profile.preferences.genderPreference = updateData.genderPreference;
-    }
-
-    if (updateData.ageRange !== undefined) {
-      const { min, max } = updateData.ageRange;
-      if (!min || !max || min < 18 || max > 100 || min >= max) {
-        return res.status(400).json({
-          success: false,
-          code: "INVALID_AGE_RANGE",
-          message: "Invalid age range. Min must be 18+, max 100, and min < max"
-        });
-      }
-      profile.preferences.ageRange = { min, max };
-    }
-
-    if (updateData.distanceRange !== undefined) {
-      const distance = Number(updateData.distanceRange);
-      if (distance < 1 || distance > 500) {
-        return res.status(400).json({
-          success: false,
-          code: "INVALID_DISTANCE",
-          message: "Distance must be between 1 and 500 km"
-        });
-      }
-      profile.preferences.distanceRange = distance;
-    }
-
-    if(updateData.height !== undefined){
-      profile.height = updateData.height;
-    }
-      if(updateData.jobtitle !== undefined){
-      profile.jobtitle = updateData.jobtitle;
-    }
-      if(updateData.occupation !== undefined){
-      profile.occupation = updateData.occupation;
-    }
-       if(updateData.about_me !== undefined){
-      profile.about_me = updateData.about_me;
-    }
-     if(updateData.company !== undefined){
-      profile.company = updateData.company;
-    }
-      if(updateData.school !== undefined){
-      profile.school = updateData.school;
-    }
-    // ========================================
-    // UPDATE INTERESTS
-    // ========================================
-    if (updateData.interests !== undefined) {
-      if (!Array.isArray(updateData.interests)) {
-        return res.status(400).json({
-          success: false,
-          code: "INVALID_INTERESTS",
-          message: "Interests must be an array"
-        });
-      }
-
-      if (updateData.interests.length < 3) {
-        return res.status(400).json({
-          success: false,
-          code: "MIN_INTERESTS",
-          message: "Please select at least 3 interests"
-        });
-      }
-
-      if (updateData.interests.length > 15) {
-        return res.status(400).json({
-          success: false,
-          code: "MAX_INTERESTS",
-          message: "Maximum 15 interests allowed"
-        });
-      }
-
+    if(updateData.interests !== undefined){
       profile.interests = updateData.interests;
     }
-
-    // ========================================
-    // UPDATE TIER 2 (OPTIONAL FIELDS)
-    // ========================================
-
-    // Lifestyle
-    if (updateData.lifestyle !== undefined) {
-      profile.lifestyle = {
-        ...profile.lifestyle,
-        ...updateData.lifestyle
-      };
+    // About Me
+    if (updateData.about_me !== undefined) {
+      profile.about_me = updateData.about_me.trim();
     }
 
+    // Basic Details
+    updateField('height', updateData.height);
+    updateField('occupation', updateData.occupation);
+    updateField('company', updateData.company);
+    updateField('school', updateData.school);
+    updateField('jobtitle', updateData.jobtitle);
+
+    
+
     // Languages
-    if (updateData.languages !== undefined) {
-      if (!Array.isArray(updateData.languages)) {
-        return res.status(400).json({
-          success: false,
-          code: "INVALID_LANGUAGES",
-          message: "Languages must be an array"
-        });
-      }
+    if (Array.isArray(updateData.languages)) {
       profile.languages = updateData.languages;
     }
 
-    // Education
-    if (updateData.education !== undefined) {
-      profile.education = {
-        ...profile.education,
-        ...updateData.education
-      };
-    }
-
-    // Communication Style
-    if (updateData.communicationStyle !== undefined) {
-      profile.communicationStyle = updateData.communicationStyle;
-    }
-
-    // Music Preference
-    if (updateData.musicPreference !== undefined) {
-      if (!Array.isArray(updateData.musicPreference)) {
-        return res.status(400).json({
-          success: false,
-          code: "INVALID_MUSIC",
-          message: "Music preference must be an array"
-        });
+    // Lifestyle
+    if (updateData.lifestyle) {
+      if (updateData.lifestyle.pets) {
+        const validPets = ["dog", "cat", "bird", "fish"];
+        if (!validPets.includes(updateData.lifestyle.pets)) {
+          return res.status(400).json({
+            success: false,
+            code: "INVALID_PET_TYPE",
+            message: "Invalid pet type"
+          });
+        }
+        profile.lifestyle = profile.lifestyle || {};
+        profile.lifestyle.pets = updateData.lifestyle.pets;
       }
-      profile.musicPreference = updateData.musicPreference;
-    }
 
-    // Book Preference
-    if (updateData.bookPreference !== undefined) {
-      if (!Array.isArray(updateData.bookPreference)) {
-        return res.status(400).json({
-          success: false,
-          code: "INVALID_BOOKS",
-          message: "Book preference must be an array"
-        });
+      if (updateData.lifestyle.drinking !== undefined) {
+        const validDrinking = ["never", "socially", "regularly"];
+        if (!validDrinking.includes(updateData.lifestyle.drinking)) {
+          return res.status(400).json({
+            success: false,
+            code: "INVALID_DRINKING_VALUE",
+            message: "Invalid drinking value"
+          });
+        }
+        profile.lifestyle = profile.lifestyle || {};
+        profile.lifestyle.drinking = updateData.lifestyle.drinking;
       }
-      profile.bookPreference = updateData.bookPreference;
+
+      if (updateData.lifestyle.exercise !== undefined) {
+        const validExercise = ["never", "sometimes", "regularly", "daily"];
+        if (!validExercise.includes(updateData.lifestyle.exercise)) {
+          return res.status(400).json({
+            success: false,
+            code: "INVALID_EXERCISE_VALUE",
+            message: "Invalid exercise value"
+          });
+        }
+        profile.lifestyle = profile.lifestyle || {};
+        profile.lifestyle.exercise = updateData.lifestyle.exercise;
+      }
     }
 
-    // Travel Preference
-    if (updateData.travelPreference !== undefined) {
-      profile.travelPreference = updateData.travelPreference;
+    // Basics
+    if (updateData.basics) {
+      profile.basics = profile.basics || {};
+
+      // Education
+      if (updateData.basics.education) {
+        profile.basics.education = profile.basics.education || {};
+        
+        if (updateData.basics.education.level) {
+          const validEducationLevels = ["high_school", "bachelors", "masters", "phd", "trade_school", "prefer_not_to_say"];
+          if (!validEducationLevels.includes(updateData.basics.education.level)) {
+            return res.status(400).json({
+              success: false,
+              code: "INVALID_EDUCATION_LEVEL",
+              message: "Invalid education level"
+            });
+          }
+          profile.basics.education.level = updateData.basics.education.level;
+        }
+
+        if (updateData.basics.education.institution !== undefined) {
+          profile.basics.education.institution = updateData.basics.education.institution.trim();
+        }
+      }
+
+      // Zodiac
+      if (updateData.basics.zodiac) {
+        const validZodiacs = ["aries", "taurus", "gemini", "cancer", "leo", "virgo", 
+                            "libra", "scorpio", "sagittarius", "capricorn", "aquarius", "pisces"];
+        if (!validZodiacs.includes(updateData.basics.zodiac)) {
+          return res.status(400).json({
+            success: false,
+            code: "INVALID_ZODIAC",
+            message: "Invalid zodiac sign"
+          });
+        }
+        profile.basics.zodiac = updateData.basics.zodiac;
+      }
+
+      // Other basic fields
+      if (updateData.basics.familyPlans !== undefined) {
+        profile.basics.familyPlans = updateData.basics.familyPlans.trim();
+      }
+
+      if (updateData.basics.PersonalityType) {
+        const validPersonalityTypes = ["intj", "entj", "entp", "istp", "isfp"];
+        if (!validPersonalityTypes.includes(updateData.basics.PersonalityType)) {
+          return res.status(400).json({
+            success: false,
+            code: "INVALID_PERSONALITY_TYPE",
+            message: "Invalid personality type"
+          });
+        }
+        profile.basics.PersonalityType = updateData.basics.PersonalityType;
+      }
+
+      if (updateData.basics.communicationStyle) {
+        const validStyles = ["chattyCathy", "listener", "joker", "deepThinker", 
+                           "sarcasticWit", "easyGoing", "storyTeller", "straightShooter"];
+        if (!validStyles.includes(updateData.basics.communicationStyle)) {
+          return res.status(400).json({
+            success: false,
+            code: "INVALID_COMMUNICATION_STYLE",
+            message: "Invalid communication style"
+          });
+        }
+        profile.basics.communicationStyle = updateData.basics.communicationStyle;
+      }
+
+      if (updateData.basics.loveStyle) {
+        const validLoveStyles = ["hopelessRomantic", "bestFriend", "adventureSeeker", "careGiver"];
+        if (!validLoveStyles.includes(updateData.basics.loveStyle)) {
+          return res.status(400).json({
+            success: false,
+            code: "INVALID_LOVE_STYLE",
+            message: "Invalid love style"
+          });
+        }
+        profile.basics.loveStyle = updateData.basics.loveStyle;
+      }
     }
 
-    
-    // ========================================
-    // SAVE & CALCULATE (Triggers pre-save hook)
-    // ========================================
-    await profile.save();
+    // Preferences
+    if (updateData.preferences) {
+      // Age Range
+      if (updateData.preferences.ageRange) {
+        if (updateData.preferences.ageRange.min !== undefined) {
+          const minAge = parseInt(updateData.preferences.ageRange.min);
+          if (isNaN(minAge) || minAge < 18 || minAge > 100) {
+            return res.status(400).json({
+              success: false,
+              code: "INVALID_MIN_AGE",
+              message: "Minimum age must be between 18 and 100"
+            });
+          }
+          profile.preferences.ageRange.min = minAge;
+        }
 
-    // Clear cache
-    await clearProfileCache(userId);
+        if (updateData.preferences.ageRange.max !== undefined) {
+          const maxAge = parseInt(updateData.preferences.ageRange.max);
+          if (isNaN(maxAge) || maxAge < 18 || maxAge > 100) {
+            return res.status(400).json({
+              success: false,
+              code: "INVALID_MAX_AGE",
+              message: "Maximum age must be between 18 and 100"
+            });
+          }
+          profile.preferences.ageRange.max = maxAge;
+        }
 
-    // Format response
+        // Ensure min <= max
+        if (profile.preferences.ageRange.min > profile.preferences.ageRange.max) {
+          return res.status(400).json({
+            success: false,
+            code: "INVALID_AGE_RANGE",
+            message: "Minimum age cannot be greater than maximum age"
+          });
+        }
+      }
+
+      // Distance Range
+      if (updateData.preferences.distanceRange !== undefined) {
+        const distance = parseInt(updateData.preferences.distanceRange);
+        if (isNaN(distance) || distance < 1 || distance > 500) {
+          return res.status(400).json({
+            success: false,
+            code: "INVALID_DISTANCE",
+            message: "Distance must be between 1 and 500 km"
+          });
+        }
+        profile.preferences.distanceRange = distance;
+      }
+
+      // Gender Preference
+      if (updateData.preferences.genderPreference) {
+        if (!Array.isArray(updateData.preferences.genderPreference)) {
+          return res.status(400).json({
+            success: false,
+            code: "INVALID_GENDER_PREFERENCE",
+            message: "Gender preference must be an array"
+          });
+        }
+
+        const validGenders = ["male", "female", "non-binary", "trans-man", "trans-women", "everyone", "other"];
+        const invalidGenders = updateData.preferences.genderPreference.filter(
+          gender => !validGenders.includes(gender)
+        );
+
+        if (invalidGenders.length > 0) {
+          return res.status(400).json({
+            success: false,
+            code: "INVALID_GENDER_VALUES",
+            message: `Invalid gender values: ${invalidGenders.join(", ")}`
+          });
+        }
+
+        profile.preferences.genderPreference = updateData.preferences.genderPreference;
+      }
+    }
+
+    // Update the last updated timestamp
+    profile.lastProfileUpdate = new Date();
+
     // const response = formatResponse(profile);
 
-    return res.json({
+    // Save the updated profile
+    await profile.save();
+
+    // Return the updated profile
+    res.json({
       success: true,
       message: "Profile updated successfully",
       // data: response
     });
 
-  } catch (err) {
-    console.error("Update profile error:", err);
-    return res.status(500).json({
+  } catch (error) {
+    console.error("Error updating profile:", error);
+    res.status(500).json({
       success: false,
-      code: "UPDATE_FAILED",
-      message: err.message
+      code: "INTERNAL_SERVER_ERROR",
+      message: "An error occurred while updating the profile"
     });
   }
 };
+
 
 // ========================================
 // 2. UPLOAD PHOTOS

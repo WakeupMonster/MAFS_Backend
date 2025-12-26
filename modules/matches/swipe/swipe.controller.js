@@ -12,13 +12,13 @@ exports.getFeed = async (req, res) => {
     const userId = req.user._id;
     const limit = Number(req.query.limit) || 20;
 
-    const feed = await service.getFeedService(userId, limit);
+    const feedResult = await service.getFeedService(userId, limit);
 
     return res.json({
       success: true,
-      count: feed.length,
-      data: feed,
-      cached: feed.cached || false
+      count: feedResult.data.length,   // ✅ Access data array
+       cached: feedResult.cached,
+      data: feedResult.data,            // ✅ Direct data, no nesting
     });
   } catch (err) {
     console.error("GET FEED ERROR:", err);

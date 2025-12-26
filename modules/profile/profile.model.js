@@ -744,8 +744,8 @@ ProfileSchema.pre("save", function(next) {
   // Enable swipe access
   this.onboardingProgress.isProfileComplete = this.isProfileComplete;
   this.onboardingProgress.canAccessSwipe = this.canAccessSwipe;
-  // this.canAccessSwipe = this.isMandatoryComplete && this.kyc.status === "approved";
-  // this.isDiscoverable = this.canAccessSwipe;
+  this.canAccessSwipe = this.isMandatoryComplete && this.kyc.status === "approved";
+  this.isDiscoverable = this.canAccessSwipe;
 
   // 🔒 If profile is manually hidden (deactivated), do NOT override
 if (this.visibility === "nobody") {
@@ -763,6 +763,66 @@ if (this.visibility === "nobody") {
   next();
 });
 
+
+
+// ========================================
+// 🔥 NEW: PRE-UPDATE HOOK (For CLI/Admin Updates)
+// ========================================
+ProfileSchema.pre(['findOneAndUpdate', 'updateOne'], async function(next) {
+  const update = this.getUpdate();
+  
+  // Check if KYC status is being updated
+  const kycStatusUpdate = update.$set?.['kyc.status'] || update['kyc.status'];
+  
+  if (kycStatusUpdate) {
+    // Fetch current document
+    const docToUpdate = await this.model.findOne(this.getQuery());
+    
+    if (docToUpdate) {
+      // Recalculate completion
+      docToUpdate.calculateCompletion();
+      
+      const isMandatoryComplete = docToUpdate.isMandatoryComplete;
+      const isKycApproved = kycStatusUpdate === "approved";
+      
+      // 🔒 Respect visibility setting
+      if (docToUpdate.visibility === "nobody") {
+        update.$set = update.$set || {};
+        update.$set.canAccessSwipe = false;
+        update.$set.isDiscoverable = false;
+      } else {
+        // ✅ Update access flags
+        update.$set = update.$set || {};
+        update.$set.canAccessSwipe = isMandatoryComplete && isKycApproved;
+        update.$set.isDiscoverable = isMandatoryComplete && isKycApproved;
+        update.$set.lastProfileUpdate = new Date();
+      }
+    }
+  }
+  
+  next();
+});
+
+// ========================================
+// 🔥 NEW: POST-UPDATE HOOK (Verification)
+// ========================================
+ProfileSchema.post(['findOneAndUpdate', 'updateOne'], async function(doc) {
+  if (doc) {
+    console.log(`✅ Profile updated: canAccessSwipe=${doc.canAccessSwipe}, isDiscoverable=${doc.isDiscoverable}`);
+  }
+});
 ProfileSchema.index({ location: "2dsphere" });
 
 module.exports = mongoose.model("Profile", ProfileSchema);
+
+
+// Add this before the model is created
+// ProfileSchema.pre('save', function(next) {
+//   if (this.isModified('kyc.status') && this.kyc.status === 'approved') {
+//     this.canAccessSwipe = true;
+//     this.isDiscoverable = true;
+//     this.isProfileComplete = true;
+//     this.isMandatoryComplete = true;
+//   }
+//   next();
+// });
