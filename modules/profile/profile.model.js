@@ -298,12 +298,6 @@ const ProfileSchema = new mongoose.Schema({
   }
 },
 
-
-
-
-
-
-
   // Interests (5%)
   interests: [{ type: String }], // Min 3, Max 15
 
@@ -449,6 +443,34 @@ const ProfileSchema = new mongoose.Schema({
   travelPreference: {
     type: String,
     enum: ["adventure", "relaxation", "cultural", "budget", "luxury", "road_trips", "international", "domestic"]
+  },
+
+
+
+   // Personal Information
+  height: {
+    type: String,
+    default: null  // Use null instead of empty string
+  },
+  jobtitle: {
+    type: String,
+    default: null
+  },
+  occupation: {
+    type: String,
+    default: null
+  },
+  about_me: {
+    type: String,
+    default: null
+  },
+  company: {
+    type: String,
+    default: null
+  },
+  school: {
+    type: String,
+    default: null
   },
 
   // ========================================

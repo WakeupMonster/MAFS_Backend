@@ -69,6 +69,7 @@ router.patch(
   auth,
   controller.updateDiscoveryPreference
 );
+router.get("/discovery-preference", auth, controller.getDiscoveryPreference);
 
 router.patch("/", controllerDis.updatePreference);
 

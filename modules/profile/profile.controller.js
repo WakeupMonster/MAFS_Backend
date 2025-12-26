@@ -1021,7 +1021,9 @@ if (updateData.relationshipGoal !== undefined) {
     "casual",
     "serious",
     "networking",
-    "open_to_options"
+    "open_to_options",
+     'height', 'jobtitle', 'occupation', 'about_me', 
+      'company', 'school', 'basics', 'lifestyle', 'interests'
   ];
 
   if (!allowedKeys.includes(key)) {
@@ -1078,6 +1080,24 @@ if (updateData.relationshipGoal !== undefined) {
       profile.preferences.distanceRange = distance;
     }
 
+    if(updateData.height !== undefined){
+      profile.height = updateData.height;
+    }
+      if(updateData.jobtitle !== undefined){
+      profile.jobtitle = updateData.jobtitle;
+    }
+      if(updateData.occupation !== undefined){
+      profile.occupation = updateData.occupation;
+    }
+       if(updateData.about_me !== undefined){
+      profile.about_me = updateData.about_me;
+    }
+     if(updateData.company !== undefined){
+      profile.company = updateData.company;
+    }
+      if(updateData.school !== undefined){
+      profile.school = updateData.school;
+    }
     // ========================================
     // UPDATE INTERESTS
     // ========================================
@@ -1175,6 +1195,7 @@ if (updateData.relationshipGoal !== undefined) {
       profile.travelPreference = updateData.travelPreference;
     }
 
+    
     // ========================================
     // SAVE & CALCULATE (Triggers pre-save hook)
     // ========================================
@@ -2028,7 +2049,31 @@ exports.updateDiscoveryPreference = async (req, res) => {
     });
   }
 };
-
+exports.getDiscoveryPreference = async (req, res) => {
+  try {
+    const profile = await Profile.findOne({ userId: req.user._id })
+      .select('preferences discoveryFilters')
+      .lean();
+    if (!profile) {
+      return res.status(404).json({
+        success: false,
+        message: "Profile not found"
+      });
+    }
+    return res.json({
+      success: true,
+      data: {
+        preferences: profile.preferences,
+        discoveryFilters: profile.discoveryFilters
+      }
+    });
+  } catch (err) {
+    return res.status(400).json({
+      success: false,
+      message: err.message
+    });
+  }
+};
 
 
 // exports.updateVisibility = async (req, res) => {

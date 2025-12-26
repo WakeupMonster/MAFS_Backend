@@ -169,8 +169,8 @@ module.exports.formatProfileResponse = (profile, user = {}) => {
     nickname: profile.nickname || "",
     height: profile.height || "",
     jobtitle: profile.jobtitle || "",
-    occiupation: profile.occupation || "",
-    about_me: profile.bio || "",
+    occupation: profile.occupation || "",
+    about_me: profile.about_me || "",
     company: profile.company || "",
     school: profile.school || "",
 
