@@ -1,7 +1,7 @@
 // modules/notifications/notification.service.js
 // eslint-disable-next-line no-unused-vars
 const { sendNotification, sendNotificationToMultiple } = require('./firebase-admin');
-const User = require('../user/user.model'); // Assuming you have a User model
+const User = require('../../modules/auth/auth.model'); // Assuming you have a User model
 
 class NotificationService {
   // Send a new match notification to both users
@@ -122,6 +122,76 @@ class NotificationService {
   }
 
   // Add more notification types as needed...
+
+  async sendGiveawayWinnerNotification(userId, prizeTitle) {
+  try {
+    const user = await User.findById(userId).select("fcmTokens");
+
+    // if (!user || !user.fcmTokens.length) return;
+    if (!user || !user.fcmTokens || user.fcmTokens.length === 0) {
+      console.log("⚠️ No FCM tokens found for user:", userId);
+      return;
+    }
+
+
+    await sendNotificationToMultiple(
+      user.fcmTokens,
+      {
+        title: "🎉 Congratulations!",
+        body: `You won today's giveaway: ${prizeTitle}`
+      },
+      {
+        type: "GIVEAWAY_WINNER"
+      }
+    );
+
+    console.log("Push notification sent to winner")
+  } catch (error) {
+    console.error("Giveaway notification error:", error);
+  }
 }
+
+
+/**
+ * ==========================================
+ * 🎁 PRIZE DELIVERED NOTIFICATION
+ * ==========================================
+ * 👉 Jab admin prize deliver mark kare
+ */
+async sendPrizeDeliveredNotification(userId) {
+  try {
+    const user = await User.findById(userId).select("fcmTokens");
+
+    if (!user || !user.fcmTokens || user.fcmTokens.length === 0) {
+      return;
+    }
+
+    await sendNotificationToMultiple(
+      user.fcmTokens,
+      {
+        title: "🎉 Prize Delivered!",
+        body: "Your giveaway prize has been successfully delivered."
+      },
+      {
+        type: "PRIZE_DELIVERED"
+      }
+    );
+
+  } catch (error) {
+    console.error(
+      "Prize delivered notification error:",
+      error
+    );
+  }
+}
+
+
+
+
+}
+
+
+// 🎁 Giveaway winner notification
+
 
 module.exports = new NotificationService();

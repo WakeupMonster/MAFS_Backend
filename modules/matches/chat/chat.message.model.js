@@ -35,7 +35,20 @@ const ChatMessageSchema = new Schema(
       default: "sent",
     },
 
-    deliveredAt: { type: Date, default: null },
+    delivered: {
+      type: Boolean,
+      default: false,
+    },
+    deliveredAt: {
+      type: Date,
+      default: null,
+    },
+
+    // Read receipts (WhatsApp-style)
+    read: {
+      type: Boolean,
+      default: false,
+    },
 
     readAt: { type: Date, default: null },
 
@@ -44,9 +57,8 @@ const ChatMessageSchema = new Schema(
   { timestamps: true }
 );
 
+module.exports = mongoose.model("ChatMessage", ChatMessageSchema);
 // 🔥 Indexes
 // ChatMessageSchema.index({ matchId: 1, createdAt: -1 });
 // ChatMessageSchema.index({ receiver: 1, status: 1 });
 // ChatMessageSchema.index({ sender: 1 });
-
-module.exports = mongoose.model("ChatMessage", ChatMessageSchema);

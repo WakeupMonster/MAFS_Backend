@@ -283,7 +283,7 @@
 //     try {
 //       const userId = req.user._id;
 //       const files = req.files;
-      
+
 //       if (!files || files.length === 0) {
 //         return res.status(400).json({ 
 //           success: false, 
@@ -294,7 +294,7 @@
 //       // Check total photos won't exceed 6
 //       const profile = await Profile.findOne({ userId });
 //       const currentPhotoCount = profile?.photos?.length || 0;
-      
+
 //       if (currentPhotoCount + files.length > 6) {
 //         return res.status(400).json({
 //           success: false,
@@ -488,7 +488,7 @@
 //     }
 
 //     res.json({ success: true, data: profile });
-    
+
 //   } catch (err) {
 //     res.status(500).json({ success: false, message: "Server error" });
 //   }
@@ -611,7 +611,7 @@
 //     await ensureProfile(userId);
 
 //     const profile = await Profile.findOne({ userId });
-    
+
 //     const updatedGenderPreference = [...new Set([...profile.preferences.genderPreference, ...genderPreference])];
 
 //     profile.preferences.genderPreference = updatedGenderPreference;
@@ -820,9 +820,12 @@
 // // };
 
 const Profile = require("./profile.model");
+const { Match } = require("../matches/swipe/swipe.model");
+const { formatProfileResponse } = require("./profile.service");
 // const User = require("../auth/auth.model");
 const cache = require("../../config/cache");
 const { uploadStream, destroy } = require("../upload/cloudinary.service");
+const redis = require("../../config/cache");
 
 // ========================================
 // HELPER: Get or Create Profile
@@ -857,51 +860,54 @@ async function clearProfileCache(userId) {
 // HELPER: Format Response
 // ========================================
 function formatResponse(profile) {
-  const completion = profile.calculateCompletion();
-  const nextStep = profile.getNextStep();
+  // const completion = profile.calculateCompletion();
+  // const nextStep = profile.getNextStep();
 
   return {
     userId: profile.userId,
-    profile: {
-      nickname: profile.nickname,
-      fullName: profile.fullName,
-      bio: profile.bio,
-      age: profile.age,
-      gender: profile.gender,
-      dob: profile.dob,
-      relationshipGoals: profile.relationshipGoals,
-      interests: profile.interests,
-      photos: profile.photos,
-      location: profile.location,
-      lifestyle: profile.lifestyle,
-      languages: profile.languages,
-      education: profile.education,
-      communicationStyle: profile.communicationStyle,
-      musicPreference: profile.musicPreference,
-      bookPreference: profile.bookPreference,
-      travelPreference: profile.travelPreference
-    },
-    preferences: profile.preferences,
-    kyc: {
-      status: profile.kyc?.status || "not_started",
-      hasSelfie: Boolean(profile.kyc?.selfie?.url),
-      hasIDDocument: Boolean(profile.kyc?.idDocument?.frontUrl),
-      rejectionReason: profile.kyc?.rejectionReason
-    },
-    progress: {
-      mandatory: completion.mandatory,
-      optional: completion.optional,
-      total: completion.total,
-      isMandatoryComplete: profile.isMandatoryComplete,
-      isProfileComplete: profile.isProfileComplete,
-      canAccessSwipe: profile.canAccessSwipe,
-      isDiscoverable: profile.isDiscoverable,
-      onboardingProgress: profile.onboardingProgress
-    },
-    nextStep: nextStep,
-    lastUpdated: profile.lastProfileUpdate || profile.updatedAt
+    photos: profile.photos,
+    // preferences: profile.preferences,
+    // location: profile.location
+    // profile: {
+    //   // nickname: profile.nickname,
+    //   // fullName: profile.fullName,
+    //   // bio: profile.bio,
+    //   // age: profile.age,
+    //   // gender: profile.gender,
+    //   // dob: profile.dob,
+    //   // relationshipGoal: profile.relationshipGoal,
+    //   // interests: profile.interests,
+    //   photos: profile.photos,
+    //   // location: profile.location,
+    //   // lifestyle: profile.lifestyle,
+    //   // languages: profile.languages,
+    //   // education: profile.education,
+    //   // communicationStyle: profile.communicationStyle,
+    //   // musicPreference: profile.musicPreference,
+    //   // bookPreference: profile.bookPreference,
+    //   // travelPreference: profile.travelPreference
+    // },
+    // preferences: profile.preferences,
+    // kyc: {
+    //   status: profile.kyc?.status || "not_started",
+    //   hasSelfie: Boolean(profile.kyc?.selfie?.url),
+    //   hasIDDocument: Boolean(profile.kyc?.idDocument?.frontUrl),
+    //   rejectionReason: profile.kyc?.rejectionReason
+    // },
+    // progress: {
+    //   mandatory: completion.mandatory,
+    //   optional: completion.optional,
+    //   total: completion.total,
+    //   isMandatoryComplete: profile.isMandatoryComplete,
+    //   isProfileComplete: profile.isProfileComplete,
+    //   canAccessSwipe: profile.canAccessSwipe,
+    //   isDiscoverable: profile.isDiscoverable,
+    //   onboardingProgress: profile.onboardingProgress
+    // },
+    // nextStep: nextStep,
+    // lastUpdated: profile.lastProfileUpdate || profile.updatedAt
   };
-}
+} 
 
 // ========================================
 // 1. UNIFIED UPDATE API
@@ -910,6 +916,7 @@ module.exports.updateProfile = async (req, res) => {
   try {
     const userId = req.user._id;
     const updateData = req.body;
+
 
     // Validate at least one field
     if (Object.keys(updateData).length === 0) {
@@ -983,16 +990,57 @@ module.exports.updateProfile = async (req, res) => {
     // ========================================
     // UPDATE RELATIONSHIP GOALS
     // ========================================
-    if (updateData.relationshipGoals !== undefined) {
-      if (!Array.isArray(updateData.relationshipGoals) || updateData.relationshipGoals.length === 0) {
-        return res.status(400).json({
-          success: false,
-          code: "INVALID_GOALS",
-          message: "At least one relationship goal is required"
-        });
-      }
-      profile.relationshipGoals = updateData.relationshipGoals;
-    }
+    // if (updateData.relationshipGoals !== undefined) {
+    //   if (!Array.isArray(updateData.relationshipGoals) || updateData.relationshipGoals.length === 0) {
+    //     return res.status(400).json({
+    //       success: false,
+    //       code: "INVALID_GOALS",
+    //       message: "At least one relationship goal is required"
+    //     });
+    //   }
+    //   profile.relationshipGoals = updateData.relationshipGoals;
+    // }
+
+    // ========================================
+// UPDATE RELATIONSHIP GOAL (FINAL – OBJECT BASED)
+// ========================================
+if (updateData.relationshipGoal !== undefined) {
+  const { key, title, subtitle } = updateData.relationshipGoal;
+
+  if (!key || !title || !subtitle) {
+    return res.status(400).json({
+      success: false,
+      code: "INVALID_RELATIONSHIP_GOAL",
+      message: "relationshipGoal requires key, title and subtitle"
+    });
+  }
+
+  const allowedKeys = [
+    "dating",
+    "friendship",
+    "casual",
+    "serious",
+    "networking",
+    "open_to_options",
+     'height', 'jobtitle', 'occupation', 'about_me', 
+      'company', 'school', 'basics', 'lifestyle', 'interests'
+  ];
+
+  if (!allowedKeys.includes(key)) {
+    return res.status(400).json({
+      success: false,
+      code: "INVALID_RELATIONSHIP_GOAL_KEY",
+      message: "Invalid relationship goal key"
+    });
+  }
+
+  profile.relationshipGoal = {
+    key,
+    title,
+    subtitle
+  };
+}
+
 
     // ========================================
     // UPDATE PREFERENCES
@@ -1032,6 +1080,24 @@ module.exports.updateProfile = async (req, res) => {
       profile.preferences.distanceRange = distance;
     }
 
+    if(updateData.height !== undefined){
+      profile.height = updateData.height;
+    }
+      if(updateData.jobtitle !== undefined){
+      profile.jobtitle = updateData.jobtitle;
+    }
+      if(updateData.occupation !== undefined){
+      profile.occupation = updateData.occupation;
+    }
+       if(updateData.about_me !== undefined){
+      profile.about_me = updateData.about_me;
+    }
+     if(updateData.company !== undefined){
+      profile.company = updateData.company;
+    }
+      if(updateData.school !== undefined){
+      profile.school = updateData.school;
+    }
     // ========================================
     // UPDATE INTERESTS
     // ========================================
@@ -1066,7 +1132,7 @@ module.exports.updateProfile = async (req, res) => {
     // ========================================
     // UPDATE TIER 2 (OPTIONAL FIELDS)
     // ========================================
-    
+
     // Lifestyle
     if (updateData.lifestyle !== undefined) {
       profile.lifestyle = {
@@ -1129,6 +1195,7 @@ module.exports.updateProfile = async (req, res) => {
       profile.travelPreference = updateData.travelPreference;
     }
 
+    
     // ========================================
     // SAVE & CALCULATE (Triggers pre-save hook)
     // ========================================
@@ -1138,12 +1205,12 @@ module.exports.updateProfile = async (req, res) => {
     await clearProfileCache(userId);
 
     // Format response
-    const response = formatResponse(profile);
+    // const response = formatResponse(profile);
 
     return res.json({
       success: true,
       message: "Profile updated successfully",
-      data: response
+      // data: response
     });
 
   } catch (err) {
@@ -1167,7 +1234,6 @@ module.exports.uploadPhotos = async (req, res) => {
     if (!files || files.length === 0) {
       return res.status(400).json({
         success: false,
-        code: "NO_FILES",
         message: "No files uploaded"
       });
     }
@@ -1179,7 +1245,6 @@ module.exports.uploadPhotos = async (req, res) => {
     if (profile.photos.length + files.length > 6) {
       return res.status(400).json({
         success: false,
-        code: "MAX_PHOTOS",
         message: `Maximum 6 photos allowed. You have ${profile.photos.length} photo(s).`
       });
     }
@@ -1226,7 +1291,7 @@ module.exports.uploadPhotos = async (req, res) => {
 
     return res.json({
       success: true,
-      message: `${newPhotos.length} photo(s) uploaded successfully`,
+      message: `${newPhotos.length} photo uploaded successfully`,
       data: response
     });
 
@@ -1234,8 +1299,7 @@ module.exports.uploadPhotos = async (req, res) => {
     console.error("Upload photos error:", err);
     return res.status(500).json({
       success: false,
-      code: "UPLOAD_FAILED",
-      message: err.message
+      message: "Failed to upload photos. Please try again"
     });
   }
 };
@@ -1315,7 +1379,6 @@ module.exports.uploadSelfie = async (req, res) => {
     if (!file) {
       return res.status(400).json({
         success: false,
-        code: "NO_FILE",
         message: "No file uploaded"
       });
     }
@@ -1333,7 +1396,7 @@ module.exports.uploadSelfie = async (req, res) => {
 
     // Update profile
     if (!profile.kyc) profile.kyc = {};
-    
+
     profile.kyc.selfie = {
       url: result.secure_url,
       publicId: result.public_id,
@@ -1354,18 +1417,31 @@ module.exports.uploadSelfie = async (req, res) => {
     // Format response
     const response = formatResponse(profile);
 
+    // return res.json({
+    //   success: true,
+    //   message: "Selfie uploaded successfully",
+    //   data: response
+    // });
+
     return res.json({
       success: true,
       message: "Selfie uploaded successfully",
-      data: response
+      data: {
+        selfie: {
+          url: profile.kyc.selfie.url, // ✅ Selfie URL
+          uploadedAt: profile.kyc.selfie.uploadedAt
+        },
+        kycStatus: profile.kyc.status,
+        progress: response.progress,
+        nextStep: response.nextStep
+      }
     });
 
   } catch (err) {
     console.error("Upload selfie error:", err);
     return res.status(500).json({
       success: false,
-      code: "UPLOAD_FAILED",
-      message: err.message
+      message: "Failed to upload selfie. Please try again"
     });
   }
 };
@@ -1382,7 +1458,6 @@ module.exports.uploadIDDocument = async (req, res) => {
     if (!files || !files.front) {
       return res.status(400).json({
         success: false,
-        code: "NO_FILE",
         message: "ID front image is required"
       });
     }
@@ -1390,7 +1465,6 @@ module.exports.uploadIDDocument = async (req, res) => {
     if (!idType) {
       return res.status(400).json({
         success: false,
-        code: "NO_ID_TYPE",
         message: "ID type is required (driving_license, passport, proof_of_age)"
       });
     }
@@ -1428,7 +1502,7 @@ module.exports.uploadIDDocument = async (req, res) => {
 
     // Update profile
     if (!profile.kyc) profile.kyc = {};
-    
+
     profile.kyc.idDocument = idData;
 
     // Update KYC status to pending (if selfie already uploaded)
@@ -1446,10 +1520,29 @@ module.exports.uploadIDDocument = async (req, res) => {
     // Format response
     const response = formatResponse(profile);
 
+    // return res.json({
+    //   success: true,
+    //   message: "ID document uploaded successfully. Your submission is under review.",
+    //   data: response
+    // });
+
     return res.json({
       success: true,
-      message: "ID document uploaded successfully. Your submission is under review.",
-      data: response
+      message: "ID document uploaded successfully. Your verification is under review",
+      data: {
+        idDocument: {
+          type: profile.kyc.idDocument.type, // ✅ ID type
+          frontUrl: profile.kyc.idDocument.frontUrl, // ✅ Front URL
+          backUrl: profile.kyc.idDocument.backUrl, // ✅ Back URL (if exists)
+          uploadedAt: profile.kyc.idDocument.uploadedAt
+        },
+        kycStatus: profile.kyc.status,
+        kycMessage: profile.kyc.status === "pending"
+          ? "Your verification is under review. This usually takes 24-48 hours"
+          : "Please upload selfie to submit for verification",
+        progress: response.progress,
+        nextStep: response.nextStep
+      }
     });
 
   } catch (err) {
@@ -1470,13 +1563,20 @@ module.exports.updateLocation = async (req, res) => {
     const userId = req.user._id;
     const { latitude, longitude, city, state, country } = req.body;
 
-    if (!latitude || !longitude) {
-      return res.status(400).json({
-        success: false,
-        code: "MISSING_COORDS",
-        message: "Latitude and longitude are required"
-      });
-    }
+    if (!latitude || !longitude || isNaN(latitude) || isNaN(longitude)) {
+  return res.status(400).json({
+    success: false,
+    message: "Valid latitude and longitude are required"
+  });
+}
+
+    // if (!latitude || !longitude) {
+    //   return res.status(400).json({
+    //     success: false,
+    //     code: "MISSING_COORDS",
+    //     message: "Latitude and longitude are required"
+    //   });
+    // }
 
     // Get profile
     let profile = await getOrCreateProfile(userId);
@@ -1502,7 +1602,8 @@ module.exports.updateLocation = async (req, res) => {
     return res.json({
       success: true,
       message: "Location updated successfully",
-      data: response
+      data: response.location
+      
     });
 
   } catch (err) {
@@ -1568,12 +1669,211 @@ module.exports.getStatus = async (req, res) => {
 // ========================================
 // 8. GET FULL PROFILE
 // ========================================
+// module.exports.getMyProfile = async (req, res) => {
+//   try {
+//     const userId = req.user._id;
+
+//     const profile = await Profile.findOne({ userId }).lean();
+
+//     if (!profile) {
+//       return res.status(404).json({
+//         success: false,
+//         code: "PROFILE_NOT_FOUND",
+//         message: "Profile not found"
+//       });
+//     }
+
+//     return res.json({
+//       success: true,
+//       data: profile
+//     });
+
+//   } catch (err) {
+//     console.error("Get profile error:", err);
+//     return res.status(500).json({
+//       success: false,
+//       message: err.message
+//     });
+//   }
+// };
+
+// ========================================
+// 9. GET PUBLIC PROFILE
+// ========================================
+// module.exports.getPublicProfile = async (req, res) => {
+//   try {
+//     const targetUserId = req.params.userId;
+
+//     const profile = await Profile.findOne({
+//       userId: targetUserId,
+//       isDiscoverable: true
+//     })
+//       .select("-preferences -kyc -onboardingProgress")
+//       .lean();
+
+//     if (!profile) {
+//       return res.status(404).json({
+//         success: false,
+//         code: "PROFILE_NOT_FOUND",
+//         message: "Profile not found or not discoverable"
+//       });
+//     }
+
+//     return res.json({
+//       success: true,
+//       data: profile
+//     });
+
+//   } catch (err) {
+//     console.error("Get public profile error:", err);
+//     return res.status(500).json({
+//       success: false,
+//       message: err.message
+//     });
+//   }
+// };
+
+// const Match = require("../matches/swipe/swipe.model");
+
+
+
+// module.exports.getPublicProfile = async (req, res) => {
+//   try {
+//     const viewerId = req.user._id.toString();
+//     const targetUserId = req.params.userId;
+
+//     console.log("Viewer ID:", viewerId)
+//     console.log("Target User ID:", targetUserId)
+    
+//     const profile = await Profile.findOne({ userId: targetUserId })
+//       .select("-preferences -kyc -onboardingProgress")
+//       .lean();
+
+//     if (!profile) {
+//       return res.status(404).json({
+//         success: false,
+//         code: "PROFILE_NOT_FOUND",
+//         message: "Profile not found"
+//       });
+//     }
+
+//     // 🔒 VISIBILITY LOGIC
+//     if (profile.visibility === "nobody") {
+//       return res.status(403).json({
+//         success: false,
+//         code: "PROFILE_HIDDEN",
+//         message: "This profile is not visible"
+//       });
+//     }
+
+//     if (profile.visibility === "matches_only") {
+//       // ✅ CORRECT FIX: new keyword ke saath
+//       const mongoose = require('mongoose');
+//       const isMatch = await Match.exists({
+//         users: { 
+//           $all: [
+//             new mongoose.Types.ObjectId(viewerId),
+//             new mongoose.Types.ObjectId(targetUserId)
+//           ] 
+//         }
+//       });
+
+//       console.log("isMatch value:", isMatch);
+      
+//       if (!isMatch) {
+//         return res.status(403).json({
+//           success: false,
+//           code: "MATCH_REQUIRED",
+//           message: "Only matches can view this profile"
+//         });
+//       }
+//     }
+   
+//     return res.json({
+//       success: true,
+//       data: profile
+//     });
+
+//   } catch (err) {
+//     console.error("Get public profile error:", err);
+//     return res.status(500).json({
+//       success: false,
+//       message: "Internal server error"
+//     });
+//   }
+// };
+
+
+
+
+
+
+// module.exports.getPublicProfile = async (req, res) => {
+//   try {
+//     const viewerId = req.user._id.toString();   // 🔥 convert to string
+//     const targetUserId = req.params.userId;     // already string
+
+//     console.log("Viewer ID:", viewerId)
+//     console.log("Target User ID:", targetUserId)
+//     const profile = await Profile.findOne({ userId: targetUserId })
+//       .select("-preferences -kyc -onboardingProgress")
+//       .lean();
+
+//     if (!profile) {
+//       return res.status(404).json({
+//         success: false,
+//         code: "PROFILE_NOT_FOUND",
+//         message: "Profile not found"
+//       });
+//     }
+
+//     // 🔒 VISIBILITY LOGIC
+//     if (profile.visibility === "nobody") {
+//       return res.status(403).json({
+//         success: false,
+//         code: "PROFILE_HIDDEN",
+//         message: "This profile is not visible"
+//       });
+//     }
+//   const isMatch = await Match.exists({
+//         users: { $all: [viewerId, targetUserId] } // ✅ STRING vs STRING
+//       });
+
+//       console.log("isMatch value :",isMatch)
+//    if (!isMatch) {
+//         return res.status(403).json({
+//           success: false,
+//           code: "MATCH_REQUIRED",
+//           message: "Only matches can view this profile"
+//         });
+//       }
+   
+//     return res.json({
+//       success: true,
+//       data: profile
+//     });
+
+//   } catch (err) {
+//     console.error("Get public profile error:", err);
+//     return res.status(500).json({
+//       success: false,
+//       message: "Internal server error"
+//     });
+//   }
+// };
+
+
+
+
+
+
+
+
 module.exports.getMyProfile = async (req, res) => {
   try {
     const userId = req.user._id;
 
     const profile = await Profile.findOne({ userId }).lean();
-
     if (!profile) {
       return res.status(404).json({
         success: false,
@@ -1582,9 +1882,12 @@ module.exports.getMyProfile = async (req, res) => {
       });
     }
 
+    // req.user se email / phone aa raha hoga
+    const formattedProfile = formatProfileResponse(profile, req.user);
+
     return res.json({
       success: true,
-      data: profile
+      data: formattedProfile
     });
 
   } catch (err) {
@@ -1596,17 +1899,18 @@ module.exports.getMyProfile = async (req, res) => {
   }
 };
 
-// ========================================
-// 9. GET PUBLIC PROFILE
-// ========================================
+
+
 module.exports.getPublicProfile = async (req, res) => {
   try {
-    const targetUserId = req.params.userId;
+    const mongoose = require('mongoose');
+    const viewerId = req.user._id; // Already ObjectId
+    const targetUserId = req.params.userId; // String format
 
-    const profile = await Profile.findOne({
-      userId: targetUserId,
-      isDiscoverable: true
-    })
+    console.log("Viewer ID:", viewerId);
+    console.log("Target User ID:", targetUserId);
+    
+    const profile = await Profile.findOne({ userId: targetUserId })
       .select("-preferences -kyc -onboardingProgress")
       .lean();
 
@@ -1614,10 +1918,49 @@ module.exports.getPublicProfile = async (req, res) => {
       return res.status(404).json({
         success: false,
         code: "PROFILE_NOT_FOUND",
-        message: "Profile not found or not discoverable"
+        message: "Profile not found"
       });
     }
 
+    // 🔒 VISIBILITY LOGIC
+    if (profile.visibility === "nobody") {
+      return res.status(403).json({
+        success: false,
+        code: "PROFILE_HIDDEN",
+        message: "This profile is not visible"
+      });
+    }
+
+    if (profile.visibility === "matches_only") {
+      // ✅ Convert both to ObjectId properly
+      const viewerObjectId = mongoose.Types.ObjectId.isValid(viewerId) 
+        ? new mongoose.Types.ObjectId(viewerId) 
+        : viewerId;
+      
+      const targetObjectId = new mongoose.Types.ObjectId(targetUserId);
+
+      console.log("Viewer ObjectId:", viewerObjectId);
+      console.log("Target ObjectId:", targetObjectId);
+
+      // ✅ Array order matter karta hai, so $or use karo
+      const isMatch = await Match.findOne({
+        $or: [
+          { users: [viewerObjectId, targetObjectId] },
+          { users: [targetObjectId, viewerObjectId] }
+        ]
+      });
+
+      console.log("Match found:", isMatch);
+      
+      if (!isMatch) {
+        return res.status(403).json({
+          success: false,
+          code: "MATCH_REQUIRED",
+          message: "Only matches can view this profile"
+        });
+      }
+    }
+   
     return res.json({
       success: true,
       data: profile
@@ -1625,6 +1968,214 @@ module.exports.getPublicProfile = async (req, res) => {
 
   } catch (err) {
     console.error("Get public profile error:", err);
+    return res.status(500).json({
+      success: false,
+      message: "Internal server error"
+    });
+  }
+};
+
+
+
+exports.updateDiscoveryPreference = async (req, res) => {
+  try {
+    const userId = req.user._id;
+    const body = req.body;
+
+    const update = {};
+
+    // =========================
+    // HARD FILTERS (MANDATORY)
+    // =========================
+    if (body.preferences) {
+      if (body.preferences.ageRange)
+        update["preferences.ageRange"] = body.preferences.ageRange;
+
+      if (body.preferences.distanceRange)
+        update["preferences.distanceRange"] = body.preferences.distanceRange;
+
+      if (body.preferences.genderPreference)
+        update["preferences.genderPreference"] = body.preferences.genderPreference;
+    }
+
+    // =========================
+    // SOFT FILTERS (OPTIONAL)
+    // =========================
+  if (body.discoveryFilters) {
+  if (body.discoveryFilters.hasBio !== undefined)
+    update["discoveryFilters.hasBio"] = body.discoveryFilters.hasBio;
+
+  if (body.discoveryFilters.interests)
+    update["discoveryFilters.interests"] = body.discoveryFilters.interests;
+
+  if (body.discoveryFilters.relationshipGoals)
+    update["discoveryFilters.relationshipGoals"] =
+      body.discoveryFilters.relationshipGoals;
+
+  if (body.discoveryFilters.basics)
+    update["discoveryFilters.basics"] = body.discoveryFilters.basics;
+
+  if (body.discoveryFilters.lifestyle)
+    update["discoveryFilters.lifestyle"] = body.discoveryFilters.lifestyle;
+}
+
+
+    const profile = await Profile.findOneAndUpdate(
+      { userId },
+      { $set: update },
+      { new: true }
+    );
+
+    if (!profile) {
+      return res.status(404).json({
+        success: false,
+        message: "Profile not found"
+      });
+    }
+
+    return res.json({
+      success: true,
+      message: "Discovery preference updated successfully",
+      data: {
+        preferences: profile.preferences,
+        discoveryFilters: profile.discoveryFilters
+      }
+    });
+
+  } catch (err) {
+    return res.status(400).json({
+      success: false,
+      message: err.message
+    });
+  }
+};
+exports.getDiscoveryPreference = async (req, res) => {
+  try {
+    const profile = await Profile.findOne({ userId: req.user._id })
+      .select('preferences discoveryFilters')
+      .lean();
+    if (!profile) {
+      return res.status(404).json({
+        success: false,
+        message: "Profile not found"
+      });
+    }
+    return res.json({
+      success: true,
+      data: {
+        preferences: profile.preferences,
+        discoveryFilters: profile.discoveryFilters
+      }
+    });
+  } catch (err) {
+    return res.status(400).json({
+      success: false,
+      message: err.message
+    });
+  }
+};
+
+
+// exports.updateVisibility = async (req, res) => {
+//   try {
+//     const { visibility } = req.body;
+//     const userId = req.user._id;
+
+//     // Validate input
+//     if (!["everyone", "matches_only", "nobody"].includes(visibility)) {
+//       return res.status(400).json({
+//         success: false,
+//         message: "Invalid visibility setting. Must be one of: everyone, matches_only, nobody"
+//       });
+//     }
+
+//     // Update profile
+//     const profile = await Profile.findOneAndUpdate(
+//       { userId },
+//       { 
+//         $set: { 
+//           visibility,
+//           // For backward compatibility
+//           isDiscoverable: visibility !== "nobody" 
+//         } 
+//       },
+//       { new: true, runValidators: true }
+//     );
+
+//     if (!profile) {
+//       return res.status(404).json({
+//         success: false,
+//         message: "Profile not found"
+//       });
+//     }
+
+//     // Clear any cached profile data
+//     await clearProfileCache(userId);
+
+//     return res.json({
+//       success: true,
+//       message: "Visibility updated successfully",
+//       data: {
+//         visibility: profile.visibility,
+//         isDiscoverable: profile.isDiscoverable
+//       }
+//     });
+
+//   } catch (error) {
+//     console.error("Error updating visibility:", error);
+//     return res.status(500).json({
+//       success: false,
+//       message: "Failed to update visibility settings",
+//       error: error.message
+//     });
+//   }
+// };
+
+// // Helper function to clear profile cache
+// async function clearProfileCache(userId) {
+//   // Implement your cache clearing logic here if you're using caching
+//   // Example: await cache.del(`profile:${userId}`);
+// }
+
+
+
+
+exports.updateVisibility = async (req, res) => {
+  try {
+    const { visibility } = req.body;
+    const userId = req.user._id;
+
+    if (!["everyone", "matches_only", "nobody"].includes(visibility)) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid visibility value"
+      });
+    }
+
+    const update = {
+      visibility,
+      // sirf 'nobody' me completely hide
+      isDiscoverable: visibility !== "nobody"
+    };
+
+    const profile = await Profile.findOneAndUpdate(
+      { userId },
+      { $set: update },
+      { new: true }
+    );
+
+    // 🔥 VERY IMPORTANT: feed cache clear
+    await redis?.del(`feed:${userId}`);
+
+    return res.json({
+      success: true,
+      data: {
+        visibility: profile.visibility,
+        isDiscoverable: profile.isDiscoverable
+      }
+    });
+
+  } catch (err) {
     return res.status(500).json({
       success: false,
       message: err.message

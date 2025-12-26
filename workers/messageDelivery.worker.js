@@ -67,7 +67,7 @@ new Worker(
     if (!isOnline || !isViewingThisChat) {
       const user = await User.findById(receiver).select("fcmTokens").lean();
       const token = user?.fcmTokens?.at(-1);
-
+  
       if (token) {
         await sendNotification(
           token.token,

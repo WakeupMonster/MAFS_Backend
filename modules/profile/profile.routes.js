@@ -46,6 +46,7 @@ const controller = require("./profile.controller");
 const auth = require("../auth/auth.middleware");
 const uploadMiddleware = require("../upload/upload.middleware");
 const validation = require("./profile.validation");
+const controllerDis = require("../discovery/discovery.controller");
 // const ENUMS = require("../../config/enums");
 const {
   getAllEnums,
@@ -59,9 +60,18 @@ router.use(auth);
 
 router.patch(
   "/update",
-  validation.validateProfileUpdate,
+  // validation.validateProfileUpdate,
   controller.updateProfile
 );
+
+router.patch(
+  "/discovery-preference",
+  auth,
+  controller.updateDiscoveryPreference
+);
+router.get("/discovery-preference", auth, controller.getDiscoveryPreference);
+
+router.patch("/", controllerDis.updatePreference);
 
 router.post(
   "/photos",
@@ -115,17 +125,11 @@ router.post("/addOrUpdateReligion", addOrUpdateReligion);
 
 router.get("/:userId", controller.getPublicProfile);
 
-// router.get("/enums/all", (req, res) => {
-//   const data = {
-//     gender: ENUMS.gender.map(e => `${e.label}${e.emoji}`),
-//     genderPreference: ENUMS.genderPreference.map(e => `${e.label}${e.emoji}`),
-//     religion: ENUMS.religion.map(e => `${e.label}${e.emoji}`),
-//     relationshipGoals: ENUMS.relationshipGoals.map(e => `${e.label}${e.emoji}`),
-//     interests: ENUMS.interests.map(e => `${e.label}${e.emoji}`)
-//   };
-
-//   res.json({ success: true, data });
-// });
+router.patch(
+  "/visibility",
+  auth,  // Ensure user is authenticated
+  controller.updateVisibility
+);
 
 router.get("/enums/all", getAllEnums);
 
@@ -138,5 +142,15 @@ router.get("/enums/all", (req, res) => {
 
 // Get APIs for fetch this field data genderPreference, relationshipGoal, distance, interest, age(min,max)
 // router.get("/getdetails", getDetails);
+// router.get("/enums/all", (req, res) => {
+//   const data = {
+//     gender: ENUMS.gender.map(e => `${e.label}${e.emoji}`),
+//     genderPreference: ENUMS.genderPreference.map(e => `${e.label}${e.emoji}`),
+//     religion: ENUMS.religion.map(e => `${e.label}${e.emoji}`),
+//     relationshipGoals: ENUMS.relationshipGoals.map(e => `${e.label}${e.emoji}`),
+//     interests: ENUMS.interests.map(e => `${e.label}${e.emoji}`)
+//   };
 
+//   res.json({ success: true, data });
+// });
 module.exports = router;

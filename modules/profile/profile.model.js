@@ -165,18 +165,6 @@
 //     ageRange: {
 //       min: { type: Number, default: 18 },
 //       max: { type: Number, default: 60 }
-//     },
-//     distanceRange: { type: Number, default: 50 },
-//     genderPreference: [{ type: String, enum: ["male", "female", "other"] }]
-//   },
-
-//   // PHOTOS
-//   photos: [PhotoSchema],
-
-//   // LOCATION (GEO)
-//   location: {
-//     type: {
-//       type: String,
 //       enum: ["Point"],
 //       default: "Point"
 //     },
@@ -246,10 +234,33 @@ const ProfileSchema = new mongoose.Schema({
   },
 
   // Relationship Goals (5%)
-  relationshipGoals: [{
+  // relationshipGoal: [{
+  //   type: String,
+  //   enum: ["dating", "friendship", "casual", "serious", "networking", "open_to_options"]
+  // }],
+
+ relationshipGoal: {
+  key: {
     type: String,
-    enum: ["dating", "friendship", "casual", "serious", "networking", "open_to_options"]
-  }],
+    enum: [
+      "dating",
+      "friendship",
+      "casual",
+      "serious",
+      "networking",
+      "open_to_options"
+    ],
+    // required: true
+  },
+  title: {
+    type: String,
+    // required: true
+  },
+  subtitle: {
+    type: String,
+    // required: true
+  }
+},
 
   // Preferences (15%)
   preferences: {
@@ -264,26 +275,85 @@ const ProfileSchema = new mongoose.Schema({
     }]
   },
 
+
+  discoveryFilters: {
+  hasBio: { type: Boolean, default: false },
+
+  interests: [{ type: String }],
+
+  basics: {
+    zodiac: [{ type: String }],
+    education: [{ type: String }],
+    familyPlans: [{ type: String }],
+    PersonalityType: [{ type: String }],
+    communicationStyle: [{ type: String }],
+    loveStyle: [{ type: String }]
+  },
+
+  lifestyle: {
+    pets: [{ type: String }],
+    drinking: [{ type: String }],
+    smokingHabits: [{ type: String }],
+    exercise: [{ type: String }]
+  }
+},
+
   // Interests (5%)
   interests: [{ type: String }], // Min 3, Max 15
 
   // Photos (10%)
-  photos: [{
-    url: String,
+  // photos: [{
+  //   url: { type: String, sparse: true },
+  //   publicId: String,
+  //   isPrimary: Boolean,
+  //   order: Number,
+  //   uploadedAt: Date
+  // }],
+
+  photos: {
+  type: [{
+    url: { type: String, sparse: true },
     publicId: String,
     isPrimary: Boolean,
     order: Number,
     uploadedAt: Date
   }],
-
-  // Location (5%)
+  default: []
+},
   location: {
-    type: { type: String, enum: ["Point"], default: "Point" },
-    coordinates: [Number], // [lon, lat]
-    city: String,
-    state: String,
-    country: String
+  type: { 
+    type: String, 
+    enum: ["Point"], 
+    default: "Point" 
   },
+  coordinates: { 
+    type: [Number], 
+    default: [0, 0],  // This ensures new profiles get default coordinates
+    validate: {
+      validator: function(v) {
+        return Array.isArray(v) && 
+               v.length === 2 && 
+               typeof v[0] === 'number' && 
+               typeof v[1] === 'number';
+      },
+      message: 'Coordinates must be an array of two numbers [longitude, latitude]'
+    }
+  },
+  city: String,
+  state: String,
+  country: String
+  },
+  // Location (5%)
+  // location: {
+  //   type: { type: String, enum: ["Point"], default: "Point" },
+  //    coordinates: { 
+  //   type: [Number], 
+  //   default: [0, 0]  // Add this default
+  // },
+  //   city: String,
+  //   state: String,
+  //   country: String
+  // },
 
   // ========================================
   // TIER 2: OPTIONAL FIELDS (40%)
@@ -375,6 +445,34 @@ const ProfileSchema = new mongoose.Schema({
     enum: ["adventure", "relaxation", "cultural", "budget", "luxury", "road_trips", "international", "domestic"]
   },
 
+
+
+   // Personal Information
+  height: {
+    type: String,
+    default: null  // Use null instead of empty string
+  },
+  jobtitle: {
+    type: String,
+    default: null
+  },
+  occupation: {
+    type: String,
+    default: null
+  },
+  about_me: {
+    type: String,
+    default: null
+  },
+  company: {
+    type: String,
+    default: null
+  },
+  school: {
+    type: String,
+    default: null
+  },
+
   // ========================================
   // KYC (Inside Profile - Your Requirement)
   // ========================================
@@ -403,6 +501,16 @@ const ProfileSchema = new mongoose.Schema({
     rejectionReason: String
   },
 
+
+
+   visibility: {
+    type: String,
+    enum: ["everyone", "matches_only", "nobody"],
+    default: "everyone"
+  },
+  
+
+
   // ========================================
   // PROGRESS TRACKING (Auto-calculated)
   // ========================================
@@ -413,7 +521,7 @@ const ProfileSchema = new mongoose.Schema({
     nicknameSet: { type: Boolean, default: false },
     dobSet: { type: Boolean, default: false },
     genderSet: { type: Boolean, default: false },
-    relationshipGoalsSet: { type: Boolean, default: false },
+    relationshipGoalSet: { type: Boolean, default: false },
     genderPreferenceSet: { type: Boolean, default: false },
     ageRangeSet: { type: Boolean, default: false },
     distanceRangeSet: { type: Boolean, default: false },
@@ -454,6 +562,9 @@ const ProfileSchema = new mongoose.Schema({
 
 }, { timestamps: true });
 
+
+
+
 // ========================================
 // METHODS (Auto-calculate everything)
 // ========================================
@@ -468,7 +579,7 @@ ProfileSchema.methods.calculateCompletion = function() {
     nicknameSet: 5,
     dobSet: 5,
     genderSet: 5,
-    relationshipGoalsSet: 5,
+    relationshipGoalSet: 5,
     genderPreferenceSet: 5,
     ageRangeSet: 5,
     distanceRangeSet: 5,
@@ -532,7 +643,7 @@ ProfileSchema.methods.getNextStep = function() {
     { key: "nicknameSet", screen: "nickname", message: "Choose nickname" },
     { key: "dobSet", screen: "birthdate", message: "Enter birthdate" },
     { key: "genderSet", screen: "gender", message: "Select gender" },
-    { key: "relationshipGoalsSet", screen: "relationship_goals", message: "What are you looking for?" },
+    { key: "relationshipGoalSet", screen: "relationship_goals", message: "What are you looking for?" },
     { key: "genderPreferenceSet", screen: "gender_preference", message: "Who do you want to meet?" },
     { key: "ageRangeSet", screen: "age_range", message: "Set age range" },
     { key: "distanceRangeSet", screen: "distance_range", message: "Set distance" },
@@ -607,7 +718,7 @@ ProfileSchema.pre("save", function(next) {
   this.onboardingProgress.nicknameSet = Boolean(this.nickname);
   this.onboardingProgress.dobSet = Boolean(this.dob);
   this.onboardingProgress.genderSet = Boolean(this.gender);
-  this.onboardingProgress.relationshipGoalsSet = this.relationshipGoals?.length > 0;
+  this.onboardingProgress.relationshipGoalSet = this.relationshipGoal?.length > 0;
   this.onboardingProgress.genderPreferenceSet = this.preferences?.genderPreference?.length > 0;
   this.onboardingProgress.ageRangeSet = Boolean(this.preferences?.ageRange?.min);
   this.onboardingProgress.distanceRangeSet = Boolean(this.preferences?.distanceRange);
@@ -633,12 +744,25 @@ ProfileSchema.pre("save", function(next) {
   // Enable swipe access
   this.onboardingProgress.isProfileComplete = this.isProfileComplete;
   this.onboardingProgress.canAccessSwipe = this.canAccessSwipe;
-  this.canAccessSwipe = this.isMandatoryComplete && this.kyc.status === "approved";
+  // this.canAccessSwipe = this.isMandatoryComplete && this.kyc.status === "approved";
+  // this.isDiscoverable = this.canAccessSwipe;
+
+  // 🔒 If profile is manually hidden (deactivated), do NOT override
+if (this.visibility === "nobody") {
+  this.canAccessSwipe = false;
+  this.isDiscoverable = false;
+} else {
+  this.canAccessSwipe =
+    this.isMandatoryComplete && this.kyc.status === "approved";
   this.isDiscoverable = this.canAccessSwipe;
+}
+
   
   this.lastProfileUpdate = new Date();
   
   next();
 });
+
+ProfileSchema.index({ location: "2dsphere" });
 
 module.exports = mongoose.model("Profile", ProfileSchema);

@@ -18,3 +18,97 @@ module.exports = {
   del: async (k) => client.del(k),
   client,
 };
+
+
+
+// const { createClient } = require("redis");
+
+// const client = createClient({
+//   url: process.env.REDIS_URL || "redis://127.0.0.1:6379"
+// });
+
+// client.on("connect", () => {
+//   console.log("Redis connecting...");
+// });
+
+// client.on("ready", () => {
+//   console.log("Redis ready");
+// });
+
+// client.on("error", (err) => {
+//   console.error("Redis error", err);
+// });
+
+// (async () => {
+//   try {
+//     await client.connect();
+//   } catch (e) {
+//     console.error("Redis connect failed", e);
+//   }
+// })();
+
+// module.exports = {
+//   /** GET */
+//   get: async (key) => {
+//     return client.get(key);
+//   },
+
+//   /** SET with TTL (SAFE) */
+//   set: async (key, value, ttlSeconds) => {
+//     const val =
+//       typeof value === "string" ? value : JSON.stringify(value);
+
+//     if (ttlSeconds) {
+//       // ✅ Redis v4 reliable method
+//       return client.setEx(key, ttlSeconds, val);
+//     }
+
+//     return client.set(key, val);
+//   },
+
+//   /** DELETE */
+//   del: async (key) => {
+//     return client.del(key);
+//   },
+
+//   client
+// };
+
+
+// const { createClient } = require("redis");
+
+// const client = createClient({
+//   url: process.env.REDIS_URL || "redis://127.0.0.1:6379"
+// });
+
+// client.on("connect", () => console.log("Redis connecting..."));
+// client.on("ready", () => console.log("Redis ready"));
+// client.on("error", (err) => console.error("Redis error", err));
+
+// (async () => {
+//   try {
+//     await client.connect();
+//   } catch (e) {
+//     console.error("Redis connect failed", e);
+//   }
+// })();
+
+// const redis = {
+//   async get(key) {
+//     return client.get(key);
+//   },
+
+//   async set(key, value, ttlSeconds) {
+//     const val = typeof value === "string" ? value : JSON.stringify(value);
+//     if (ttlSeconds) {
+//       return client.setEx(key, ttlSeconds, val);
+//     }
+//     return client.set(key, val);
+//   },
+
+//   async del(key) {
+//     return client.del(key);
+//   }
+// };
+
+// module.exports = redis;

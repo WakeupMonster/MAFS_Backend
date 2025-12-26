@@ -9,6 +9,9 @@ const profileModel = require("../profile/profile.model");
 /*==================================================
 1. POST For Send OTP on Phone no.
 ===================================================*/
+
+
+
 module.exports.sendOtp = async (req, res) => {
   try {
     const { phone } = req.body;
@@ -419,26 +422,54 @@ module.exports.loginVerify = async (req, res) => {
 ===================================================*/
 module.exports.refreshToken = async (req, res) => {
   try {
-    const { userId, refreshToken } = req.body;
-    const data = await authService.refreshAccessToken(userId, refreshToken);
-    return res.json({ success: true, data });
+    const { refreshToken } = req.body;
+    const data = await authService.refreshAccessToken(refreshToken);
+    return res.json({
+      success: true,
+      data
+    });
   } catch (err) {
-    return res.status(400).json({ success: false, message: err.message });
+    return res.status(401).json({
+      success: false,
+      message: err.message
+    });
   }
 };
+
 
 /*==================================================
 8. POST For Logout API
 ===================================================*/
+// module.exports.logout = async (req, res) => {
+//   try {
+//     const { userId, refreshToken } = req.body;
+//     await authService.logout(userId, refreshToken);
+//     return res.json({ success: true, message: "Logged out" });
+//   } catch (err) {
+//     return res.status(400).json({ success: false, message: err.message });
+//   }
+// };
+
+
+// auth.controller.js
 module.exports.logout = async (req, res) => {
   try {
-    const { userId, refreshToken } = req.body;
-    await authService.logout(userId, refreshToken);
-    return res.json({ success: true, message: "Logged out" });
+    const { refreshToken } = req.body;
+
+    await authService.logout(refreshToken);
+
+    return res.json({
+      success: true,
+      message: "Logged out successfully"
+    });
   } catch (err) {
-    return res.status(400).json({ success: false, message: err.message });
+    return res.status(400).json({
+      success: false,
+      message: err.message
+    });
   }
 };
+
 
 // const User = require("../auth/auth.model")
 
@@ -549,3 +580,153 @@ module.exports.logout = async (req, res) => {
 //     return res.status(400).json({ success: false, message: err.message });
 //   }
 // };
+
+
+
+
+// In auth.controller.js - Add a new test endpoint
+module.exports.sendTestOtp = async (req, res) => {
+  try {
+    const { phone } = req.body;
+    const ip = req.ip;
+
+    if (!phone) {
+      return res.status(400).json({
+        success: false,
+        message: "Phone is required"
+      });
+    }
+
+    // Rate limiting
+    const isLimited = await rateLimit(`otp:test:${ip}`, 10, 60); // More generous limits for testing
+    if (isLimited) {
+      return res.status(429).json({
+        success: false,
+        message: "Too many test requests. Try again later."
+      });
+    }
+
+    // Send OTP in test mode
+    const result = await authService.sendPhoneOtpTest(phone, true); // true = test mode
+
+    return res.json({
+      success: true,
+      message: `Test OTP: ${result.otp}`,
+      otp: result.otp
+    });
+  } catch (err) {
+    console.error("Error in sendTestOtp:", err);
+    return res.status(400).json({
+      success: false,
+      message: err.message
+    });
+  }
+};
+
+// Update the routes to include the new test endpoint
+// In your auth.routes.js or wherever routes are defined
+// router.post('/test/otp', authController.sendTestOtp);
+
+
+module.exports.resendPhoneOtp = async (req, res) => {
+  try {
+    const { phone } = req.body;
+    const ip = req.ip;
+
+    if (!phone) {
+      return res.status(400).json({ 
+        success: false, 
+        message: "Phone number is required" 
+      });
+    }
+
+    // Rate limiting
+    const isLimited = await rateLimit(`resend:phone:${ip}`, 3, 60);
+    if (isLimited) {
+      return res.status(429).json({
+        success: false,
+        message: "Too many resend attempts. Please try again later.",
+      });
+    }
+
+    // Check if user exists
+    const User = require('./auth.model');
+    const user = await User.findOne({ phone });
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: "No account found with this phone number.",
+      });
+    }
+
+    // Send OTP using the existing sendPhoneOtp function
+    await authService.sendPhoneOtp(phone);
+
+    return res.json({
+      success: true,
+      message: "OTP resent successfully",
+    });
+  } catch (err) {
+    return res.status(500).json({ 
+      success: false, 
+      message: err.message 
+    });
+  }
+};
+
+/*==================================================
+10. POST Resend OTP to Email
+===================================================*/
+module.exports.resendEmailOtp = async (req, res) => {
+  try {
+    const { email } = req.body;
+    const ip = req.ip;
+
+    if (!email) {
+      return res.status(400).json({ 
+        success: false, 
+        message: "Email is required" 
+      });
+    }
+
+    // Rate limiting
+    const isLimited = await rateLimit(`resend:email:${ip}`, 3, 60);
+    if (isLimited) {
+      return res.status(429).json({
+        success: false,
+        message: "Too many resend attempts. Please try again later.",
+      });
+    }
+
+    // Check if user exists and has this email
+    const User = require('./auth.model');
+    const user = await User.findOne({ email });
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: "No account found with this email.",
+      });
+    }
+
+    // Check if email is already verified
+    if (user.isEmailVerified) {
+      return res.status(400).json({
+        success: false,
+        message: "Email is already verified.",
+      });
+    }
+
+    // Send email OTP
+    await authService.sendEmailOtp(user._id, email);
+
+    return res.json({
+      success: true,
+      message: "Verification email resent successfully",
+    });
+  } catch (err) {
+    return res.status(500).json({ 
+      success: false, 
+      message: err.message 
+    });
+  }
+};

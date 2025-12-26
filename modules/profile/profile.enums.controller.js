@@ -10,6 +10,7 @@ client.connect().catch(console.error);
 // Generic standardized response handlers
 const sendSuccess = (res, data, source = "api") =>
   res.json({ success: true, source, data });
+
 const sendError = (res, status, code, message, errors = null) =>
   res.status(status).json({ success: false, code, message, errors });
 
