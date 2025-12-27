@@ -130,10 +130,10 @@ onboarding: {
     type: Boolean,
     default: false
   },
-  nextstep: {
-    type: Number,
-    default: 7
-  },
+  // nextstep: {
+  //   type: Number,
+  //   default: 7
+  // },
   currentScreenSlug: {
     type: String,
     default: ""

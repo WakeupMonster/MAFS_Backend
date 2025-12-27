@@ -250,16 +250,61 @@ async function sendEmailOtp(token, email) {
   return { ok: true };
 }
 
-async function verifyEmailOtp(token, otp) {
-  // Verify token and get user
-  const decoded = utils.verifyToken(token);
-  const user = await User.findOne({ _id: decoded.userId});
+// async function verifyEmailOtp(token, otp) {
+//   // Verify token and get user
+//   const decoded = utils.verifyToken(token);
+//   const user = await User.findOne(decoded.userId);
   
+//   if (!user) {
+//     throw new Error("User not found or email mismatch");
+//   }
+
+//   // Check OTP existence + expiry
+//   if (!user.emailOtp || !user.emailOtpExpires) {
+//     throw new Error("OTP not found");
+//   }
+
+//   if (Date.now() > user.emailOtpExpires) {
+//     throw new Error("OTP expired");
+//   }
+
+//   // Validate OTP
+//   if (otp !== user.emailOtp) {
+//     throw new Error("Invalid OTP");
+//   }
+
+//   // Mark email as verified
+//   user.isEmailVerified = true;
+//   user.emailOtp = undefined;
+//   user.emailOtpExpires = undefined;
+
+//   // Generate new tokens
+//   const refreshTokenRaw = utils.generateRefreshToken();
+//   const refreshTokenHash = utils.hashToken(refreshTokenRaw);
+
+//   user.refreshTokens.push({
+//     tokenHash: refreshTokenHash,
+//     expiresAt: Date.now() + REFRESH_TOKEN_TTL_MS,
+//   });
+
+//   await user.save();
+
+//   return {
+//     user,
+//     nextStep: getNextStep(user),
+//   };
+// }
+
+
+
+async function verifyEmailOtp(token, otp) {
+  const decoded = utils.verifyToken(token);
+
+  const user = await User.findById(decoded.userId);
   if (!user) {
-    throw new Error("User not found or email mismatch");
+    throw new Error("User not found");
   }
 
-  // Check OTP existence + expiry
   if (!user.emailOtp || !user.emailOtpExpires) {
     throw new Error("OTP not found");
   }
@@ -268,24 +313,13 @@ async function verifyEmailOtp(token, otp) {
     throw new Error("OTP expired");
   }
 
-  // Validate OTP
-  if (otp !== user.emailOtp) {
+  if (String(otp) !== String(user.emailOtp)) {
     throw new Error("Invalid OTP");
   }
 
-  // Mark email as verified
   user.isEmailVerified = true;
   user.emailOtp = undefined;
   user.emailOtpExpires = undefined;
-
-  // Generate new tokens
-  const refreshTokenRaw = utils.generateRefreshToken();
-  const refreshTokenHash = utils.hashToken(refreshTokenRaw);
-
-  user.refreshTokens.push({
-    tokenHash: refreshTokenHash,
-    expiresAt: Date.now() + REFRESH_TOKEN_TTL_MS,
-  });
 
   await user.save();
 
