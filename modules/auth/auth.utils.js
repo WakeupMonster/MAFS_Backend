@@ -55,6 +55,16 @@ module.exports.REFRESH_TOKEN_TTL = 30 * 24 * 60 * 60 * 1000; // 30 days
 //   }
 // };
 
+module.exports.verifyToken = (token) => {
+  try {
+    return jwt.verify(token, process.env.JWT_SECRET);
+  // eslint-disable-next-line no-unused-vars
+  } catch (err) {
+    throw new Error("Invalid or expired token");
+  }
+};
+
+
 exports.hashToken = (token) => {
   return crypto
     .createHash("sha256")

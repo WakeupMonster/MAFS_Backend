@@ -87,6 +87,8 @@ router.post(
 );
 
 router.delete("/photos", controller.deletePhoto);
+router.patch("/photos/reorder", controller.reorderPhotos);
+
 
 router.post(
   "/selfie",

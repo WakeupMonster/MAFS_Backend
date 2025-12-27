@@ -51,6 +51,14 @@ const userSchema = new mongoose.Schema({
   //   matches: { type: Boolean, default: true }
   // },
 
+  notificationSettings: {
+  push: { type: Boolean, default: true },
+  email: { type: Boolean, default: false },
+  matches: { type: Boolean, default: true },
+  messages: { type: Boolean, default: true }
+},
+
+
   // ============ STATUS FLAGS ============
   isNewUser: { type: Boolean, default: true, index: true },
   isProfileCompleted: { type: Boolean, default: false },
@@ -66,10 +74,72 @@ const userSchema = new mongoose.Schema({
 
   accountStatus: {
   type: String,
-  enum: ["active", "deactivated", "married", "deleted"],
+  enum: ["active", "deactivated", "married", "deleted","banned"],
   default: "active",
   index: true
 },
+
+  banDetails: {
+  isBanned: {
+    type: Boolean,
+    default: false
+  },
+  reason: {
+    type: String,
+    default: null
+  },
+  bannedBy: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: "Admin",
+    default: null
+  },
+  bannedAt: {
+    type: Date,
+    default: null
+  }
+},
+
+deactivationDetails: {
+  isDeactivated: {
+    type: Boolean,
+    default: false
+  },
+  reason: {
+    type: String,
+    default: null
+  },
+  deactivatedAt: {
+    type: Date,
+    default: null
+  }
+},
+
+deletionDetails: {
+  isScheduledForDeletion: {
+    type: Boolean,
+    default: false
+  },
+  scheduledAt: {
+    type: Date,
+    default: null
+  }
+},
+
+onboarding: {
+  isComplete: {
+    type: Boolean,
+    default: false
+  },
+  nextstep: {
+    type: Number,
+    default: 7
+  },
+  currentScreenSlug: {
+    type: String,
+    default: ""
+  }
+},
+
 
 isPremium: {
   type: Boolean,

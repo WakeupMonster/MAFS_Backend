@@ -1241,6 +1241,67 @@ exports.updateProfile = async (req, res) => {
       });
     }
 
+
+     if (updateData.profile || updateData.attributes || updateData.discovery) {
+      const { profile: profileData, attributes} = updateData;
+      
+      // 1. Update profile fields
+      if (profileData) {
+        // Map new structure to existing fields
+        if (profileData.about !== undefined) profile.about_me = profileData.about;
+        if (profileData.jobTitle !== undefined) profile.jobtitle = profileData.jobTitle;
+        
+        // Direct field updates
+        const profileFields = ['nickname', 'dob', 'age', 'gender', 'height', 'company', 'school','occupation' ];
+        profileFields.forEach(field => {
+          if (profileData[field] !== undefined) {
+            profile[field] = profileData[field];
+          }
+        });
+      }
+      // 2. Handle attributes
+      if (attributes) {
+        profile.attributes = profile.attributes || {};
+
+// if (attributes.relationshipGoal) {
+//   profile.attributes.relationshipGoal = {
+//     title: attributes.relationshipGoal.title || "",
+//     subtitle: attributes.relationshipGoal.subtitle || ""
+//   };
+// }
+
+if (attributes?.relationshipGoal) {
+  profile.relationshipGoal = {
+    key: attributes.relationshipGoal.key || "",
+    title: attributes.relationshipGoal.title || "",
+    subtitle: attributes.relationshipGoal.subtitle || ""
+  };
+}
+        
+        // Basic attributes
+        const attributeFields = [
+          'zodiac', 'education', 'familyPlans', 'personalityType', 
+          'communicationStyle', 'loveStyle', 'pets', 'drinking',
+          'smoking', 'workout', 'dietary', 'sleeping', 'socialMedia', 'religion','relationshipGoal'
+        ];
+        
+        attributeFields.forEach(field => {
+          if (attributes[field] !== undefined) {
+            profile.attributes[field] = attributes[field];
+          }
+        });
+        // Array fields
+        const arrayFields = ['languages', 'interests', 'music', 'movies', 'books', 'travel'];
+        arrayFields.forEach(field => {
+          if (attributes[field] !== undefined) {
+            profile.attributes[field] = Array.isArray(attributes[field]) 
+              ? attributes[field] 
+              : [attributes[field]];
+          }
+        });
+      }
+    }
+
     // Helper function to safely update fields
     const updateField = (field, value, trim = true) => {
       if (value !== undefined) {
@@ -1325,46 +1386,47 @@ exports.updateProfile = async (req, res) => {
     }
 
     // Lifestyle
-    if (updateData.lifestyle) {
-      if (updateData.lifestyle.pets) {
-        const validPets = ["dog", "cat", "bird", "fish"];
-        if (!validPets.includes(updateData.lifestyle.pets)) {
-          return res.status(400).json({
-            success: false,
-            code: "INVALID_PET_TYPE",
-            message: "Invalid pet type"
-          });
-        }
-        profile.lifestyle = profile.lifestyle || {};
-        profile.lifestyle.pets = updateData.lifestyle.pets;
-      }
+    // if (updateData.lifestyle) {
+    //   if (updateData.lifestyle.pets) {
+    //     const validPets = ["dog", "cat", "bird", "fish"];
+    //     if (!validPets.includes(updateData.lifestyle.pets)) {
+    //       return res.status(400).json({
+    //         success: false,
+    //         code: "INVALID_PET_TYPE",
+    //         message: "Invalid pet type"
+    //       });
+    //     }
+    //     profile.lifestyle = profile.lifestyle || {};
+    //     profile.lifestyle.pets = updateData.lifestyle.pets;
+    //   }
 
-      if (updateData.lifestyle.drinking !== undefined) {
-        const validDrinking = ["never", "socially", "regularly"];
-        if (!validDrinking.includes(updateData.lifestyle.drinking)) {
-          return res.status(400).json({
-            success: false,
-            code: "INVALID_DRINKING_VALUE",
-            message: "Invalid drinking value"
-          });
-        }
-        profile.lifestyle = profile.lifestyle || {};
-        profile.lifestyle.drinking = updateData.lifestyle.drinking;
-      }
+    //   if (updateData.lifestyle.drinking !== undefined) {
+    //     const validDrinking = ["never", "socially", "regularly"];
+    //     if (!validDrinking.includes(updateData.lifestyle.drinking)) {
+    //       return res.status(400).json({
+    //         success: false,
+    //         code: "INVALID_DRINKING_VALUE",
+    //         message: "Invalid drinking value"
+    //       });
+    //     }
+    //     profile.lifestyle = profile.lifestyle || {};
+    //     profile.lifestyle.drinking = updateData.lifestyle.drinking;
+    //   }
 
-      if (updateData.lifestyle.exercise !== undefined) {
-        const validExercise = ["never", "sometimes", "regularly", "daily"];
-        if (!validExercise.includes(updateData.lifestyle.exercise)) {
-          return res.status(400).json({
-            success: false,
-            code: "INVALID_EXERCISE_VALUE",
-            message: "Invalid exercise value"
-          });
-        }
-        profile.lifestyle = profile.lifestyle || {};
-        profile.lifestyle.exercise = updateData.lifestyle.exercise;
-      }
-    }
+    //   if (updateData.lifestyle.exercise !== undefined) {
+    //     const validExercise = ["never", "sometimes", "regularly", "daily"];
+    //     if (!validExercise.includes(updateData.lifestyle.exercise)) {
+    //       return res.status(400).json({
+    //         success: false,
+    //         code: "INVALID_EXERCISE_VALUE",
+    //         message: "Invalid exercise value"
+    //       });
+    //     }
+    //     profile.lifestyle = profile.lifestyle || {};
+    //     profile.lifestyle.exercise = updateData.lifestyle.exercise;
+    //   }
+    // }
+// In your updateProfile function
 
     // Basics
     if (updateData.basics) {
@@ -1696,6 +1758,100 @@ module.exports.deletePhoto = async (req, res) => {
     });
   }
 };
+
+
+// ========================================
+// 4. REORDER PHOTOS (Drag & Drop)
+// ========================================
+module.exports.reorderPhotos = async (req, res) => {
+  try {
+    const userId = req.user._id;
+    const { photoIds } = req.body;
+
+    // 1️⃣ Validation
+    if (!Array.isArray(photoIds) || photoIds.length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: "photoIds array is required"
+      });
+    }
+
+    // 2️⃣ Profile fetch
+    const profile = await Profile.findOne({ userId });
+    if (!profile) {
+      return res.status(404).json({
+        success: false,
+        code: "PROFILE_NOT_FOUND",
+        message: "Profile not found"
+      });
+    }
+
+    // 3️⃣ Length validation (security check)
+    if (photoIds.length !== profile.photos.length) {
+      return res.status(400).json({
+        success: false,
+        message: "Photo count mismatch"
+      });
+    }
+
+    // 4️⃣ Create map for fast lookup
+    const photoMap = new Map();
+    profile.photos.forEach(photo => {
+      photoMap.set(photo.publicId, photo);
+    });
+
+    // 5️⃣ Validate all photoIds exist
+    for (const id of photoIds) {
+      if (!photoMap.has(id)) {
+        return res.status(400).json({
+          success: false,
+          message: `Invalid photoId: ${id}`
+        });
+      }
+    }
+
+    // 6️⃣ Reorder logic
+    const reorderedPhotos = photoIds.map((id, index) => {
+      const photo = photoMap.get(id);
+
+      return {
+        ...photo.toObject(),
+        order: index + 1,
+        isPrimary: index === 0 // first photo becomes primary
+      };
+    });
+
+    profile.photos = reorderedPhotos;
+
+    // 7️⃣ Save
+    await profile.save();
+
+    // 8️⃣ Clear cache
+    await clearProfileCache(userId);
+
+    // 9️⃣ Response
+    return res.json({
+      success: true,
+      message: "Photos reordered successfully",
+      data: formatResponse(profile)
+    });
+
+  } catch (err) {
+    console.error("Reorder photos error:", err);
+    return res.status(500).json({
+      success: false,
+      message: "Failed to reorder photos"
+    });
+  }
+};
+
+
+
+
+
+
+
+
 
 // ========================================
 // 4. UPLOAD SELFIE (KYC)

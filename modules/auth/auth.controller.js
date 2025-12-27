@@ -61,15 +61,16 @@ module.exports.verifyOtp = async (req, res) => {
       message: result.isNewUser
         ? "Welcome! Phone verified successfully"
         : "Welcome back! Login successful",
-      data: {
-        userId: result.userId,
-        accessToken: result.accessToken, // ✅ Token
-        refreshToken: result.refreshToken, // ✅ Token
-        isNewUser: result.isNewUser, // ✅ NEW!
-        isPhoneVerified: result.isPhoneVerified,
-        isEmailVerified: result.isEmailVerified,
-        nextStep: result.nextStep,
-      },
+         data: result
+      // data: {
+      //   userId: result.userId,
+      //   accessToken: result.accessToken, // ✅ Token
+      //   refreshToken: result.refreshToken, // ✅ Token
+      //   isNewUser: result.isNewUser, // ✅ NEW!
+      //   isPhoneVerified: result.isPhoneVerified,
+      //   isEmailVerified: result.isEmailVerified,
+      //   nextStep: result.nextStep,
+      // },
     });
   } catch (err) {
     return res.status(400).json({
@@ -324,25 +325,99 @@ module.exports.verifyOtp = async (req, res) => {
 /*==================================================
 3. POST For register Email Id with userId
 ===================================================*/
+// module.exports.registerEmail = async (req, res) => {
+//   try {
+//     const { userId, email } = req.body;
+//     await authService.sendEmailOtp(userId, email);
+
+//     return res.json({ success: true, message: "Email OTP sent" });
+//   } catch (err) {
+//     console.log("Error hai");
+//     return res.status(400).json({ success: false, message: err.message });
+//   }
+// };
+
+
+
+/*==================================================
+3. POST For register Email Id with token
+===================================================*/
 module.exports.registerEmail = async (req, res) => {
   try {
-    const { userId, email } = req.body;
-    await authService.sendEmailOtp(userId, email);
-
-    return res.json({ success: true, message: "Email OTP sent" });
+    const { email } = req.body;
+    const token = req.headers.authorization?.split(' ')[1];
+    
+    if (!token) {
+      return res.status(401).json({ 
+        success: false, 
+        message: 'Authentication token is required' 
+      });
+    }
+    
+    await authService.sendEmailOtp(token, email);
+    
+    return res.json({ 
+      success: true, 
+      message: "Email OTP sent successfully" 
+    });
   } catch (err) {
-    console.log("Error hai");
-    return res.status(400).json({ success: false, message: err.message });
+    return res.status(400).json({ 
+      success: false, 
+      message: err.message 
+    });
   }
 };
+
 
 /*==================================================
 4. POST For  Verify userId with otp
 ===================================================*/
+// module.exports.verifyEmail = async (req, res) => {
+//   try {
+//     const { userId, otp } = req.body;
+//     const result = await authService.verifyEmailOtp(userId, otp);
+//     await profileModel.findOneAndUpdate(
+//       { userId: result.user._id },
+//       {
+//         $set: {
+//           "onboardingProgress.emailVerified": true,
+//         },
+//       },
+//       { upsert: true }
+//     );
+//     return res.json({
+//       success: true,
+//       message: "Email verified",
+//       data: {
+//         userId: result.user._id,
+//         accessToken: result.accessToken,
+//         refreshToken: result.refreshToken,
+//         isEmailVerified: result.isEmailVerified,
+//         nextStep: result.nextStep,
+//       },
+//     });
+//   } catch (err) {
+//     return res.status(400).json({ success: false, message: err.message });
+//   }
+// };
+
+/*==================================================
+4. POST For Verify Email with OTP
+===================================================*/
 module.exports.verifyEmail = async (req, res) => {
   try {
-    const { userId, otp } = req.body;
-    const result = await authService.verifyEmailOtp(userId, otp);
+    const {  otp } = req.body;
+    const token = req.headers.authorization?.split(' ')[1];
+    
+    if (!token) {
+      return res.status(401).json({ 
+        success: false, 
+        message: 'Authentication token is required' 
+      });
+    }
+    
+    const result = await authService.verifyEmailOtp(token, otp);
+    
     await profileModel.findOneAndUpdate(
       { userId: result.user._id },
       {
@@ -352,21 +427,26 @@ module.exports.verifyEmail = async (req, res) => {
       },
       { upsert: true }
     );
+    
     return res.json({
       success: true,
-      message: "Email verified",
+      message: "Email verified successfully",
       data: {
         userId: result.user._id,
         accessToken: result.accessToken,
         refreshToken: result.refreshToken,
-        isEmailVerified: result.isEmailVerified,
+        isEmailVerified: result.user.isEmailVerified,
         nextStep: result.nextStep,
       },
     });
   } catch (err) {
-    return res.status(400).json({ success: false, message: err.message });
+    return res.status(400).json({ 
+      success: false, 
+      message: err.message 
+    });
   }
 };
+
 
 /*==================================================
 5. POST Login For Send OTP on Phone no.

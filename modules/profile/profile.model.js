@@ -276,27 +276,6 @@ const ProfileSchema = new mongoose.Schema({
   },
 
 
-  discoveryFilters: {
-  hasBio: { type: Boolean, default: false },
-
-  interests: [{ type: String }],
-
-  basics: {
-    zodiac: [{ type: String }],
-    education: [{ type: String }],
-    familyPlans: [{ type: String }],
-    PersonalityType: [{ type: String }],
-    communicationStyle: [{ type: String }],
-    loveStyle: [{ type: String }]
-  },
-
-  lifestyle: {
-    pets: [{ type: String }],
-    drinking: [{ type: String }],
-    smokingHabits: [{ type: String }],
-    exercise: [{ type: String }]
-  }
-},
 
   // Interests (5%)
   interests: [{ type: String }], // Min 3, Max 15
@@ -309,6 +288,39 @@ const ProfileSchema = new mongoose.Schema({
   //   order: Number,
   //   uploadedAt: Date
   // }],
+
+
+   attributes: {
+    // Basics
+    zodiac: { type: String, default: null },
+    education: { type: String, default: null },
+    familyPlans: { type: String, default: null },
+    personalityType: { type: String, default: null },
+    communicationStyle: { type: String, default: null },
+    loveStyle: { type: String, default: null },
+    
+    // Lifestyle
+    pets: { type: String, default: null },
+    drinking: { type: String, default: null },
+    smoking: { type: String, default: null },
+    workout: { type: String, default: null },
+    dietary: { type: String, default: null },
+    sleeping: { type: String, default: null },
+    socialMedia: { type: String, default: null },
+    
+    // Arrays
+    languages: { type: [String], default: [] },
+    interests: { type: [String], default: [] },
+    music: { type: [String], default: [] },
+    movies: { type: [String], default: [] },
+    books: { type: [String], default: [] },
+    travel: { type: [String], default: [] },
+    religion: { type: String, default: null }
+  },
+
+
+
+
 
   photos: {
   type: [{
@@ -343,17 +355,7 @@ const ProfileSchema = new mongoose.Schema({
   state: String,
   country: String
   },
-  // Location (5%)
-  // location: {
-  //   type: { type: String, enum: ["Point"], default: "Point" },
-  //    coordinates: { 
-  //   type: [Number], 
-  //   default: [0, 0]  // Add this default
-  // },
-  //   city: String,
-  //   state: String,
-  //   country: String
-  // },
+
 
   // ========================================
   // TIER 2: OPTIONAL FIELDS (40%)
@@ -361,36 +363,58 @@ const ProfileSchema = new mongoose.Schema({
   
   bio: { type: String, maxlength: 500 }, // 5%
 
-  // Lifestyle (13%)  
-  lifestyle: {
-    pets : {
-      type: String,
-      enum: ["dog","cat","bird","fish"]
-    },
-    drinkingHabits: {
-      type: String,
-      enum: ["aries", "taurus", "gemini", "cancer", "leo", "virgo", "libra", "scorpio", "sagittarius", "capricorn", "aquarius", "pisces"]
-    },
-    smokingHabits: {
-      type: String,
-      enum: ["never", "socially", "regularly", "trying_to_quit"]
-    },
-    drinking: {
-      type: String,
-      enum: ["never", "socially", "regularly"]
-    },
-    exercise: {
-      type: String,
-      enum: ["never", "sometimes", "regularly", "daily"]
-    }
+lifestyle: {
+  // Pets
+  pets: {
+    type: String,
+    enum: ['None', 'Dog', 'Cat', 'Fish', 'Bird', 'Rabbit', 'Hamster', 'Reptile', 'Exotic Pet', 'Other']
   },
+  
+  // Drinking Habits
+  drinkingHabit: {
+    type: String,
+    enum: ['Social Drinker', 'Occasional Drinker', 'Non-Drinker', 'Wine Enthusiast', 
+           'Craft Beer Lover', 'Cocktail Connoisseur']
+  },
+  
+  // Smoking Habits
+  smokingHabit: {
+    type: String,
+    enum: ['Smoker', 'Non-Smoker', 'Quitter', 'Occasional Smoker', 'Vape Enthusiast']
+  },
+  
+  // Workout
+  workoutFrequency: {
+    type: String,
+    enum: ['Everyday', 'Often', 'Sometimes', 'Never']
+  },
+  
+  // Dietary Preferences
+  dietaryPreference: {
+    type: [String],
+    enum: ['Vegetarian', 'Vegan', 'Omnivore', 'Pescatarian', 'Halal', 
+           'Gluten-Free', 'Dairy-Free', 'Plant-Based', 'Keto', 'Raw Food', 
+           'Kosher', 'Other']
+  },
+  
+  // Social Media Presence
+  socialMediaPresence: {
+    type: String,
+    enum: ['Active on All', 'Active on Some', 'Minimal Social Media Presence', 
+           'Social Media Influencer']
+  },
+  
+  // Sleeping Habits
+  sleepingHabit: {
+    type: String,
+    enum: ['Early Bird', 'Night Owl', 'Regular Sleeper', 'Insomniac']
+  }
+},
+
   basics : {
     education: {
-    level: {
-      type: String,
-      enum: ["high_school", "bachelors", "masters", "phd", "trade_school", "prefer_not_to_say"]
-    },
-    institution: String
+      enum: ["high_school", "bachelors", "masters", "phd", "trade_school", "prefer_not_to_say"],
+      type : String
   },
     zodiac: {
       type: String,
@@ -416,13 +440,10 @@ const ProfileSchema = new mongoose.Schema({
   // Languages (5%)
   languages: [{ type: String }], // e.g., ["English", "Hindi", "Spanish"]
 
-
-
-  // Communication & Preferences (12%)
-  communicationStyle: {
-    type: String,
-    enum: ["frequent_texter", "phone_caller", "video_chatter", "in_person"]
+  religion : {
+    type : String
   },
+
   
   musicPreference: [{
     type: String,
@@ -445,9 +466,6 @@ const ProfileSchema = new mongoose.Schema({
     enum: ["adventure", "relaxation", "cultural", "budget", "luxury", "road_trips", "international", "domestic"]
   },
 
-
-
-   // Personal Information
   height: {
     type: String,
     default: null  // Use null instead of empty string
@@ -473,9 +491,6 @@ const ProfileSchema = new mongoose.Schema({
     default: null
   },
 
-  // ========================================
-  // KYC (Inside Profile - Your Requirement)
-  // ========================================
   kyc: {
     status: {
       type: String,
@@ -508,6 +523,11 @@ const ProfileSchema = new mongoose.Schema({
     enum: ["everyone", "matches_only", "nobody"],
     default: "everyone"
   },
+  //  globalVisibility: {
+  //   type: String,
+  //   enum: ["everyone", "matches_only"],
+  //   default: "everyone"
+  // },
   
 
 
@@ -718,7 +738,9 @@ ProfileSchema.pre("save", function(next) {
   this.onboardingProgress.nicknameSet = Boolean(this.nickname);
   this.onboardingProgress.dobSet = Boolean(this.dob);
   this.onboardingProgress.genderSet = Boolean(this.gender);
-  this.onboardingProgress.relationshipGoalSet = this.relationshipGoal?.length > 0;
+  // this.onboardingProgress.relationshipGoalSet = this.relationshipGoal?.length > 0;
+  this.onboardingProgress.relationshipGoalSet =
+  Boolean(this.relationshipGoal?.key);
   this.onboardingProgress.genderPreferenceSet = this.preferences?.genderPreference?.length > 0;
   this.onboardingProgress.ageRangeSet = Boolean(this.preferences?.ageRange?.min);
   this.onboardingProgress.distanceRangeSet = Boolean(this.preferences?.distanceRange);
@@ -765,52 +787,7 @@ if (this.visibility === "nobody") {
 
 
 
-// ========================================
-// 🔥 NEW: PRE-UPDATE HOOK (For CLI/Admin Updates)
-// ========================================
-ProfileSchema.pre(['findOneAndUpdate', 'updateOne'], async function(next) {
-  const update = this.getUpdate();
-  
-  // Check if KYC status is being updated
-  const kycStatusUpdate = update.$set?.['kyc.status'] || update['kyc.status'];
-  
-  if (kycStatusUpdate) {
-    // Fetch current document
-    const docToUpdate = await this.model.findOne(this.getQuery());
-    
-    if (docToUpdate) {
-      // Recalculate completion
-      docToUpdate.calculateCompletion();
-      
-      const isMandatoryComplete = docToUpdate.isMandatoryComplete;
-      const isKycApproved = kycStatusUpdate === "approved";
-      
-      // 🔒 Respect visibility setting
-      if (docToUpdate.visibility === "nobody") {
-        update.$set = update.$set || {};
-        update.$set.canAccessSwipe = false;
-        update.$set.isDiscoverable = false;
-      } else {
-        // ✅ Update access flags
-        update.$set = update.$set || {};
-        update.$set.canAccessSwipe = isMandatoryComplete && isKycApproved;
-        update.$set.isDiscoverable = isMandatoryComplete && isKycApproved;
-        update.$set.lastProfileUpdate = new Date();
-      }
-    }
-  }
-  
-  next();
-});
 
-// ========================================
-// 🔥 NEW: POST-UPDATE HOOK (Verification)
-// ========================================
-ProfileSchema.post(['findOneAndUpdate', 'updateOne'], async function(doc) {
-  if (doc) {
-    console.log(`✅ Profile updated: canAccessSwipe=${doc.canAccessSwipe}, isDiscoverable=${doc.isDiscoverable}`);
-  }
-});
 ProfileSchema.index({ location: "2dsphere" });
 
 module.exports = mongoose.model("Profile", ProfileSchema);
@@ -825,4 +802,4 @@ module.exports = mongoose.model("Profile", ProfileSchema);
 //     this.isMandatoryComplete = true;
 //   }
 //   next();
-// });
+// });  
