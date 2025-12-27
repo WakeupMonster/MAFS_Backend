@@ -821,7 +821,7 @@
 
 const Profile = require("./profile.model");
 const { Match } = require("../matches/swipe/swipe.model");
-const { formatProfileResponse } = require("./profile.service");
+// const { formatProfileResponse } = require("./profile.service");
 // const User = require("../auth/auth.model");
 const cache = require("../../config/cache");
 const { uploadStream, destroy } = require("../upload/cloudinary.service");
@@ -1270,19 +1270,12 @@ exports.updateProfile = async (req, res) => {
 //   };
 // }
 
-if (attributes?.relationshipGoal) {
-  profile.relationshipGoal = {
-    key: attributes.relationshipGoal.key || "",
-    title: attributes.relationshipGoal.title || "",
-    subtitle: attributes.relationshipGoal.subtitle || ""
-  };
-}
         
         // Basic attributes
         const attributeFields = [
           'zodiac', 'education', 'familyPlans', 'personalityType', 
           'communicationStyle', 'loveStyle', 'pets', 'drinking',
-          'smoking', 'workout', 'dietary', 'sleeping', 'socialMedia', 'religion','relationshipGoal'
+          'smoking', 'workout', 'dietary', 'sleeping', 'socialMedia', 'religion'
         ];
         
         attributeFields.forEach(field => {
@@ -1511,11 +1504,11 @@ if (attributes?.relationshipGoal) {
     }
 
     // Preferences
-    if (updateData.preferences) {
+    if (updateData.discovery) {
       // Age Range
-      if (updateData.preferences.ageRange) {
-        if (updateData.preferences.ageRange.min !== undefined) {
-          const minAge = parseInt(updateData.preferences.ageRange.min);
+      if (updateData.discovery.ageRange) {
+        if (updateData.discovery.ageRange.min !== undefined) {
+          const minAge = parseInt(updateData.discovery.ageRange.min);
           if (isNaN(minAge) || minAge < 18 || minAge > 100) {
             return res.status(400).json({
               success: false,
@@ -1523,11 +1516,11 @@ if (attributes?.relationshipGoal) {
               message: "Minimum age must be between 18 and 100"
             });
           }
-          profile.preferences.ageRange.min = minAge;
+          profile.discovery.ageRange.min = minAge;
         }
 
-        if (updateData.preferences.ageRange.max !== undefined) {
-          const maxAge = parseInt(updateData.preferences.ageRange.max);
+        if (updateData.discovery.ageRange.max !== undefined) {
+          const maxAge = parseInt(updateData.discovery.ageRange.max);
           if (isNaN(maxAge) || maxAge < 18 || maxAge > 100) {
             return res.status(400).json({
               success: false,
@@ -1535,11 +1528,12 @@ if (attributes?.relationshipGoal) {
               message: "Maximum age must be between 18 and 100"
             });
           }
-          profile.preferences.ageRange.max = maxAge;
+          profile.discovery.ageRange.max = maxAge;
         }
 
+
         // Ensure min <= max
-        if (profile.preferences.ageRange.min > profile.preferences.ageRange.max) {
+        if (profile.discovery.ageRange.min > profile.discovery.ageRange.max) {
           return res.status(400).json({
             success: false,
             code: "INVALID_AGE_RANGE",
@@ -1549,8 +1543,8 @@ if (attributes?.relationshipGoal) {
       }
 
       // Distance Range
-      if (updateData.preferences.distanceRange !== undefined) {
-        const distance = parseInt(updateData.preferences.distanceRange);
+      if (updateData.discovery.distanceRange !== undefined) {
+        const distance = parseInt(updateData.discovery.distanceRange);
         if (isNaN(distance) || distance < 1 || distance > 500) {
           return res.status(400).json({
             success: false,
@@ -1558,12 +1552,19 @@ if (attributes?.relationshipGoal) {
             message: "Distance must be between 1 and 500 km"
           });
         }
-        profile.preferences.distanceRange = distance;
+        profile.discovery.distanceRange = distance;
       }
+      if (updateData.discovery?.relationshipGoal) {
+  profile.discovery.relationshipGoal = {
+    key: updateData.discovery.relationshipGoal.key || "",
+    title: updateData.discovery.relationshipGoal.title || "",
+    subtitle: updateData.discovery.relationshipGoal.subtitle || ""
+  };
+}
 
       // Gender Preference
-      if (updateData.preferences.genderPreference) {
-        if (!Array.isArray(updateData.preferences.genderPreference)) {
+      if (updateData.discovery.showMeGender) {
+        if (!Array.isArray(updateData.discovery.showMeGender)) {
           return res.status(400).json({
             success: false,
             code: "INVALID_GENDER_PREFERENCE",
@@ -1572,7 +1573,7 @@ if (attributes?.relationshipGoal) {
         }
 
         const validGenders = ["male", "female", "non-binary", "trans-man", "trans-women", "everyone", "other"];
-        const invalidGenders = updateData.preferences.genderPreference.filter(
+        const invalidGenders = updateData.discovery.showMeGender.filter(
           gender => !validGenders.includes(gender)
         );
 
@@ -1584,7 +1585,7 @@ if (attributes?.relationshipGoal) {
           });
         }
 
-        profile.preferences.genderPreference = updateData.preferences.genderPreference;
+        profile.discovery.showMeGender = updateData.discovery.showMeGender;
       }
     }
 
@@ -2349,15 +2350,16 @@ module.exports.getStatus = async (req, res) => {
 
 
 
+// modules/profile/profile.controller.js
 
-
-
-
+const BlockedContact = require("../BlockedContact/blockedContacts.model");
+const { formatProfileResponse } = require("./profile.formatter");
 
 module.exports.getMyProfile = async (req, res) => {
   try {
     const userId = req.user._id;
 
+    // 1️⃣ Profile fetch
     const profile = await Profile.findOne({ userId }).lean();
     if (!profile) {
       return res.status(404).json({
@@ -2367,8 +2369,17 @@ module.exports.getMyProfile = async (req, res) => {
       });
     }
 
-    // req.user se email / phone aa raha hoga
-    const formattedProfile = formatProfileResponse(profile, req.user);
+    // 2️⃣ Blocked contacts (separate schema)
+    const blockedContacts = await BlockedContact.find(
+      { userId },
+      { blockedPhoneHash: 1, _id: 0 }
+    ).lean();
+
+    // 3️⃣ Format response
+    const formattedProfile = formatProfileResponse(
+      profile,
+      blockedContacts
+    );
 
     return res.json({
       success: true,
@@ -2376,13 +2387,88 @@ module.exports.getMyProfile = async (req, res) => {
     });
 
   } catch (err) {
-    console.error("Get profile error:", err);
+    console.error("❌ Get profile error:", err); // VERY IMPORTANT
     return res.status(500).json({
       success: false,
-      message: err.message
+      message: "Failed to fetch profile"
     });
   }
 };
+
+
+
+
+
+
+
+// const BlockedContact = require("../BlockedContact/blockedContacts.model");
+
+// const { formatProfileRespon } = require("./profile.formatter");
+
+// module.exports.getMyProfile = async (req, res) => {
+//   try {
+//     const userId = req.user._id;
+
+//     const profile = await Profile.findOne({ userId }).lean();
+//     if (!profile) {
+//       return res.status(404).json({
+//         success: false,
+//         code: "PROFILE_NOT_FOUND",
+//         message: "Profile not found"
+//       });
+//     }
+
+//     const formattedProfile = formatProfileResponse(profile);
+
+//     return res.json({
+//       success: true,
+//       data: formattedProfile
+//     });
+
+//   } catch (err) {
+//     console.error("❌ Get profile error:", err);
+//     return res.status(500).json({
+//       success: false,
+//       message: "Failed to fetch profile"
+//     });
+//   }
+// };
+
+
+
+
+// module.exports.getMyProfile = async (req, res) => {
+//   try {
+//     const userId = req.user._id;
+
+//     const profile = await Profile.findOne({ userId }).lean();
+//     if (!profile) {
+//       return res.status(404).json({
+//         success: false,
+//         code: "PROFILE_NOT_FOUND",
+//         message: "Profile not found"
+//       });
+//     }
+//    const blockedContacts = await BlockedContact.find(
+//       { userId },
+//       { blockedPhoneHash: 1, _id: 0 }
+//     ).lean();
+//     // req.user se email / phone aa raha hoga
+//     const formattedProfile = formatProfileResponse(profile, req.user,blockedContacts);
+
+//     return res.json({
+//       success: true,
+//       data: formattedProfile
+//     });
+
+//   } catch (err) {
+//     console.error("Get profile error:", err);
+//     return res.status(500).json({
+//       success: false,
+//       message: err.message
+//     });
+//   }
+// };
 
 
 

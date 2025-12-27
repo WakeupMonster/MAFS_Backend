@@ -263,18 +263,48 @@ const ProfileSchema = new mongoose.Schema({
 },
 
   // Preferences (15%)
-  preferences: {
-    ageRange: {
+  // preferences: {
+  //   ageRange: {
+  //     min: { type: Number, default: 18, min: 18 },
+  //     max: { type: Number, default: 60, max: 100 }
+  //   },
+  //   distanceRange: { type: Number, default: 50, min: 1, max: 500 },
+  //   genderPreference: [{
+  //     type: String,
+  //     enum: ["male", "female", "non-binary", "trans-man", "trans-women", "everyone", "other"]
+  //   }]
+  // },
+discovery: {
+   distanceRange: { type: Number, default: 50, min: 1, max: 500 },
+   ageRange: {
       min: { type: Number, default: 18, min: 18 },
       max: { type: Number, default: 60, max: 100 }
     },
-    distanceRange: { type: Number, default: 50, min: 1, max: 500 },
-    genderPreference: [{
-      type: String,
-      enum: ["male", "female", "non-binary", "trans-man", "trans-women", "everyone", "other"]
-    }]
+  showMeGender: [String],        // IDs
+  relationshipGoal: {
+  key: {
+    type: String,
+    enum: [
+      "dating",
+      "friendship",
+      "casual",
+      "serious",
+      "networking",
+      "open_to_options"
+    ],
+    // required: true
   },
-
+  title: {
+    type: String,
+    // required: true
+  },
+  subtitle: {
+    type: String,
+    // required: true
+  }
+},
+  globalVisibility: String       // everyone | matches_only
+},
 
 
   // Interests (5%)

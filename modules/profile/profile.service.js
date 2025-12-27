@@ -390,7 +390,7 @@ module.exports.markProfileCompleted = async (userId) => {
 
 
 
-exports.formatProfileResponse = (profile,user = {}) => {
+exports.formatProfileResponse = (profile,user = {},blockedContacts = []) => {
   // Transform the new structure into the old format
   return {
     _id: profile._id,
@@ -420,16 +420,25 @@ exports.formatProfileResponse = (profile,user = {}) => {
     isDiscoverable: profile.isDiscoverable !== undefined ? profile.isDiscoverable : true,
     isMandatoryComplete: profile.isMandatoryComplete || false,
     isProfileComplete: profile.isProfileComplete || false,
-    kyc: profile.kyc || [
-      { type: "selfie", status: "", reason: "" },
-      { type: "doc", status: "", reason: "" }
-    ],
+    // kyc: profile.kyc || [
+    //   { type: "selfie", status: "", reason: "" },
+    //   { type: "doc", status: "", reason: "" }
+    // ],
     languages: profile.attributes?.languages || [],
     location: profile.location || {
       type: "Point",
       coordinates: [0, 0],
       address: ""
     },
+       preferences: {
+      ageRange: {
+        min: profile.preferences?.ageRange?.min ?? 18,
+        max: profile.preferences?.ageRange?.max ?? 60
+      },
+      distanceRange: profile.preferences?.distanceRange ?? 50,
+      genderPreference: profile.preferences?.genderPreference ?? []
+    },
+
     verification: {
   status: profile.kyc?.status || "not_started",
   selfieUrl: profile.kyc?.selfie?.url || null,
@@ -457,10 +466,15 @@ settings: {
       isBlocked: false,
       reason: ""
     },
+      blockedUsers: (profile.blockedUsers || []).map(id => id.toString()),
+
+    blockedContacts: blockedContacts.map(bc => bc.blockedPhoneHash),
    email: user.email || "",
    phone : user.phone || "",
     nickname: profile.nickname || "",
-    dob : profile.dob || "",
+    dob: profile.dob
+  ? profile.dob.toISOString().split("T")[0]
+  : "",
     height: profile.height || "",
     jobtitle: profile.jobtitle || "",
     occupation: profile.occupation || "",
