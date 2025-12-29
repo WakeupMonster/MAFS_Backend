@@ -28,7 +28,7 @@ function formatProfileResponse(profile, blockedContacts = []) {
   : "",
       age: profile.age || calculateAge(profile.dob),
       gender: profile.gender || "",
-      height: profile.height || null,
+      height: profile.height || "",
       about: profile.about || "",
       jobTitle: profile.jobTitle || "",
       company: profile.company || "",

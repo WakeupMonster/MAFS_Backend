@@ -6,7 +6,7 @@ const utils = require("./auth.utils");
 
 // const PHONE_OTP_TTL_MS = Number(1000 * 60 * 5); // 5 min
 const EMAIL_OTP_TTL_MS = Number(1000 * 60 * 10); // 10 min
-const REFRESH_TOKEN_TTL_MS = Number(7 * 24 * 60 * 60 * 1000); // 7 days
+// const REFRESH_TOKEN_TTL_MS = Number(7 * 24 * 60 * 60 * 1000); // 7 days
 
 const OTP_TTL = 300; // 5 minutes
 const RATE_LIMIT_MAX = 2; // max OTP requests allowed
@@ -110,85 +110,220 @@ async function sendPhoneOtp(phone) {
 // }
 
 
+// async function verifyPhoneOtpUnified(phone, otp) {
+//   const redisKey = `login:${phone}`;
+//   const storedOtp = await redis.get(redisKey);
+
+//   if (!storedOtp) throw new Error("OTP expired or not found");
+//   if (storedOtp !== otp) throw new Error("Invalid OTP");
+
+//   let user = await User.findOne({ phone });
+
+//   if (!user) {
+//     user = await User.create({ phone });
+//   }
+
+//   // ✅ Mark phone verified
+//   user.isPhoneVerified = true;
+
+//   // ✅ Generate tokens
+//   const accessToken = utils.generateAccessToken(user);
+//   const refreshTokenRaw = utils.generateRefreshToken();
+//   const refreshHash = utils.hashToken(refreshTokenRaw);
+
+//   user.refreshTokens.push({
+//     tokenHash: refreshHash,
+//     expiresAt: Date.now() + REFRESH_TOKEN_TTL_MS,
+//   });
+
+//   await user.save();
+
+//   // ✅ Update profile onboarding
+//   await profileModel.findOneAndUpdate(
+//     { userId: user._id },
+//     { $set: { "onboardingProgress.phoneVerified": true } },
+//     { upsert: true }
+//   );
+
+//   await redis.del(redisKey);
+
+//   // ✅ IMPORTANT: Manager required fields here
+//   return {
+//       id: user._id,
+//     accessToken,
+//     refreshToken: refreshTokenRaw,
+//       phone: user.phone,
+//       email : user.email || "",
+//       accountStatus: user.accountStatus,
+//       isPhoneVerified: user.isPhoneVerified,
+//       isEmailVerified: user.isEmailVerified,
+//       isPremium: user.isPremium,
+//       premiumExpiresAt: user.premiumExpiresAt,
+//       banDetails: user.banDetails,
+//       deactivationDetails: user.deactivationDetails,
+//       deletionDetails: user.deletionDetails,
+//       onboarding: getNextStep(user)
+//       // nextStep: getNextStep(user)
+//   };
+// }
+
+
+// async function verifyPhoneOtpUnified(phone, otp) {
+//   const redisKey = `login:${phone}`;
+//   const storedOtp = await redis.get(redisKey);
+
+//   if (!storedOtp) throw new Error("OTP expired or not found");
+//   if (storedOtp !== otp) throw new Error("Invalid OTP");
+
+//   // 1. Find User and Profile
+//   let user = await User.findOne({ phone });
+//   const isNewUser = !user;
+
+//   if (!user) {
+//     user = await User.create({ phone });
+//   }
+
+//   // 2. Mark verified and Generate Tokens
+//   user.isPhoneVerified = true;
+//   const accessToken = utils.generateAccessToken(user);
+//   const refreshTokenRaw = utils.generateRefreshToken();
+  
+//   // Save refresh token logic (as per your existing code)
+//   const refreshHash = utils.hashToken(refreshTokenRaw);
+//   user.refreshTokens.push({
+//     tokenHash: refreshHash,
+//     expiresAt: Date.now() + 30 * 24 * 60 * 60 * 1000, 
+//   });
+//   await user.save();
+
+//   // 3. Fetch/Update Profile (Saara profile data yahan se aayega)
+//   const profile = await profileModel.findOneAndUpdate(
+//     { userId: user._id },
+//     { $set: { "onboardingProgress.phoneVerified": true } },
+//     { upsert: true, new: true } // new: true taaki updated data mile
+//   ).lean();
+
+//   await redis.del(redisKey);
+
+//   // 4. THE MASTER RESPONSE (Manager's Requirement)
+//   return {
+//     accessToken,
+//     refreshToken: refreshTokenRaw,
+//     isNewUser,
+//     user: {
+//       // --- Root User Fields ---
+//       id: user._id,
+//       phone: user.phone,
+//       email: user.email || "",
+//       role: user.role,
+//       isPremium: user.isPremium || false,
+//       isPhoneVerified: user.isPhoneVerified,
+//       isEmailVerified: user.isEmailVerified,
+
+//       // --- Nested Profile Data (Exactly as per your JSON) ---
+//       profile: {
+//         nickname: profile.nickname || "",
+//         dob: profile.dob || "",
+//         age: profile.age || null,
+//         gender: profile.gender || "",
+//         height: profile.height || null,
+//         about: profile.about || "",
+//         jobTitle: profile.jobTitle || "",
+//         company: profile.company || "",
+//         school: profile.school || "",
+//         totalCompletion: profile.totalCompletion || 0
+//       },
+//       attributes: profile.attributes || {},
+//       discovery: profile.discovery || {},
+//       photos: profile.photos || [],
+//       location: profile.location || {},
+//       verification: profile.verification || { status: "pending" },
+//       subscription: profile.subscription || {},
+//       settings: profile.settings || {},
+//       blockedContacts: profile.blockedContacts || [],
+//       blockedUsers: profile.blockedUsers || [],
+      
+//       // --- Account Management (The Status Block) ---
+//       account: {
+//         status: user.accountStatus || "active",
+//         banDetails: user.banDetails || { isBanned: false },
+//         deactivationDetails: user.deactivationDetails || { isDeactivated: false },
+//         deletionDetails: user.deletionDetails || { isScheduledForDeletion: false }
+//       },
+      
+//       onboarding: getNextStep(user),
+//       lastProfileUpdate: profile.updatedAt,
+//       createdAt: user.createdAt
+//     }
+//   };
+// }
+
+
+const { formatUserProfile } = require("./auth.formatter");
+
 async function verifyPhoneOtpUnified(phone, otp) {
+  // 1. Redis/OTP Logic...
   const redisKey = `login:${phone}`;
   const storedOtp = await redis.get(redisKey);
+  if (!storedOtp || storedOtp !== otp) throw new Error("Invalid OTP");
 
-  if (!storedOtp) throw new Error("OTP expired or not found");
-  if (storedOtp !== otp) throw new Error("Invalid OTP");
-
+  // 2. User/Profile Fetch
   let user = await User.findOne({ phone });
-  const isNewUser = !user;
+  if (!user) user = await User.create({ phone });
 
-  if (!user) {
-    user = await User.create({ phone });
-  }
-
-  // ✅ Mark phone verified
   user.isPhoneVerified = true;
-
-  // ✅ Generate tokens
   const accessToken = utils.generateAccessToken(user);
   const refreshTokenRaw = utils.generateRefreshToken();
   const refreshHash = utils.hashToken(refreshTokenRaw);
-
-  user.refreshTokens.push({
-    tokenHash: refreshHash,
-    expiresAt: Date.now() + REFRESH_TOKEN_TTL_MS,
-  });
-
-  await user.save();
-
-  // ✅ Update profile onboarding
-  await profileModel.findOneAndUpdate(
-    { userId: user._id },
-    { $set: { "onboardingProgress.phoneVerified": true } },
-    { upsert: true }
+  const expiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000); // 30 din ki expiry
+  // ... Token Save Logic ...
+  user = await User.findByIdAndUpdate(
+    user._id,
+    {
+      $set: { isPhoneVerified: true, isNewUser: false },
+      $push: { 
+        refreshTokens: { tokenHash: refreshHash, expiresAt: expiresAt } 
+      }
+    },
+    { new: true } // Taaki updated user return ho
   );
+  // await user.save();
+
+  // const profile = await profileModel.findOne({ userId: user._id }).lean();
+  const profile = await profileModel.findOneAndUpdate(
+    { userId: user._id },
+    { $set: { "onboardingProgress.phoneVerified": true } }, // Minimal update to trigger upsert
+    { upsert: true, new: true, setDefaultsOnInsert: true }
+  ).lean();
 
   await redis.del(redisKey);
 
-  // ✅ IMPORTANT: Manager required fields here
+  // 3. Final Response Using Formatter
   return {
-      id: user._id,
     accessToken,
     refreshToken: refreshTokenRaw,
-    isNewUser,
-      phone: user.phone,
-      email : user.email || "",
-      role: user.role,
-      accountStatus: user.accountStatus,
-      isPhoneVerified: user.isPhoneVerified,
-      isEmailVerified: user.isEmailVerified,
-      isPremium: user.isPremium,
-      premiumExpiresAt: user.premiumExpiresAt,
-
-      banDetails: user.banDetails,
-      deactivationDetails: user.deactivationDetails,
-      deletionDetails: user.deletionDetails,
-      onboarding: getNextStep(user)
-      // nextStep: getNextStep(user)
+    isNewUser: !user.firstName, 
+    user: formatUserProfile(user, profile) // Yahan magic ho raha hai
   };
 }
 
+// function getNextStep(user) {
+//   if (!user.isEmailVerified) {
+//     return {
+//       currentScreenSlug : "email_verification",
+//       message: "Verify your email",
+//     };
+//   }
 
-function getNextStep(user) {
-  if (!user.isEmailVerified) {
-    return {
-      currentScreenSlug : "email_verification",
-      message: "Verify your email",
-    };
-  }
+//   // Check profile completion via Profile model
+//   // Return appropriate next step
 
-  // Check profile completion via Profile model
-  // Return appropriate next step
-
-  return {
-    currentScreenSlug : "profile_setup",
-    isComplete : user.isProfileCompleted,
-    message: "Complete your profile",
-  };
-}
+//   return {
+//     currentScreenSlug : "profile_setup",
+//     isComplete : user.isProfileCompleted,
+//     message: "Complete your profile",
+//   };
+// }
 
 async function verifyPhoneOtp(phone, otp) {
   const user = await User.findOne({ phone });
@@ -251,6 +386,46 @@ async function sendEmailOtp(token, email) {
   return { ok: true };
 }
 
+
+
+
+async function verifyEmailOtp(token, otp) {
+  const decoded = utils.verifyToken(token);
+
+  const user = await User.findById(decoded.userId);
+  if (!user) throw new Error("User not found");
+
+  if (!user.emailOtp || !user.emailOtpExpires) throw new Error("OTP not found");
+  if (Date.now() > user.emailOtpExpires) throw new Error("OTP expired");
+  if (String(otp) !== String(user.emailOtp)) throw new Error("Invalid OTP");
+
+  // Email mark as verified
+  user.isEmailVerified = true;
+  user.emailOtp = undefined;
+  user.emailOtpExpires = undefined;
+  await user.save();
+
+  // Profile update and fetch
+  const profile = await profileModel.findOneAndUpdate(
+    { userId: user._id },
+    { $set: { "onboardingProgress.emailVerified": true } },
+    { upsert: true, new: true }
+  ).lean();
+
+  // Formatter use karke pura data return karo
+  return {
+    accessToken: utils.generateAccessToken(user), // Optional: Naya token de sakte ho
+    user: formatUserProfile(user, profile)
+  };
+}
+
+
+
+
+
+
+
+
 // async function verifyEmailOtp(token, otp) {
 //   // Verify token and get user
 //   const decoded = utils.verifyToken(token);
@@ -298,37 +473,37 @@ async function sendEmailOtp(token, email) {
 
 
 
-async function verifyEmailOtp(token, otp) {
-  const decoded = utils.verifyToken(token);
+// async function verifyEmailOtp(token, otp) {
+//   const decoded = utils.verifyToken(token);
 
-  const user = await User.findById(decoded.userId);
-  if (!user) {
-    throw new Error("User not found");
-  }
+//   const user = await User.findById(decoded.userId);
+//   if (!user) {
+//     throw new Error("User not found");
+//   }
 
-  if (!user.emailOtp || !user.emailOtpExpires) {
-    throw new Error("OTP not found");
-  }
+//   if (!user.emailOtp || !user.emailOtpExpires) {
+//     throw new Error("OTP not found");
+//   }
 
-  if (Date.now() > user.emailOtpExpires) {
-    throw new Error("OTP expired");
-  }
+//   if (Date.now() > user.emailOtpExpires) {
+//     throw new Error("OTP expired");
+//   }
 
-  if (String(otp) !== String(user.emailOtp)) {
-    throw new Error("Invalid OTP");
-  }
+//   if (String(otp) !== String(user.emailOtp)) {
+//     throw new Error("Invalid OTP");
+//   }
 
-  user.isEmailVerified = true;
-  user.emailOtp = undefined;
-  user.emailOtpExpires = undefined;
+//   user.isEmailVerified = true;
+//   user.emailOtp = undefined;
+//   user.emailOtpExpires = undefined;
 
-  await user.save();
+//   await user.save();
 
-  return {
-    user,
-    nextStep: getNextStep(user),
-  };
-}
+//   return {
+//     user,
+//     nextStep: getNextStep(user),
+//   };
+// }
 
 async function loginSendOtp(phone, ip) {
   if (!phone) throw new Error("Phone is required");
@@ -461,55 +636,100 @@ async function loginVerifyOtp(phone, otp) {
 // }
 
 
-const Profile = require("../profile/profile.model");
-const { formatProfileResponse } = require("../profile/profile.service");
+
+
+
 
 async function refreshAccessToken(refreshTokenRaw) {
-  // 🔐 1) Hash incoming token
+  // 1. Hash incoming token to compare with DB
   const incomingHash = utils.hashToken(refreshTokenRaw);
 
-  // 👤 2) Find user by refresh token
+  // 2. Find user who has this specific hash
   const user = await User.findOne({
     "refreshTokens.tokenHash": incomingHash
   });
 
   if (!user) {
-    throw new Error("Invalid refresh token");
+    throw new Error("Invalid refresh token"); // Database mein match nahi mila
   }
 
-  // 🧹 3) Remove expired tokens
+  // 3. Purane/Expired tokens hatao (Maintenance)
   user.refreshTokens = user.refreshTokens.filter(
     rt => rt.expiresAt > Date.now()
   );
 
-  // 🔍 4) Ensure token still exists
-  const stillValid = user.refreshTokens.some(
+  // 4. Double check ki current wala abhi bhi list mein hai (Expired toh nahi tha?)
+  const isStillValid = user.refreshTokens.some(
     rt => rt.tokenHash === incomingHash
   );
 
-  if (!stillValid) {
+  if (!isStillValid) {
+    await user.save(); // Clean up array in DB
     throw new Error("Refresh token expired");
   }
 
-  // 🔑 5) Generate new access token
+  // 5. Naya Access Token generate karo
   const accessToken = utils.generateAccessToken(user);
 
-  // 📄 6) Fetch profile
-  const profile = await Profile.findOne({ userId: user._id }).lean();
-  if (!profile) {
-    throw new Error("Profile not found");
-  }
+  // 6. Profile fetch karo (Empty string handling ke liye)
+  const profile = await profileModel.findOne({ userId: user._id }).lean();
 
   await user.save();
 
-  // 🎯 7) SAME formatter as getMyProfile
-  const formattedProfile = formatProfileResponse(profile, user);
-
+  // 7. RETURN MASTER FORMAT
   return {
     accessToken,
-    profile: formattedProfile
+    refreshToken: refreshTokenRaw, // Manager requirement: Refresh token wapas bhejna
+    user: formatUserProfile(user, profile)
   };
 }
+
+// async function refreshAccessToken(refreshTokenRaw) {
+//   // 🔐 1) Hash incoming token
+//   const incomingHash = utils.hashToken(refreshTokenRaw);
+
+//   // 👤 2) Find user by refresh token
+//   const user = await User.findOne({
+//     "refreshTokens.tokenHash": incomingHash
+//   });
+
+//   if (!user) {
+//     throw new Error("Invalid refresh token");
+//   }
+
+//   // 🧹 3) Remove expired tokens
+//   user.refreshTokens = user.refreshTokens.filter(
+//     rt => rt.expiresAt > Date.now()
+//   );
+
+//   // 🔍 4) Ensure token still exists
+//   const stillValid = user.refreshTokens.some(
+//     rt => rt.tokenHash === incomingHash
+//   );
+
+//   if (!stillValid) {
+//     throw new Error("Refresh token expired");
+//   }
+
+//   // 🔑 5) Generate new access token
+//   const accessToken = utils.generateAccessToken(user);
+
+//   // 📄 6) Fetch profile
+//   const profile = await Profile.findOne({ userId: user._id }).lean();
+//   if (!profile) {
+//     throw new Error("Profile not found");
+//   }
+
+//   await user.save();
+
+//   // 🎯 7) SAME formatter as getMyProfile
+//   const formattedProfile = formatProfileResponse(profile, user);
+
+//   return {
+//     accessToken,
+//     profile: formattedProfile
+//   };
+// }
 
 
 

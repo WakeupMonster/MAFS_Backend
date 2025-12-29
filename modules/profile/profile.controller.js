@@ -1299,8 +1299,13 @@ exports.updateProfile = async (req, res) => {
 
     profile.lastProfileUpdate = new Date();
     await profile.save();
+    
+    const blockedContacts = await BlockedContact.find({ userId }).lean();
+    const formatted = formatProfileResponse(profile, blockedContacts);
 
-    res.json({ success: true, message: "Profile updated successfully" });
+    res.json({ success: true, message: "Profile updated successfully" , data: formatted });
+
+    // res.json({ success: true, message: "Profile updated successfully" });
 
   } catch (error) {
     console.error("Update Error:", error);
