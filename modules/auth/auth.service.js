@@ -155,6 +155,7 @@ async function verifyPhoneOtpUnified(phone, otp) {
     refreshToken: refreshTokenRaw,
     isNewUser,
       phone: user.phone,
+      email : user.email || "",
       role: user.role,
       accountStatus: user.accountStatus,
       isPhoneVerified: user.isPhoneVerified,

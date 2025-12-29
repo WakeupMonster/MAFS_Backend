@@ -25,12 +25,12 @@ const { allowDating } = require("../../../common/middlewares/allowDating.middlew
 router.use(auth);
 router.use(allowDating)
 router.get("/feed", validation.feed, controllerOld.getFeed);
-router.post("/action",  controllerOld.action);
-router.post("/undo", validation.undo, controllerOld.undo);
+// router.post("/action",  controllerOld.action);
+router.post("/unmatch",  controllerOld.unmatchUser);
 router.get("/matches", controllerOld.getMatches);
 
 // CREATE block or report
-router.post("/", controller.createAction);
+router.post("/action", controller.action);
 
 // GET all blocked users
 router.get("/blocked", controller.getBlockedUsers);
@@ -41,7 +41,7 @@ router.get("/reported", controller.getReportedUsers);
 // UNBLOCK user
 router.delete("/", controller.unblockUser);
 
-router.get("/limits", controllerOld.getLimits);
+router.get("/limits", controller.getLimits);
 
 router.get("/keen", controllerOld.getKeen);
 router.get("/superkeen", controllerOld.getSuperKeen);

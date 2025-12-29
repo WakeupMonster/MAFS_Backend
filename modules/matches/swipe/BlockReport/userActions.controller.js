@@ -15,60 +15,138 @@ try {
 
 const SWIPE_QUEUE_PREFIX = "swipe_queue:"; 
 
-// CREATE BLOCK or REPORT
-exports.createAction = async (req, res) => {
+const UserLimit = require("../userLimits.model"); 
+
+exports.action = async (req, res) => {
+  const session = await mongoose.startSession();
   try {
-    const { actionType, targetId, reason } = req.body;
-    console.log("createAction:")
-    const actorId = req.user._id;
-      if (actorId.toString() === targetId.toString()) {
-      return res.status(400).json({ 
-        success: false, 
-        message: "You cannot block yourself" 
-      });
-    }
-    if (!actionType || !targetId) {
-      return res.status(400).json({ success: false, message: "Missing fields" });
+    const swiperId = req.user._id;
+    const { targetId, action } = req.body; // action: 'like', 'pass', 'superlike'
+
+    if (swiperId.toString() === targetId.toString()) {
+        return res.status(400).json({ success: false, message: "Self-swipe not allowed" });
     }
 
-    // Only require reason for report
-    if (actionType === "report" && !reason) {
-      return res.status(400).json({ success: false, message: "Reason is required for report" });
-    }
+    await session.withTransaction(async () => {
+      // 1️⃣ Check Daily Limits (Likes/Superlikes)
+      let limits = await UserLimit.findOne({ userId: swiperId }).session(session);
+      if (!limits) limits = new UserLimit({ userId: swiperId });
 
-    await UserAction.create({
-      actionType,
-      actorId,
-      targetId,
-      reason: actionType === "report" ? reason : null
+      limits.resetIfNeeded();
+
+      if (action === "superlike") {
+        const SUPERLIKE_LIMIT = 5; // Production value
+        if (limits.dailySuperlikes >= SUPERLIKE_LIMIT) {
+          throw new Error("Daily Superlike limit reached! Try again tomorrow.");
+        }
+        limits.dailySuperlikes += 1;
+        console.log(limits.dailySuperlikes," superlike")
+      } else if (action === "like") {
+        const LIKE_LIMIT = 50; 
+        if (limits.dailyLikes >= LIKE_LIMIT) {
+          throw new Error("Daily Like limit reached!");
+        }
+        limits.dailyLikes += 1;
+      }
+
+      // 2️⃣ Save Swipe
+      await swipeModel.create([{ swiperId, targetId, action }], { session });
+      await limits.save({ session });
+
+
+      // 3️⃣ Match Logic (Only for Like/Superlike)
+      if (action === "like" || action === "superlike") {
+        const reverseSwipe = await swipeModel.findOne({
+          swiperId: targetId,
+          targetId: swiperId,
+          action: { $in: ["like", "superlike"] }
+        }).session(session);
+
+        if (reverseSwipe) {
+          // IT'S A MATCH! 
+          await Match.create([{ users: [swiperId, targetId] }], { session });
+          
+          // Frontend ko turant batane ke liye
+          res.locals.isMatch = true; 
+        }
+      }
+
+      // 4️⃣ Clear Redis Feed Cache for both users
+      if (redis) {
+        await redis.del(`feed:${swiperId}`);
+        await redis.del(`feed:${targetId}`);
+      }
     });
-     await Match.findOneAndDelete({
-      users: { $all: [actorId, targetId] }
-    });
 
-    if (redis) {
-      const queueKey = SWIPE_QUEUE_PREFIX + actorId;
-      await redis.del(queueKey);
-    }
-
+    session.endSession();
     return res.json({
       success: true,
-      message: `${actionType} action saved successfully`
+      isMatch: res.locals.isMatch || false,
+      message: `Action '${action}' recorded successfully`
     });
 
   } catch (err) {
-    console.log("createAction error:", err);
-
-    if (err.code === 11000) {
-      return res.status(400).json({
-        success: false,
-        message: "You already performed this action on this user"
-      });
-    }
-
-    return res.status(500).json({ success: false, message: "Server error" });
+    session.endSession();
+    return res.status(400).json({ success: false, message: err.message });
   }
 };
+
+
+
+// CREATE BLOCK or REPORT
+// exports.createAction = async (req, res) => {
+//   try {
+//     const { actionType, targetId, reason } = req.body;
+//     console.log("createAction:")
+//     const actorId = req.user._id;
+//       if (actorId.toString() === targetId.toString()) {
+//       return res.status(400).json({ 
+//         success: false, 
+//         message: "You cannot block yourself" 
+//       });
+//     }
+//     if (!actionType || !targetId) {
+//       return res.status(400).json({ success: false, message: "Missing fields" });
+//     }
+
+//     // Only require reason for report
+//     if (actionType === "report" && !reason) {
+//       return res.status(400).json({ success: false, message: "Reason is required for report" });
+//     }
+
+//     await UserAction.create({
+//       actionType,
+//       actorId,
+//       targetId,
+//       reason: actionType === "report" ? reason : null
+//     });
+//      await Match.findOneAndDelete({
+//       users: { $all: [actorId, targetId] }
+//     });
+
+//     if (redis) {
+//       const queueKey = SWIPE_QUEUE_PREFIX + actorId;
+//       await redis.del(queueKey);
+//     }
+
+//     return res.json({
+//       success: true,
+//       message: `${actionType} action saved successfully`
+//     });
+
+//   } catch (err) {
+//     console.log("createAction error:", err);
+
+//     if (err.code === 11000) {
+//       return res.status(400).json({
+//         success: false,
+//         message: "You already performed this action on this user"
+//       });
+//     }
+
+//     return res.status(500).json({ success: false, message: "Server error" });
+//   }
+// };
 
 // GET ALL BLOCKED USERS
 exports.getBlockedUsers = async (req, res) => {
@@ -198,3 +276,75 @@ exports.unblockUser = async (req, res) => {
     });
   }
 };
+
+
+
+exports.getLimits = async (req, res) => {
+  try {
+    const userId = req.user._id;
+    let limits = await UserLimit.findOne({ userId });
+    console.log(limits.dailySuperlikes,"likie")
+    
+    if (!limits) limits = await UserLimit.create({ userId });
+    limits.resetIfNeeded();
+
+    return res.json({
+      success: true,
+      data: {
+        likesRemaining: Math.max(0, 50 - limits.dailyLikes),
+        superlikesRemaining: Math.max(0, 5 - limits.dailySuperlikes),
+        totalLikesUsed: limits.dailyLikes,
+        totalSuperlikesUsed: limits.dailySuperlikes,
+        nextReset: "Midnight (Local Time)"
+      }
+    });
+  // eslint-disable-next-line no-unused-vars
+  } catch (err) {
+    res.status(500).json({ success: false, message: "Could not fetch limits" });
+  }
+};
+
+
+
+
+
+// exports.getLimits = async (req, res) => {
+//   try {
+//     const userId = req.user._id;
+//     const profile = await Profile.findOne({ userId }); // Aapka current profile model
+    
+//     let limits = await UserLimit.findOne({ userId });
+//     if (!limits) limits = await UserLimit.create({ userId });
+//     limits.resetIfNeeded();
+
+//     // Subscription ke basis par limits set karna
+//     const isPremium = profile.subscription?.isActive || false;
+    
+//     // Configurable Limits
+//     const MAX_FREE_LIKES = 50;
+//     const MAX_FREE_SUPERLIKES = 1;
+//     const MAX_PREMIUM_SUPERLIKES = 5;
+
+//     return res.json({
+//       success: true,
+//       data: {
+//         plan: profile.subscription?.planId || "free",
+//         isPremium: isPremium,
+//         likes: {
+//           remaining: isPremium ? 999 : Math.max(0, MAX_FREE_LIKES - limits.dailyLikes),
+//           total: isPremium ? "Unlimited" : MAX_FREE_LIKES
+//         },
+//         superlikes: {
+//           remaining: isPremium 
+//             ? Math.max(0, MAX_PREMIUM_SUPERLIKES - limits.dailySuperlikes) 
+//             : Math.max(0, MAX_FREE_SUPERLIKES - limits.dailySuperlikes),
+//           total: isPremium ? MAX_PREMIUM_SUPERLIKES : MAX_FREE_SUPERLIKES
+//         },
+//         boosts: profile.subscription?.boostsCount || 0,
+//         rewinds: profile.subscription?.rewindsCount || 0
+//       }
+//     });
+//   } catch (err) {
+//     res.status(500).json({ success: false, message: "Error fetching limits" });
+//   }
+// };

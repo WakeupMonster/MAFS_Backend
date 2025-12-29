@@ -1225,394 +1225,498 @@ function formatResponse(profile) {
 //   }
 // };
 
+const BlockedContact = require("../BlockedContact/blockedContacts.model");
+const { formatProfileResponse } = require("./profile.formatter");
 
-// In your profile.controller.js
 exports.updateProfile = async (req, res) => {
   try {
     const userId = req.user._id;
     const updateData = req.body;
-    const profile = await Profile.findOne({ userId });
+    let profile = await Profile.findOne({ userId });
 
     if (!profile) {
-      return res.status(404).json({
-        success: false,
-        code: "PROFILE_NOT_FOUND",
-        message: "Profile not found"
-      });
+      return res.status(404).json({ success: false, message: "Profile not found" });
     }
 
-
-     if (updateData.profile || updateData.attributes || updateData.discovery) {
-      const { profile: profileData, attributes} = updateData;
+    // --- 1. Basic Profile Update ---
+    if (updateData.profile) {
+      const p = updateData.profile;
+      const basicFields = ['nickname', 'dob', 'gender', 'height', 'about', 'jobTitle', 'company', 'school', 'pronouns', 'weight'];
       
-      // 1. Update profile fields
-      if (profileData) {
-        // Map new structure to existing fields
-        if (profileData.about !== undefined) profile.about_me = profileData.about;
-        if (profileData.jobTitle !== undefined) profile.jobtitle = profileData.jobTitle;
-        
-        // Direct field updates
-        const profileFields = ['nickname', 'dob', 'age', 'gender', 'height', 'company', 'school','occupation' ];
-        profileFields.forEach(field => {
-          if (profileData[field] !== undefined) {
-            profile[field] = profileData[field];
-          }
-        });
-      }
-      // 2. Handle attributes
-      if (attributes) {
-        profile.attributes = profile.attributes || {};
-
-// if (attributes.relationshipGoal) {
-//   profile.attributes.relationshipGoal = {
-//     title: attributes.relationshipGoal.title || "",
-//     subtitle: attributes.relationshipGoal.subtitle || ""
-//   };
-// }
-
-        
-        // Basic attributes
-        const attributeFields = [
-          'zodiac', 'education', 'familyPlans', 'personalityType', 
-          'communicationStyle', 'loveStyle', 'pets', 'drinking',
-          'smoking', 'workout', 'dietary', 'sleeping', 'socialMedia', 'religion'
-        ];
-        
-        attributeFields.forEach(field => {
-          if (attributes[field] !== undefined) {
-            profile.attributes[field] = attributes[field];
-          }
-        });
-        // Array fields
-        const arrayFields = ['languages', 'interests', 'music', 'movies', 'books', 'travel'];
-        arrayFields.forEach(field => {
-          if (attributes[field] !== undefined) {
-            profile.attributes[field] = Array.isArray(attributes[field]) 
-              ? attributes[field] 
-              : [attributes[field]];
-          }
-        });
-      }
-    }
-
-    // Helper function to safely update fields
-    const updateField = (field, value, trim = true) => {
-      if (value !== undefined) {
-        profile[field] = trim ? String(value).trim() : value;
-      }
-    };
-
-    // Basic Info
-    if (updateData.fullName !== undefined) {
-      profile.fullName = updateData.fullName.trim();
-    }
-
-    if (updateData.nickname !== undefined) {
-      const nickname = updateData.nickname.trim();
-      const existing = await Profile.findOne({
-        nickname,
-        userId: { $ne: userId }
+      basicFields.forEach(field => {
+        if (p[field] !== undefined) profile[field] = p[field];
       });
-      if (existing) {
-        return res.status(400).json({
-          success: false,
-          code: "NICKNAME_TAKEN",
-          message: "Nickname already taken"
-        });
+
+      // Nickname uniqueness check
+      if (p.nickname) {
+        const existing = await Profile.findOne({ nickname: p.nickname, userId: { $ne: userId } });
+        if (existing) return res.status(400).json({ success: false, code: "NICKNAME_TAKEN", message: "Nickname taken" });
       }
-      profile.nickname = nickname;
     }
 
-    if (updateData.gender !== undefined) {
-      const validGenders = ["male", "female", "non-binary", "trans-man", "trans-women", "genderqueer", "everyone", "other"];
-      if (!validGenders.includes(updateData.gender)) {
-        return res.status(400).json({
-          success: false,
-          code: "INVALID_GENDER",
-          message: "Invalid gender value"
-        });
-      }
-      profile.gender = updateData.gender;
+    // --- 2. Attributes Update (Figma Traits) ---
+    if (updateData.attributes) {
+      const attr = updateData.attributes;
+      profile.attributes = profile.attributes || {};
+      
+      const traitFields = [
+        'zodiac', 'education', 'familyPlans', 'personalityType', 'communicationStyle', 
+        'loveStyle', 'bloodType', 'covidVaccine', 'religion', 'pets', 'drinking', 
+        'smoking', 'workout', 'dietary', 'sleeping', 'socialMedia'
+      ];
+
+      traitFields.forEach(field => {
+        if (attr[field] !== undefined) profile.attributes[field] = attr[field];
+      });
+
+      // Array Traits
+      const arrayTraits = ['languages', 'interests', 'music', 'movies', 'books', 'travel'];
+      arrayTraits.forEach(field => {
+        if (attr[field] !== undefined) profile.attributes[field] = Array.isArray(attr[field]) ? attr[field] : [attr[field]];
+      });
     }
 
-    if (updateData.dob !== undefined) {
-      const dob = new Date(updateData.dob);
-      if (isNaN(dob.getTime())) {
-        return res.status(400).json({
-          success: false,
-          code: "INVALID_DOB",
-          message: "Invalid date of birth"
-        });
+    // --- 3. Discovery Preferences ---
+    if (updateData.discovery) {
+      const disc = updateData.discovery;
+      profile.discovery = profile.discovery || {};
+
+      if (disc.distanceRange) profile.discovery.distanceRange = disc.distanceRange;
+      if (disc.relationshipGoal) profile.discovery.relationshipGoal = disc.relationshipGoal;
+      if (disc.globalVisibility) profile.discovery.globalVisibility = disc.globalVisibility;
+      
+      if (disc.ageRange) {
+        profile.discovery.ageRange = {
+          min: disc.ageRange.min || profile.discovery.ageRange.min,
+          max: disc.ageRange.max || profile.discovery.ageRange.max
+        };
       }
-      profile.dob = dob;
-      // Calculate age
-      const today = new Date();
-      const birthDate = new Date(dob);
-      let age = today.getFullYear() - birthDate.getFullYear();
-      const m = today.getMonth() - birthDate.getMonth();
-      if (m < 0 || (m === 0 && today.getDate() < birthDate.getDate())) {
-        age--;
+
+      if (disc.showMeGender) {
+        profile.discovery.showMeGender = Array.isArray(disc.showMeGender) ? disc.showMeGender : [disc.showMeGender];
       }
-      profile.age = age;
     }
 
-    if(updateData.interests !== undefined){
-      profile.interests = updateData.interests;
-    }
-    // About Me
-    if (updateData.about_me !== undefined) {
-      profile.about_me = updateData.about_me.trim();
-    }
+    profile.lastProfileUpdate = new Date();
+    await profile.save();
 
-    // Basic Details
-    updateField('height', updateData.height);
-    updateField('occupation', updateData.occupation);
-    updateField('company', updateData.company);
-    updateField('school', updateData.school);
-    updateField('jobtitle', updateData.jobtitle);
+    res.json({ success: true, message: "Profile updated successfully" });
+
+  } catch (error) {
+    console.error("Update Error:", error);
+    res.status(500).json({ success: false, message: "Internal server error" });
+  }
+};
+
+exports.getMyProfile = async (req, res) => {
+  try {
+    const userId = req.user._id;
+    const profile = await Profile.findOne({ userId });
+    
+    if (!profile) return res.status(404).json({ success: false, message: "Profile not found" });
+
+    const blockedContacts = await BlockedContact.find({ userId }).lean();
+    const formatted = formatProfileResponse(profile, blockedContacts);
+
+    res.json({ success: true, data: formatted });
+  // eslint-disable-next-line no-unused-vars
+  } catch (err) {
+    res.status(500).json({ success: false, message: "Failed to fetch profile" });
+  }
+};
+
+
+
+
+
+
+// purana wala hain In your profile.controller.js
+// exports.updateProfile = async (req, res) => {
+//   try {
+//     const userId = req.user._id;
+//     const updateData = req.body;
+//     const profile = await Profile.findOne({ userId });
+
+//     if (!profile) {
+//       return res.status(404).json({
+//         success: false,
+//         code: "PROFILE_NOT_FOUND",
+//         message: "Profile not found"
+//       });
+//     }
+
+
+//      if (updateData.profile || updateData.attributes || updateData.discovery) {
+//       const { profile: profileData, attributes} = updateData;
+      
+//       // 1. Update profile fields
+//       if (profileData) {
+//         // Map new structure to existing fields
+//         if (profileData.about !== undefined) profile.about_me = profileData.about;
+//         if (profileData.jobTitle !== undefined) profile.jobtitle = profileData.jobTitle;
+        
+//         // Direct field updates
+//         const profileFields = ['nickname', 'dob', 'age', 'gender', 'height', 'company', 'school','occupation' ];
+//         profileFields.forEach(field => {
+//           if (profileData[field] !== undefined) {
+//             profile[field] = profileData[field];
+//           }
+//         });
+//       }
+//       // 2. Handle attributes
+//       if (attributes) {
+//         profile.attributes = profile.attributes || {};
+
+// // if (attributes.relationshipGoal) {
+// //   profile.attributes.relationshipGoal = {
+// //     title: attributes.relationshipGoal.title || "",
+// //     subtitle: attributes.relationshipGoal.subtitle || ""
+// //   };
+// // }
+
+        
+//         // Basic attributes
+//         const attributeFields = [
+//           'zodiac', 'education', 'familyPlans', 'personalityType', 
+//           'communicationStyle', 'loveStyle', 'pets', 'drinking',
+//           'smoking', 'workout', 'dietary', 'sleeping', 'socialMedia', 'religion'
+//         ];
+        
+//         attributeFields.forEach(field => {
+//           if (attributes[field] !== undefined) {
+//             profile.attributes[field] = attributes[field];
+//           }
+//         });
+//         // Array fields
+//         const arrayFields = ['languages', 'interests', 'music', 'movies', 'books', 'travel'];
+//         arrayFields.forEach(field => {
+//           if (attributes[field] !== undefined) {
+//             profile.attributes[field] = Array.isArray(attributes[field]) 
+//               ? attributes[field] 
+//               : [attributes[field]];
+//           }
+//         });
+//       }
+//     }
+
+//     // Helper function to safely update fields
+//     const updateField = (field, value, trim = true) => {
+//       if (value !== undefined) {
+//         profile[field] = trim ? String(value).trim() : value;
+//       }
+//     };
+
+//     // Basic Info
+//     if (updateData.fullName !== undefined) {
+//       profile.fullName = updateData.fullName.trim();
+//     }
+
+//     if (updateData.nickname !== undefined) {
+//       const nickname = updateData.nickname.trim();
+//       const existing = await Profile.findOne({
+//         nickname,
+//         userId: { $ne: userId }
+//       });
+//       if (existing) {
+//         return res.status(400).json({
+//           success: false,
+//           code: "NICKNAME_TAKEN",
+//           message: "Nickname already taken"
+//         });
+//       }
+//       profile.nickname = nickname;
+//     }
+
+//     if (updateData.gender !== undefined) {
+//       const validGenders = ["male", "female", "non-binary", "trans-man", "trans-women", "genderqueer", "everyone", "other"];
+//       if (!validGenders.includes(updateData.gender)) {
+//         return res.status(400).json({
+//           success: false,
+//           code: "INVALID_GENDER",
+//           message: "Invalid gender value"
+//         });
+//       }
+//       profile.gender = updateData.gender;
+//     }
+
+//     if (updateData.dob !== undefined) {
+//       const dob = new Date(updateData.dob);
+//       if (isNaN(dob.getTime())) {
+//         return res.status(400).json({
+//           success: false,
+//           code: "INVALID_DOB",
+//           message: "Invalid date of birth"
+//         });
+//       }
+//       profile.dob = dob;
+//       // Calculate age
+//       const today = new Date();
+//       const birthDate = new Date(dob);
+//       let age = today.getFullYear() - birthDate.getFullYear();
+//       const m = today.getMonth() - birthDate.getMonth();
+//       if (m < 0 || (m === 0 && today.getDate() < birthDate.getDate())) {
+//         age--;
+//       }
+//       profile.age = age;
+//     }
+
+//     if(updateData.interests !== undefined){
+//       profile.interests = updateData.interests;
+//     }
+//     // About Me
+//     if (updateData.about_me !== undefined) {
+//       profile.about_me = updateData.about_me.trim();
+//     }
+
+//     // Basic Details
+//     updateField('height', updateData.height);
+//     updateField('occupation', updateData.occupation);
+//     updateField('company', updateData.company);
+//     updateField('school', updateData.school);
+//     updateField('jobtitle', updateData.jobtitle);
 
     
 
-    // Languages
-    if (Array.isArray(updateData.languages)) {
-      profile.languages = updateData.languages;
-    }
+//     // Languages
+//     if (Array.isArray(updateData.languages)) {
+//       profile.languages = updateData.languages;
+//     }
 
-    // Lifestyle
-    // if (updateData.lifestyle) {
-    //   if (updateData.lifestyle.pets) {
-    //     const validPets = ["dog", "cat", "bird", "fish"];
-    //     if (!validPets.includes(updateData.lifestyle.pets)) {
-    //       return res.status(400).json({
-    //         success: false,
-    //         code: "INVALID_PET_TYPE",
-    //         message: "Invalid pet type"
-    //       });
-    //     }
-    //     profile.lifestyle = profile.lifestyle || {};
-    //     profile.lifestyle.pets = updateData.lifestyle.pets;
-    //   }
+//     // Lifestyle
+//     // if (updateData.lifestyle) {
+//     //   if (updateData.lifestyle.pets) {
+//     //     const validPets = ["dog", "cat", "bird", "fish"];
+//     //     if (!validPets.includes(updateData.lifestyle.pets)) {
+//     //       return res.status(400).json({
+//     //         success: false,
+//     //         code: "INVALID_PET_TYPE",
+//     //         message: "Invalid pet type"
+//     //       });
+//     //     }
+//     //     profile.lifestyle = profile.lifestyle || {};
+//     //     profile.lifestyle.pets = updateData.lifestyle.pets;
+//     //   }
 
-    //   if (updateData.lifestyle.drinking !== undefined) {
-    //     const validDrinking = ["never", "socially", "regularly"];
-    //     if (!validDrinking.includes(updateData.lifestyle.drinking)) {
-    //       return res.status(400).json({
-    //         success: false,
-    //         code: "INVALID_DRINKING_VALUE",
-    //         message: "Invalid drinking value"
-    //       });
-    //     }
-    //     profile.lifestyle = profile.lifestyle || {};
-    //     profile.lifestyle.drinking = updateData.lifestyle.drinking;
-    //   }
+//     //   if (updateData.lifestyle.drinking !== undefined) {
+//     //     const validDrinking = ["never", "socially", "regularly"];
+//     //     if (!validDrinking.includes(updateData.lifestyle.drinking)) {
+//     //       return res.status(400).json({
+//     //         success: false,
+//     //         code: "INVALID_DRINKING_VALUE",
+//     //         message: "Invalid drinking value"
+//     //       });
+//     //     }
+//     //     profile.lifestyle = profile.lifestyle || {};
+//     //     profile.lifestyle.drinking = updateData.lifestyle.drinking;
+//     //   }
 
-    //   if (updateData.lifestyle.exercise !== undefined) {
-    //     const validExercise = ["never", "sometimes", "regularly", "daily"];
-    //     if (!validExercise.includes(updateData.lifestyle.exercise)) {
-    //       return res.status(400).json({
-    //         success: false,
-    //         code: "INVALID_EXERCISE_VALUE",
-    //         message: "Invalid exercise value"
-    //       });
-    //     }
-    //     profile.lifestyle = profile.lifestyle || {};
-    //     profile.lifestyle.exercise = updateData.lifestyle.exercise;
-    //   }
-    // }
-// In your updateProfile function
+//     //   if (updateData.lifestyle.exercise !== undefined) {
+//     //     const validExercise = ["never", "sometimes", "regularly", "daily"];
+//     //     if (!validExercise.includes(updateData.lifestyle.exercise)) {
+//     //       return res.status(400).json({
+//     //         success: false,
+//     //         code: "INVALID_EXERCISE_VALUE",
+//     //         message: "Invalid exercise value"
+//     //       });
+//     //     }
+//     //     profile.lifestyle = profile.lifestyle || {};
+//     //     profile.lifestyle.exercise = updateData.lifestyle.exercise;
+//     //   }
+//     // }
+// // In your updateProfile function
 
-    // Basics
-    if (updateData.basics) {
-      profile.basics = profile.basics || {};
+//     // Basics
+//     if (updateData.basics) {
+//       profile.basics = profile.basics || {};
 
-      // Education
-      if (updateData.basics.education) {
-        profile.basics.education = profile.basics.education || {};
+//       // Education
+//       if (updateData.basics.education) {
+//         profile.basics.education = profile.basics.education || {};
         
-        if (updateData.basics.education.level) {
-          const validEducationLevels = ["high_school", "bachelors", "masters", "phd", "trade_school", "prefer_not_to_say"];
-          if (!validEducationLevels.includes(updateData.basics.education.level)) {
-            return res.status(400).json({
-              success: false,
-              code: "INVALID_EDUCATION_LEVEL",
-              message: "Invalid education level"
-            });
-          }
-          profile.basics.education.level = updateData.basics.education.level;
-        }
+//         if (updateData.basics.education.level) {
+//           const validEducationLevels = ["high_school", "bachelors", "masters", "phd", "trade_school", "prefer_not_to_say"];
+//           if (!validEducationLevels.includes(updateData.basics.education.level)) {
+//             return res.status(400).json({
+//               success: false,
+//               code: "INVALID_EDUCATION_LEVEL",
+//               message: "Invalid education level"
+//             });
+//           }
+//           profile.basics.education.level = updateData.basics.education.level;
+//         }
 
-        if (updateData.basics.education.institution !== undefined) {
-          profile.basics.education.institution = updateData.basics.education.institution.trim();
-        }
-      }
+//         if (updateData.basics.education.institution !== undefined) {
+//           profile.basics.education.institution = updateData.basics.education.institution.trim();
+//         }
+//       }
 
-      // Zodiac
-      if (updateData.basics.zodiac) {
-        const validZodiacs = ["aries", "taurus", "gemini", "cancer", "leo", "virgo", 
-                            "libra", "scorpio", "sagittarius", "capricorn", "aquarius", "pisces"];
-        if (!validZodiacs.includes(updateData.basics.zodiac)) {
-          return res.status(400).json({
-            success: false,
-            code: "INVALID_ZODIAC",
-            message: "Invalid zodiac sign"
-          });
-        }
-        profile.basics.zodiac = updateData.basics.zodiac;
-      }
+//       // Zodiac
+//       if (updateData.basics.zodiac) {
+//         const validZodiacs = ["aries", "taurus", "gemini", "cancer", "leo", "virgo", 
+//                             "libra", "scorpio", "sagittarius", "capricorn", "aquarius", "pisces"];
+//         if (!validZodiacs.includes(updateData.basics.zodiac)) {
+//           return res.status(400).json({
+//             success: false,
+//             code: "INVALID_ZODIAC",
+//             message: "Invalid zodiac sign"
+//           });
+//         }
+//         profile.basics.zodiac = updateData.basics.zodiac;
+//       }
 
-      // Other basic fields
-      if (updateData.basics.familyPlans !== undefined) {
-        profile.basics.familyPlans = updateData.basics.familyPlans.trim();
-      }
+//       // Other basic fields
+//       if (updateData.basics.familyPlans !== undefined) {
+//         profile.basics.familyPlans = updateData.basics.familyPlans.trim();
+//       }
 
-      if (updateData.basics.PersonalityType) {
-        const validPersonalityTypes = ["intj", "entj", "entp", "istp", "isfp"];
-        if (!validPersonalityTypes.includes(updateData.basics.PersonalityType)) {
-          return res.status(400).json({
-            success: false,
-            code: "INVALID_PERSONALITY_TYPE",
-            message: "Invalid personality type"
-          });
-        }
-        profile.basics.PersonalityType = updateData.basics.PersonalityType;
-      }
+//       if (updateData.basics.PersonalityType) {
+//         const validPersonalityTypes = ["intj", "entj", "entp", "istp", "isfp"];
+//         if (!validPersonalityTypes.includes(updateData.basics.PersonalityType)) {
+//           return res.status(400).json({
+//             success: false,
+//             code: "INVALID_PERSONALITY_TYPE",
+//             message: "Invalid personality type"
+//           });
+//         }
+//         profile.basics.PersonalityType = updateData.basics.PersonalityType;
+//       }
 
-      if (updateData.basics.communicationStyle) {
-        const validStyles = ["chattyCathy", "listener", "joker", "deepThinker", 
-                           "sarcasticWit", "easyGoing", "storyTeller", "straightShooter"];
-        if (!validStyles.includes(updateData.basics.communicationStyle)) {
-          return res.status(400).json({
-            success: false,
-            code: "INVALID_COMMUNICATION_STYLE",
-            message: "Invalid communication style"
-          });
-        }
-        profile.basics.communicationStyle = updateData.basics.communicationStyle;
-      }
+//       if (updateData.basics.communicationStyle) {
+//         const validStyles = ["chattyCathy", "listener", "joker", "deepThinker", 
+//                            "sarcasticWit", "easyGoing", "storyTeller", "straightShooter"];
+//         if (!validStyles.includes(updateData.basics.communicationStyle)) {
+//           return res.status(400).json({
+//             success: false,
+//             code: "INVALID_COMMUNICATION_STYLE",
+//             message: "Invalid communication style"
+//           });
+//         }
+//         profile.basics.communicationStyle = updateData.basics.communicationStyle;
+//       }
 
-      if (updateData.basics.loveStyle) {
-        const validLoveStyles = ["hopelessRomantic", "bestFriend", "adventureSeeker", "careGiver"];
-        if (!validLoveStyles.includes(updateData.basics.loveStyle)) {
-          return res.status(400).json({
-            success: false,
-            code: "INVALID_LOVE_STYLE",
-            message: "Invalid love style"
-          });
-        }
-        profile.basics.loveStyle = updateData.basics.loveStyle;
-      }
-    }
+//       if (updateData.basics.loveStyle) {
+//         const validLoveStyles = ["hopelessRomantic", "bestFriend", "adventureSeeker", "careGiver"];
+//         if (!validLoveStyles.includes(updateData.basics.loveStyle)) {
+//           return res.status(400).json({
+//             success: false,
+//             code: "INVALID_LOVE_STYLE",
+//             message: "Invalid love style"
+//           });
+//         }
+//         profile.basics.loveStyle = updateData.basics.loveStyle;
+//       }
+//     }
 
-    // Preferences
-    if (updateData.discovery) {
-      // Age Range
-      if (updateData.discovery.ageRange) {
-        if (updateData.discovery.ageRange.min !== undefined) {
-          const minAge = parseInt(updateData.discovery.ageRange.min);
-          if (isNaN(minAge) || minAge < 18 || minAge > 100) {
-            return res.status(400).json({
-              success: false,
-              code: "INVALID_MIN_AGE",
-              message: "Minimum age must be between 18 and 100"
-            });
-          }
-          profile.discovery.ageRange.min = minAge;
-        }
+//     // Preferences
+//     if (updateData.discovery) {
+//       // Age Range
+//       if (updateData.discovery.ageRange) {
+//         if (updateData.discovery.ageRange.min !== undefined) {
+//           const minAge = parseInt(updateData.discovery.ageRange.min);
+//           if (isNaN(minAge) || minAge < 18 || minAge > 100) {
+//             return res.status(400).json({
+//               success: false,
+//               code: "INVALID_MIN_AGE",
+//               message: "Minimum age must be between 18 and 100"
+//             });
+//           }
+//           profile.discovery.ageRange.min = minAge;
+//         }
 
-        if (updateData.discovery.ageRange.max !== undefined) {
-          const maxAge = parseInt(updateData.discovery.ageRange.max);
-          if (isNaN(maxAge) || maxAge < 18 || maxAge > 100) {
-            return res.status(400).json({
-              success: false,
-              code: "INVALID_MAX_AGE",
-              message: "Maximum age must be between 18 and 100"
-            });
-          }
-          profile.discovery.ageRange.max = maxAge;
-        }
+//         if (updateData.discovery.ageRange.max !== undefined) {
+//           const maxAge = parseInt(updateData.discovery.ageRange.max);
+//           if (isNaN(maxAge) || maxAge < 18 || maxAge > 100) {
+//             return res.status(400).json({
+//               success: false,
+//               code: "INVALID_MAX_AGE",
+//               message: "Maximum age must be between 18 and 100"
+//             });
+//           }
+//           profile.discovery.ageRange.max = maxAge;
+//         }
 
 
-        // Ensure min <= max
-        if (profile.discovery.ageRange.min > profile.discovery.ageRange.max) {
-          return res.status(400).json({
-            success: false,
-            code: "INVALID_AGE_RANGE",
-            message: "Minimum age cannot be greater than maximum age"
-          });
-        }
-      }
+//         // Ensure min <= max
+//         if (profile.discovery.ageRange.min > profile.discovery.ageRange.max) {
+//           return res.status(400).json({
+//             success: false,
+//             code: "INVALID_AGE_RANGE",
+//             message: "Minimum age cannot be greater than maximum age"
+//           });
+//         }
+//       }
 
-      // Distance Range
-      if (updateData.discovery.distanceRange !== undefined) {
-        const distance = parseInt(updateData.discovery.distanceRange);
-        if (isNaN(distance) || distance < 1 || distance > 500) {
-          return res.status(400).json({
-            success: false,
-            code: "INVALID_DISTANCE",
-            message: "Distance must be between 1 and 500 km"
-          });
-        }
-        profile.discovery.distanceRange = distance;
-      }
-      if (updateData.discovery?.relationshipGoal) {
-  profile.discovery.relationshipGoal = {
-    key: updateData.discovery.relationshipGoal.key || "",
-    title: updateData.discovery.relationshipGoal.title || "",
-    subtitle: updateData.discovery.relationshipGoal.subtitle || ""
-  };
-}
+//       // Distance Range
+//       if (updateData.discovery.distanceRange !== undefined) {
+//         const distance = parseInt(updateData.discovery.distanceRange);
+//         if (isNaN(distance) || distance < 1 || distance > 500) {
+//           return res.status(400).json({
+//             success: false,
+//             code: "INVALID_DISTANCE",
+//             message: "Distance must be between 1 and 500 km"
+//           });
+//         }
+//         profile.discovery.distanceRange = distance;
+//       }
+//       if (updateData.discovery?.relationshipGoal) {
+//   profile.discovery.relationshipGoal = {
+//     key: updateData.discovery.relationshipGoal.key || "",
+//     title: updateData.discovery.relationshipGoal.title || "",
+//     subtitle: updateData.discovery.relationshipGoal.subtitle || ""
+//   };
+// }
 
-      // Gender Preference
-      if (updateData.discovery.showMeGender) {
-        if (!Array.isArray(updateData.discovery.showMeGender)) {
-          return res.status(400).json({
-            success: false,
-            code: "INVALID_GENDER_PREFERENCE",
-            message: "Gender preference must be an array"
-          });
-        }
+//       // Gender Preference
+//       if (updateData.discovery.showMeGender) {
+//         if (!Array.isArray(updateData.discovery.showMeGender)) {
+//           return res.status(400).json({
+//             success: false,
+//             code: "INVALID_GENDER_PREFERENCE",
+//             message: "Gender preference must be an array"
+//           });
+//         }
 
-        const validGenders = ["male", "female", "non-binary", "trans-man", "trans-women", "everyone", "other"];
-        const invalidGenders = updateData.discovery.showMeGender.filter(
-          gender => !validGenders.includes(gender)
-        );
+//         const validGenders = ["male", "female", "non-binary", "trans-man", "trans-women", "everyone", "other"];
+//         const invalidGenders = updateData.discovery.showMeGender.filter(
+//           gender => !validGenders.includes(gender)
+//         );
 
-        if (invalidGenders.length > 0) {
-          return res.status(400).json({
-            success: false,
-            code: "INVALID_GENDER_VALUES",
-            message: `Invalid gender values: ${invalidGenders.join(", ")}`
-          });
-        }
+//         if (invalidGenders.length > 0) {
+//           return res.status(400).json({
+//             success: false,
+//             code: "INVALID_GENDER_VALUES",
+//             message: `Invalid gender values: ${invalidGenders.join(", ")}`
+//           });
+//         }
 
-        profile.discovery.showMeGender = updateData.discovery.showMeGender;
-      }
-    }
+//         profile.discovery.showMeGender = updateData.discovery.showMeGender;
+//       }
+//     }
 
-    // Update the last updated timestamp
-    profile.lastProfileUpdate = new Date();
+//     // Update the last updated timestamp
+//     profile.lastProfileUpdate = new Date();
 
-    // const response = formatResponse(profile);
+//     // const response = formatResponse(profile);
 
-    // Save the updated profile
-    await profile.save();
+//     // Save the updated profile
+//     await profile.save();
 
-    // Return the updated profile
-    res.json({
-      success: true,
-      message: "Profile updated successfully",
-      // data: response
-    });
+//     // Return the updated profile
+//     res.json({
+//       success: true,
+//       message: "Profile updated successfully",
+//       // data: response
+//     });
 
-  } catch (error) {
-    console.error("Error updating profile:", error);
-    res.status(500).json({
-      success: false,
-      code: "INTERNAL_SERVER_ERROR",
-      message: "An error occurred while updating the profile"
-    });
-  }
-};
+//   } catch (error) {
+//     console.error("Error updating profile:", error);
+//     res.status(500).json({
+//       success: false,
+//       code: "INTERNAL_SERVER_ERROR",
+//       message: "An error occurred while updating the profile"
+//     });
+//   }
+// };
 
 
 // ========================================
@@ -1796,20 +1900,41 @@ module.exports.reorderPhotos = async (req, res) => {
     }
 
     // 4️⃣ Create map for fast lookup
-    const photoMap = new Map();
-    profile.photos.forEach(photo => {
-      photoMap.set(photo.publicId, photo);
-    });
+const photoMap = new Map();
+profile.photos.forEach(photo => {
+  // toString() use karo taaki comparison mein issue na aaye
+  photoMap.set(photo.publicId.toString(), photo);
+});
 
-    // 5️⃣ Validate all photoIds exist
-    for (const id of photoIds) {
-      if (!photoMap.has(id)) {
-        return res.status(400).json({
-          success: false,
-          message: `Invalid photoId: ${id}`
-        });
-      }
-    }
+// 5️⃣ Validate all photoIds exist
+for (const id of photoIds) {
+  // Trim aur string check
+  if (!photoMap.has(id.trim())) {
+    console.log("Map Keys:", Array.from(photoMap.keys())); // Debugging ke liye
+    console.log("Looking for:", id);
+    
+    return res.status(400).json({
+      success: false,
+      message: `Invalid photoId: ${id}. Make sure it matches publicId exactly.`
+    });
+  }
+}
+
+    // // 4️⃣ Create map for fast lookup
+    // const photoMap = new Map();
+    // profile.photos.forEach(photo => {
+    //   photoMap.set(photo.publicId, photo);
+    // });
+
+    // // 5️⃣ Validate all photoIds exist
+    // for (const id of photoIds) {
+    //   if (!photoMap.has(id)) {
+    //     return res.status(400).json({
+    //       success: false,
+    //       message: `Invalid photoId: ${id}`
+    //     });
+    //   }
+    // }
 
     // 6️⃣ Reorder logic
     const reorderedPhotos = photoIds.map((id, index) => {
@@ -1881,27 +2006,29 @@ module.exports.uploadSelfie = async (req, res) => {
     });
 
     // Update profile
-    if (!profile.kyc) profile.kyc = {};
+    // if (!profile.kyc) profile.kyc = {};
 
-    profile.kyc.selfie = {
-      url: result.secure_url,
-      publicId: result.public_id,
-      uploadedAt: new Date()
-    };
+    // profile.kyc.selfie = {
+    //   url: result.secure_url,
+    //   publicId: result.public_id,
+    //   uploadedAt: new Date()
+    // };
 
-    // Update KYC status
-    if (profile.kyc.status === "not_started") {
-      profile.kyc.status = "pending";
-    }
+    // // Update KYC status
+    // if (profile.kyc.status === "not_started") {
+    //   profile.kyc.status = "pending";
+    // }
+    profile.verification.selfieUrl = result.url;
+profile.verification.status = "pending"; 
+await profile.save();
 
     // Save
-    await profile.save();
 
     // Clear cache
     await clearProfileCache(userId);
 
     // Format response
-    const response = formatResponse(profile);
+    // const response = formatResponse(profile);
 
     // return res.json({
     //   success: true,
@@ -1914,12 +2041,10 @@ module.exports.uploadSelfie = async (req, res) => {
       message: "Selfie uploaded successfully",
       data: {
         selfie: {
-          url: profile.kyc.selfie.url, // ✅ Selfie URL
-          uploadedAt: profile.kyc.selfie.uploadedAt
+          url: profile.verification.selfieUrl, // ✅ Selfie URL
+          // uploadedAt: profile.selfieUrl.uploadedAt
         },
-        kycStatus: profile.kyc.status,
-        progress: response.progress,
-        nextStep: response.nextStep
+
       }
     });
 
@@ -1935,6 +2060,113 @@ module.exports.uploadSelfie = async (req, res) => {
 // ========================================
 // 5. UPLOAD ID DOCUMENT (KYC)
 // ========================================
+// module.exports.uploadIDDocument = async (req, res) => {
+//   try {
+//     const userId = req.user._id;
+//     const files = req.files;
+//     const { idType } = req.body;
+
+//     if (!files || !files.front) {
+//       return res.status(400).json({
+//         success: false,
+//         message: "ID front image is required"
+//       });
+//     }
+
+//     if (!idType) {
+//       return res.status(400).json({
+//         success: false,
+//         message: "ID type is required (driving_license, passport, proof_of_age)"
+//       });
+//     }
+
+//     // Get profile
+//     let profile = await getOrCreateProfile(userId);
+
+//     // Upload front
+//     const frontResult = await uploadStream(files.front[0].buffer, {
+//       folder: `mafs/users/${userId}/kyc`,
+//       transformation: [
+//         { width: 1200, height: 800, crop: "limit", quality: "auto:best" }
+//       ]
+//     });
+
+//     const idData = {
+//       type: idType,
+//       frontUrl: frontResult.secure_url,
+//       frontPublicId: frontResult.public_id,
+//       uploadedAt: new Date()
+//     };
+
+//     // Upload back if provided
+//     if (files.back && files.back[0]) {
+//       const backResult = await uploadStream(files.back[0].buffer, {
+//         folder: `mafs/users/${userId}/kyc`,
+//         transformation: [
+//           { width: 1200, height: 800, crop: "limit", quality: "auto:best" }
+//         ]
+//       });
+
+//       idData.backUrl = backResult.secure_url;
+//       idData.backPublicId = backResult.public_id;
+//     }
+
+//     // Update profile
+//     if (!profile.kyc) profile.kyc = {};
+
+//     profile.kyc.idDocument = idData;
+
+//     // Update KYC status to pending (if selfie already uploaded)
+//     if (profile.kyc.selfie && profile.kyc.selfie.url) {
+//       profile.kyc.status = "pending";
+//       profile.kyc.submittedAt = new Date();
+//     }
+
+//     // Save
+//     await profile.save();
+
+//     // Clear cache
+//     await clearProfileCache(userId);
+
+//     // Format response
+//     const response = formatResponse(profile);
+
+//     // return res.json({
+//     //   success: true,
+//     //   message: "ID document uploaded successfully. Your submission is under review.",
+//     //   data: response
+//     // });
+
+//     return res.json({
+//       success: true,
+//       message: "ID document uploaded successfully. Your verification is under review",
+//       data: {
+//         idDocument: {
+//           type: profile.kyc.idDocument.type, // ✅ ID type
+//           frontUrl: profile.kyc.idDocument.frontUrl, // ✅ Front URL
+//           backUrl: profile.kyc.idDocument.backUrl, // ✅ Back URL (if exists)
+//           uploadedAt: profile.kyc.idDocument.uploadedAt
+//         },
+//         kycStatus: profile.kyc.status,
+//         kycMessage: profile.kyc.status === "pending"
+//           ? "Your verification is under review. This usually takes 24-48 hours"
+//           : "Please upload selfie to submit for verification",
+//         progress: response.progress,
+//         nextStep: response.nextStep
+//       }
+//     });
+
+//   } catch (err) {
+//     console.error("Upload ID error:", err);
+//     return res.status(500).json({
+//       success: false,
+//       code: "UPLOAD_FAILED",
+//       message: err.message
+//     });
+//   }
+// };
+
+
 module.exports.uploadIDDocument = async (req, res) => {
   try {
     const userId = req.user._id;
@@ -1942,105 +2174,86 @@ module.exports.uploadIDDocument = async (req, res) => {
     const { idType } = req.body;
 
     if (!files || !files.front) {
-      return res.status(400).json({
-        success: false,
-        message: "ID front image is required"
-      });
+      return res.status(400).json({ success: false, message: "ID front image is required" });
     }
 
     if (!idType) {
-      return res.status(400).json({
-        success: false,
-        message: "ID type is required (driving_license, passport, proof_of_age)"
-      });
+      return res.status(400).json({ success: false, message: "ID type is required" });
     }
 
     // Get profile
-    let profile = await getOrCreateProfile(userId);
+    let profile = await Profile.findOne({ userId }); // Make sure Profile is imported
 
-    // Upload front
+    // 1. Upload Front Image
     const frontResult = await uploadStream(files.front[0].buffer, {
       folder: `mafs/users/${userId}/kyc`,
-      transformation: [
-        { width: 1200, height: 800, crop: "limit", quality: "auto:best" }
-      ]
+      transformation: [{ width: 1200, height: 800, crop: "limit", quality: "auto:best" }]
     });
 
-    const idData = {
-      type: idType,
-      frontUrl: frontResult.secure_url,
-      frontPublicId: frontResult.public_id,
-      uploadedAt: new Date()
+    // --- NEW MODEL MAPPING START ---
+    // Initialize verification if not exists
+    if (!profile.verification) profile.verification = {};
+    
+    // Save to the NEW field: docUrl (as per manager's structure)
+    profile.verification.docUrl = frontResult.secure_url;
+    // (Optional) If you want to keep track of type/publicId, you can store them in hidden fields or metadata
+    
+    // Also keeping the old 'kyc' structure for internal tracking if needed, 
+    // but the main data goes to 'verification'
+    profile.kyc = {
+      ...profile.kyc,
+      idDocument: {
+        type: idType,
+        frontUrl: frontResult.secure_url,
+        frontPublicId: frontResult.public_id,
+        uploadedAt: new Date()
+      }
     };
 
-    // Upload back if provided
+    // 2. Upload Back Image (if provided)
     if (files.back && files.back[0]) {
       const backResult = await uploadStream(files.back[0].buffer, {
         folder: `mafs/users/${userId}/kyc`,
-        transformation: [
-          { width: 1200, height: 800, crop: "limit", quality: "auto:best" }
-        ]
+        transformation: [{ width: 1200, height: 800, crop: "limit", quality: "auto:best" }]
       });
-
-      idData.backUrl = backResult.secure_url;
-      idData.backPublicId = backResult.public_id;
+      profile.kyc.idDocument.backUrl = backResult.secure_url;
+      profile.kyc.idDocument.backPublicId = backResult.public_id;
     }
 
-    // Update profile
-    if (!profile.kyc) profile.kyc = {};
+    // 3. Update KYC Status & Onboarding Flag
+    profile.onboardingProgress.idDocumentUploaded = true;
 
-    profile.kyc.idDocument = idData;
-
-    // Update KYC status to pending (if selfie already uploaded)
-    if (profile.kyc.selfie && profile.kyc.selfie.url) {
-      profile.kyc.status = "pending";
-      profile.kyc.submittedAt = new Date();
+    // Trigger 'pending' status ONLY IF selfie is also there
+    // Selfie check (new model path): profile.verification.selfieUrl
+    if (profile.verification.selfieUrl || (profile.kyc && profile.kyc.selfie && profile.kyc.selfie.url)) {
+      profile.verification.status = "pending";
+      profile.kyc.status = "pending"; // sync both for safety
     }
 
-    // Save
+    // 4. Save (This will trigger the Pre-save hook we wrote for totalCompletion)
     await profile.save();
 
-    // Clear cache
-    await clearProfileCache(userId);
-
-    // Format response
-    const response = formatResponse(profile);
-
-    // return res.json({
-    //   success: true,
-    //   message: "ID document uploaded successfully. Your submission is under review.",
-    //   data: response
-    // });
+    // 5. Cleanup & Response
+    if (typeof clearProfileCache === 'function') await clearProfileCache(userId);
 
     return res.json({
       success: true,
       message: "ID document uploaded successfully. Your verification is under review",
       data: {
-        idDocument: {
-          type: profile.kyc.idDocument.type, // ✅ ID type
-          frontUrl: profile.kyc.idDocument.frontUrl, // ✅ Front URL
-          backUrl: profile.kyc.idDocument.backUrl, // ✅ Back URL (if exists)
-          uploadedAt: profile.kyc.idDocument.uploadedAt
+        verification: {
+          status: profile.verification.status,
+          docUrl: profile.verification.docUrl,
+          selfieUrl: profile.verification.selfieUrl || ""
         },
-        kycStatus: profile.kyc.status,
-        kycMessage: profile.kyc.status === "pending"
-          ? "Your verification is under review. This usually takes 24-48 hours"
-          : "Please upload selfie to submit for verification",
-        progress: response.progress,
-        nextStep: response.nextStep
+        // totalCompletion: profile.onboardingProgress.totalCompletion
       }
     });
 
   } catch (err) {
     console.error("Upload ID error:", err);
-    return res.status(500).json({
-      success: false,
-      code: "UPLOAD_FAILED",
-      message: err.message
-    });
+    return res.status(500).json({ success: false, code: "UPLOAD_FAILED", message: err.message });
   }
 };
-
 // ========================================
 // 6. UPDATE LOCATION
 // ========================================
@@ -2352,48 +2565,48 @@ module.exports.getStatus = async (req, res) => {
 
 // modules/profile/profile.controller.js
 
-const BlockedContact = require("../BlockedContact/blockedContacts.model");
-const { formatProfileResponse } = require("./profile.formatter");
+// const BlockedContact = require("../BlockedContact/blockedContacts.model");
+// const { formatProfileResponse } = require("./profile.formatter");
 
-module.exports.getMyProfile = async (req, res) => {
-  try {
-    const userId = req.user._id;
+// module.exports.getMyProfile = async (req, res) => {
+//   try {
+//     const userId = req.user._id;
 
-    // 1️⃣ Profile fetch
-    const profile = await Profile.findOne({ userId }).lean();
-    if (!profile) {
-      return res.status(404).json({
-        success: false,
-        code: "PROFILE_NOT_FOUND",
-        message: "Profile not found"
-      });
-    }
+//     // 1️⃣ Profile fetch
+//     const profile = await Profile.findOne({ userId }).lean();
+//     if (!profile) {
+//       return res.status(404).json({
+//         success: false,
+//         code: "PROFILE_NOT_FOUND",
+//         message: "Profile not found"
+//       });
+//     }
 
-    // 2️⃣ Blocked contacts (separate schema)
-    const blockedContacts = await BlockedContact.find(
-      { userId },
-      { blockedPhoneHash: 1, _id: 0 }
-    ).lean();
+//     // 2️⃣ Blocked contacts (separate schema)
+//     const blockedContacts = await BlockedContact.find(
+//       { userId },
+//       { blockedPhoneHash: 1, _id: 0 }
+//     ).lean();
 
-    // 3️⃣ Format response
-    const formattedProfile = formatProfileResponse(
-      profile,
-      blockedContacts
-    );
+//     // 3️⃣ Format response
+//     const formattedProfile = formatProfileResponse(
+//       profile,
+//       blockedContacts
+//     );
 
-    return res.json({
-      success: true,
-      data: formattedProfile
-    });
+//     return res.json({
+//       success: true,
+//       data: formattedProfile
+//     });
 
-  } catch (err) {
-    console.error("❌ Get profile error:", err); // VERY IMPORTANT
-    return res.status(500).json({
-      success: false,
-      message: "Failed to fetch profile"
-    });
-  }
-};
+//   } catch (err) {
+//     console.error("❌ Get profile error:", err); // VERY IMPORTANT
+//     return res.status(500).json({
+//       success: false,
+//       message: "Failed to fetch profile"
+//     });
+//   }
+// };
 
 
 
@@ -2548,78 +2761,223 @@ module.exports.getPublicProfile = async (req, res) => {
 
 
 
-exports.updateDiscoveryPreference = async (req, res) => {
+// exports.updateDiscoveryPreference = async (req, res) => {
+//   try {
+//     const userId = req.user._id;
+//     const body = req.body;
+
+//     const update = {};
+
+//     // =========================
+//     // HARD FILTERS (MANDATORY)
+//     // =========================
+//     if (body.preferences) {
+//       if (body.preferences.ageRange)
+//         update["preferences.ageRange"] = body.preferences.ageRange;
+
+//       if (body.preferences.distanceRange)
+//         update["preferences.distanceRange"] = body.preferences.distanceRange;
+
+//       if (body.preferences.genderPreference)
+//         update["preferences.genderPreference"] = body.preferences.genderPreference;
+//     }
+
+//     // =========================
+//     // SOFT FILTERS (OPTIONAL)
+//     // =========================
+//   if (body.discoveryFilters) {
+//   if (body.discoveryFilters.hasBio !== undefined)
+//     update["discoveryFilters.hasBio"] = body.discoveryFilters.hasBio;
+
+//   if (body.discoveryFilters.interests)
+//     update["discoveryFilters.interests"] = body.discoveryFilters.interests;
+
+//   if (body.discoveryFilters.relationshipGoals)
+//     update["discoveryFilters.relationshipGoals"] =
+//       body.discoveryFilters.relationshipGoals;
+
+//   if (body.discoveryFilters.basics)
+//     update["discoveryFilters.basics"] = body.discoveryFilters.basics;
+
+//   if (body.discoveryFilters.lifestyle)
+//     update["discoveryFilters.lifestyle"] = body.discoveryFilters.lifestyle;
+// }
+
+
+//     const profile = await Profile.findOneAndUpdate(
+//       { userId },
+//       { $set: update },
+//       { new: true }
+//     );
+
+//     if (!profile) {
+//       return res.status(404).json({
+//         success: false,
+//         message: "Profile not found"
+//       });
+//     }
+
+//     return res.json({
+//       success: true,
+//       message: "Discovery preference updated successfully",
+//       data: {
+//         preferences: profile.preferences,
+//         discoveryFilters: profile.discoveryFilters
+//       }
+//     });
+
+//   } catch (err) {
+//     return res.status(400).json({
+//       success: false,
+//       message: err.message
+//     });
+//   }
+// };
+
+
+// exports.updateDiscoveryPreference = async (req, res) => {
+//   try {
+//     const userId = req.user._id;
+//     const body = req.body;
+
+//     // Get Profile first to use .save() so our Pre-save Hook triggers
+//     let profile = await Profile.findOne({ userId });
+
+//     if (!profile) {
+//       return res.status(404).json({ success: false, message: "Profile not found" });
+//     }
+
+//     // ==========================================
+//     // 1. HARD FILTERS (Mapped to 'discovery')
+//     // ==========================================
+//     if (body.preferences) {
+//       const { ageRange, distanceRange, genderPreference, relationshipGoal } = body.preferences;
+
+//       if (ageRange) profile.discovery.ageRange = ageRange;
+//       if (distanceRange) profile.discovery.distanceRange = distanceRange;
+//       if (genderPreference) profile.discovery.showMeGender = genderPreference; // Mapped to showMeGender
+//       if (relationshipGoal) profile.discovery.relationshipGoal = relationshipGoal;
+//     }
+
+//     // ==========================================
+//     // 2. SOFT FILTERS (Mapped to 'attributes')
+//     // ==========================================
+//     if (body.discoveryFilters) {
+//       const df = body.discoveryFilters;
+
+//       // Agar user specific lifestyle ya basics ke basis par filter karna chahta hai
+//       // Toh hum unhe discovery settings mein store karenge feed query ke liye
+//       if (df.interests) profile.discovery.preferredInterests = df.interests;
+//       if (df.lifestyle) profile.discovery.lifestyleFilters = df.lifestyle;
+//       if (df.hasBio !== undefined) profile.discovery.mustHaveBio = df.hasBio;
+//     }
+
+//     // IMPORTANT: Use .save() instead of findOneAndUpdate 
+//     // Taaki humara 'pre-save' hook chale aur completion percentage update ho
+//     await profile.save();
+
+//     return res.json({
+//       success: true,
+//       message: "Discovery preferences updated and synced with Feed Engine",
+//       data: {
+//         discovery: profile.discovery,
+//         totalCompletion: profile.onboardingProgress.totalCompletion
+//       }
+//     });
+
+//   } catch (err) {
+//     return res.status(400).json({ success: false, message: err.message });
+//   }
+// };
+
+
+exports.updateDiscoveryFilters = async (req, res) => {
   try {
     const userId = req.user._id;
-    const body = req.body;
+    const { discoveryFilters } = req.body; // Alag object
 
-    const update = {};
+    let profile = await Profile.findOne({ userId });
 
-    // =========================
-    // HARD FILTERS (MANDATORY)
-    // =========================
-    if (body.preferences) {
-      if (body.preferences.ageRange)
-        update["preferences.ageRange"] = body.preferences.ageRange;
-
-      if (body.preferences.distanceRange)
-        update["preferences.distanceRange"] = body.preferences.distanceRange;
-
-      if (body.preferences.genderPreference)
-        update["preferences.genderPreference"] = body.preferences.genderPreference;
-    }
-
-    // =========================
-    // SOFT FILTERS (OPTIONAL)
-    // =========================
-  if (body.discoveryFilters) {
-  if (body.discoveryFilters.hasBio !== undefined)
-    update["discoveryFilters.hasBio"] = body.discoveryFilters.hasBio;
-
-  if (body.discoveryFilters.interests)
-    update["discoveryFilters.interests"] = body.discoveryFilters.interests;
-
-  if (body.discoveryFilters.relationshipGoals)
-    update["discoveryFilters.relationshipGoals"] =
-      body.discoveryFilters.relationshipGoals;
-
-  if (body.discoveryFilters.basics)
-    update["discoveryFilters.basics"] = body.discoveryFilters.basics;
-
-  if (body.discoveryFilters.lifestyle)
-    update["discoveryFilters.lifestyle"] = body.discoveryFilters.lifestyle;
-}
-
-
-    const profile = await Profile.findOneAndUpdate(
-      { userId },
-      { $set: update },
-      { new: true }
-    );
-
-    if (!profile) {
-      return res.status(404).json({
-        success: false,
-        message: "Profile not found"
-      });
-    }
-
-    return res.json({
-      success: true,
-      message: "Discovery preference updated successfully",
-      data: {
-        preferences: profile.preferences,
-        discoveryFilters: profile.discoveryFilters
+    if (discoveryFilters) {
+      // 1. Common Filters
+      if (discoveryFilters.interests) profile.discovery.preferredInterests = discoveryFilters.interests;
+      if (discoveryFilters.hasBio !== undefined) profile.discovery.hasBio = discoveryFilters.hasBio;
+      
+      // 2. Relationship Goal (As a filter, not profile data)
+      if (discoveryFilters.relationshipGoal) {
+        profile.discovery.filterRelationshipGoal = discoveryFilters.relationshipGoal;
       }
-    });
 
+      // 3. Advanced Traits (Merging carefully)
+      if (discoveryFilters.advanced) {
+        profile.discovery.advancedFilters = {
+          ...profile.discovery.advancedFilters,
+          ...discoveryFilters.advanced
+        };
+      }
+    }
+
+    await profile.save();
+    return res.json({ success: true, message: "Filters applied! Feed is refreshing." });
   } catch (err) {
-    return res.status(400).json({
-      success: false,
-      message: err.message
-    });
+    res.status(500).json({ success: false, message: err.message });
   }
 };
+
+// exports.updateDiscoveryPreference = async (req, res) => {
+//   try {
+//     const userId = req.user._id;
+//     const { preferences, discoveryFilters } = req.body;
+
+//     let profile = await Profile.findOne({ userId });
+//     if (!profile) return res.status(404).json({ success: false, message: "Profile not found" });
+
+//     // 1. Core Preferences Mapping
+//     if (preferences) {
+//       if (preferences.distanceRange) profile.discovery.distanceRange = preferences.distanceRange;
+//       if (preferences.ageRange) profile.discovery.ageRange = preferences.ageRange;
+//       if (preferences.genderPreference) profile.discovery.showMeGender = preferences.genderPreference;
+//       if (preferences.relationshipGoal) profile.discovery.relationshipGoal = preferences.relationshipGoal;
+//     }
+
+//     // 2. Advanced Filters Mapping (Figma Screenshot)
+//     if (discoveryFilters) {
+//       // "Has a Bio" checkbox
+//       if (discoveryFilters.hasBio !== undefined) profile.discovery.hasBio = discoveryFilters.hasBio;
+      
+//       // Preferred Interests Chips
+//       if (discoveryFilters.interests) profile.discovery.preferredInterests = discoveryFilters.interests;
+      
+//       // Advanced Basics & Lifestyle (Zodiac, Education, etc.)
+//       if (discoveryFilters.advanced) {
+//         // Purane filters ko naye filters ke saath merge karega bina delete kiye
+//         profile.discovery.advancedFilters = {
+//           ...profile.discovery.advancedFilters,
+//           ...discoveryFilters.advanced
+//         };
+//       }
+//     }
+
+//     // Flag for onboarding completion
+//     profile.onboardingProgress.discoveryPreferenceSet = true;
+
+//     // Save triggers the pre-save hook for totalCompletion
+//     await profile.save();
+
+//     return res.json({
+//       success: true,
+//       message: "Discovery filters applied. Your feed is refreshing!",
+//       data: { discovery: profile.discovery, totalCompletion: profile.onboardingProgress.totalCompletion }
+//     });
+//   } catch (err) {
+//     console.error("Discovery Update Error:", err);
+//     return res.status(500).json({ success: false, message: "Failed to update preferences" });
+//   }
+// };
+
+
+
+
 exports.getDiscoveryPreference = async (req, res) => {
   try {
     const profile = await Profile.findOne({ userId: req.user._id })

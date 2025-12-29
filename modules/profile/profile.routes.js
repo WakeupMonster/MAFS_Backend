@@ -67,7 +67,7 @@ router.patch(
 router.patch(
   "/discovery-preference",
   auth,
-  controller.updateDiscoveryPreference
+  controller.updateDiscoveryFilters
 );
 router.get("/discovery-preference", auth, controller.getDiscoveryPreference);
 
@@ -141,6 +141,7 @@ router.get("/enums/all", (req, res) => {
     data: validation.ENUMS,
   });
 });
+module.exports = router;
 
 // Get APIs for fetch this field data genderPreference, relationshipGoal, distance, interest, age(min,max)
 // router.get("/getdetails", getDetails);
@@ -155,4 +156,4 @@ router.get("/enums/all", (req, res) => {
 
 //   res.json({ success: true, data });
 // });
-module.exports = router;
+

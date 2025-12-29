@@ -307,10 +307,30 @@ const {
   registerGracefulShutdown,
 } = require("./config/database");
 
-const redis = require("./config/cache"); // 🔥 SINGLE REDIS CLIENT
+const redis = require("./config/cache"); 
 
 const PORT = process.env.PORT || 3001;
 const MONGODB_URI = process.env.MONGODB_URI;
+
+const { Server } = require("socket.io");
+
+const io = new Server(http, {
+  cors: { origin: "*" }
+});
+
+// Socket Logic
+io.on("connection", (socket) => {
+  console.log("A user connected:", socket.id);
+
+  socket.on("join_chat", (matchId) => {
+    socket.join(matchId); // User ko match room mein daalo
+  });
+
+  socket.on("send_message", (data) => {
+    // data mein matchId, text, senderId hoga
+    io.to(data.matchId).emit("receive_message", data);
+  });
+});
 
 (async () => {
   try {
