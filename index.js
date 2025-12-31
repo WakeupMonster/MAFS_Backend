@@ -426,3 +426,33 @@ io.use(async (socket, next) => {
     process.exit(1);
   }
 })();
+
+
+
+
+
+
+// get profile
+
+// kyc -- key -- boolean
+// photos 
+// profile all data
+// attributes
+
+
+
+
+// implement all validations
+// show responses in location,photo,kyc and other
+// inspect discovery filter and get feed, have to dlt redis key after applying filters for fresh feed
+// enhance get user profile response
+// add names in blockContact
+// messgae pub/sub or working for push notification
+// notification apis
+// check visibility apis
+// check account and safety apis
+// social login
+//6 cards show info
+// register phone hashing
+// check dlt redis key from deacitvate/delete account, swipin action, location update,Block report,
+// superkeen -- boost -- limit

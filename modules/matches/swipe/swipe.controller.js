@@ -107,7 +107,7 @@ exports.getLimits = async (req, res, next) => {
 //   }
 // };
 
-
+const redis = require("../../../config/cache");
 exports.unmatchUser = async (req, res) => {
   const session = await mongoose.startSession();
   try {
@@ -136,6 +136,11 @@ exports.unmatchUser = async (req, res) => {
         ]
       }).session(session);
     });
+ if (redis) {
+        const CACHE_KEY = `feed:${userId.toString()}`;
+        await redis.del(CACHE_KEY);
+        console.log("Redis cache cleared for new filters");
+    }
 
     session.endSession();
     return res.json({ success: true, message: "Unmatched successfully" });
@@ -629,7 +634,7 @@ exports.getKeenData = async (req, res, actionType) => {
     const keens = await Swipe.find({
       targetId: userId,
       action: actionType,
-      swiperId: { $nin: mySwipedIds }
+      // swiperId: { $nin: mySwipedIds }
     })
     .sort({ createdAt: -1 })
     .skip(skip)
@@ -640,6 +645,7 @@ exports.getKeenData = async (req, res, actionType) => {
       foreignField: 'userId', // <--- Profile model mein userId se match karega
       select: 'nickname dob photos location about'
     });
+
 
     const total = await Swipe.countDocuments({
       targetId: userId,

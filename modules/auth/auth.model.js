@@ -17,7 +17,11 @@ const socialProviderSchema = new mongoose.Schema({
 
 const userSchema = new mongoose.Schema({
   // ============ PHONE AUTHENTICATION ============
-  phone: { type: String, unique: true, sparse: true },     
+  phone: { type: String, unique: true, sparse: true },
+   phoneHash: {
+    type: String,
+    index: true
+  },     
   isPhoneVerified: { type: Boolean, default: false },
   phoneOtp: { type: String },
   phoneOtpExpires: { type: Date },

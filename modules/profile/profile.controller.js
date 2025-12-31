@@ -1,3 +1,4 @@
+/* eslint-disable no-unused-vars */
 // /* eslint-disable no-unused-vars */
 // // const service = require("./profile.service");
 
@@ -1226,6 +1227,7 @@ function formatResponse(profile) {
 // };
 
 const BlockedContact = require("../BlockedContact/blockedContacts.model");
+const Block = require("./user.block")
 const { formatProfileResponse } = require("./profile.formatter");
 
 exports.updateProfile = async (req, res) => {
@@ -1321,7 +1323,8 @@ exports.getMyProfile = async (req, res) => {
     if (!profile) return res.status(404).json({ success: false, message: "Profile not found" });
 
     const blockedContacts = await BlockedContact.find({ userId }).lean();
-    const formatted = formatProfileResponse(profile, blockedContacts);
+    const blockedUser = await Block.find({blockerId : userId}).lean()
+    const formatted = formatProfileResponse(profile, blockedContacts,blockedUser);
 
     res.json({ success: true, data: formatted });
   // eslint-disable-next-line no-unused-vars
@@ -1788,12 +1791,16 @@ module.exports.uploadPhotos = async (req, res) => {
     await clearProfileCache(userId);
 
     // Format response
-    const response = formatResponse(profile);
+    // const response = formatResponse(profile);
+
+      const blockedContacts = await BlockedContact.find({ userId }).lean();
+    const formatted = formatProfileResponse(profile, blockedContacts);
+
 
     return res.json({
       success: true,
       message: `${newPhotos.length} photo uploaded successfully`,
-      data: response
+      data: formatted
     });
 
   } catch (err) {
@@ -1851,12 +1858,14 @@ module.exports.deletePhoto = async (req, res) => {
     await clearProfileCache(userId);
 
     // Format response
-    const response = formatResponse(profile);
+    // const response = formatResponse(profile);
+    const blockedContacts = await BlockedContact.find({ userId }).lean();
+    const formatted = formatProfileResponse(profile, blockedContacts);
 
     return res.json({
       success: true,
       message: "Photo deleted successfully",
-      data: response
+      data: formatted
     });
 
   } catch (err) {
@@ -1953,6 +1962,8 @@ for (const id of photoIds) {
     });
 
     profile.photos = reorderedPhotos;
+     const blockedContacts = await BlockedContact.find({ userId }).lean();
+    const formatted = formatProfileResponse(profile, blockedContacts);
 
     // 7️⃣ Save
     await profile.save();
@@ -1964,7 +1975,7 @@ for (const id of photoIds) {
     return res.json({
       success: true,
       message: "Photos reordered successfully",
-      data: formatResponse(profile)
+      data: formatted
     });
 
   } catch (err) {
@@ -2025,6 +2036,9 @@ module.exports.uploadSelfie = async (req, res) => {
     // }
     profile.verification.selfieUrl = result.url;
 profile.verification.status = "pending"; 
+  const blockedContacts = await BlockedContact.find({ userId }).lean();
+    const formatted = formatProfileResponse(profile, blockedContacts);
+
 await profile.save();
 
     // Save
@@ -2044,13 +2058,14 @@ await profile.save();
     return res.json({
       success: true,
       message: "Selfie uploaded successfully",
-      data: {
-        selfie: {
-          url: profile.verification.selfieUrl, // ✅ Selfie URL
-          // uploadedAt: profile.selfieUrl.uploadedAt
-        },
+      data : formatted
+      // data: {
+      //   selfie: {
+      //     url: profile.verification.selfieUrl, // ✅ Selfie URL
+      //     // uploadedAt: profile.selfieUrl.uploadedAt
+      //   },
 
-      }
+      // }
     });
 
   } catch (err) {
@@ -2235,6 +2250,9 @@ module.exports.uploadIDDocument = async (req, res) => {
       profile.kyc.status = "pending"; // sync both for safety
     }
 
+      const blockedContacts = await BlockedContact.find({ userId }).lean();
+    const formatted = formatProfileResponse(profile, blockedContacts);
+
     // 4. Save (This will trigger the Pre-save hook we wrote for totalCompletion)
     await profile.save();
 
@@ -2244,14 +2262,15 @@ module.exports.uploadIDDocument = async (req, res) => {
     return res.json({
       success: true,
       message: "ID document uploaded successfully. Your verification is under review",
-      data: {
-        verification: {
-          status: profile.verification.status,
-          docUrl: profile.verification.docUrl,
-          selfieUrl: profile.verification.selfieUrl || ""
-        },
-        // totalCompletion: profile.onboardingProgress.totalCompletion
-      }
+      data : formatted
+      // data: {
+      //   verification: {
+      //     status: profile.verification.status,
+      //     docUrl: profile.verification.docUrl,
+      //     selfieUrl: profile.verification.selfieUrl || ""
+      //   },
+      //   // totalCompletion: profile.onboardingProgress.totalCompletion
+      // }
     });
 
   } catch (err) {
@@ -2265,7 +2284,7 @@ module.exports.uploadIDDocument = async (req, res) => {
 module.exports.updateLocation = async (req, res) => {
   try {
     const userId = req.user._id;
-    const { latitude, longitude, city, state, country } = req.body;
+    const { latitude, longitude, city, state, country,full_address } = req.body;
 
     if (!latitude || !longitude || isNaN(latitude) || isNaN(longitude)) {
   return res.status(400).json({
@@ -2291,8 +2310,12 @@ module.exports.updateLocation = async (req, res) => {
       coordinates: [Number(longitude), Number(latitude)],
       city: city || "",
       state: state || "",
-      country: country || ""
+      country: country || "",
+      full_address : full_address || ""
     };
+
+      const blockedContacts = await BlockedContact.find({ userId }).lean();
+    const formatted = formatProfileResponse(profile, blockedContacts);
 
     // Save
     await profile.save();
@@ -2306,7 +2329,7 @@ module.exports.updateLocation = async (req, res) => {
     return res.json({
       success: true,
       message: "Location updated successfully",
-      data: response.location
+      data: formatted
       
     });
 
@@ -2346,18 +2369,21 @@ module.exports.getStatus = async (req, res) => {
     const profile = await getOrCreateProfile(userId);
 
     // Format response
-    const response = formatResponse(profile);
+    // const response = formatResponse(profile);
+
+      const blockedContacts = await BlockedContact.find({ userId }).lean();
+    const formatted = formatProfileResponse(profile, blockedContacts);
 
     // Cache for 30 seconds
     try {
-      await cache.set(cacheKey, JSON.stringify(response), { EX: 30 });
+      await cache.set(cacheKey, JSON.stringify(formatted), { EX: 30 });
     } catch (cacheErr) {
       console.log("Cache write warning:", cacheErr.message);
     }
 
     return res.json({
       success: true,
-      data: response,
+      data: formatted,
       cached: false
     });
 
@@ -2689,80 +2715,193 @@ module.exports.getStatus = async (req, res) => {
 // };
 
 
+const { formatPublicProfile } = require("./profile.userFormatter");
+const swipeModel = require("../matches/swipe/swipe.model");
 
-module.exports.getPublicProfile = async (req, res) => {
-  try {
-    const mongoose = require('mongoose');
-    const viewerId = req.user._id; // Already ObjectId
-    const targetUserId = req.params.userId; // String format
-
-    console.log("Viewer ID:", viewerId);
-    console.log("Target User ID:", targetUserId);
+// exports.getUserProfile = async (req, res) => {
+//   try {
+//     // Params se 'userId' nikalo (kyunki aapke route mein :userId hai)
+//     const { userId } = req.params; 
     
-    const profile = await Profile.findOne({ userId: targetUserId })
-      .select("-preferences -kyc -onboardingProgress")
-      .lean();
+//     console.log("Searching for Profile with userId:", userId);
 
-    if (!profile) {
-      return res.status(404).json({
-        success: false,
-        code: "PROFILE_NOT_FOUND",
-        message: "Profile not found"
-      });
-    }
+//     // Lean query performance ke liye
+//     const profile = await Profile.findOne({ userId: userId }).lean();
+    
+//     if (!profile) {
+//       console.log("Profile not found for ID:", userId);
+//       return res.status(404).json({ success: false, message: "Profile not found" });
+//     }
 
-    // 🔒 VISIBILITY LOGIC
-    if (profile.visibility === "nobody") {
-      return res.status(403).json({
-        success: false,
-        code: "PROFILE_HIDDEN",
-        message: "This profile is not visible"
-      });
-    }
+//     // Baaki logic same...
+//     const formattedData = await formatPublicProfile(req.user, profile);
 
-    if (profile.visibility === "matches_only") {
-      // ✅ Convert both to ObjectId properly
-      const viewerObjectId = mongoose.Types.ObjectId.isValid(viewerId) 
-        ? new mongoose.Types.ObjectId(viewerId) 
-        : viewerId;
-      
-      const targetObjectId = new mongoose.Types.ObjectId(targetUserId);
+//     res.json({ success: true, data: formattedData });
+    
+//   } catch (err) {
+//     res.status(500).json({ success: false, message: "Internal Server Error" });
+//   }
+// };
 
-      console.log("Viewer ObjectId:", viewerObjectId);
-      console.log("Target ObjectId:", targetObjectId);
 
-      // ✅ Array order matter karta hai, so $or use karo
-      const isMatch = await Match.findOne({
-        $or: [
-          { users: [viewerObjectId, targetObjectId] },
-          { users: [targetObjectId, viewerObjectId] }
-        ]
-      });
+exports.getUserProfile = async (req, res) => {
+    try {
+        const { userId: targetUserId } = req.params; // Jiski profile dekhni hai
+        const viewer = req.user; // Jo user dekh raha hai (token se)
 
-      console.log("Match found:", isMatch);
-      
-      if (!isMatch) {
-        return res.status(403).json({
-          success: false,
-          code: "MATCH_REQUIRED",
-          message: "Only matches can view this profile"
+        // 1. Database se target user ki poori profile nikalo
+        const targetProfile = await Profile.findOne({ userId: targetUserId }).lean();
+        
+        if (!targetProfile) {
+            return res.status(404).json({ success: false, message: "User profile not found" });
+        }
+
+        // 2. Parallel Checks (Interaction History)
+        const [swipeAction, blockStatus] = await Promise.all([
+            swipeModel.findOne({ swiperId: viewer._id, targetId: targetUserId }).lean(),
+            Block.findOne({
+                $or: [
+                    { blockerId: viewer._id, blockedId: targetUserId },
+                    { blockerId: targetUserId, blockedId: viewer._id }
+                ]
+            }).lean()
+        ]);
+
+        // 3. Privacy Guard: Agar block hai toh profile nahi dikhegi
+        if (blockStatus) {
+            return res.status(403).json({ success: false, message: "Profile is private or unavailable" });
+        }
+
+        // 4. Universal Formatter Call
+        const formattedData = await formatPublicProfile(viewer, targetProfile, swipeAction);
+
+        res.json({
+            success: true,
+            data: formattedData
         });
-      }
-    }
-   
-    return res.json({
-      success: true,
-      data: profile
-    });
 
+    } catch (err) {
+        console.error("Fetch Profile Error:", err);
+        res.status(500).json({ success: false, message: "Failed to load profile details" });
+    }
+};
+exports.updateDiscoveryFilters = async (req, res) => {
+  try {
+    const userId = req.user._id;
+    const { discoveryFilters } = req.body; 
+
+    let profile = await Profile.findOne({ userId });
+
+    if (discoveryFilters) {
+      // ✅ INTERESTS: Sneha ke interests yahan save honge
+      if (discoveryFilters.interests) {
+          profile.discovery.preferredInterests = discoveryFilters.interests;
+      }
+      
+      if (discoveryFilters.relationshipGoal) {
+          profile.discovery.filterRelationshipGoal = discoveryFilters.relationshipGoal;
+      }
+      
+      // ✅ AGE RANGE: Sneha (25) ko target karne ke liye
+      if (discoveryFilters.ageRange) {
+          profile.discovery.ageRange = discoveryFilters.ageRange;
+      }
+      if (discoveryFilters.advanced) {
+    profile.discovery.advancedFilters = {
+        ...profile.discovery.advancedFilters,
+        ...discoveryFilters.advanced
+    };
+}
+    }
+
+    await profile.save();
+
+    // 🔥 SABSE ZAROORI: Redis key delete karo taaki Nayi Feed DB se aaye
+    if (redis) {
+        const CACHE_KEY = `feed:${userId.toString()}`;
+        await redis.del(CACHE_KEY);
+        console.log("Redis cache cleared for new filters");
+    }
+
+    return res.json({ success: true, message: "Filters applied! Feed is refreshing." });
   } catch (err) {
-    console.error("Get public profile error:", err);
-    return res.status(500).json({
-      success: false,
-      message: "Internal server error"
-    });
+    res.status(500).json({ success: false, message: err.message });
   }
 };
+
+// module.exports.getPublicProfile = async (req, res) => {
+//   try {
+//     const mongoose = require('mongoose');
+//     const viewerId = req.user._id; // Already ObjectId
+//     const targetUserId = req.params.userId; // String format
+
+//     console.log("Viewer ID:", viewerId);
+//     console.log("Target User ID:", targetUserId);
+    
+//     const profile = await Profile.findOne({ userId: targetUserId })
+//       .select("-preferences -kyc -onboardingProgress")
+//       .lean();
+
+//     if (!profile) {
+//       return res.status(404).json({
+//         success: false,
+//         code: "PROFILE_NOT_FOUND",
+//         message: "Profile not found"
+//       });
+//     }
+
+//     // 🔒 VISIBILITY LOGIC
+//     if (profile.visibility === "nobody") {
+//       return res.status(403).json({
+//         success: false,
+//         code: "PROFILE_HIDDEN",
+//         message: "This profile is not visible"
+//       });
+//     }
+
+//     if (profile.visibility === "matches_only") {
+//       // ✅ Convert both to ObjectId properly
+//       const viewerObjectId = mongoose.Types.ObjectId.isValid(viewerId) 
+//         ? new mongoose.Types.ObjectId(viewerId) 
+//         : viewerId;
+      
+//       const targetObjectId = new mongoose.Types.ObjectId(targetUserId);
+
+//       console.log("Viewer ObjectId:", viewerObjectId);
+//       console.log("Target ObjectId:", targetObjectId);
+
+//       // ✅ Array order matter karta hai, so $or use karo
+//       const isMatch = await Match.findOne({
+//         $or: [
+//           { users: [viewerObjectId, targetObjectId] },
+//           { users: [targetObjectId, viewerObjectId] }
+//         ]
+//       });
+
+//       console.log("Match found:", isMatch);
+      
+//       if (!isMatch) {
+//         return res.status(403).json({
+//           success: false,
+//           code: "MATCH_REQUIRED",
+//           message: "Only matches can view this profile"
+//         });
+//       }
+//     }
+   
+//     return res.json({
+//       success: true,
+//       data: profile
+//     });
+
+//   } catch (err) {
+//     console.error("Get public profile error:", err);
+//     return res.status(500).json({
+//       success: false,
+//       message: "Internal server error"
+//     });
+//   }
+// };
 
 
 
@@ -2896,38 +3035,38 @@ module.exports.getPublicProfile = async (req, res) => {
 // };
 
 
-exports.updateDiscoveryFilters = async (req, res) => {
-  try {
-    const userId = req.user._id;
-    const { discoveryFilters } = req.body; // Alag object
+// exports.updateDiscoveryFilters = async (req, res) => {
+//   try {
+//     const userId = req.user._id;
+//     const { discoveryFilters } = req.body; // Alag object
 
-    let profile = await Profile.findOne({ userId });
+//     let profile = await Profile.findOne({ userId });
 
-    if (discoveryFilters) {
-      // 1. Common Filters
-      if (discoveryFilters.interests) profile.discovery.preferredInterests = discoveryFilters.interests;
-      if (discoveryFilters.hasBio !== undefined) profile.discovery.hasBio = discoveryFilters.hasBio;
+//     if (discoveryFilters) {
+//       // 1. Common Filters
+//       if (discoveryFilters.interests) profile.discovery.preferredInterests = discoveryFilters.interests;
+//       if (discoveryFilters.hasBio !== undefined) profile.discovery.hasBio = discoveryFilters.hasBio;
       
-      // 2. Relationship Goal (As a filter, not profile data)
-      if (discoveryFilters.relationshipGoal) {
-        profile.discovery.filterRelationshipGoal = discoveryFilters.relationshipGoal;
-      }
+//       // 2. Relationship Goal (As a filter, not profile data)
+//       if (discoveryFilters.relationshipGoal) {
+//         profile.discovery.filterRelationshipGoal = discoveryFilters.relationshipGoal;
+//       }
 
-      // 3. Advanced Traits (Merging carefully)
-      if (discoveryFilters.advanced) {
-        profile.discovery.advancedFilters = {
-          ...profile.discovery.advancedFilters,
-          ...discoveryFilters.advanced
-        };
-      }
-    }
+//       // 3. Advanced Traits (Merging carefully)
+//       if (discoveryFilters.advanced) {
+//         profile.discovery.advancedFilters = {
+//           ...profile.discovery.advancedFilters,
+//           ...discoveryFilters.advanced
+//         };
+//       }
+//     }
 
-    await profile.save();
-    return res.json({ success: true, message: "Filters applied! Feed is refreshing." });
-  } catch (err) {
-    res.status(500).json({ success: false, message: err.message });
-  }
-};
+//     await profile.save();
+//     return res.json({ success: true, message: "Filters applied! Feed is refreshing." });
+//   } catch (err) {
+//     res.status(500).json({ success: false, message: err.message });
+//   }
+// };
 
 // exports.updateDiscoveryPreference = async (req, res) => {
 //   try {
@@ -3114,5 +3253,60 @@ exports.updateVisibility = async (req, res) => {
       success: false,
       message: err.message
     });
+  }
+};
+
+
+
+
+
+exports.quickVerifyUser = async (req, res) => {
+  try {
+    const { userId } = req.params; // Aap yahan Profile ki ID ya User ki ID bhej sakte ho
+
+    // 1. Profile Update (Nested Fields)
+    // Humne isse aisa banaya hai ki ye Profile _id ya userId dono se dhoond sake
+    const updatedProfile = await Profile.findOneAndUpdate(
+      { $or: [{ _id: userId }, { userId: userId }] },
+      {
+        $set: {
+          "canAccessSwipe": true,
+          "isDiscoverable": true,
+          "isProfileComplete": true,
+          "isMandatoryComplete": true,
+          "verification.status": "approved",
+        }
+      },
+      { new: true }
+    );
+
+    if (!updatedProfile) {
+      return res.status(404).json({ success: false, message: "Profile not found" });
+    }
+
+    // // 2. User Update (User Model ke flags)
+    // await User.findByIdAndUpdate(updatedProfile.userId, {
+    //   $set: {
+    //     "onboarding.isComplete": true,
+    //     isPhoneVerified: true,
+    //     isNewUser: false,
+    //     accountStatus: "active"
+    //   }
+    // });
+
+    res.json({
+      success: true,
+      message: "🚀 Sab kuch set hai! Swipe and Discover enabled.",
+      data: {
+          profileId: updatedProfile._id,
+          // userId: updatedProfile.userId,
+          canSwipe: updatedProfile.attributes.canAccessSwipe,
+          isDiscoverable: updatedProfile.discovery.isDiscoverable,
+          kyc: updatedProfile.verification.status
+      }
+    });
+
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
   }
 };

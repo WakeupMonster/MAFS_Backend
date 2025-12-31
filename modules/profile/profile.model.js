@@ -894,7 +894,7 @@ const ProfileSchema = new mongoose.Schema({
 
   // --- 3. DISCOVERY PREFERENCES (Swipe Filters) ---
   discovery: {
-    distanceRange: { type: Number, default: 50 }, // in km
+    distanceRange: { type: Number, default: 50 , min: 1, max: 500}, // in km
     ageRange: {
       min: { type: Number, default: 18 },
       max: { type: Number, default: 60 }
@@ -1032,7 +1032,7 @@ ProfileSchema.pre('save', function(next) {
   const hasDob = !!profile.dob;
   const hasGender = !!profile.gender;
   const hasLocation = !!(profile.location && profile.location.city);
-  const hasMinPhotos = !!(profile.photos && profile.photos.length >= 2);
+  const hasMinPhotos = !!(profile.photos && profile.photos.length >= 1);
   const hasGoal = !!profile.discovery?.relationshipGoal;
   const hasInterests = !!(profile.attributes?.interests && profile.attributes.interests.length >= 3);
 

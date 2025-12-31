@@ -710,9 +710,53 @@ module.exports.logout = async (req, res) => {
 
 
 // In auth.controller.js - Add a new test endpoint
+// module.exports.sendTestOtp = async (req, res) => {
+//   try {
+//     const { phone } = req.body;
+//     const ip = req.ip;
+
+//     if (!phone) {
+//       return res.status(400).json({
+//         success: false,
+//         message: "Phone is required"
+//       });
+//     }
+
+//     // Rate limiting
+//     const isLimited = await rateLimit(`otp:test:${ip}`, 10, 60); // More generous limits for testing
+//     if (isLimited) {
+//       return res.status(429).json({
+//         success: false,
+//         message: "Too many test requests. Try again later."
+//       });
+//     }
+
+//     // Send OTP in test mode
+//     const result = await authService.sendPhoneOtpTest(phone, true); // true = test mode
+
+//     return res.json({
+//       success: true,
+//       message: `Test OTP: ${result.otp}`,
+//       otp: result.otp
+//     });
+//   } catch (err) {
+//     console.error("Error in sendTestOtp:", err);
+//     return res.status(400).json({
+//       success: false,
+//       message: err.message
+//     });
+//   }
+// };
+
+// Update the routes to include the new test endpoint
+// In your auth.routes.js or wherever routes are defined
+// router.post('/test/otp', authController.sendTestOtp);
+
+const { normalizePhone, hashPhone } = require("../../common/utils/phone.util");
+
 module.exports.sendTestOtp = async (req, res) => {
   try {
-    const { phone } = req.body;
+    let { phone } = req.body;
     const ip = req.ip;
 
     if (!phone) {
@@ -722,8 +766,20 @@ module.exports.sendTestOtp = async (req, res) => {
       });
     }
 
+    // 🔹 Normalize phone (VERY IMPORTANT)
+    const normalizedPhone = normalizePhone(phone);
+    if (!normalizedPhone) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid phone number"
+      });
+    }
+
+    // 🔹 Hash phone (future consistency)
+    const phoneHash = hashPhone(normalizedPhone);
+
     // Rate limiting
-    const isLimited = await rateLimit(`otp:test:${ip}`, 10, 60); // More generous limits for testing
+    const isLimited = await rateLimit(`otp:test:${ip}`, 10, 60);
     if (isLimited) {
       return res.status(429).json({
         success: false,
@@ -731,13 +787,19 @@ module.exports.sendTestOtp = async (req, res) => {
       });
     }
 
-    // Send OTP in test mode
-    const result = await authService.sendPhoneOtpTest(phone, true); // true = test mode
+    // ✅ OTP send (NO DB WRITE HERE)
+    const result = await authService.sendPhoneOtpTest(normalizedPhone, true);
 
     return res.json({
       success: true,
       message: `Test OTP: ${result.otp}`,
-      otp: result.otp
+      otp: result.otp,
+
+      // ⚠️ TESTING ONLY (REMOVE IN PROD RESPONSE)
+      debug: {
+        normalizedPhone,
+        phoneHash
+      }
     });
   } catch (err) {
     console.error("Error in sendTestOtp:", err);
@@ -748,9 +810,8 @@ module.exports.sendTestOtp = async (req, res) => {
   }
 };
 
-// Update the routes to include the new test endpoint
-// In your auth.routes.js or wherever routes are defined
-// router.post('/test/otp', authController.sendTestOtp);
+
+
 
 
 module.exports.resendPhoneOtp = async (req, res) => {

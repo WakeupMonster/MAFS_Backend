@@ -260,52 +260,135 @@ async function sendPhoneOtp(phone) {
 
 
 const { formatUserProfile } = require("./auth.formatter");
+const BlockedContact = require("../BlockedContact/blockedContacts.model");
+const Block = require("../profile/user.block")
+const { normalizePhone, hashPhone } = require("../../common/utils/phone.util");
+
 
 async function verifyPhoneOtpUnified(phone, otp) {
-  // 1. Redis/OTP Logic...
-  const redisKey = `login:${phone}`;
+  // 1️⃣ Normalize phone (VERY IMPORTANT)
+  const normalizedPhone = normalizePhone(phone);
+  if (!normalizedPhone) throw new Error("Invalid phone number");
+
+  // 2️⃣ Redis OTP check
+  const redisKey = `login:${normalizedPhone}`;
   const storedOtp = await redis.get(redisKey);
-  if (!storedOtp || storedOtp !== otp) throw new Error("Invalid OTP");
+  if (!storedOtp || storedOtp !== otp) {
+    throw new Error("Invalid OTP");
+  }
 
-  // 2. User/Profile Fetch
-  let user = await User.findOne({ phone });
-  if (!user) user = await User.create({ phone });
+  // 3️⃣ Generate phoneHash 🔥
+  const phoneHash = hashPhone(normalizedPhone);
 
-  user.isPhoneVerified = true;
+  // 4️⃣ Find or create user
+  let user = await User.findOne({ phone: normalizedPhone });
+  if (!user) {
+    user = await User.create({
+      phone: normalizedPhone,
+      phoneHash: phoneHash // 🔥 NEW USER CASE
+    });
+  }
+
+  // 5️⃣ Tokens
   const accessToken = utils.generateAccessToken(user);
   const refreshTokenRaw = utils.generateRefreshToken();
   const refreshHash = utils.hashToken(refreshTokenRaw);
-  const expiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000); // 30 din ki expiry
-  // ... Token Save Logic ...
+  const expiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
+
+  // 6️⃣ Update user (🔥 phoneHash ENSURED)
   user = await User.findByIdAndUpdate(
     user._id,
     {
-      $set: { isPhoneVerified: true, isNewUser: false },
-      $push: { 
-        refreshTokens: { tokenHash: refreshHash, expiresAt: expiresAt } 
+      $set: {
+        phone: normalizedPhone,
+        phoneHash: phoneHash,   // 🔥 CRITICAL LINE
+        isPhoneVerified: true,
+        isNewUser: false
+      },
+      $push: {
+        refreshTokens: {
+          tokenHash: refreshHash,
+          expiresAt
+        }
       }
     },
-    { new: true } // Taaki updated user return ho
+    { new: true }
   );
-  // await user.save();
 
-  // const profile = await profileModel.findOne({ userId: user._id }).lean();
+  // 7️⃣ Profile upsert
   const profile = await profileModel.findOneAndUpdate(
     { userId: user._id },
-    { $set: { "onboardingProgress.phoneVerified": true } }, // Minimal update to trigger upsert
+    { $set: { "onboardingProgress.phoneVerified": true } },
     { upsert: true, new: true, setDefaultsOnInsert: true }
   ).lean();
 
+  // 8️⃣ Blocks (as is)
+  const [blockedContacts, blockedUser] = await Promise.all([
+    BlockedContact.find({ userId: user._id }).lean(),
+    Block.find({ blockerId: user._id }).lean()
+  ]);
+
   await redis.del(redisKey);
 
-  // 3. Final Response Using Formatter
   return {
     accessToken,
     refreshToken: refreshTokenRaw,
-    isNewUser: !user.firstName, 
-    user: formatUserProfile(user, profile) // Yahan magic ho raha hai
+    isNewUser: !user.firstName,
+    user: formatUserProfile(user, profile, blockedContacts, blockedUser)
   };
 }
+
+
+// async function verifyPhoneOtpUnified(phone, otp) {
+//   // 1. Redis/OTP Logic...
+//   const redisKey = `login:${phone}`;
+//   const storedOtp = await redis.get(redisKey);
+//   if (!storedOtp || storedOtp !== otp) throw new Error("Invalid OTP");
+
+//   // 2. User/Profile Fetch
+//   let user = await User.findOne({ phone });
+//   if (!user) user = await User.create({ phone });
+
+//   user.isPhoneVerified = true;
+//   const accessToken = utils.generateAccessToken(user);
+//   const refreshTokenRaw = utils.generateRefreshToken();
+//   const refreshHash = utils.hashToken(refreshTokenRaw);
+//   const expiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000); // 30 din ki expiry
+//   // ... Token Save Logic ...
+//   user = await User.findByIdAndUpdate(
+//     user._id,
+//     {
+//       $set: { isPhoneVerified: true, isNewUser: false },
+//       $push: { 
+//         refreshTokens: { tokenHash: refreshHash, expiresAt: expiresAt } 
+//       }
+//     },
+//     { new: true } // Taaki updated user return ho
+//   );
+//   // await user.save();
+
+//   // const profile = await profileModel.findOne({ userId: user._id }).lean();
+//   const profile = await profileModel.findOneAndUpdate(
+//     { userId: user._id },
+//     { $set: { "onboardingProgress.phoneVerified": true } }, // Minimal update to trigger upsert
+//     { upsert: true, new: true, setDefaultsOnInsert: true }
+//   ).lean();
+
+//    const [blockedContacts, blockedUser] = await Promise.all([
+//     BlockedContact.find({ userId: user._id }).lean(), // 'user' ki jagah 'userId'
+//     Block.find({ blockerId: user._id }).lean()       // 'userId' ki jagah 'user._id'
+//   ]);
+
+//   await redis.del(redisKey);
+
+//   // 3. Final Response Using Formatter
+//   return {
+//     accessToken,
+//     refreshToken: refreshTokenRaw,
+//     isNewUser: !user.firstName, 
+//     user: formatUserProfile(user, profile,blockedContacts,blockedUser) // Yahan magic ho raha hai
+//   };
+// }
 
 // function getNextStep(user) {
 //   if (!user.isEmailVerified) {
@@ -414,7 +497,7 @@ async function verifyEmailOtp(token, otp) {
 
   // Formatter use karke pura data return karo
   return {
-    accessToken: utils.generateAccessToken(user), // Optional: Naya token de sakte ho
+    // accessToken: utils.generateAccessToken(user), // Optional: Naya token de sakte ho
     user: formatUserProfile(user, profile)
   };
 }
@@ -673,6 +756,7 @@ async function refreshAccessToken(refreshTokenRaw) {
 
   // 6. Profile fetch karo (Empty string handling ke liye)
   const profile = await profileModel.findOne({ userId: user._id }).lean();
+  
 
   await user.save();
 

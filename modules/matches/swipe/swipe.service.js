@@ -6,7 +6,9 @@ const User = require("../../auth/auth.model");
 const Swipe = require("./swipe.model"); // may export Swipe and Match - adjust import
 const { Match } = require("./swipe.model");
 const mongoose = require("mongoose");
-const userActionsModel = require("./BlockReport/userActions.model");
+// const userActionsModel = require("./BlockReport/userActions.model");
+const Block = require("../../../modules/profile/user.block");
+const Report = require("../../../modules/profile/user.report");
 const redis = require("../../../config/cache");
 const BlockedContact = require("../../BlockedContact/blockedContacts.model");
 
@@ -133,15 +135,46 @@ async function getFeedService(userId, limit = 20) {
     }
 
     // 3️⃣ Exclusion Lists (Swipes, Blocks, etc.)
-    const [swipes, matches, blocked, superlikes] = await Promise.all([
+    const [swipes,          // 1. Maine kise like/pass kiya
+    matches,         // 2. Mere matches
+    myBlocked,       // 3. Maine kise block kiya
+    blockedMe,       // 4. Mujhe kisne block kiya
+    myReports,       // 5. Maine kise report kiya
+    superlikes] = await Promise.all([
         Swipe.find({ swiperId: userId, action: { $in: ["like", "pass"] } }).distinct("targetId"),
         Match.find({ users: userId }).distinct("users"),
-        userActionsModel.find({ $or: [{ actorId: userId }, { targetId: userId }] }).distinct("targetId"),
+        // userActionsModel.find({ $or: [{ actorId: userId }, { targetId: userId }] }).distinct("targetId"),
+        Block.find({ blockerId: userId }).distinct("blockedId"),
+        // Jinhone mujhe block kiya
+        Block.find({ blockedId: userId }).distinct("blockerId"),
+        // Maine jinhe report kiya (unhe bhi feed se hata dena chahiye)
+        Report.find({ reporterId: userId }).distinct("reportedId"),
         Swipe.find({ targetId: userId, action: "superlike" }).distinct("swiperId")
     ]);
 
+
+    const blockedPhoneHashes = await BlockedContact.find({
+  userId
+}).distinct("blockedPhoneHash");
+
+let blockedByContactUserIds = [];
+
+if (blockedPhoneHashes.length) {
+  const users = await User.find({
+    phoneHash: { $in: blockedPhoneHashes }
+  }).distinct("_id");
+
+  blockedByContactUserIds = users.map(id => id.toString());
+}
+
+
     const superlikeSet = new Set(superlikes.map(id => id.toString()));
-    const excludeIds = [...new Set([...swipes, ...matches, ...blocked, userId])].map(id => id.toString());
+    console.log(superlikeSet,"superlikeSet")
+    const excludeIds = [...new Set([...swipes, 
+        ...matches, 
+        ...myBlocked, 
+        ...blockedMe, 
+        ...myReports,...blockedByContactUserIds, userId])].map(id => id.toString());
 
     // 4️⃣ Strict Query Building (Discovery Filters)
     const discovery = myProfile.discovery || {};
@@ -180,64 +213,269 @@ async function getFeedService(userId, limit = 20) {
     const myAdvancedFilters = discovery.advancedFilters || {};
     // Overwrite protection: Agar filterRelationshipGoal hai toh wo lo, warna profile goal
     const activeSearchGoal = discovery.filterRelationshipGoal || discovery.relationshipGoal;
+const transformedProfiles = profiles.map((profile) => {
+    const targetAttr = profile.attributes || {};
+    const targetInterests = targetAttr.interests || profile.interests || [];
+    const isSuperliked = superlikeSet.has(profile.userId.toString());
+    console.log(isSuperliked,"has in set")
+    // 1️⃣ Match Score Calculation (Score Logic Same Rakhenge)
+    let score = isSuperliked ? 1000 : 0;
+    const common = targetInterests.filter(i => myPreferredInterests.includes(i));
+    score += (common.length * 25);
+    
+    const targetGoal = profile.discovery?.relationshipGoal;
+    if (targetGoal === activeSearchGoal) score += 40;
 
-    const transformedProfiles = profiles.map((profile) => {
-        const targetAttr = profile.attributes || {};
-        const targetInterests = targetAttr.interests || profile.interests || [];
-        const isSuperliked = superlikeSet.has(profile.userId.toString());
+const matchedTraits = [];
+    // Advanced Traits Match (+15 points each)
+const traits = ['smoking', 'drinking', 'zodiac', 'pets', 'workout'];
+traits.forEach(trait => {
+    if (myAdvancedFilters[trait] && targetAttr[trait] === myAdvancedFilters[trait]) {
+        score += 15;
+        matchedTraits.push(targetAttr[trait]);
+    }
+});
+    
+
+    // 2️⃣ Distance calculation
+    let distanceKm = 0;
+    if (myProfile.location?.coordinates && profile.location?.coordinates) {
+        distanceKm = calculateDistance(
+            myProfile.location.coordinates[1], myProfile.location.coordinates[0], 
+            profile.location.coordinates[1], profile.location.coordinates[0]
+        );
+    }
+
+    // 3️⃣ Frontend "Hand-holding" logic (Card Highlights)
+    // Ye array frontend ko batayega ki pehle card par kya dikhana hai aur dusre par kya
+    const cardHighlights = [];
+    if (common.length > 0) cardHighlights.push(`You both love ${common[0]}`);
+    if (targetGoal) cardHighlights.push(`Looking for: ${targetGoal}`);
+    if (distanceKm <= 5) cardHighlights.push(`Very close to you!`);
+    if (score > 75) cardHighlights.push(`${score}% Compatible`);
+
+
+
+
+
+    // const dynamicHighlights = [];
+
+    // // Card 1: Vibe Match (Interests)
+    // if (common.length > 0) {
+    //     dynamicHighlights.push({
+    //         type: "INTEREST_MATCH",
+    //         icon: "🔥",
+    //         title: "Common Vibe",
+    //         description: `You both love ${common[0]}${common.length > 1 ? ` & ${common.length - 1} more` : ""}`
+    //     });
+    // }
+
+    // // Card 2: Relationship Goal Match
+    // if (targetGoal === activeSearchGoal) {
+    //     dynamicHighlights.push({
+    //         type: "GOAL_MATCH",
+    //         icon: "🎯",
+    //         title: "Same Intent",
+    //         description: `Both looking for ${targetGoal}`
+    //     });
+    // }
+
+    // // Card 3: Lifestyle/Trait Match
+    // if (matchedTraits.length > 0) {
+    //     dynamicHighlights.push({
+    //         type: "TRAIT_MATCH",
+    //         icon: "✅",
+    //         title: "Lifestyle Match",
+    //         description: `You match on ${matchedTraits[0]} habits`
+    //     });
+    // }
+
+    // // Card 4: Distance/Location
+    // dynamicHighlights.push({
+    //     type: "LOCATION",
+    //     icon: "📍",
+    //     title: "Nearby",
+    //     description: distanceKm <= 1 ? "In your neighborhood" : `${distanceKm} km away`
+    // });
+
+    // // Card 5: Compatibility (Excellent/Great)
+    // dynamicHighlights.push({
+    //     type: "COMPATIBILITY",
+    //     icon: "✨",
+    //     // title: compatibilityLabel,
+    //     compatibilityLabel: score > 75 ? "Excellent Match" : (score > 40 ? "Great Match" : "Good Match"),
+    //     description: `${score}% Compatible with your profile`
+    // });
+
+    // // Card 6: New User / Verification Status
+    // if (profile.verification?.status === "approved") {
+    //     dynamicHighlights.push({
+    //         type: "VERIFIED",
+    //         icon: "🛡️",
+    //         title: "Verified Profile",
+    //         description: "Authenticity checked by MAFS"
+    //     });
+    // } else {
+    //     dynamicHighlights.push({
+    //         type: "NEW_JOINER",
+    //         icon: "🎈",
+    //         title: "Fresh Face",
+    //         description: "Just joined the community"
+    //     });
+    //   }
+const dynamicHighlights = [];
+
+// --- 1. Priority Matches (Real Data) ---
+if (common.length > 0) {
+    dynamicHighlights.push({ type: "INTEREST_MATCH", icon: "🔥", title: "Common Vibe", description: `You both love ${common[0]}` });
+}
+if (targetGoal === activeSearchGoal) {
+    dynamicHighlights.push({ type: "GOAL_MATCH", icon: "🎯", title: "Same Intent", description: `Both looking for ${targetGoal}` });
+}
+if (matchedTraits.length > 0) {
+    dynamicHighlights.push({ type: "TRAIT_MATCH", icon: "✅", title: "Lifestyle", description: `Matches on ${matchedTraits[0]} habits` });
+}
+
+// --- 2. Essential Info (Hamesha hoti hai) ---
+dynamicHighlights.push({ type: "LOCATION", icon: "📍", title: "Nearby", description: distanceKm <= 1 ? "In your neighborhood" : `${distanceKm} km away` });
+
+if (profile.verification?.status === "approved") {
+    dynamicHighlights.push({ type: "VERIFIED", icon: "🛡️", title: "Verified", description: "Authenticity checked by MAFS" });
+}
+
+// --- 3. Fallbacks (Jab 6 cards pure karne ho) ---
+if (dynamicHighlights.length < 6) {
+    // Fallback: Bio Card
+    if (profile.about && profile.about.length > 20) {
+        dynamicHighlights.push({ type: "BIO_PREVIEW", icon: "✍️", title: "About Me", description: profile.about.substring(0, 40) + "..." });
+    }
+    
+    // Fallback: Freshness Card
+    dynamicHighlights.push({ type: "ACTIVITY", icon: "⚡", title: "Active Now", description: "This user is looking for a match!" });
+    
+    // Fallback: Quality Card
+    if (profile.photos.length > 3) {
+        dynamicHighlights.push({ type: "PHOTO_QUALITY", icon: "📸", title: "Photo Gallery", description: "Check out more moments" });
+    }
+}
+    
+
+    return {
+        // --- Core Info ---
+        id: profile.userId,
+        nickname: profile.nickname || "User",
+        displayName: `${profile.nickname || "User"}, ${calculateAge(profile.dob)}`,
+        age: calculateAge(profile.dob),
+        bio: profile.about || profile.bio || "",
+        images: (profile.photos || []).sort((a,b) => a.order - b.order).map(p => p.url),
         
-        // Match Score Calculation
-        let score = isSuperliked ? 1000 : 0;
+        // --- Discovery/Matching Info ---
+        relationshipGoal: targetGoal || "Not specified",
+        interests: targetInterests,
+        traits: {
+            // Basics
+            zodiac: targetAttr.zodiac || "",
+            education: targetAttr.education || "",
+            vaccineStatus: targetAttr.vaccineStatus || "",
+            familyPlans: targetAttr.familyPlans || "",
+            personalityType: targetAttr.personalityType || "",
+            communicationStyle: targetAttr.communicationStyle || "",
+            loveStyle: targetAttr.loveStyle || "",
+            bloodType: targetAttr.bloodType || "",
+            
+            // Lifestyle
+            pets: targetAttr.pets || "",
+            drinking: targetAttr.drinking || "",
+            smoking: targetAttr.smoking || "",
+            workout: targetAttr.workout || "",
+            dietary: targetAttr.dietary || "",
+            socialMedia: targetAttr.socialMedia || "",
+            sleeping: targetAttr.sleeping || ""
+        },
+        matchedTraits: matchedTraits,
+        commonInterests: common,
+        hasCommonInterests: common.length > 0,
+        matchScoreTotal: score,
+        
+        // --- Score & Labeling ---
+        matchScore: Math.min(score, 100), // Score 100 se upar na dikhe UI par
+        compatibilityLabel: score > 75 ? "Excellent Match" : (score > 40 ? "Great Match" : "Good Match"),
+        
+        // --- Status Flags ---
+        isSuperKeen: isSuperliked,
+        isVerified: profile.verification?.status === "approved",
+        
+        // --- Frontend UI Helpers ---
+        distanceText: distanceKm <= 1 ? "1 km away" : `${distanceKm} km away`,
+        // location: {
+        //     city: profile.location?.city || "Indore",
+        //     distance: distanceKm
+        // },
+        city: profile.location?.city || "",
+        // Frontend ko har card ke liye ready-made text mil gaya
+        displayHighlight: cardHighlights[0] || "New for you", 
+        allHighlights: cardHighlights,
+        dynamicHighlights: dynamicHighlights.slice(0, 6)
+    };
+});
+    // const transformedProfiles = profiles.map((profile) => {
+    //     const targetAttr = profile.attributes || {};
+    //     const targetInterests = targetAttr.interests || profile.interests || [];
+    //     const isSuperliked = superlikeSet.has(profile.userId.toString());
+        
+    //     // Match Score Calculation
+    //     let score = isSuperliked ? 1000 : 0;
 
-        // Interest Match (+25 points each)
-        const common = targetInterests.filter(i => myPreferredInterests.includes(i));
-        score += (common.length * 25);
+    //     // Interest Match (+25 points each)
+    //     const common = targetInterests.filter(i => myPreferredInterests.includes(i));
+    //     score += (common.length * 25);
 
-        // Relationship Goal Match (+40 points)
-        if (profile.discovery?.relationshipGoal === activeSearchGoal) {
-            score += 40;
-        }
+    //     // Relationship Goal Match (+40 points)
+    //     if (profile.discovery?.relationshipGoal === activeSearchGoal) {
+    //         score += 40;
+    //     }
 
-        // Advanced Traits Match (+15 points each)
-        const traits = ['smoking', 'drinking', 'zodiac', 'pets', 'workout'];
-        traits.forEach(trait => {
-            if (myAdvancedFilters[trait] && targetAttr[trait] === myAdvancedFilters[trait]) {
-                score += 15;
-            }
-        });
+    //     // Advanced Traits Match (+15 points each)
+    //     const traits = ['smoking', 'drinking', 'zodiac', 'pets', 'workout'];
+    //     traits.forEach(trait => {
+    //         if (myAdvancedFilters[trait] && targetAttr[trait] === myAdvancedFilters[trait]) {
+    //             score += 15;
+    //         }
+    //     });
 
-        // Exact Distance Calculation
-        let distanceKm = 0;
-        if (myProfile.location?.coordinates && profile.location?.coordinates) {
-            distanceKm = calculateDistance(
-                myProfile.location.coordinates[1], myProfile.location.coordinates[0], 
-                profile.location.coordinates[1], profile.location.coordinates[0]
-            );
-        }
+    //     // Exact Distance Calculation
+    //     let distanceKm = 0;
+    //     if (myProfile.location?.coordinates && profile.location?.coordinates) {
+    //         distanceKm = calculateDistance(
+    //             myProfile.location.coordinates[1], myProfile.location.coordinates[0], 
+    //             profile.location.coordinates[1], profile.location.coordinates[0]
+    //         );
+    //     }
 
-        // --- Frontend Friendly Response (Figma exact match) ---
-        return {
-            id: profile.userId,
-            nickname: profile.nickname || "User",
-            displayName: `${profile.nickname || "User"}, ${calculateAge(profile.dob)}`,
-            dob : profile.dob.toISOString().split("T")[0] || "",
-            age: calculateAge(profile.dob),
-            bio: profile.about || profile.bio || "",
-            images: (profile.photos || []).sort((a,b) => a.order - b.order).map(p => p.url),
-            interests: targetInterests,
-            distanceText: distanceKm <= 1 ? "1 km away" : `${distanceKm} km away`,
-            isSuperKeen: isSuperliked,
-            intentMessage: isSuperliked ? "They chose you with intent!" : null,
-            commonInterests: common,
-            hasCommonInterests: common.length > 0,
-            matchScore: score,
-            compatibilityLabel: score > 75 ? "Excellent Match" : (score > 40 ? "Great Match" : "Good Match"),
-            location: {
-                city: profile.location?.city || "Indore",
-                distance: distanceKm
-            }
-        };
-    });
+    //     // --- Frontend Friendly Response (Figma exact match) ---
+    //     return {
+    //         id: profile.userId,
+    //         nickname: profile.nickname || "User",
+    //         displayName: `${profile.nickname || "User"}, ${calculateAge(profile.dob)}`,
+    //         dob : profile.dob.toISOString().split("T")[0] || "",
+    //         age: calculateAge(profile.dob),
+    //         city: profile.location?.city || "Indore",
+    //         bio: profile.about || profile.bio || "",
+    //         images: (profile.photos || []).sort((a,b) => a.order - b.order).map(p => p.url),
+    //         interests: targetInterests,
+    //         distanceText: distanceKm <= 1 ? "1 km away" : `${distanceKm} km away`,
+    //         isSuperKeen: isSuperliked,
+    //         intentMessage: isSuperliked ? "They chose you with intent!" : "",
+    //         relationshipGoal: profile.discovery?.relationshipGoal || "",
+    //         commonInterests: common,
+    //         hasCommonInterests: common.length > 0,
+    //         matchScore: score,
+    //         compatibilityLabel: score > 75 ? "Excellent Match" : (score > 40 ? "Great Match" : "Good Match"),
+          
+    //             // distance: distanceKm
+            
+    //     };
+    // });
 
     // Sort by Match Score (Highest first)
     transformedProfiles.sort((a, b) => b.matchScore - a.matchScore);
@@ -1154,6 +1392,7 @@ function calculateAge(dob) {
 
 
 
+
 async function doSwipe(swiperId, targetId, action) {
   if (swiperId.toString() === targetId.toString()) {
     throw new Error("Cannot swipe on your own profile");
@@ -1164,23 +1403,26 @@ async function doSwipe(swiperId, targetId, action) {
 
   try {
     await session.withTransaction(async () => {
-      // 1. Check for existing block
-      const targetProfile = await Profile.findOne({ userId: targetId }).session(session);
+      // 1. Check for Target Profile & Mutual Block (Using New Model)
+      const [targetProfile, blockExists] = await Promise.all([
+        Profile.findOne({ userId: targetId }).session(session),
+        Block.findOne({
+          $or: [
+            { blockerId: swiperId, blockedId: targetId }, // Maine use block kiya hai
+            { blockerId: targetId, blockedId: swiperId }  // Usne mujhe block kiya hai
+          ]
+        }).session(session)
+      ]);
+
       if (!targetProfile) {
         throw new Error('Target profile not found');
       }
-      const blockExists = await userActionsModel.exists({
-        $or: [
-          { actorId: swiperId, targetId, actionType: 'block' },
-          { actorId: targetId, targetId: swiperId, actionType: 'block' }
-        ]
-      }).session(session);
 
       if (blockExists) {
-        throw new Error("Action not allowed. User is blocked.");
+        throw new Error("Action not allowed. User interaction is blocked.");
       }
 
-      // 2. Check for existing swipe
+      // 2. Check for existing swipe (Avoid duplicates)
       const existingSwipe = await Swipe.findOne({
         swiperId,
         targetId
@@ -1195,43 +1437,45 @@ async function doSwipe(swiperId, targetId, action) {
       await Swipe.create([{ swiperId, targetId, action, createdAt: new Date() }], { session });
 
       if (redis) {
-        await Promise.all([
-          redis.del(`feed:${swiperId}`),
-          redis.del(`feed:${targetId}`)
-        ]);
-      }
+             const CACHE_KEY = `feed:${swiperId.toString()}`;
+             await redis.del(CACHE_KEY);
+             console.log("Redis cache cleared for new filters");
+         }
 
-      // 4. Check for mutual like
+      // 5. Check for mutual like/match
       if (['like', 'superlike'].includes(action)) {
         const mutualSwipe = await Swipe.findOne({
-          swiperId: targetId, targetId: swiperId, action: { $in: ['like', 'superlike'] }
+          swiperId: targetId, 
+          targetId: swiperId, 
+          action: { $in: ['like', 'superlike'] }
         }).session(session);
 
         if (mutualSwipe) {
-          // Create match
+          // Mutual Interest Found! Create a Match
           const [match] = await Match.create([{
-            users: [swiperId, targetId], status: 'matched', lastActivity: new Date()
+            users: [swiperId, targetId], 
+            status: 'matched', 
+            lastActivity: new Date()
           }], { session });
 
-          if (redis) {
+          // Invalidate cache again if it's a match (to update match lists)
+          if (global.redis) {
             await Promise.all([
-              redis.del(`feed:${swiperId}`),
-              redis.del(`feed:${targetId}`)
+              redis.del(`matches:${swiperId}`),
+              redis.del(`matches:${targetId}`)
             ]);
           }
 
-          // Update Redis if needed
-          // if (redis) {
-          //   const queueKey1 = `${SWIPE_QUEUE_PREFIX}${swiperId}`;
-          //   const queueKey2 = `${SWIPE_QUEUE_PREFIX}${targetId}`;
-
-          //   await Promise.all([
-          //     redis.lRem(queueKey1, 0, targetId.toString()),
-          //     redis.lRem(queueKey2, 0, swiperId.toString())
-          //   ]);
-          // }
-
-          result = { success: true, match: true, matchId: match._id, message: "It's a match!" };
+          result = { 
+            success: true, 
+            match: true, 
+            matchId: match._id, 
+            message: "It's a match!",
+            partnerData: { // Frontend ke liye extra details agar match popup dikhana ho
+                name: targetProfile.nickname,
+                image: targetProfile.photos?.[0]?.url
+            }
+          };
           return;
         }
       }
@@ -1248,6 +1492,102 @@ async function doSwipe(swiperId, targetId, action) {
     await session.endSession();
   }
 }
+
+
+// async function doSwipe(swiperId, targetId, action) {
+//   if (swiperId.toString() === targetId.toString()) {
+//     throw new Error("Cannot swipe on your own profile");
+//   }
+
+//   const session = await mongoose.startSession();
+//   let result = { success: true, match: false, message: "Swipe processed" };
+
+//   try {
+//     await session.withTransaction(async () => {
+//       // 1. Check for existing block
+//       const targetProfile = await Profile.findOne({ userId: targetId }).session(session);
+//       if (!targetProfile) {
+//         throw new Error('Target profile not found');
+//       }
+//       const blockExists = await userActionsModel.exists({
+//         $or: [
+//           { actorId: swiperId, targetId, actionType: 'block' },
+//           { actorId: targetId, targetId: swiperId, actionType: 'block' }
+//         ]
+//       }).session(session);
+
+//       if (blockExists) {
+//         throw new Error("Action not allowed. User is blocked.");
+//       }
+
+//       // 2. Check for existing swipe
+//       const existingSwipe = await Swipe.findOne({
+//         swiperId,
+//         targetId
+//       }).session(session);
+
+//       if (existingSwipe) {
+//         result = { success: true, already: true, message: "Already swiped", match: false };
+//         return;
+//       }
+
+//       // 3. Create new swipe
+//       await Swipe.create([{ swiperId, targetId, action, createdAt: new Date() }], { session });
+
+//       if (redis) {
+//         await Promise.all([
+//           redis.del(`feed:${swiperId}`),
+//           redis.del(`feed:${targetId}`)
+//         ]);
+//       }
+
+//       // 4. Check for mutual like
+//       if (['like', 'superlike'].includes(action)) {
+//         const mutualSwipe = await Swipe.findOne({
+//           swiperId: targetId, targetId: swiperId, action: { $in: ['like', 'superlike'] }
+//         }).session(session);
+
+//         if (mutualSwipe) {
+//           // Create match
+//           const [match] = await Match.create([{
+//             users: [swiperId, targetId], status: 'matched', lastActivity: new Date()
+//           }], { session });
+
+//           if (redis) {
+//             await Promise.all([
+//               redis.del(`feed:${swiperId}`),
+//               redis.del(`feed:${targetId}`)
+//             ]);
+//           }
+
+//           // Update Redis if needed
+//           // if (redis) {
+//           //   const queueKey1 = `${SWIPE_QUEUE_PREFIX}${swiperId}`;
+//           //   const queueKey2 = `${SWIPE_QUEUE_PREFIX}${targetId}`;
+
+//           //   await Promise.all([
+//           //     redis.lRem(queueKey1, 0, targetId.toString()),
+//           //     redis.lRem(queueKey2, 0, swiperId.toString())
+//           //   ]);
+//           // }
+
+//           result = { success: true, match: true, matchId: match._id, message: "It's a match!" };
+//           return;
+//         }
+//       }
+
+//       result = { success: true, match: false, message: "Swipe recorded" };
+//     });
+
+//     return result;
+
+//   } catch (error) {
+//     console.error('Swipe error:', error);
+//     throw error;
+//   } finally {
+//     await session.endSession();
+//   }
+// }
 async function undoSwipe(swiperId, targetId) {
 
   const lastSwipe = await Swipe.findOne({ swiperId, targetId })

@@ -77,20 +77,47 @@ exports.importContacts = async (req, res) => {
   const userId = req.user._id;
   const { contacts } = req.body;
 
-  const normalized = contacts
-    .map(normalizePhone)
+ const normalizedContacts = contacts
+    .map(c => {
+      if (!c || typeof c.phone !== "string") return null;
+
+      const phone = normalizePhone(c.phone);
+      if (!phone) return null;
+
+      return {
+        name: c.name || null,
+        phone,
+        hash: hashPhone(phone)
+      };
+    })
     .filter(Boolean);
 
-  const hashes = normalized.map(hashPhone);
+  if (!normalizedContacts.length) {
+    return res.status(400).json({
+      success: false,
+      message: "No valid contacts found"
+    });
+  }
+
+  const hashes = normalizedContacts.map(c => c.hash);
 
   // jo users already app pe hain
-  const usersOnApp = await User.find({
-    phoneHash: { $in: hashes }
-  })
-    .select("phoneHash")
-    .lean();
+  // const usersOnApp = await User.find({
+  //   phoneHash: { $in: hashes }
+  // })
+  //   .select("phoneHash")
+  //   .lean();
 
-  const onAppSet = new Set(usersOnApp.map(u => u.phoneHash));
+  // hashes = contact phone hashes
+
+const usersOnApp = await User.find({
+  $or: [
+    { phoneHash: { $in: hashes } }, // ✅ correct users
+    { phone: { $in: hashes } }      // ⚠️ old users (hash stored in phone)
+  ]
+}).select("_id phone phoneHash");
+
+  const onAppSet = new Set(usersOnApp.map(u => u.phoneHash || u.phone));
 
   // jo pehle se block hain
   const alreadyBlocked = await BlockedContact.find({
@@ -101,15 +128,12 @@ exports.importContacts = async (req, res) => {
   const blockedSet = new Set(
     alreadyBlocked.map(b => b.blockedPhoneHash)
   );
-
-  const response = normalized.map(phone => {
-    const h = hashPhone(phone);
-    return {
-      phone,
-      isOnApp: onAppSet.has(h),
-      alreadyBlocked: blockedSet.has(h)
-    };
-  });
+  const response = normalizedContacts.map(c => ({
+    name: c.name,
+    phone: c.phone,
+    isOnApp: onAppSet.has(c.hash),
+    alreadyBlocked: blockedSet.has(c.hash)
+  }));
 
   res.json({
     success: true,

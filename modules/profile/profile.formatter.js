@@ -19,7 +19,7 @@ const calculateCompletion = (profile) => {
   return profile.onboardingProgress?.totalCompletion || 0;
 };
 
-function formatProfileResponse(profile, blockedContacts = []) {
+function formatProfileResponse(profile, blockedContacts = [],blockedUser=[]) {
   return {
     profile: {
       nickname: profile.nickname || "",
@@ -65,7 +65,8 @@ function formatProfileResponse(profile, blockedContacts = []) {
       },
       showMeGender: profile.discovery?.showMeGender || [],
       relationshipGoal: profile.discovery?.relationshipGoal || "",
-      globalVisibility: profile.discovery?.globalVisibility || "everyone"
+      globalVisibility: profile.discovery?.globalVisibility || "everyone",
+      // discoveryFilters : profile.discovery?.advancedFilters.smoking || []
     },
          photos: profile.photos || [{
       id: "",
@@ -102,7 +103,7 @@ verification: {
       }
     },
     blockedContacts: blockedContacts.map(bc => bc.blockedPhoneHash || bc),
-    blockedUsers: (profile.settings?.blockedUsers || []).map(id => id.toString()),
+    blockedUsers: blockedUser.map(bu=>bu.blockedId || bu),
     lastProfileUpdate: profile.lastProfileUpdate || profile.updatedAt,
     createdAt: profile.createdAt,
     updatedAt: profile.updatedAt
@@ -110,6 +111,81 @@ verification: {
 }
 
 module.exports = { formatProfileResponse };
+
+
+
+// const formatPublicProfile = (user, profile) => {
+//   if (!profile) return null;
+
+//   return {
+//     // id: profile.userId,
+//     name: profile.nickname || "",
+//     displayName: `${profile.nickname || "User"}, ${calculateAge(profile.dob)}`,
+//     // age: profile.age || 0,
+//     age: profile.age || calculateAge(profile.dob),
+//     gender: {
+//       display: profile.gender || "",
+//       pronouns: profile.pronouns || "she/her/hers" // Figma screen par pronouns hain
+//     },
+//     bio: profile.about || "",
+//     physical: {
+//       height: profile.height ? `${profile.height} cm` : "",
+//       weight: profile.weight ? `${profile.weight} kg` : ""
+//     },
+//     work: {
+//       title: profile.jobTitle || "",
+//       company: profile.company || ""
+//     },
+//     education: {
+//       school: profile.school || ""
+//     },
+//     location: {
+//       city: profile.location?.city || "",
+//       distance: "5 kilometer away" // Ye dynamic calculation se aayega
+//     },
+//     photos: profile.photos || [],
+    
+//     // Figma: Basics Section
+//     basics: {
+//       zodiac: profile.attributes?.zodiac || "",
+//       education: profile.attributes?.education || "",
+//       familyPlans: profile.attributes?.familyPlans || "",
+//       vaccination: profile.attributes?.vaccination || "",
+//       personalityType: profile.attributes?.personalityType || "",
+//       communicationStyle: profile.attributes?.communicationStyle || "",
+//       loveStyle: profile.attributes?.loveStyle || "",
+//       bloodGroup: profile.attributes?.bloodGroup || ""
+//     },
+
+//     // Figma: Lifestyle Section
+//     lifestyle: {
+//       pets: profile.attributes?.pets || "",
+//       drinking: profile.attributes?.drinking || "",
+//       smoking: profile.attributes?.smoking || "",
+//       workout: profile.attributes?.workout || "",
+//       dietary: profile.attributes?.dietary || "",
+//       socialMedia: profile.attributes?.socialMedia || "",
+//       sleeping: profile.attributes?.sleeping || ""
+//     },
+
+//     // Figma: Detailed Preferences
+//     interests: profile.attributes?.interests || [],
+//     languages: profile.attributes?.languages || [],
+//     relationshipGoals: profile.discovery?.relationshipGoal || "",
+//     religion: profile.attributes?.religion || "",
+
+//     preferences: {
+//       music: profile.attributes?.music || [],
+//       movies: profile.attributes?.movies || [],
+//       books: profile.attributes?.books || [],
+//       travel: profile.attributes?.travel || []
+//     }
+//   };
+// };
+
+// module.exports = { formatPublicProfile };
+
+
 
 // function formatProfileResponse(profile, user,blockedContacts = []) {
 //   return {

@@ -18,7 +18,7 @@ const calculateAge = (dob) => {
 const calculateCompletion = (profile) => {
   return profile.onboardingProgress?.totalCompletion || 0;
 };
-const formatUserProfile = (user, profile) => {
+const formatUserProfile = (user, profile,blockedContacts = [], blockedUser = []) => {
   if (!user) return null;
   const p = profile || {}; // Agar profile nahi hai toh empty object
 
@@ -146,10 +146,10 @@ const formatUserProfile = (user, profile) => {
         matches: p.settings?.notifications?.matches ?? true,
         messages: p.settings?.notifications?.messages ?? true
       },
-      blockedUsers: p.settings?.blockedUsers || [],
-      blockedContacts: p.settings?.blockedContacts || []
+     
     },
-
+    blockedContacts: blockedContacts.map(bc => bc.blockedPhoneHash || bc),
+    blockedUsers: blockedUser.map(bu=>bu.blockedId || bu),
     createdAt: user.createdAt,
     updatedAt: user.updatedAt,
     isPhoneVerified: user.isPhoneVerified || false,
