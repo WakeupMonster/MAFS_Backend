@@ -52,6 +52,7 @@ const formatUserProfile = (user, profile,blockedContacts = [], blockedUser = [])
 
     // 3. PUBLIC PROFILE (Data from Profile Model)
     profile: {
+    id: profile.userId,
       nickname: p.nickname || "",
       dob: profile.dob
   ? profile.dob.toISOString().split("T")[0]
