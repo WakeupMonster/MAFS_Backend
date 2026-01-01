@@ -1,6 +1,7 @@
 const Block = require("./user.block");
 const Report = require("./user.report");
-const Profile = require("./profile.model")
+const Profile = require("./profile.model");
+const redis = require("../../config/cache");
 
 // --- Actions ---
 
@@ -8,22 +9,27 @@ const Profile = require("./profile.model")
 exports.blockUser = async (req, res) => {
   try {
     const targetId = req.params.id;
-    const actorId = req.user._id;
+    const userId = req.user._id;
 
-    if (actorId.toString() === targetId) return res.status(400).json({ success: false, message: "Self-block not allowed" });
+    if (userId.toString() === targetId) return res.status(400).json({ success: false, message: "Self-block not allowed" });
 
     await Block.findOneAndUpdate(
-      { blockerId: actorId, blockedId: targetId },
-      { blockerId: actorId, blockedId: targetId },
+      { blockerId: userId, blockedId: targetId },
+      { blockerId: userId, blockedId: targetId },
       { upsert: true }
     );
-
+      if (redis) {
+            const CACHE_KEY = `feed:${userId.toString()}`;
+            await redis.del(CACHE_KEY);
+            console.log("Redis cache cleared for new filters");
+        }
     res.status(200).json({ success: true, message: "User blocked successfully" });
   } catch (e) { res.status(500).json({ success: false, message: e.message }); }
 };
 
 // 2. Report User (URL Param se ID + Body se Reason)
 exports.reportUser = async (req, res) => {
+   const userId = req.user._id;
   try {
     const { reason, description } = req.body;
     await Report.create({
@@ -32,6 +38,11 @@ exports.reportUser = async (req, res) => {
       reason,
       description
     });
+     if (redis) {
+            const CACHE_KEY = `feed:${userId.toString()}`;
+            await redis.del(CACHE_KEY);
+            console.log("Redis cache cleared for new filters");
+        }
     res.status(201).json({ success: true, message: "Report submitted" });
   } catch (e) { res.status(500).json({ success: false, message: e.message }); }
 };
@@ -87,8 +98,14 @@ exports.getBlockList = async (req, res) => {
 
 // 4. Unblock User (URL Param)
 exports.unblockUser = async (req, res) => {
+   const userId = req.user._id;
   try {
     await Block.findOneAndDelete({ blockerId: req.user._id, blockedId: req.params.id });
+      if (redis) {
+            const CACHE_KEY = `feed:${userId.toString()}`;
+            await redis.del(CACHE_KEY);
+            console.log("Redis cache cleared for new filters");
+        }
     res.status(200).json({ success: true, message: "User unblocked" });
   } catch (e) { res.status(500).json({ success: false, message: e.message }); }
 };
