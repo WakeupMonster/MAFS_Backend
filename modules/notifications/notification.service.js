@@ -1,7 +1,7 @@
 // modules/notifications/notification.service.js
 // eslint-disable-next-line no-unused-vars
 const { sendNotification, sendNotificationToMultiple } = require('./firebase-admin');
-const User = require('../../modules/auth/auth.model'); // Assuming you have a User model
+const User = require('../../modules/auth/auth.model'); 
 
 class NotificationService {
   // Send a new match notification to both users
@@ -10,7 +10,7 @@ class NotificationService {
       // Get both users' FCM tokens
       const users = await User.find({
         _id: { $in: [userId1, userId2] }
-      }).select('fcmTokens firstName');
+      }).select('fcmTokens firstName notificationSettings');
 
       const user1 = users.find(u => u._id.toString() === userId1.toString());
       const user2 = users.find(u => u._id.toString() === userId2.toString());
@@ -18,9 +18,11 @@ class NotificationService {
       if (!user1 || !user2) {
         throw new Error('One or both users not found');
       }
-
+// &&
+//   user1.notificationSettings?.push !== false
       // Send notification to user1
-      if (user1.fcmTokens && user1.fcmTokens.length > 0) {
+      if (user1.fcmTokens && user1.fcmTokens.length > 0 && user1.notificationSettings?.matches !== false  &&
+  user1.notificationSettings?.push !== false ) {
         await sendNotificationToMultiple(
           user1.fcmTokens,
           {
@@ -35,7 +37,9 @@ class NotificationService {
       }
 
       // Send notification to user2
-      if (user2.fcmTokens && user2.fcmTokens.length > 0) {
+      if (user2.fcmTokens && user2.fcmTokens.length > 0 &&
+  user2.notificationSettings?.matches !== false  &&
+  user1.notificationSettings?.push !== false) {
         await sendNotificationToMultiple(
           user2.fcmTokens,
           {
@@ -61,8 +65,16 @@ class NotificationService {
     try {
       const [sender, receiver] = await Promise.all([
         User.findById(senderId).select('firstName'),
-        User.findById(receiverId).select('fcmTokens')
+        User.findById(receiverId).select('fcmTokens notificationSettings')
       ]);
+
+      if (
+  receiver.notificationSettings?.push === false ||
+  receiver.notificationSettings?.messages === false
+) {
+  return;
+}
+
 
       if (!receiver?.fcmTokens?.length) return;
 
@@ -95,7 +107,8 @@ class NotificationService {
       ]);
 
       // Check if receiver wants to receive like notifications
-      if (receiver.notificationSettings?.likes === false) {
+      if (receiver.notificationSettings?.push === false ||
+  receiver.notificationSettings?.likes === false) {
         return;
       }
 
@@ -125,13 +138,20 @@ class NotificationService {
 
   async sendGiveawayWinnerNotification(userId, prizeTitle) {
   try {
-    const user = await User.findById(userId).select("fcmTokens");
+    const user = await User.findById(userId).select("fcmTokens notificationSettings");
 
     // if (!user || !user.fcmTokens.length) return;
     if (!user || !user.fcmTokens || user.fcmTokens.length === 0) {
       console.log("⚠️ No FCM tokens found for user:", userId);
       return;
     }
+
+    if (
+  user.notificationSettings?.push === false
+) {
+  return;
+}
+
 
 
     await sendNotificationToMultiple(
@@ -160,11 +180,16 @@ class NotificationService {
  */
 async sendPrizeDeliveredNotification(userId) {
   try {
-    const user = await User.findById(userId).select("fcmTokens");
+    const user = await User.findById(userId).select("fcmTokens notificationSettings");
 
     if (!user || !user.fcmTokens || user.fcmTokens.length === 0) {
       return;
     }
+
+    if (user.notificationSettings?.push === false) {
+  return;
+}
+
 
     await sendNotificationToMultiple(
       user.fcmTokens,
@@ -184,9 +209,6 @@ async sendPrizeDeliveredNotification(userId) {
     );
   }
 }
-
-
-
 
 }
 

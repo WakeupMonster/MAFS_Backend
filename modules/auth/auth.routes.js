@@ -54,7 +54,7 @@ router.post("/verify/email", controller.verifyEmail);
 router.post("/refresh", validation.validateRefreshToken, controller.refreshToken);
 router.post("/logout", validation.validateLogout, controller.logout);
 
-router.post("/resend/phone", controller.resendPhoneOtp);
+router.post("/resend/phone", controller.sendTestOtp);
 router.post("/resend/email", controller.resendEmailOtp);
 
 router.use("/social", socialRoutes);

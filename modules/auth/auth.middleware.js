@@ -60,6 +60,9 @@ module.exports = async function authMiddleware(req, res, next) {
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
 
     // Attach user to request
+    //  const user = await User.findById(userId).select(
+    //   "accountStatus banDetails deactivationDetails deletionDetails"
+    // );
     
     const user = await User.findById(decoded.userId);
     if (!user) {
@@ -72,7 +75,21 @@ module.exports = async function authMiddleware(req, res, next) {
       });
     }
 
-    
+    //  if (user.banDetails?.isBanned) {
+    //   return res.status(403).json({
+    //     success: false,
+    //     code: "ACCOUNT_BANNED",
+    //     banDetails: user.banDetails
+    //   });
+    // }
+
+    // // 📴 DEACTIVATED
+    // if (user.deactivationDetails?.isDeactivated) {
+    //   return res.status(403).json({
+    //     success: false,
+    //     code: "ACCOUNT_DEACTIVATED"
+    //   });
+    // }
     req.user = user;
     next();
 
