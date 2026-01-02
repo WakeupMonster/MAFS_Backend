@@ -1,97 +1,99 @@
 const mongoose = require("mongoose");
 
-const refreshTokenSchema = new mongoose.Schema({
-  tokenHash: { type: String, required: true },
-  expiresAt: { type: Date, required: true },
-}, { _id: false });
+const refreshTokenSchema = new mongoose.Schema(
+  {
+    tokenHash: { type: String, required: true },
+    expiresAt: { type: Date, required: true },
+  },
+  { _id: false }
+);
 
 // Social Provider Schema
-const socialProviderSchema = new mongoose.Schema({
-  id: { type: String, required: true },           // Provider's user ID
-  email: { type: String },                        // Email from provider
-  name: { type: String },                         // Name from provider
-  picture: { type: String },                      // Profile picture URL
-  linkedAt: { type: Date, default: Date.now },    // When linked
-  lastLoginAt: { type: Date }                     // Last login with this provider
-}, { _id: false });
-
-const userSchema = new mongoose.Schema({
-  // ============ PHONE AUTHENTICATION ============
-  phone: { type: String, unique: true, sparse: true },     
-  isPhoneVerified: { type: Boolean, default: false },
-  phoneOtp: { type: String },
-  phoneOtpExpires: { type: Date },
-
-  // ============ EMAIL AUTHENTICATION ============
-  email: { type: String, unique: true, sparse: true },
-  isEmailVerified: { type: Boolean, default: false },
-  emailOtp: { type: String },
-  emailOtpExpires: { type: Date },
-
-  // ============ SOCIAL AUTHENTICATION ============
-  social: {
-    google: socialProviderSchema,
-    facebook: socialProviderSchema,
-    apple: socialProviderSchema
+const socialProviderSchema = new mongoose.Schema(
+  {
+    id: { type: String, required: true }, // Provider's user ID
+    email: { type: String }, // Email from provider
+    name: { type: String }, // Name from provider
+    picture: { type: String }, // Profile picture URL
+    linkedAt: { type: Date, default: Date.now }, // When linked
+    lastLoginAt: { type: Date }, // Last login with this provider
   },
+  { _id: false }
+);
 
-  // ============ TOKENS & SESSIONS ============
-  // fcmTokens: [{
-  //   token: String,
-  //   deviceId: String,
-  //   createdAt: { type: Date, default: Date.now }
-  // }],
+const userSchema = new mongoose.Schema(
+  {
+    // ============ PHONE AUTHENTICATION ============
+    phone: { type: String, unique: true, sparse: true },
+    isPhoneVerified: { type: Boolean, default: false },
+    phoneOtp: { type: String },
+    phoneOtpExpires: { type: Date },
 
-  refreshTokens: [refreshTokenSchema],
+    // ============ EMAIL AUTHENTICATION ============
+    email: { type: String, unique: true, sparse: true },
+    isEmailVerified: { type: Boolean, default: false },
+    emailOtp: { type: String },
+    emailOtpExpires: { type: Date },
 
-  // ============ NOTIFICATION SETTINGS ============
-  // notificationSettings: {
-  //   likes: { type: Boolean, default: true },
-  //   messages: { type: Boolean, default: true },
-  //   matches: { type: Boolean, default: true }
-  // },
+    // ============ SOCIAL AUTHENTICATION ============
+    social: {
+      google: socialProviderSchema,
+      facebook: socialProviderSchema,
+      apple: socialProviderSchema,
+    },
 
-  // ============ STATUS FLAGS ============
-  isNewUser: { type: Boolean, default: true, index: true },
-  isProfileCompleted: { type: Boolean, default: false },
+    // ============ TOKENS & SESSIONS ============
+    // fcmTokens: [{
+    //   token: String,
+    //   deviceId: String,
+    //   createdAt: { type: Date, default: Date.now }
+    // }],
 
-  role: {
-  type: String,
-  enum: ["USER", "ADMIN"],
-  default: "USER",
-  index: true
-},
+    refreshTokens: [refreshTokenSchema],
 
+    // ============ NOTIFICATION SETTINGS ============
+    // notificationSettings: {
+    //   likes: { type: Boolean, default: true },
+    //   messages: { type: Boolean, default: true },
+    //   matches: { type: Boolean, default: true }
+    // },
 
+    // ============ STATUS FLAGS ============
+    isNewUser: { type: Boolean, default: true, index: true },
+    isProfileCompleted: { type: Boolean, default: false },
 
-  accountStatus: {
-  type: String,
-  enum: ["active", "deactivated", "married", "deleted"],
-  default: "active",
-  index: true
-},
+    role: {
+      type: String,
+      enum: ["USER", "ADMIN"],
+      default: "USER",
+      index: true,
+    },
 
-isPremium: {
-  type: Boolean,
-  default: false
-},
+    accountStatus: {
+      type: String,
+      enum: ["active", "deactivated", "married", "deleted"],
+      default: "active",
+      index: true,
+    },
 
-premiumExpiresAt: {
-  type: Date,
-  default: null
-},
+    isPremium: {
+      type: Boolean,
+      default: false,
+    },
 
+    premiumExpiresAt: {
+      type: Date,
+      default: null,
+    },
 
-
-authMethod: {
-    type: String,
-    enum: ["phone", "email", "google", "facebook", "apple"],
-    default: "phone"
-  }
-}, { timestamps: true });
-
-
-
+    authMethod: {
+      type: String,
+      enum: ["phone", "email", "google", "facebook", "apple"],
+      default: "phone",
+    },
+  },
+  { timestamps: true }
+);
 
 // ============ INDEXES ============
 userSchema.index({ phone: 1 });
