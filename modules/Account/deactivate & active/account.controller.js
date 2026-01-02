@@ -33,12 +33,6 @@ exports.deactivateAccount = async (req, res) => {
     profile.canAccessSwipe = false;
     profile.isDiscoverable = false;
 
-      if (redis) {
-                 const CACHE_KEY = `feed:${userId.toString()}`;
-                 await redis.del(CACHE_KEY);
-                 console.log("Redis cache cleared for new filters");
-             }
-
     await profile.save();
 
      await invalidateUserFeedCache();
@@ -556,12 +550,6 @@ exports.deleteAccount = async (req, res) => {
     });
     
     console.log(`✅ Deleted user:`, deletedUser.deletedCount);
-
-      if (redis) {
-                 const CACHE_KEY = `feed:${userId.toString()}`;
-                 await redis.del(CACHE_KEY);
-                 console.log("Redis cache cleared for new filters");
-             }
 
     // 6. Redis cleanup
     if (redis?.isOpen) {

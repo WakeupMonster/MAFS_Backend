@@ -57,8 +57,6 @@ const ChatMessageSchema = new Schema(
   { timestamps: true }
 );
 
-ChatMessageSchema.index({ matchId: 1, createdAt: -1 });
-
 module.exports = mongoose.model("ChatMessage", ChatMessageSchema);
 // 🔥 Indexes
 // ChatMessageSchema.index({ matchId: 1, createdAt: -1 });

@@ -16,6 +16,7 @@ const validation = require("./swipe.validation");
 
 const express = require("express");
 const router = express.Router();
+const controller = require("./BlockReport/userActions.controller");
 
 // Middleware: ensure user is logged in (optional depending on your project)
 const auth = require("../../auth/auth.middleware");
@@ -25,22 +26,22 @@ router.use(auth);
 router.use(allowDating)
 router.get("/feed", validation.feed, controllerOld.getFeed);
 router.post("/action",  controllerOld.action);
-router.post("/unmatch",  controllerOld.unmatchUser);
+router.post("/undo", validation.undo, controllerOld.undo);
 router.get("/matches", controllerOld.getMatches);
 
 // CREATE block or report
-// router.post("/action", controller.action);
+router.post("/", controller.createAction);
 
 // GET all blocked users
-// router.get("/blocked", controller.getBlockedUsers);
+router.get("/blocked", controller.getBlockedUsers);
 
-// // GET all reported users
-// router.get("/reported", controller.getReportedUsers);
+// GET all reported users
+router.get("/reported", controller.getReportedUsers);
 
 // UNBLOCK user
-// router.delete("/", controller.unblockUser);
+router.delete("/", controller.unblockUser);
 
-// router.get("/limits", controller.getLimits);
+router.get("/limits", controllerOld.getLimits);
 
 router.get("/keen", controllerOld.getKeen);
 router.get("/superkeen", controllerOld.getSuperKeen);

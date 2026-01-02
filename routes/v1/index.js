@@ -16,7 +16,6 @@ router.use("/fwb", require("../../modules/fwb/fwb.routes"));
 router.use("/chat", require("../../modules/matches/chat/chat.route"));
 router.use("/contacts",require("../../modules/BlockedContact/contacts.routes"))
 
-
 // Deactivate account
 
 router.use("/account", require("../../modules/Account/deactivate & active/account.routes"));
@@ -24,7 +23,6 @@ router.use("/account", require("../../modules/Account/deactivate & active/accoun
 router.use("/content",require("../../modules/content/content.routes"))
 
 // BOOST
-
 
 router.use("/boost",require("../../modules/Boost/boost.route"))
 
@@ -41,12 +39,3 @@ module.exports = router;
 
 // Today giveaway status API ka code
 // spinwheel supportive enum
-// register phone hashing
-
-
-// id
-// image
-// name
-
-
-// add onBoarding on profile

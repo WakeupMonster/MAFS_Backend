@@ -4,7 +4,7 @@ const authService = require("./auth.service");
 // const User = require("../auth/auth.model");
 // const utils = require("../auth/auth.utils");
 const { rateLimit } = require("../../common/middlewares/rateLimit");
-// const profileModel = require("../profile/profile.model");
+const profileModel = require("../profile/profile.model");
 
 /*==================================================
 1. POST For Send OTP on Phone no.
@@ -43,27 +43,33 @@ module.exports.sendOtp = async (req, res) => {
   }
 };
 
-
-
+/*==================================================
+2. POST For  Verify OTP on through Phone no.
+===================================================*/
 module.exports.verifyOtp = async (req, res) => {
   try {
     const { phone, otp } = req.body;
     if (!phone || !otp) {
-      return res.status(400).json({ success: false, message: "Phone and OTP are required" });
+      return res
+        .status(400)
+        .json({ success: false, message: "Phone and OTP are required" });
     }
 
     const result = await authService.verifyPhoneOtpUnified(phone, otp);
-
     return res.json({
       success: true,
       message: result.isNewUser
         ? "Welcome! Phone verified successfully"
         : "Welcome back! Login successful",
       data: {
-        accessToken: result.accessToken,
-        refreshToken: result.refreshToken,
-        user: result.user // Poora format iske andar hai
-      }
+        userId: result.userId,
+        accessToken: result.accessToken, // ✅ Token
+        refreshToken: result.refreshToken, // ✅ Token
+        isNewUser: result.isNewUser, // ✅ NEW!
+        isPhoneVerified: result.isPhoneVerified,
+        isEmailVerified: result.isEmailVerified,
+        nextStep: result.nextStep,
+      },
     });
   } catch (err) {
     return res.status(400).json({
@@ -72,46 +78,6 @@ module.exports.verifyOtp = async (req, res) => {
     });
   }
 };
-
-
-/*==================================================
-2. POST For  Verify OTP on through Phone no.
-===================================================*/
-// module.exports.verifyOtp = async (req, res) => {
-//   try {
-//     const { phone, otp } = req.body;
-//     if (!phone || !otp) {
-//       return res
-//         .status(400)
-//         .json({ success: false, message: "Phone and OTP are required" });
-//     }
-
-//     const result = await authService.verifyPhoneOtpUnified(phone, otp);
-
-    
-//     return res.json({
-//       success: true,
-//       message: result.isNewUser
-//         ? "Welcome! Phone verified successfully"
-//         : "Welcome back! Login successful",
-//          data: result
-//       // data: {
-//       //   userId: result.userId,
-//       //   accessToken: result.accessToken, // ✅ Token
-//       //   refreshToken: result.refreshToken, // ✅ Token
-//       //   isNewUser: result.isNewUser, // ✅ NEW!
-//       //   isPhoneVerified: result.isPhoneVerified,
-//       //   isEmailVerified: result.isEmailVerified,
-//       //   nextStep: result.nextStep,
-//       // },
-//     });
-//   } catch (err) {
-//     return res.status(400).json({
-//       success: false,
-//       message: err.message,
-//     });
-//   }
-// };
 
 // module.exports.sendOtp = async (req, res) => {
 //   try {
@@ -358,125 +324,49 @@ module.exports.verifyOtp = async (req, res) => {
 /*==================================================
 3. POST For register Email Id with userId
 ===================================================*/
-// module.exports.registerEmail = async (req, res) => {
-//   try {
-//     const { userId, email } = req.body;
-//     await authService.sendEmailOtp(userId, email);
-
-//     return res.json({ success: true, message: "Email OTP sent" });
-//   } catch (err) {
-//     console.log("Error hai");
-//     return res.status(400).json({ success: false, message: err.message });
-//   }
-// };
-
-
-
-/*==================================================
-3. POST For register Email Id with token
-===================================================*/
 module.exports.registerEmail = async (req, res) => {
   try {
-    const { email } = req.body;
-    const token = req.headers.authorization?.split(' ')[1];
-    
-    if (!token) {
-      return res.status(401).json({ 
-        success: false, 
-        message: 'Authentication token is required' 
-      });
-    }
-    
-    await authService.sendEmailOtp(token, email);
-    
-    return res.json({ 
-      success: true, 
-      message: "Email OTP sent successfully" 
-    });
+    const { userId, email } = req.body;
+    await authService.sendEmailOtp(userId, email);
+
+    return res.json({ success: true, message: "Email OTP sent" });
   } catch (err) {
-    return res.status(400).json({ 
-      success: false, 
-      message: err.message 
-    });
+    console.log("Error hai");
+    return res.status(400).json({ success: false, message: err.message });
   }
 };
-
 
 /*==================================================
 4. POST For  Verify userId with otp
 ===================================================*/
-// module.exports.verifyEmail = async (req, res) => {
-//   try {
-//     const { userId, otp } = req.body;
-//     const result = await authService.verifyEmailOtp(userId, otp);
-//     await profileModel.findOneAndUpdate(
-//       { userId: result.user._id },
-//       {
-//         $set: {
-//           "onboardingProgress.emailVerified": true,
-//         },
-//       },
-//       { upsert: true }
-//     );
-//     return res.json({
-//       success: true,
-//       message: "Email verified",
-//       data: {
-//         userId: result.user._id,
-//         accessToken: result.accessToken,
-//         refreshToken: result.refreshToken,
-//         isEmailVerified: result.isEmailVerified,
-//         nextStep: result.nextStep,
-//       },
-//     });
-//   } catch (err) {
-//     return res.status(400).json({ success: false, message: err.message });
-//   }
-// };
-
-/*==================================================
-4. POST For Verify Email with OTP
-===================================================*/
 module.exports.verifyEmail = async (req, res) => {
   try {
-    const {  otp } = req.body;
-    const token = req.headers.authorization?.split(' ')[1];
-    
-    if (!token) {
-      return res.status(401).json({ 
-        success: false, 
-        message: 'Authentication token is required' 
-      });
-    }
-    
-    const result = await authService.verifyEmailOtp(token, otp);
-    
-    // await profileModel.findOneAndUpdate(
-    //   { userId: result.user._id },
-    //   {
-    //     $set: {
-    //       "onboardingProgress.emailVerified": true,
-    //     },
-    //   },
-    //   { upsert: true }
-    // );
-    
-   return res.json({
+    const { userId, otp } = req.body;
+    const result = await authService.verifyEmailOtp(userId, otp);
+    await profileModel.findOneAndUpdate(
+      { userId: result.user._id },
+      {
+        $set: {
+          "onboardingProgress.emailVerified": true,
+        },
+      },
+      { upsert: true }
+    );
+    return res.json({
       success: true,
-      message: "Email verified successfully",
+      message: "Email verified",
       data: {
-        // accessToken: result.accessToken,
-        user: result.user // Manager wala format yahan aa gaya
-      }
+        userId: result.user._id,
+        accessToken: result.accessToken,
+        refreshToken: result.refreshToken,
+        isEmailVerified: result.isEmailVerified,
+        nextStep: result.nextStep,
+      },
     });
   } catch (err) {
-    return res.status(400).json({ 
-      success: false, 
-      message: err.message 
-    });
+    return res.status(400).json({ success: false, message: err.message });
   }
 };
-
 
 /*==================================================
 5. POST Login For Send OTP on Phone no.
@@ -530,38 +420,23 @@ module.exports.loginVerify = async (req, res) => {
 /*==================================================
 7. POST Referesh Token
 ===================================================*/
-// module.exports.refreshToken = async (req, res) => {
-//   try {
-//     const { refreshToken } = req.body;
-//     const data = await authService.refreshAccessToken(refreshToken);
-//     return res.json({
-//       success: true,
-//       data
-//     });
-//   } catch (err) {
-//     return res.status(401).json({
-//       success: false,
-//       message: err.message
-//     });
-//   }
-// };
-
 module.exports.refreshToken = async (req, res) => {
   try {
     const { refreshToken } = req.body;
-    const result = await authService.refreshAccessToken(refreshToken);
-
+    const data = await authService.refreshAccessToken(refreshToken);
     return res.json({
       success: true,
-      data: {
-        accessToken: result.accessToken,
-        user: result.user // Same consistency!
-      }
+      data
     });
   } catch (err) {
-    return res.status(401).json({ success: false, message: err.message });
+    return res.status(401).json({
+      success: false,
+      message: err.message
+    });
   }
 };
+
+
 /*==================================================
 8. POST For Logout API
 ===================================================*/
@@ -710,53 +585,9 @@ module.exports.logout = async (req, res) => {
 
 
 // In auth.controller.js - Add a new test endpoint
-// module.exports.sendTestOtp = async (req, res) => {
-//   try {
-//     const { phone } = req.body;
-//     const ip = req.ip;
-
-//     if (!phone) {
-//       return res.status(400).json({
-//         success: false,
-//         message: "Phone is required"
-//       });
-//     }
-
-//     // Rate limiting
-//     const isLimited = await rateLimit(`otp:test:${ip}`, 10, 60); // More generous limits for testing
-//     if (isLimited) {
-//       return res.status(429).json({
-//         success: false,
-//         message: "Too many test requests. Try again later."
-//       });
-//     }
-
-//     // Send OTP in test mode
-//     const result = await authService.sendPhoneOtpTest(phone, true); // true = test mode
-
-//     return res.json({
-//       success: true,
-//       message: `Test OTP: ${result.otp}`,
-//       otp: result.otp
-//     });
-//   } catch (err) {
-//     console.error("Error in sendTestOtp:", err);
-//     return res.status(400).json({
-//       success: false,
-//       message: err.message
-//     });
-//   }
-// };
-
-// Update the routes to include the new test endpoint
-// In your auth.routes.js or wherever routes are defined
-// router.post('/test/otp', authController.sendTestOtp);
-
-const { normalizePhone, hashPhone } = require("../../common/utils/phone.util");
-
 module.exports.sendTestOtp = async (req, res) => {
   try {
-    let { phone } = req.body;
+    const { phone } = req.body;
     const ip = req.ip;
 
     if (!phone) {
@@ -766,20 +597,8 @@ module.exports.sendTestOtp = async (req, res) => {
       });
     }
 
-    // 🔹 Normalize phone (VERY IMPORTANT)
-    const normalizedPhone = normalizePhone(phone);
-    if (!normalizedPhone) {
-      return res.status(400).json({
-        success: false,
-        message: "Invalid phone number"
-      });
-    }
-
-    // 🔹 Hash phone (future consistency)
-    const phoneHash = hashPhone(normalizedPhone);
-
     // Rate limiting
-    const isLimited = await rateLimit(`otp:test:${ip}`, 10, 60);
+    const isLimited = await rateLimit(`otp:test:${ip}`, 10, 60); // More generous limits for testing
     if (isLimited) {
       return res.status(429).json({
         success: false,
@@ -787,19 +606,13 @@ module.exports.sendTestOtp = async (req, res) => {
       });
     }
 
-    // ✅ OTP send (NO DB WRITE HERE)
-    const result = await authService.sendPhoneOtpTest(normalizedPhone, true);
+    // Send OTP in test mode
+    const result = await authService.sendPhoneOtpTest(phone, true); // true = test mode
 
     return res.json({
       success: true,
       message: `Test OTP: ${result.otp}`,
-      otp: result.otp,
-
-      // ⚠️ TESTING ONLY (REMOVE IN PROD RESPONSE)
-      debug: {
-        normalizedPhone,
-        phoneHash
-      }
+      otp: result.otp
     });
   } catch (err) {
     console.error("Error in sendTestOtp:", err);
@@ -810,8 +623,9 @@ module.exports.sendTestOtp = async (req, res) => {
   }
 };
 
-
-
+// Update the routes to include the new test endpoint
+// In your auth.routes.js or wherever routes are defined
+// router.post('/test/otp', authController.sendTestOtp);
 
 
 module.exports.resendPhoneOtp = async (req, res) => {
@@ -862,105 +676,57 @@ module.exports.resendPhoneOtp = async (req, res) => {
 
 /*==================================================
 10. POST Resend OTP to Email
-
 ===================================================*/
-
 module.exports.resendEmailOtp = async (req, res) => {
   try {
     const { email } = req.body;
-    const authHeader = req.headers.authorization;
-    
-    // 1. Token Check
-    if (!authHeader || !authHeader.startsWith('Bearer ')) {
-      return res.status(401).json({ 
-        success: false, 
-        message: 'Authentication token is required' 
-      });
-    }
-    const token = authHeader.split(' ')[1];
+    const ip = req.ip;
 
     if (!email) {
-      return res.status(400).json({ success: false, message: "Email is required" });
+      return res.status(400).json({ 
+        success: false, 
+        message: "Email is required" 
+      });
     }
 
-    // 2. Rate limiting (Optional but good)
-    const isLimited = await rateLimit(`resend:email:${req.ip}`, 3, 60);
+    // Rate limiting
+    const isLimited = await rateLimit(`resend:email:${ip}`, 3, 60);
     if (isLimited) {
       return res.status(429).json({
         success: false,
-        message: "Too many attempts. Please try again after a minute.",
+        message: "Too many resend attempts. Please try again later.",
       });
     }
 
-    // 3. SERVICE CALL (Exactly like registerEmail)
-    // Hum token aur email bhej rahe hain
-    await authService.sendEmailOtp(token, email);
+    // Check if user exists and has this email
+    const User = require('./auth.model');
+    const user = await User.findOne({ email });
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: "No account found with this email.",
+      });
+    }
+
+    // Check if email is already verified
+    if (user.isEmailVerified) {
+      return res.status(400).json({
+        success: false,
+        message: "Email is already verified.",
+      });
+    }
+
+    // Send email OTP
+    await authService.sendEmailOtp(user._id, email);
 
     return res.json({
       success: true,
       message: "Verification email resent successfully",
     });
   } catch (err) {
-    // Agar token invalid hoga toh yahan error throw hoga
-    return res.status(400).json({ 
+    return res.status(500).json({ 
       success: false, 
       message: err.message 
     });
   }
 };
-
-
-
-// module.exports.resendEmailOtp = async (req, res) => {
-//   try {
-//     const { email } = req.body;
-//     const ip = req.ip;
-
-//     if (!email) {
-//       return res.status(400).json({ 
-//         success: false, 
-//         message: "Email is required" 
-//       });
-//     }
-
-//     // Rate limiting
-//     const isLimited = await rateLimit(`resend:email:${ip}`, 3, 60);
-//     if (isLimited) {
-//       return res.status(429).json({
-//         success: false,
-//         message: "Too many resend attempts. Please try again later.",
-//       });
-//     }
-
-//     // Check if user exists and has this email
-//     const User = require('./auth.model');
-//     const user = await User.findOne({ email });
-//     if (!user) {
-//       return res.status(404).json({
-//         success: false,
-//         message: "No account found with this email.",
-//       });
-//     }
-
-//     // Check if email is already verified
-//     if (user.isEmailVerified) {
-//       return res.status(400).json({
-//         success: false,
-//         message: "Email is already verified.",
-//       });
-//     }
-
-//     // Send email OTP
-//     await authService.sendEmailOtp(user._id, email);
-
-//     return res.json({
-//       success: true,
-//       message: "Verification email resent successfully",
-//     });
-//   } catch (err) {
-//     return res.status(500).json({ 
-//       success: false, 
-//       message: err.message 
-//     });
-//   }
-// };

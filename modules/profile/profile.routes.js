@@ -40,7 +40,6 @@
 
 // module.exports = router;
 
-
 const express = require("express");
 const router = express.Router();
 const controller = require("./profile.controller");
@@ -48,10 +47,14 @@ const auth = require("../auth/auth.middleware");
 const uploadMiddleware = require("../upload/upload.middleware");
 const validation = require("./profile.validation");
 const controllerDis = require("../discovery/discovery.controller");
-const userAction = require("./userActionController")
 // const ENUMS = require("../../config/enums");
-
-const  masterController  = require("./master.controller")
+const {
+  getAllEnums,
+  getDetails,
+  addOrUpdateInterest,
+  addOrUpdateLanguage,
+  addOrUpdateReligion,
+} = require("./profile.enums.controller");
 
 router.use(auth);
 
@@ -64,7 +67,7 @@ router.patch(
 router.patch(
   "/discovery-preference",
   auth,
-  controller.updateDiscoveryFilters
+  controller.updateDiscoveryPreference
 );
 router.get("/discovery-preference", auth, controller.getDiscoveryPreference);
 
@@ -83,10 +86,7 @@ router.post(
   controller.uploadPhotos
 );
 
-
 router.delete("/photos", controller.deletePhoto);
-router.patch("/photos/reorder", controller.reorderPhotos);
-
 
 router.post(
   "/selfie",
@@ -118,15 +118,12 @@ router.get("/status", controller.getStatus);
 
 router.get("/me", controller.getMyProfile);
 
+router.get("/getdetails", getDetails); // fixed route
+router.post("/addOrUpdateInterest", addOrUpdateInterest);
+router.post("/addOrUpdateLanguage", addOrUpdateLanguage);
+router.post("/addOrUpdateReligion", addOrUpdateReligion);
 
-// 1. POST API - Database mein data bharne ke liye (Admin use karega)
-router.post("/bulk-add", masterController.bulkAddMasterData);
-
-// 2. GET API - Frontend ko manager wala format dene ke liye
-router.get("/config", masterController.getAppConfig);
-
-
-router.get("/:userId", controller.getUserProfile);
+router.get("/:userId", controller.getPublicProfile);
 
 router.patch(
   "/visibility",
@@ -134,20 +131,14 @@ router.patch(
   controller.updateVisibility
 );
 
-router.get("/blocked/all", userAction.getBlockList);
+router.get("/enums/all", getAllEnums);
 
-router.patch('/quick-verify/:userId', controller.quickVerifyUser);
-
-// Block/Unblock
-router.post("/block/:id",  userAction.blockUser);
-router.delete("/unblock/:id",  userAction.unblockUser);
-router.get("/block-list",  userAction.getBlockList);
-
-// Report
-router.post("/report/:id", userAction.reportUser);
-
-
-module.exports = router;
+router.get("/enums/all", (req, res) => {
+  res.json({
+    success: true,
+    data: validation.ENUMS,
+  });
+});
 
 // Get APIs for fetch this field data genderPreference, relationshipGoal, distance, interest, age(min,max)
 // router.get("/getdetails", getDetails);
@@ -162,4 +153,4 @@ module.exports = router;
 
 //   res.json({ success: true, data });
 // });
-
+module.exports = router;

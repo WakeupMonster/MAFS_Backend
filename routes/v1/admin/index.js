@@ -11,7 +11,9 @@ const auth = require("../../../modules/auth/auth.middleware");
 // Admin routes
 const giveawayAdminRoutes = require("./giveaway.routes");
 const allowAdminMiddleware = require("../../../common/middlewares/allowAdmin.middleware");
-// const kycAdminRoutes = require('./kyc.routes');
+// future ready
+// const profileAdminRoutes = require("./profile.routes");
+// const kycAdminRoutes = require("./kyc.routes");
 
 /**
  * ADMIN GLOBAL MIDDLEWARE
@@ -25,6 +27,7 @@ router.use(allowAdminMiddleware); // user must be ADMIN / SUPER_ADMIN
  * MODULE-WISE ADMIN ROUTES
  */
 router.use("/giveaway", giveawayAdminRoutes);
+// router.use("/profile", profileAdminRoutes);
 // router.use("/kyc", kycAdminRoutes);
 
 module.exports = router;

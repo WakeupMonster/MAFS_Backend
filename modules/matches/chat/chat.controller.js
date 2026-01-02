@@ -1,7 +1,7 @@
-/* eslint-disable no-unused-vars */
 // routes/messages.js
 const ChatMessage = require("../chat/chat.message.model");
 const { Match } = require("../swipe/swipe.model");
+const ChatRoom = require("./chat.room.model");
 
 // GET /api/v1/messages/:matchId
 // exports.getChatMessages = async (req, res) => {
@@ -36,125 +36,63 @@ const { Match } = require("../swipe/swipe.model");
 // };
 
 // GET /api/v1/messages/:matchId?limit=20&page=1
-
-// const ChatMessage = require("../chat/chat.message.model");
-// const { Match } = require("../swipe/swipe.model");
-// exports.getChatMessages = async (req, res) => {
-//   try {
-//     const userId = req.user._id;
-//     const { matchId } = req.body;
-//     const limit = Math.min(parseInt(req.query.limit) || 20, 100);
-//     const page = Math.max(parseInt(req.query.page) || 1, 1);
-
-//     console.log("matchId:", matchId);
-//     console.log("userId: ", userId.toString());
-
-//     // 1. Check match exist
-//     const match = await Match.findById(matchId).lean();
-
-//     if (!match) {
-//       return res
-//         .status(404)
-//         .json({ success: false, message: "Match not found" });
-//     }
-
-//     // 2. Check if user is part of the match
-//     if (!match.users.some((u) => u.toString() === userId.toString())) {
-//       return res.status(403).json({
-//         success: false,
-//         message: "Forbidden — You are not part of this match",
-//       });
-//     }
-
-//     const skip = (page - 1) * limit;
-//     // 3. Fetch messages
-//     const messages = await ChatMessage.find({
-//       matchId,
-//       deletedFor: { $ne: userId },
-//     })
-//       .sort({ createdAt: -1 })
-//       .skip(skip)
-//       .limit(limit)
-//       .lean();
-
-//     // return in ascending order to client (older -> newer) # check this reverse logic
-//     messages.reverse();
-
-//     return res.json({
-//       success: true,
-//       message: "Fetched all messages",
-//       data: messages,
-//     });
-//   } catch (err) {
-//     console.error("GET CHAT MESSAGES ERROR:", err);
-//     return res.status(500).json({ success: false, message: "Server error" });
-//   }
-// };
-
-
-
-const ChatMessage = require("./chat.message.model");
-const { Match } = require("../swipe/swipe.model");
-
-// 1. SEND MESSAGE (Sabse important jo missing tha)
-exports.sendMessage = async (req, res) => {
-  try {
-    const sender = req.user._id;
-    const { matchId, text, receiverId, media } = req.body;
-
-    // Security: Check if match exists and user is part of it
-    const match = await Match.findOne({ _id: matchId, users: sender });
-    if (!match) return res.status(403).json({ success: false, message: "Invalid Match" });
-
-    const newMessage = await ChatMessage.create({
-      matchId,
-      sender,
-      receiver: receiverId,
-      text,
-      media
-    });
-
-    // 🔥 VVIP: Match model update karo taaki Matches Tab mein chat upar aa jaye
-    await Match.findByIdAndUpdate(matchId, {
-      lastMessage: text || "Sent a media",
-      lastMessageAt: new Date(),
-      lastMessageBy: sender
-    });
-
-    // TODO: Yahan Socket.io emit jayega real-time ke liye
-    
-    return res.status(201).json({ success: true, data: newMessage });
-  } catch (err) {
-    res.status(500).json({ success: false, message: "Chat failed" });
-  }
-};
-
-// 2. GET MESSAGES (Optimized)
 exports.getChatMessages = async (req, res) => {
   try {
     const userId = req.user._id;
-    const { matchId } = req.params; // Body se hata kar params mein kiya
-    const { page = 1, limit = 20 } = req.query;
+    const { matchId } = req.body;
+    const limit = Math.min(parseInt(req.query.limit) || 20, 100);
+    const page = Math.max(parseInt(req.query.page) || 1, 1);
 
+    console.log("matchId:", matchId);
+    console.log("userId: ", userId.toString());
+
+    // 1. Check match exist
+    const match = await Match.findById(matchId).lean();
+
+    if (!match) {
+      return res
+        .status(404)
+        .json({ success: false, message: "Match not found" });
+    }
+
+    // 2. Check if user is part of the match
+    if (!match.users.some((u) => u.toString() === userId.toString())) {
+      return res.status(403).json({
+        success: false,
+        message: "Forbidden — You are not part of this match",
+      });
+    }
+
+    const skip = (page - 1) * limit;
+    // 3. Fetch messages
     const messages = await ChatMessage.find({
       matchId,
-      deletedFor: { $ne: userId }
+      deletedFor: { $ne: userId },
     })
-    .sort({ createdAt: -1 }) // Naye messages pehle
-    .skip((page - 1) * limit)
-    .limit(parseInt(limit))
-    .lean();
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(limit)
+      .lean();
 
+    const totalMessages = await ChatMessage.countDocuments({
+      matchId,
+      deletedFor: { $ne: receiverUid },
+    });
     // return in ascending order to client (older -> newer) # check this reverse logic
     messages.reverse();
 
     return res.json({
       success: true,
-      message: "Fetched all messages",
       data: messages,
+      pagination: {
+        total: totalMessages,
+        page,
+        pages: Math.ceil(totalMessages / limit),
+      },
     });
   } catch (err) {
-    res.status(500).json({ success: false, message: "Server error" });
+    console.error("GET CHAT MESSAGES ERROR:", err);
+    return res.status(500).json({ success: false, message: "Server error" });
   }
 };
 
