@@ -14,7 +14,7 @@ const formatPublicProfile = (user, profile,swipeAction) => {
   return {
     // id: profile.userId,
     name: profile.nickname || "",
-    displayName: `${profile.nickname || "User"}, ${calculateAge(profile.dob)}`,
+    // displayName: `${profile.nickname || "User"}, ${calculateAge(profile.dob)}`,
     // age: profile.age || 0,
     age: profile.age || calculateAge(profile.dob),
     gender: {

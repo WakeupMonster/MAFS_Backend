@@ -827,6 +827,7 @@ const { Match } = require("../matches/swipe/swipe.model");
 const cache = require("../../config/cache");
 const { uploadStream, destroy } = require("../upload/cloudinary.service");
 const redis = require("../../config/cache");
+const User = require("../auth/auth.model");
 
 // ========================================
 // HELPER: Get or Create Profile
@@ -1227,8 +1228,9 @@ function formatResponse(profile) {
 // };
 
 const BlockedContact = require("../BlockedContact/blockedContacts.model");
-const Block = require("./user.block")
+const Block = require("../profile/user.block")
 const { formatProfileResponse } = require("./profile.formatter");
+const UserSubscription = require("../auth/UserSubscription.model")
 
 exports.updateProfile = async (req, res) => {
   try {
@@ -1298,14 +1300,30 @@ exports.updateProfile = async (req, res) => {
         profile.discovery.showMeGender = Array.isArray(disc.showMeGender) ? disc.showMeGender : [disc.showMeGender];
       }
     }
+     const user = await User.findById(userId).lean();
 
     profile.lastProfileUpdate = new Date();
     await profile.save();
-    
-    const blockedContacts = await BlockedContact.find({ userId }).lean();
-    const formatted = formatProfileResponse(profile, blockedContacts);
 
-    res.json({ success: true, message: "Profile updated successfully" , data: formatted });
+    
+    
+    const [blockedContacts, blockedUser] = await Promise.all([
+    BlockedContact.find({ userId: user._id }).lean(),
+    Block.find({ blockerId: user._id }).lean()
+  ]);
+    let subData = await UserSubscription.findOne({ userId });
+      if (!subData) {
+        // Naya user hai toh default create karo
+        subData = await UserSubscription.create({ userId});
+      }
+      // Reset counters if it's a new day
+      subData.resetIfNeeded()
+      // await redis.del(redisKey);
+    // const formatted = formatProfileResponse(profile, blockedContacts,blockedUser);
+
+    res.json({ success: true, message: "Profile updated successfully" ,  data: {
+        user: formatProfileResponse(user,profile, blockedContacts,blockedUser,subData)
+      } });
 
     // res.json({ success: true, message: "Profile updated successfully" });
 
@@ -1322,11 +1340,32 @@ exports.getMyProfile = async (req, res) => {
     
     if (!profile) return res.status(404).json({ success: false, message: "Profile not found" });
 
-    const blockedContacts = await BlockedContact.find({ userId }).lean();
-    const blockedUser = await Block.find({blockerId : userId}).lean()
-    const formatted = formatProfileResponse(profile, blockedContacts,blockedUser);
 
-    res.json({ success: true, data: formatted });
+   const user = await User.findById(userId).lean();
+     const [blockedContacts, blockedUser] = await Promise.all([
+    BlockedContact.find({ userId: user._id }).lean(),
+    Block.find({ blockerId: user._id }).lean()
+  ]);
+    let subData = await UserSubscription.findOne({ userId });
+      if (!subData) {
+        // Naya user hai toh default create karo
+        subData = await UserSubscription.create({ userId});
+      }
+      // Reset counters if it's a new day
+      subData.resetIfNeeded()
+      // await redis.del(redisKey);
+    // const formatted = formatProfileResponse(profile, blockedContacts,blockedUser);
+
+    res.json({ success: true ,  data: {
+        user: formatProfileResponse(user,profile, blockedContacts,blockedUser,subData)
+      } });
+
+
+    // const blockedContacts = await BlockedContact.find({ userId }).lean();
+    // const blockedUser = await Block.find({blockerId : userId}).lean()
+    // const formatted = formatProfileResponse(profile, blockedContacts,blockedUser);
+
+    // res.json({ success: true, data: formatted });
   // eslint-disable-next-line no-unused-vars
   } catch (err) {
     res.status(500).json({ success: false, message: "Failed to fetch profile" });
@@ -1789,19 +1828,27 @@ module.exports.uploadPhotos = async (req, res) => {
 
     // Clear cache
     await clearProfileCache(userId);
+const user = await User.findById(userId).lean();
+     const [blockedContacts, blockedUser] = await Promise.all([
+    BlockedContact.find({ userId: user._id }).lean(),
+    Block.find({ blockerId: user._id }).lean()
+  ]);
+    let subData = await UserSubscription.findOne({ userId });
+      if (!subData) {
+        // Naya user hai toh default create karo
+        subData = await UserSubscription.create({ userId});
+      }
+      // Reset counters if it's a new day
+      subData.resetIfNeeded()
+      // await redis.del(redisKey);
+    // const formatted = formatProfileResponse(profile, blockedContacts,blockedUser);
 
-    // Format response
-    // const response = formatResponse(profile);
+    res.json({  success: true,
+      message: `${newPhotos.length} photo uploaded successfully`,  data: {
+        user: formatProfileResponse(user,profile, blockedContacts,blockedUser,subData)
+      } });
 
-      const blockedContacts = await BlockedContact.find({ userId }).lean();
-    const formatted = formatProfileResponse(profile, blockedContacts);
 
-
-    return res.json({
-      success: true,
-      message: `${newPhotos.length} photo uploaded successfully`,
-      data: formatted
-    });
 
   } catch (err) {
     console.error("Upload photos error:", err);
@@ -1857,16 +1904,26 @@ module.exports.deletePhoto = async (req, res) => {
     // Clear cache
     await clearProfileCache(userId);
 
-    // Format response
-    // const response = formatResponse(profile);
-    const blockedContacts = await BlockedContact.find({ userId }).lean();
-    const formatted = formatProfileResponse(profile, blockedContacts);
+    const user = await User.findById(userId).lean();
+     const [blockedContacts, blockedUser] = await Promise.all([
+    BlockedContact.find({ userId: user._id }).lean(),
+    Block.find({ blockerId: user._id }).lean()
+  ]);
+    let subData = await UserSubscription.findOne({ userId });
+      if (!subData) {
+        // Naya user hai toh default create karo
+        subData = await UserSubscription.create({ userId});
+      }
+      // Reset counters if it's a new day
+      subData.resetIfNeeded()
+      // await redis.del(redisKey);
+    // const formatted = formatProfileResponse(profile, blockedContacts,blockedUser);
 
-    return res.json({
-      success: true,
-      message: "Photo deleted successfully",
-      data: formatted
-    });
+    res.json({  success: true,
+      message: "photo deleted successfully",  data: {
+        user: formatProfileResponse(user,profile, blockedContacts,blockedUser,subData)
+      } });
+
 
   } catch (err) {
     console.error("Delete photo error:", err);
@@ -1962,21 +2019,32 @@ for (const id of photoIds) {
     });
 
     profile.photos = reorderedPhotos;
-     const blockedContacts = await BlockedContact.find({ userId }).lean();
-    const formatted = formatProfileResponse(profile, blockedContacts);
+    const user = await User.findById(userId).lean();
+     const [blockedContacts, blockedUser] = await Promise.all([
+    BlockedContact.find({ userId: user._id }).lean(),
+    Block.find({ blockerId: user._id }).lean()
+  ]);
+    let subData = await UserSubscription.findOne({ userId });
+      if (!subData) {
+        // Naya user hai toh default create karo
+        subData = await UserSubscription.create({ userId});
+      }
+      // Reset counters if it's a new day
+      subData.resetIfNeeded()
+      // await redis.del(redisKey);
+    // const formatted = formatProfileResponse(profile, blockedContacts,blockedUser);
+
 
     // 7️⃣ Save
     await profile.save();
 
     // 8️⃣ Clear cache
     await clearProfileCache(userId);
-
-    // 9️⃣ Response
-    return res.json({
-      success: true,
-      message: "Photos reordered successfully",
-      data: formatted
-    });
+    
+    res.json({  success: true,
+      message: "Photos reordered successfully",  data: {
+        user: formatProfileResponse(user,profile, blockedContacts,blockedUser,subData)
+      } });
 
   } catch (err) {
     console.error("Reorder photos error:", err);
@@ -2036,8 +2104,7 @@ module.exports.uploadSelfie = async (req, res) => {
     // }
     profile.verification.selfieUrl = result.url;
 profile.verification.status = "pending"; 
-  const blockedContacts = await BlockedContact.find({ userId }).lean();
-    const formatted = formatProfileResponse(profile, blockedContacts);
+  
 
 await profile.save();
 
@@ -2055,18 +2122,25 @@ await profile.save();
     //   data: response
     // });
 
-    return res.json({
-      success: true,
-      message: "Selfie uploaded successfully",
-      data : formatted
-      // data: {
-      //   selfie: {
-      //     url: profile.verification.selfieUrl, // ✅ Selfie URL
-      //     // uploadedAt: profile.selfieUrl.uploadedAt
-      //   },
+      const user = await User.findById(userId).lean();
+     const [blockedContacts, blockedUser] = await Promise.all([
+    BlockedContact.find({ userId: user._id }).lean(),
+    Block.find({ blockerId: user._id }).lean()
+  ]);
+    let subData = await UserSubscription.findOne({ userId });
+      if (!subData) {
+        // Naya user hai toh default create karo
+        subData = await UserSubscription.create({ userId});
+      }
+      // Reset counters if it's a new day
+      subData.resetIfNeeded()
+      // await redis.del(redisKey);
+    // const formatted = formatProfileResponse(profile, blockedContacts,blockedUser);
 
-      // }
-    });
+    res.json({  success: true,
+      message: "Selfie uploaded successfully",  data: {
+        user: formatProfileResponse(user,profile, blockedContacts,blockedUser,subData)
+      } });
 
   } catch (err) {
     console.error("Upload selfie error:", err);
@@ -2250,8 +2324,25 @@ module.exports.uploadIDDocument = async (req, res) => {
       profile.kyc.status = "pending"; // sync both for safety
     }
 
-      const blockedContacts = await BlockedContact.find({ userId }).lean();
-    const formatted = formatProfileResponse(profile, blockedContacts);
+    //   const blockedContacts = await BlockedContact.find({ userId }).lean();
+    // const formatted = formatProfileResponse(profile, blockedContacts);
+
+
+      const user = await User.findById(userId).lean();
+     const [blockedContacts, blockedUser] = await Promise.all([
+    BlockedContact.find({ userId: user._id }).lean(),
+    Block.find({ blockerId: user._id }).lean()
+  ]);
+    let subData = await UserSubscription.findOne({ userId });
+      if (!subData) {
+        // Naya user hai toh default create karo
+        subData = await UserSubscription.create({ userId});
+      }
+      // Reset counters if it's a new day
+      subData.resetIfNeeded()
+      // await redis.del(redisKey);
+    // const formatted = formatProfileResponse(profile, blockedContacts,blockedUser);
+
 
     // 4. Save (This will trigger the Pre-save hook we wrote for totalCompletion)
     await profile.save();
@@ -2259,20 +2350,10 @@ module.exports.uploadIDDocument = async (req, res) => {
     // 5. Cleanup & Response
     if (typeof clearProfileCache === 'function') await clearProfileCache(userId);
 
-    return res.json({
-      success: true,
-      message: "ID document uploaded successfully. Your verification is under review",
-      data : formatted
-      // data: {
-      //   verification: {
-      //     status: profile.verification.status,
-      //     docUrl: profile.verification.docUrl,
-      //     selfieUrl: profile.verification.selfieUrl || ""
-      //   },
-      //   // totalCompletion: profile.onboardingProgress.totalCompletion
-      // }
-    });
-
+ res.json({  success: true,
+       message: "ID document uploaded successfully. Your verification is under review", data: {
+        user: formatProfileResponse(user,profile, blockedContacts,blockedUser,subData)
+      } });
   } catch (err) {
     console.error("Upload ID error:", err);
     return res.status(500).json({ success: false, code: "UPLOAD_FAILED", message: err.message });
@@ -2292,7 +2373,7 @@ module.exports.updateLocation = async (req, res) => {
     message: "Valid latitude and longitude are required"
   });
 }
-
+  const user = await User.findById(userId).lean();
     // if (!latitude || !longitude) {
     //   return res.status(400).json({
     //     success: false,
@@ -2314,8 +2395,13 @@ module.exports.updateLocation = async (req, res) => {
       full_address : full_address || ""
     };
 
-      const blockedContacts = await BlockedContact.find({ userId }).lean();
-    const formatted = formatProfileResponse(profile, blockedContacts);
+     const [blockedContacts, blockedUser] = await Promise.all([
+    BlockedContact.find({ userId: user._id }).lean(),
+    Block.find({ blockerId: user._id }).lean()
+  ]);
+      // const blockedContacts = await BlockedContact.find({ userId }).lean();
+      // const blockedUser = await Block.find({userId}).lean()
+    // const formatted = formatProfileResponse(user,profile, blockedContacts,blockedUser);
 
     // Save
     await profile.save();
@@ -2324,13 +2410,14 @@ module.exports.updateLocation = async (req, res) => {
     await clearProfileCache(userId);
 
     // Format response
-    const response = formatResponse(profile);
+    // const response = formatResponse(profile);
 
     return res.json({
       success: true,
       message: "Location updated successfully",
-      data: formatted
-      
+       data: {
+        user: formatProfileResponse(user,profile, blockedContacts,blockedUser)
+      }
     });
 
   } catch (err) {

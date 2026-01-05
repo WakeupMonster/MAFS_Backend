@@ -18,7 +18,8 @@ exports.getFeed = async (req, res) => {
       success: true,
       count: feedResult.data.length,   // ✅ Access data array
        cached: feedResult.cached,
-      data: feedResult.data,            // ✅ Direct data, no nesting
+      data: feedResult.data,
+      userQuota: feedResult.userQuota
     });
   } catch (err) {
     console.error("GET FEED ERROR:", err);
@@ -55,13 +56,13 @@ exports.action = async (req, res) => {
     const result = await service.doSwipe(userId, targetId, action);
 
     // If a match happened (taken from feature/raj logic)
-    if (result.match) {
-      return res.json({
-        success: true,
-        message: "It's a match!",
-        matchId: result.matchId,
-      });
-    }
+    // if (result.match) {
+    //   return res.json({
+    //     success: true,
+    //     message: "It's a match!",
+    //     matchId: result.matchId,
+    //   });
+    // }
 
     // Default response
     return res.json({
@@ -155,63 +156,133 @@ exports.unmatchUser = async (req, res) => {
 
 const Profile = require("../../profile/profile.model"); // Check path
 
+// newwala
 exports.getMatches = async (req, res) => {
   try {
     const userId = req.user._id;
 
-    // 1. Saare matches find karo jahan Pradeep user hai
     const matches = await Match.find({ users: userId })
-      .sort({ lastMessageAt: -1, createdAt: -1 }) // Naye matches aur latest chats upar
+      .sort({ lastMessageAt: -1, createdAt: -1 })
       .populate({
         path: "users",
-        select: "nickname photos dob location" // Primary data populate
-      });
+        select: "_id"
+      })
+      .lean();
 
-    // 2. Data Transform karo (Figma Ready)
-    const formattedMatches = await Promise.all(matches.map(async (match) => {
-      // Apne aap ko array se nikalo, samne wale (partner) ka data lo
-      const partnerUser = match.users.find(u => u._id.toString() !== userId.toString());
-      
-      if (!partnerUser) return null;
+    const conversations = await Promise.all(
+      matches.map(async (match) => {
+        // Partner ID
+        const partnerId = match.users.find(
+          u => u._id.toString() !== userId.toString()
+        )?._id;
 
-      // Agar data Profile model mein hai, toh ek extra fetch (ya populate update)
-      const partnerProfile = await Profile.findOne({ userId: partnerUser._id }).select('nickname photos dob');
+        if (!partnerId) return null;
 
-      if (!partnerProfile) return null;
+        // Partner profile
+        const profile = await Profile.findOne({ userId: partnerId })
+          .select("nickname dob photos")
+          .lean();
 
-      const age = calculateAge(partnerProfile.dob);
-      
-      return {
-        matchId: match._id,
-        partnerId: partnerUser._id,
-        nickname: partnerProfile.nickname,
-        displayName: `${partnerProfile.nickname}, ${age}`,
-        profilePic: partnerProfile.photos?.sort((a,b) => a.order - b.order)[0]?.url || "",
-        lastMessage: match.lastMessageText || null, // Hum aage chat system mein add karenge
-        lastMessageTime: match.lastMessageAt || null,
-        isNew: !match.lastMessageAt, // Agar koi message nahi hai toh ye 'New Match' hai
-        matchedAt: match.createdAt
-      };
-    }));
+        if (!profile) return null;
 
-    const finalData = formattedMatches.filter(Boolean);
+        const age = profile.dob ? calculateAge(profile.dob) : null;
 
-    // 3. Figma Style Separation
-    const response = {
-      newMatches: finalData.filter(m => m.isNew),
-      conversations: finalData.filter(m => !m.isNew)
-    };
+        const mainPhotoUrl =
+          profile.photos?.sort((a, b) => a.order - b.order)[0]?.url || null;
+
+        return {
+          matchId: match._id,
+          partnerId,
+          nickname: profile.nickname || "User",
+          age,
+          mainPhotoUrl,
+          isNew: !match.lastMessageAt,
+          lastMessage: match.lastMessage || null,
+          lastMessageTime: match.lastMessageAt || null,
+          matchedAt: match.createdAt
+        };
+      })
+    );
 
     return res.json({
       success: true,
-      data: response
+      data: {
+        conversations: conversations.filter(Boolean)
+      }
     });
 
   } catch (err) {
-    console.error("Match Tab Error:", err);
-    res.status(500).json({ success: false, message: "Internal Server Error" });
+    console.error("getMatches error:", err);
+    return res.status(500).json({
+      success: false,
+      message: "Internal Server Error"
+    });
   }
 };
+
+
+// exports.getMatches = async (req, res) => {
+//   try {
+//     const userId = req.user._id;
+
+//     // 1. Saare matches find karo jahan Pradeep user hai
+//     const matches = await Match.find({ users: userId })
+//       .sort({ lastMessageAt: -1, createdAt: -1 }) // Naye matches aur latest chats upar
+//       .populate({
+//         path: "users",
+//         select: "nickname photos dob location" // Primary data populate
+//       });
+
+//     // 2. Data Transform karo (Figma Ready)
+//     const formattedMatches = await Promise.all(matches.map(async (match) => {
+//       // Apne aap ko array se nikalo, samne wale (partner) ka data lo
+//       const partnerUser = match.users.find(u => u._id.toString() !== userId.toString());
+      
+//       if (!partnerUser) return null;
+
+//       // Agar data Profile model mein hai, toh ek extra fetch (ya populate update)
+//       const partnerProfile = await Profile.findOne({ userId: partnerUser._id }).select('nickname photos dob');
+
+//       if (!partnerProfile) return null;
+
+//       const age = calculateAge(partnerProfile.dob);
+      
+//       return {
+//         matchId: match._id,
+//         partnerId: partnerUser._id,
+//         nickname: partnerProfile.nickname,
+//         displayName: `${partnerProfile.nickname}, ${age}`,
+//         profilePic: partnerProfile.photos?.sort((a,b) => a.order - b.order)[0]?.url || "",
+//         lastMessage: match.lastMessageText || null, // Hum aage chat system mein add karenge
+//         lastMessageTime: match.lastMessageAt || null,
+//         isNew: !match.lastMessageAt, // Agar koi message nahi hai toh ye 'New Match' hai
+//         matchedAt: match.createdAt
+//       };
+//     }));
+
+//     const finalData = formattedMatches.filter(Boolean);
+
+//     // 3. Figma Style Separation
+//     const response = {
+//       newMatches: finalData.filter(m => m.isNew),
+//       conversations: finalData.filter(m => !m.isNew)
+//     };
+
+//     return res.json({
+//       success: true,
+//       data: response
+//     });
+
+//   } catch (err) {
+//     console.error("Match Tab Error:", err);
+//     res.status(500).json({ success: false, message: "Internal Server Error" });
+//   }
+// };
+
+
+
+
+
 // exports.getMatches = async (req, res) => {
 //   try {
 //     const userId = req.user._id; // mongoose will auto cast (keep as string)
@@ -653,11 +724,11 @@ exports.getKeenData = async (req, res, actionType) => {
       swiperId: { $nin: mySwipedIds }
     });
 
+
     const formattedData = keens.map(item => {
-      // SwiperId ab hamara populated profile object hai
       const profile = item.swiperId; 
 
-      if (!profile || !profile.nickname) return null; // Agar profile nahi mili toh skip
+      if (!profile || !profile.nickname) return null;
 
       const age = calculateAge(profile.dob);
       let distance = 0;
@@ -668,24 +739,33 @@ exports.getKeenData = async (req, res, actionType) => {
         );
       }
 
+      // 🔥 EXACT MANAGER RESPONSE FORMAT
       return {
-        userId: profile.userId, // Profile model ke andar wala userId
+        userId: profile.userId, 
         nickname: profile.nickname,
-        displayName: `${profile.nickname}, ${age}`,
         age: age,
-        profilePic: profile.photos?.sort((a,b) => a.order - b.order)[0]?.url || "",
+        mainPhotoUrl: profile.photos?.sort((a,b) => a.order - b.order)[0]?.url || "",
         distanceText: distance <= 1 ? "1 km away" : `${distance} km away`,
         city: profile.location?.city || "Nearby",
-        action: item.action,
-        createdAt: item.createdAt
+        action: item.action, // 'like' or 'superlike'
+        likedAt: item.createdAt // Manager ne 'likedAt' manga hai
       };
     }).filter(Boolean);
 
+    // 🔥 META LOGIC WITH hasMore
+    const pageNum = parseInt(page);
+    const limitNum = parseInt(limit);
+    const hasMore = total > pageNum * limitNum;
+
     return res.json({
       success: true,
-      count: formattedData.length,
       data: formattedData,
-      meta: { total, page: parseInt(page), limit: parseInt(limit) }
+      meta: { 
+        total, 
+        page: pageNum, 
+        limit: limitNum,
+        hasMore: hasMore // ✅ Frontend check karega: if(hasMore) loadNextPage()
+      }
     });
 
   } catch (err) {

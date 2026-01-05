@@ -941,7 +941,7 @@ const ProfileSchema = new mongoose.Schema({
     coordinates: { type: [Number], default: [0, 0] }, // [Longitude, Latitude]
     city: String,
     country: String,
-    full_address: { type: String, default: "" }
+    full_address: String
   },
 
   // --- 5. VERIFICATION (KYC) ---

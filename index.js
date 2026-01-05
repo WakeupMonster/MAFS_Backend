@@ -382,6 +382,8 @@ const chatSocket = require("./sockets/chat.socket");
 const PORT = process.env.PORT || 3001;
 const MONGODB_URI = process.env.MONGODB_URI;
 
+require('./workers/notification.worker');
+
 // Socket.io Setup with Auth Middleware
 const io = new Server(http, {
   cors: { origin: "*" },
@@ -395,7 +397,17 @@ io.use(async (socket, next) => {
     if (!token) return next(new Error("Authentication error: No token provided"));
 
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    const user = await User.findById(decoded.id).lean();
+    const userId = decoded.userId || decoded.id;
+     if (!userId) {
+      return next(new Error("Authentication error: Invalid token payload"));
+    }
+
+    const user = await User.findById(userId).lean();
+    if (!user) {
+      return next(new Error("Authentication error: User not found"));
+    }
+
+    // const user = await User.findById(decoded.id).lean();
     
     if (!user) return next(new Error("Authentication error: User not found"));
     
@@ -456,3 +468,21 @@ io.use(async (socket, next) => {
 // register phone hashing
 // check dlt redis key from deacitvate/delete account, swipin action, location update,Block report,
 // superkeen -- boost -- limit
+
+
+// today
+// add null instead of empty string
+// setting ke andar block/blcok use
+// subscription model
+//  "full_address": ""  -- add field in model 
+// remaining likes/superlikes in action API.
+// how will I do give rejection when there will no superlikes
+// I have to make sure the response must be same in every API
+// Get user profile response align with auth response -- make user profile response same as auth response
+
+// events
+// top message seen events
+
+// photo dlt api
+
+// discovery filter response in each

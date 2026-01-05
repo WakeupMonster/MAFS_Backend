@@ -258,12 +258,12 @@ async function sendPhoneOtp(phone) {
 //   };
 // }
 
-
+ 
 const { formatUserProfile } = require("./auth.formatter");
 const BlockedContact = require("../BlockedContact/blockedContacts.model");
 const Block = require("../profile/user.block")
 const { normalizePhone, hashPhone } = require("../../common/utils/phone.util");
-
+const UserSubscription = require("../auth/UserSubscription.model")
 
 async function verifyPhoneOtpUnified(phone, otp) {
   // 1️⃣ Normalize phone (VERY IMPORTANT)
@@ -328,13 +328,20 @@ async function verifyPhoneOtpUnified(phone, otp) {
     Block.find({ blockerId: user._id }).lean()
   ]);
 
+  let subData = await UserSubscription.findOne({ userId: user._id });
+  if (!subData) {
+    // Naya user hai toh default create karo
+    subData = await UserSubscription.create({ userId: user._id });
+  }
+  // Reset counters if it's a new day
+  subData.resetIfNeeded()
   await redis.del(redisKey);
 
   return {
     accessToken,
     refreshToken: refreshTokenRaw,
     isNewUser: !user.firstName,
-    user: formatUserProfile(user, profile, blockedContacts, blockedUser)
+    user: formatUserProfile(user, profile, blockedContacts, blockedUser,subData)
   };
 }
 
@@ -489,16 +496,30 @@ async function verifyEmailOtp(token, otp) {
   await user.save();
 
   // Profile update and fetch
-  const profile = await profileModel.findOneAndUpdate(
-    { userId: user._id },
-    { $set: { "onboardingProgress.emailVerified": true } },
-    { upsert: true, new: true }
-  ).lean();
+  // const profile = await profileModel.findOneAndUpdate(
+  //   { userId: user._id },
+  //   { $set: { "onboardingProgress.emailVerified": true } },
+  //   { upsert: true, new: true }
+  // ).lean();
 
-  // Formatter use karke pura data return karo
+  // // Formatter use karke pura data return karo
+  // return {
+  //   // accessToken: utils.generateAccessToken(user), // Optional: Naya token de sakte ho
+  //   user: formatUserProfile(user, profile)
+  // };
+  const [profile, blockedContacts, blockedUser] = await Promise.all([
+    profileModel.findOneAndUpdate(
+      { userId: user._id },
+      { $set: { "onboardingProgress.emailVerified": true } },
+      { upsert: true, new: true, lean: true }
+    ),
+    BlockedContact.find({ userId: user._id }).lean(),
+    Block.find({ blockerId: user._id }).lean()
+  ]);
+
   return {
-    // accessToken: utils.generateAccessToken(user), // Optional: Naya token de sakte ho
-    user: formatUserProfile(user, profile)
+    // Return the formatted user including block lists
+    user: formatUserProfile(user, profile, blockedContacts, blockedUser)
   };
 }
 
@@ -755,7 +776,13 @@ async function refreshAccessToken(refreshTokenRaw) {
   const accessToken = utils.generateAccessToken(user);
 
   // 6. Profile fetch karo (Empty string handling ke liye)
-  const profile = await profileModel.findOne({ userId: user._id }).lean();
+  // const profile = await profileModel.findOne({ userId: user._id }).lean();
+
+  const [profile, blockedContacts, blockedUser] = await Promise.all([
+    profileModel.findOne({ userId: user._id }).lean(),
+    BlockedContact.find({ userId: user._id }).lean(),
+    Block.find({ blockerId: user._id }).lean()
+  ]);
   
 
   await user.save();
@@ -764,7 +791,8 @@ async function refreshAccessToken(refreshTokenRaw) {
   return {
     accessToken,
     refreshToken: refreshTokenRaw, // Manager requirement: Refresh token wapas bhejna
-    user: formatUserProfile(user, profile)
+    // user: formatUserProfile(user, profile)
+    ser: formatUserProfile(user, profile, blockedContacts, blockedUser)
   };
 }
 

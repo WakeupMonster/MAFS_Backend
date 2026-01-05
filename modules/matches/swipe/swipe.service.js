@@ -11,6 +11,7 @@ const Block = require("../../../modules/profile/user.block");
 const Report = require("../../../modules/profile/user.report");
 const redis = require("../../../config/cache");
 const BlockedContact = require("../../BlockedContact/blockedContacts.model");
+const { checkUserQuota } = require("../../../common/utils/quotaHelper")
 
 
 // let redis;
@@ -112,9 +113,17 @@ function calculateDistance(lat1, lon1, lat2, lon2) {
     return Math.round(R * c); 
 }
 
+const UserSubscription = require("../../auth/UserSubscription.model")
+
 async function getFeedService(userId, limit = 20) {
     const CACHE_KEY = `feed:${userId.toString()}`;
     const CACHE_TTL = 300;
+
+    let sub = await UserSubscription.findOne({ userId });
+    if (!sub) sub = await UserSubscription.create({ userId });
+    
+    // 2. Reset daily counters if needed
+    sub.resetIfNeeded();
 
     // 1️⃣ User Profile & Filters Fetch
     const myProfile = await Profile.findOne({ userId }).lean();
@@ -358,65 +367,136 @@ if (dynamicHighlights.length < 6) {
         dynamicHighlights.push({ type: "PHOTO_QUALITY", icon: "📸", title: "Photo Gallery", description: "Check out more moments" });
     }
 }
+    const likeStatus = checkUserQuota(sub, 'like');
+    const superStatus = checkUserQuota(sub, 'superlike');
+
+    // newreturn
+    return {
+    // --- Core Identifiers ---
+    userId: profile.userId, 
+
+    // --- 1. PROFILE (Nested Group) ---
+    profile: {
+        nickname: profile.nickname || "User",
+        age: calculateAge(profile.dob),
+        bio: profile.about || "",
+        city: profile.location?.city || "",
+        distanceText: distanceKm <= 1 ? "1 km away" : `${distanceKm} km away`,
+        isVerified: profile.verification?.status === "approved"
+    },
+
+    // --- 2. IMAGES (Formatted as Objects) ---
+    images: (profile.photos || [])
+        .sort((a, b) => a.order - b.order)
+        .map(p => ({ url: p.url })),
+
+    // --- 3. GOALS ---
+    relationshipGoal: targetGoal || "Not specified",
+
+    // --- 4. ATTRIBUTES (With Null Fallback) ---
+    // Manager ne kaha hai "" ki jagah null use karo
+    attributes: {
+        zodiac: targetAttr.zodiac || null,
+        education: targetAttr.education || null,
+        vaccineStatus: targetAttr.vaccineStatus || null,
+        familyPlans: targetAttr.familyPlans || null,
+        personalityType: targetAttr.personalityType || null,
+        communicationStyle: targetAttr.communicationStyle || null,
+        loveStyle: targetAttr.loveStyle || null,
+        bloodType: targetAttr.bloodType || null,
+        pets: targetAttr.pets || null,
+        drinking: targetAttr.drinking || null,
+        smoking: targetAttr.smoking || null,
+        workout: targetAttr.workout || null,
+        dietary: targetAttr.dietary || null,
+        socialMedia: targetAttr.socialMedia || null,
+        sleeping: targetAttr.sleeping || null
+    },
+
+    // --- 5. CONTEXT (Match Details) ---
+    context: {
+        matchScore: Math.min(score, 100),
+        compatibilityLabel: score > 75 ? "Excellent Match" : (score > 40 ? "Great Match" : "Good Match"),
+        isSuperLikeSender: isSuperliked, // Blue border logic for UI
+        commonInterests: common
+    },
+
+    // --- 6. DYNAMIC HIGHLIGHTS (UI Cards) ---
+    dynamicHighlights: dynamicHighlights.slice(0, 6)
+};
+
     
 
-    return {
-        // --- Core Info ---
-        id: profile.userId,
-        nickname: profile.nickname || "User",
-        displayName: `${profile.nickname || "User"}, ${calculateAge(profile.dob)}`,
-        age: calculateAge(profile.dob),
-        bio: profile.about || profile.bio || "",
-        images: (profile.photos || []).sort((a,b) => a.order - b.order).map(p => p.url),
+    // return {
+    //     // --- Core Info ---
+    //     id: profile.userId,
+    //     nickname: profile.nickname || "User",
+    //     displayName: `${profile.nickname || "User"}, ${calculateAge(profile.dob)}`,
+    //     age: calculateAge(profile.dob),
+    //     bio: profile.about || profile.bio || "",
+    //     images: (profile.photos || []).sort((a,b) => a.order - b.order).map(p => p.url),
         
-        // --- Discovery/Matching Info ---
-        relationshipGoal: targetGoal || "Not specified",
-        interests: targetInterests,
-        traits: {
-            // Basics
-            zodiac: targetAttr.zodiac || "",
-            education: targetAttr.education || "",
-            vaccineStatus: targetAttr.vaccineStatus || "",
-            familyPlans: targetAttr.familyPlans || "",
-            personalityType: targetAttr.personalityType || "",
-            communicationStyle: targetAttr.communicationStyle || "",
-            loveStyle: targetAttr.loveStyle || "",
-            bloodType: targetAttr.bloodType || "",
+    //     // --- Discovery/Matching Info ---
+    //     relationshipGoal: targetGoal || "Not specified",
+    //     interests: targetInterests,
+    //     traits: {
+    //         // Basics
+    //         zodiac: targetAttr.zodiac || "",
+    //         education: targetAttr.education || "",
+    //         vaccineStatus: targetAttr.vaccineStatus || "",
+    //         familyPlans: targetAttr.familyPlans || "",
+    //         personalityType: targetAttr.personalityType || "",
+    //         communicationStyle: targetAttr.communicationStyle || "",
+    //         loveStyle: targetAttr.loveStyle || "",
+    //         bloodType: targetAttr.bloodType || "",
             
-            // Lifestyle
-            pets: targetAttr.pets || "",
-            drinking: targetAttr.drinking || "",
-            smoking: targetAttr.smoking || "",
-            workout: targetAttr.workout || "",
-            dietary: targetAttr.dietary || "",
-            socialMedia: targetAttr.socialMedia || "",
-            sleeping: targetAttr.sleeping || ""
-        },
-        matchedTraits: matchedTraits,
-        commonInterests: common,
-        hasCommonInterests: common.length > 0,
-        matchScoreTotal: score,
+    //         // Lifestyle
+    //         pets: targetAttr.pets || "",
+    //         drinking: targetAttr.drinking || "",
+    //         smoking: targetAttr.smoking || "",
+    //         workout: targetAttr.workout || "",
+    //         dietary: targetAttr.dietary || "",
+    //         socialMedia: targetAttr.socialMedia || "",
+    //         sleeping: targetAttr.sleeping || ""
+    //     },
+    //     matchedTraits: matchedTraits,
+    //     commonInterests: common,
+    //     hasCommonInterests: common.length > 0,
+    //     matchScoreTotal: score,
         
-        // --- Score & Labeling ---
-        matchScore: Math.min(score, 100), // Score 100 se upar na dikhe UI par
-        compatibilityLabel: score > 75 ? "Excellent Match" : (score > 40 ? "Great Match" : "Good Match"),
+    //     // --- Score & Labeling ---
+    //     matchScore: Math.min(score, 100), // Score 100 se upar na dikhe UI par
+    //     compatibilityLabel: score > 75 ? "Excellent Match" : (score > 40 ? "Great Match" : "Good Match"),
         
-        // --- Status Flags ---
-        isSuperKeen: isSuperliked,
-        isVerified: profile.verification?.status === "approved",
+    //     // --- Status Flags ---
+    //     isSuperKeen: isSuperliked,
+    //     isVerified: profile.verification?.status === "approved",
         
-        // --- Frontend UI Helpers ---
-        distanceText: distanceKm <= 1 ? "1 km away" : `${distanceKm} km away`,
-        // location: {
-        //     city: profile.location?.city || "Indore",
-        //     distance: distanceKm
-        // },
-        city: profile.location?.city || "",
-        // Frontend ko har card ke liye ready-made text mil gaya
-        displayHighlight: cardHighlights[0] || "New for you", 
-        allHighlights: cardHighlights,
-        dynamicHighlights: dynamicHighlights.slice(0, 6)
-    };
+    //     // --- Frontend UI Helpers ---
+    //     distanceText: distanceKm <= 1 ? "1 km away" : `${distanceKm} km away`,
+    //     // location: {
+    //     //     city: profile.location?.city || "Indore",
+    //     //     distance: distanceKm
+    //     // },
+    //     city: profile.location?.city || "",
+    //     // Frontend ko har card ke liye ready-made text mil gaya
+    //     displayHighlight: cardHighlights[0] || "New for you", 
+    //     allHighlights: cardHighlights,
+    //     dynamicHighlights: dynamicHighlights.slice(0, 6),
+    //     userQuota: {
+    //         likes: {
+    //             remaining: likeStatus.remaining,
+    //             canLike: likeStatus.allowed,
+    //             total: likeStatus.total
+    //         },
+    //         superlikes: {
+    //             remaining: superStatus.remaining,
+    //             canSuperlike: superStatus.allowed,
+    //             total: superStatus.total
+    //         },
+    //         isPremium: sub.planId !== 'free'
+    //     }
+    // };
 });
     // const transformedProfiles = profiles.map((profile) => {
     //     const targetAttr = profile.attributes || {};
@@ -507,10 +587,190 @@ function calculateAge(dob) {
 
 
 
+// targetprofile   ---   after match
+const { addNotificationJob } = require('../../../queues/notification.queue');
+async function doSwipe(swiperId, targetId, action) {
+  // 1. Initial Self-Swipe Check
+  if (swiperId.toString() === targetId.toString()) {
+    throw new Error("Cannot swipe on your own profile");
+  }
 
+  const session = await mongoose.startSession();
+  
+  try {
+    let result = { success: true, match: false, message: "Swipe processed" };
 
+    // Sab kuch ek hi transaction block mein
+    await session.withTransaction(async () => {
+      
+      // 2. Fetch Subscription (Session ke saath)
+      let sub = await UserSubscription.findOne({ userId: swiperId }).session(session);
+      if (!sub) {
+        [sub] = await UserSubscription.create([{ userId: swiperId }], { session });
+      }
 
+      // 3. Reset daily counters if it's a new day
+      sub.resetIfNeeded();
 
+      // 4. 🔥 GATEKEEPER CHECK
+      const quota = checkUserQuota(sub, action);
+      if (!quota.allowed) {
+        const now = new Date();
+        const tonight = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
+        
+        // Return structured error for Frontend
+        result = { 
+            success: false, 
+            error: "LIMIT_REACHED",
+            errorCode: action === 'like' ? "EXHAUSTED_DAILY_LIKE" : "EXHAUSTED_DAILY_SUPERLIKE",
+            message: action === 'like' ? "Daily likes limit reached!" : "No Superlikes left for today!",
+            data: {
+                quotaStatus: {
+                    used: action === 'like' ? sub.dailyLikesUsed : sub.dailySuperlikesUsed,
+                    limit: action === 'like' ? 30 : 3,
+                    remaining: 0,
+                    resetAt: tonight
+                },
+                upsell: {
+                    title: "Don't stop swiping!",
+                    description: "Upgrade now to get unlimited likes and more superlikes.",
+                    action: "SHOW_PREMIUM_MODAL"
+                }
+            }
+        };
+        // Yahan se bahar nikal jao (Transaction abort nahi hogi, bas update nahi hoga)
+        return;
+      }
+
+      // 5. Target Profile aur Block Check
+      const [targetProfile, blockExists] = await Promise.all([
+        Profile.findOne({ userId: targetId }).session(session),
+        Block.findOne({
+          $or: [
+            { blockerId: swiperId, blockedId: targetId },
+            { blockerId: targetId, blockedId: swiperId }
+          ]
+        }).session(session)
+      ]);
+
+      if (!targetProfile) throw new Error('Target profile not found');
+      if (blockExists) throw new Error("Action not allowed. User interaction is blocked.");
+
+      // 6. Avoid Duplicates
+      const existingSwipe = await Swipe.findOne({ swiperId, targetId }).session(session);
+      if (existingSwipe) {
+        result = { success: true, already: true, message: "Already swiped", match: false };
+        return;
+      }
+
+      // 7. 🔥 UPDATE COUNTER & SAVE (Ye line DB update karegi)
+      if (action === 'like') {
+        sub.dailyLikesUsed += 1;
+      } else if (action === 'superlike') {
+        sub.dailySuperlikesUsed += 1;
+      }
+      await sub.save({ session }); // Ab ye save hoga because of clean session
+
+      // 8. Create Swipe Record
+      await Swipe.create([{ swiperId, targetId, action, createdAt: new Date() }], { session });
+
+      // 9. Match Logic
+      let mutualSwipe = null;
+      if (['like', 'superlike'].includes(action)) {
+        const mutualSwipe = await Swipe.findOne({
+          swiperId: targetId, 
+          targetId: swiperId, 
+          action: { $in: ['like', 'superlike'] }
+        }).session(session);
+
+        if (mutualSwipe) {
+          const [match] = await Match.create([{
+            users: [swiperId, targetId], 
+            status: 'matched', 
+            lastActivity: new Date()
+          }], { session });
+
+          const myProfile = await Profile.findOne({ userId: swiperId }).session(session);
+
+  result = { 
+    success: true, 
+    message: "It's a match!",
+    data: {
+      isMatch: true,
+      matchDetails: {
+        matchId: match._id,
+        chatId: match._id, // Room ID for socket/chat
+        user: {
+          userId: targetId,
+          nickname: targetProfile.nickname,
+          photoUrl: targetProfile.photos?.[0]?.url || null
+        },
+        myPhotoUrl: myProfile?.photos?.[0]?.url || null
+      },
+      // 🔥 Wallet Section (Calculated from updated 'sub')
+      wallet: {
+        likesRemaining: Math.max(0, 30 - sub.dailyLikesUsed),
+        superLikesRemaining: Math.max(0, 2 - sub.dailySuperlikesUsed) + (sub.superlikeBalance || 0),
+        rewindsRemaining: sub.planId !== 'free' ? 999 : 0 
+      }
+    }
+  };
+  addNotificationJob('NEW_MATCH', { userId1: swiperId, userId2: targetId });
+  } else {
+        // 🔥 CASE 2: NO MATCH (Manager's exact request)
+        // Ye response dikhega jab user swipe karega par samne wale ne abhi like nahi kiya
+        result = {
+          success: true,
+          data: {
+            isMatch: false,
+            matchDetails: null,
+            wallet: { 
+              likesRemaining: Math.max(0, 30 - sub.dailyLikesUsed), 
+              superLikesRemaining: Math.max(0, 3 - sub.dailySuperlikesUsed) + (sub.superlikeBalance || 0), 
+              rewindsRemaining: sub.planId !== 'free' ? 5 : 0 
+            }
+            
+          }
+          
+        }
+        if (action === 'like' || action === 'superlike') {
+            addNotificationJob('NEW_LIKE', { senderId: swiperId, receiverId: targetId });
+          }
+
+          // result = { 
+          //   success: true, 
+          //   match: true, 
+          //   matchId: match._id, 
+          //   message: "It's a match!",
+          //   partnerData: { 
+          //       name: targetProfile.nickname,
+          //       image: targetProfile.photos?.[0]?.url
+          //   }
+          // };
+        }
+      }
+
+      // 10. Cache Clearing (Transaction ke andar ya bahar)
+      if (redis) {
+          await redis.del(`feed:${swiperId.toString()}`);
+          if (result.match) {
+            await Promise.all([
+              redis.del(`matches:${swiperId}`),
+              redis.del(`matches:${targetId}`)
+            ]);
+          }
+      }
+    });
+
+    return result;
+
+  } catch (error) {
+    console.error('Swipe error:', error);
+    throw error;
+  } finally {
+    await session.endSession();
+  }
+}
 
 
 
@@ -1393,105 +1653,145 @@ function calculateAge(dob) {
 
 
 
-async function doSwipe(swiperId, targetId, action) {
-  if (swiperId.toString() === targetId.toString()) {
-    throw new Error("Cannot swipe on your own profile");
-  }
+// async function doSwipe(swiperId, targetId, action) {
+  
+//   if (swiperId.toString() === targetId.toString()) {
+//     throw new Error("Cannot swipe on your own profile");
+//   }
+//  const session = await mongoose.startSession();
+//  session.startTransaction();
+//  let sub = await UserSubscription.findOne({ userId: swiperId }).session(session);
 
-  const session = await mongoose.startSession();
-  let result = { success: true, match: false, message: "Swipe processed" };
+//         if (!sub) {
+//             [sub] = await UserSubscription.create([{ userId: swiperId }], { session });
+//         }
 
-  try {
-    await session.withTransaction(async () => {
-      // 1. Check for Target Profile & Mutual Block (Using New Model)
-      const [targetProfile, blockExists] = await Promise.all([
-        Profile.findOne({ userId: targetId }).session(session),
-        Block.findOne({
-          $or: [
-            { blockerId: swiperId, blockedId: targetId }, // Maine use block kiya hai
-            { blockerId: targetId, blockedId: swiperId }  // Usne mujhe block kiya hai
-          ]
-        }).session(session)
-      ]);
+//         sub.resetIfNeeded();
 
-      if (!targetProfile) {
-        throw new Error('Target profile not found');
-      }
+//         console.log(sub,"sub")
 
-      if (blockExists) {
-        throw new Error("Action not allowed. User interaction is blocked.");
-      }
+//   // 3. 🔥 GATEKEEPER CHECK (Action hone se pehle)
+//   const quota = checkUserQuota(sub, action);
+//   if (!quota.allowed) {
+//     // Calculate reset time (Midnight)
+//     const now = new Date();
+//     const tonight = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
+    
+//     return { 
+//         success: false, 
+//         error: "LIMIT_REACHED",
+//         errorCode: action === 'like' ? "EXHAUSTED_DAILY_LIKE" : "EXHAUSTED_DAILY_SUPERLIKE",
+//         message: action === 'like' ? "Daily likes limit reached!" : "No Superlikes left for today!",
+//         data: {
+//             quotaStatus: {
+//                 used: action === 'like' ? sub.dailyLikesUsed : sub.dailySuperlikesUsed,
+//                 limit: action === 'like' ? 30 : 1,
+//                 remaining: 0,
+//                 resetAt: tonight
+//             },
+//             upsell: {
+//                 title: "Don't stop swiping!",
+//                 description: "Upgrade now to get unlimited likes and more superlikes.",
+//                 action: "SHOW_PREMIUM_MODAL"
+//             }
+//         }
+//     };
+// }
+ 
+//   let result = { success: true, match: false, message: "Swipe processed" };
 
-      // 2. Check for existing swipe (Avoid duplicates)
-      const existingSwipe = await Swipe.findOne({
-        swiperId,
-        targetId
-      }).session(session);
+//   try {
+//     await session.withTransaction(async () => {
+//       // 1. Check for Target Profile & Mutual Block (Using New Model)
+//       const [targetProfile, blockExists] = await Promise.all([
+//         Profile.findOne({ userId: targetId }).session(session),
+//         Block.findOne({
+//           $or: [
+//             { blockerId: swiperId, blockedId: targetId }, // Maine use block kiya hai
+//             { blockerId: targetId, blockedId: swiperId }  // Usne mujhe block kiya hai
+//           ]
+//         }).session(session)
+//       ]);
 
-      if (existingSwipe) {
-        result = { success: true, already: true, message: "Already swiped", match: false };
-        return;
-      }
+//       if (!targetProfile) {
+//         throw new Error('Target profile not found');
+//       }
 
-      // 3. Create new swipe
-      await Swipe.create([{ swiperId, targetId, action, createdAt: new Date() }], { session });
+//       if (blockExists) {
+//         throw new Error("Action not allowed. User interaction is blocked.");
+//       }
 
-      if (redis) {
-             const CACHE_KEY = `feed:${swiperId.toString()}`;
-             await redis.del(CACHE_KEY);
-             console.log("Redis cache cleared for new filters");
-         }
+//       // 2. Check for existing swipe (Avoid duplicates)
+//       const existingSwipe = await Swipe.findOne({
+//         swiperId,
+//         targetId
+//       }).session(session);
 
-      // 5. Check for mutual like/match
-      if (['like', 'superlike'].includes(action)) {
-        const mutualSwipe = await Swipe.findOne({
-          swiperId: targetId, 
-          targetId: swiperId, 
-          action: { $in: ['like', 'superlike'] }
-        }).session(session);
+//       if (existingSwipe) {
+//         result = { success: true, already: true, message: "Already swiped", match: false };
+//         return;
+//       }
 
-        if (mutualSwipe) {
-          // Mutual Interest Found! Create a Match
-          const [match] = await Match.create([{
-            users: [swiperId, targetId], 
-            status: 'matched', 
-            lastActivity: new Date()
-          }], { session });
+//       // 3. Create new swipe
+//       await Swipe.create([{ swiperId, targetId, action, createdAt: new Date() }], { session });
 
-          // Invalidate cache again if it's a match (to update match lists)
-          if (global.redis) {
-            await Promise.all([
-              redis.del(`matches:${swiperId}`),
-              redis.del(`matches:${targetId}`)
-            ]);
-          }
+//       if (redis) {
+//              const CACHE_KEY = `feed:${swiperId.toString()}`;
+//              await redis.del(CACHE_KEY);
+//              console.log("Redis cache cleared for new filters");
+//          }
 
-          result = { 
-            success: true, 
-            match: true, 
-            matchId: match._id, 
-            message: "It's a match!",
-            partnerData: { // Frontend ke liye extra details agar match popup dikhana ho
-                name: targetProfile.nickname,
-                image: targetProfile.photos?.[0]?.url
-            }
-          };
-          return;
-        }
-      }
+//       // 5. Check for mutual like/match
+//       if (['like', 'superlike'].includes(action)) {
+//         const mutualSwipe = await Swipe.findOne({
+//           swiperId: targetId, 
+//           targetId: swiperId, 
+//           action: { $in: ['like', 'superlike'] }
+//         }).session(session);
 
-      result = { success: true, match: false, message: "Swipe recorded" };
-    });
+//         if (mutualSwipe) {
+//           // Mutual Interest Found! Create a Match
+//           const [match] = await Match.create([{
+//             users: [swiperId, targetId], 
+//             status: 'matched', 
+//             lastActivity: new Date()
+//           }], { session });
 
-    return result;
+//           // Invalidate cache again if it's a match (to update match lists)
+//           if (global.redis) {
+//             await Promise.all([
+//               redis.del(`matches:${swiperId}`),
+//               redis.del(`matches:${targetId}`)
+//             ]);
+//           }
 
-  } catch (error) {
-    console.error('Swipe error:', error);
-    throw error;
-  } finally {
-    await session.endSession();
-  }
-}
+//           result = { 
+//             success: true, 
+//             match: true, 
+//             matchId: match._id, 
+//             message: "It's a match!",
+//             partnerData: { // Frontend ke liye extra details agar match popup dikhana ho
+//                 name: targetProfile.nickname,
+//                 image: targetProfile.photos?.[0]?.url
+//             },
+//             data : formatData
+//           };
+//           return;
+//         }
+//       }
+
+//       result = { success: true, match: false, message: "Swipe recorded" };
+//     });
+
+//     return result;
+
+//   } catch (error) {
+//     console.error('Swipe error:', error);
+//     throw error;
+//   } finally {
+//     await session.endSession();
+//   }
+// }
 
 
 // async function doSwipe(swiperId, targetId, action) {

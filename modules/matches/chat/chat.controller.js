@@ -132,7 +132,7 @@ exports.sendMessage = async (req, res) => {
 exports.getChatMessages = async (req, res) => {
   try {
     const userId = req.user._id;
-    const { matchId } = req.params; // Body se hata kar params mein kiya
+    const { matchId } = req.body; // Body se hata kar params mein kiya
     const { page = 1, limit = 20 } = req.query;
 
     const messages = await ChatMessage.find({
@@ -143,11 +143,31 @@ exports.getChatMessages = async (req, res) => {
     .skip((page - 1) * limit)
     .limit(parseInt(limit))
     .lean();
+     const formattedMessages = messages
+      .reverse()
+      .map(msg => ({
+        id: msg._id,
+        text: msg.text,
+
+        isMine: msg.sender.toString() === userId.toString(),
+
+        status: msg.readAt
+          ? "read"
+          : msg.deliveredAt
+          ? "delivered"
+          : "sent",
+
+        sentAt: msg.createdAt,
+        sentAtFormatted: new Date(msg.createdAt).toLocaleTimeString("en-IN", {
+          hour: "2-digit",
+          minute: "2-digit"
+        })
+      }));
 
     // Frontend ko ascending order mein chahiye hote hain
     return res.json({
       success: true,
-      data: messages.reverse() 
+      data: formattedMessages
     });
   } catch (err) {
     res.status(500).json({ success: false, message: "Server error" });
@@ -246,5 +266,86 @@ exports.deleteChatMessage = async (req, res) => {
   } catch (error) {
     console.error("DELETE MESSAGE ERROR:", error);
     return res.status(500).json({ success: false, message: "Server error" });
+  }
+};
+
+
+
+const redis = require("../../../config/cache");
+const Profile = require("../../../modules/profile/profile.model");
+
+
+exports.getChatList = async (req, res) => {
+  try {
+    const userId = req.user._id;
+
+    // 1️⃣ Fetch matches sorted by last message (TOP REORDER BASE)
+    const matches = await Match.find({
+      users: userId
+    })
+      .sort({ lastMessageAt: -1 })
+      .lean();
+
+    const chatList = [];
+
+    for (const match of matches) {
+      // 2️⃣ Find other user
+      const otherUserId = match.users.find(
+        u => u.toString() !== userId.toString()
+      );
+
+      const profile = await Profile.findOne({ userId: otherUserId })
+  .select("nickname photos")
+  .lean();
+
+
+      // 3️⃣ Unread count
+      const unreadCount = await ChatMessage.countDocuments({
+        matchId: match._id,
+        receiver: userId,
+        readAt: null,
+        deletedFor: { $ne: userId }
+      });
+
+      // 4️⃣ Online status (Redis)
+     const isOnline = await redis.redisClient.get(
+  `user:online:${otherUserId}`
+);
+
+
+      chatList.push({
+        matchId: match._id,
+
+        user: {
+          id: otherUserId,
+          name: profile?.nickname || "User",
+          avatar: profile?.photos?.[0] || null,
+          isOnline: Boolean(isOnline)
+        },
+
+        lastMessage: match.lastMessage || "",
+        lastMessageAt: match.lastMessageAt,
+        lastMessageFormatted: match.lastMessageAt
+          ? new Date(match.lastMessageAt).toLocaleTimeString("en-IN", {
+              hour: "2-digit",
+              minute: "2-digit"
+            })
+          : null,
+
+        unreadCount
+      });
+    }
+
+    return res.json({
+      success: true,
+      data: chatList
+    });
+
+  } catch (err) {
+    console.error("Chat list error:", err);
+    return res.status(500).json({
+      success: false,
+      message: "Server error"
+    });
   }
 };

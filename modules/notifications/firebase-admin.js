@@ -32,6 +32,38 @@ const sendNotification = async (deviceToken, notification, data = {}) => {
   }
 };
 
+// const sendNotificationToMultiple = async (deviceTokens, notification, data = {}) => {
+//   try {
+//     const message = {
+//       notification: {
+//         title: notification.title,
+//         body: notification.body,
+//         image: notification.imageUrl
+//       },
+//       data: {
+//         ...data,
+//         click_action: 'FLUTTER_NOTIFICATION_CLICK'
+//       },
+//       tokens: deviceTokens
+//     };
+
+//     const response = await admin.messaging().sendMulticast(message);
+//     console.log('Successfully sent multicast message:', response);
+//     return {
+//       success: true,
+//       successCount: response.successCount,
+//       failureCount: response.failureCount,
+//       responses: response.responses
+//     };
+//   } catch (error) {
+//     console.error('Error sending multicast message:', error);
+//     return { success: false, error: error.message };
+//   }
+// };
+
+
+// modules/notifications/firebase-admin.js
+
 const sendNotificationToMultiple = async (deviceTokens, notification, data = {}) => {
   try {
     const message = {
@@ -47,13 +79,27 @@ const sendNotificationToMultiple = async (deviceTokens, notification, data = {})
       tokens: deviceTokens
     };
 
-    const response = await admin.messaging().sendMulticast(message);
-    console.log('Successfully sent multicast message:', response);
+    const response = await admin.messaging().sendEachForMulticast(message);
+    
+    const failedTokens = [];
+    if (response.failureCount > 0) {
+      response.responses.forEach((resp, idx) => {
+        if (!resp.success) {
+          const errorCode = resp.error.code;
+          // In error codes ka matlab hai ki token ab valid nahi hai
+          if (errorCode === 'messaging/invalid-registration-token' ||
+              errorCode === 'messaging/registration-token-not-registered') {
+            failedTokens.push(deviceTokens[idx]);
+          }
+        }
+      });
+    }
+
     return {
       success: true,
       successCount: response.successCount,
       failureCount: response.failureCount,
-      responses: response.responses
+      failedTokens // Ye hum worker ko wapas denge delete karne ke liye
     };
   } catch (error) {
     console.error('Error sending multicast message:', error);

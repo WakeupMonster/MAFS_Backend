@@ -4,7 +4,8 @@ const {
   getChatMessages,
   updateChatMsgRead,
   deleteChatMessage,
-  sendMessage
+  sendMessage,
+  getChatList
   // uploadChatMediaController,
   // deleteAllChatMessagesForUser,
 } = require("./chat.controller");
@@ -23,6 +24,8 @@ router.use(auth);
 router.get("/messages", getChatMessages);
 // GET messages /api/v1/chat/messages/:matchId?limit=20&page=1
 router.get("/messages/:matchId", getChatMessages);
+
+router.get("/list",getChatList)
 
 router.post("/send",sendMessage)
 
