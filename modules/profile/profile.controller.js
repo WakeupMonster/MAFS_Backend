@@ -2348,7 +2348,9 @@ module.exports.uploadIDDocument = async (req, res) => {
     return res.json({
       success: true,
       message: "ID document uploaded successfully. Verification is under review.",
-      user: formatProfileResponse(user,profile, blockedContacts,blockedUser,subData)
+      data: {
+        user: formatProfileResponse(user,profile, blockedContacts,blockedUser,subData)
+      } 
     });
 
   } catch (err) {
