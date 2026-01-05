@@ -966,7 +966,6 @@ const ProfileSchema = new mongoose.Schema({
     boostsCount: { type: Number, default: 0 },
     rewindsCount: { type: Number, default: 0 }
   },
-
   // --- 7. ONBOARDING & STATUS FLAGS ---
   onboardingProgress: {
     // Mandatory Flags

@@ -115,17 +115,17 @@
 
 const { createClient } = require("redis");
 
-// const redisClient = createClient({
-//   url: process.env.REDIS_URL || "redis://127.0.0.1:6379"
-// });
-
-if (!process.env.REDIS_URL) {
-  throw new Error("❌ REDIS_URL is missing in environment variables");
-}
-
 const redisClient = createClient({
-  url: process.env.REDIS_URL
+  url: process.env.REDIS_URL || "redis://127.0.0.1:6379"
 });
+
+// if (!process.env.REDIS_URL) {
+//   throw new Error("❌ REDIS_URL is missing in environment variables");
+// }
+
+// const redisClient = createClient({
+//   url: process.env.REDIS_URL
+// });
 
 
 redisClient.on("connect", () => {

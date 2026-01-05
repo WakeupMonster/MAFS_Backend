@@ -55,12 +55,12 @@ const userSchema = new mongoose.Schema({
   //   matches: { type: Boolean, default: true }
   // },
 
-  notificationSettings: {
-  push: { type: Boolean, default: true },
-  email: { type: Boolean, default: false },
-  matches: { type: Boolean, default: true },
-  messages: { type: Boolean, default: true }
-},
+//   notificationSettings: {
+//   push: { type: Boolean, default: true },
+//   email: { type: Boolean, default: false },
+//   matches: { type: Boolean, default: true },
+//   messages: { type: Boolean, default: true }
+// },
 
 
   // ============ STATUS FLAGS ============

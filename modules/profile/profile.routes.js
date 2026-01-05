@@ -134,6 +134,10 @@ router.patch(
   controller.updateVisibility
 );
 
+router.get("/notifications", controller.getNotificationSettings);
+router.patch("/notifications", controller.updateNotificationSettings);
+
+
 router.get("/blocked/all", userAction.getBlockList);
 
 router.patch('/quick-verify/:userId', controller.quickVerifyUser);
@@ -145,6 +149,9 @@ router.get("/block-list",  userAction.getBlockList);
 
 // Report
 router.post("/report/:id", userAction.reportUser);
+
+
+
 
 
 module.exports = router;
