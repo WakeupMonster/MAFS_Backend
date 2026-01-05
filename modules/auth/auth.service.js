@@ -524,91 +524,6 @@ async function verifyEmailOtp(token, otp) {
 }
 
 
-
-
-
-
-
-
-// async function verifyEmailOtp(token, otp) {
-//   // Verify token and get user
-//   const decoded = utils.verifyToken(token);
-//   const user = await User.findOne(decoded.userId);
-  
-//   if (!user) {
-//     throw new Error("User not found or email mismatch");
-//   }
-
-//   // Check OTP existence + expiry
-//   if (!user.emailOtp || !user.emailOtpExpires) {
-//     throw new Error("OTP not found");
-//   }
-
-//   if (Date.now() > user.emailOtpExpires) {
-//     throw new Error("OTP expired");
-//   }
-
-//   // Validate OTP
-//   if (otp !== user.emailOtp) {
-//     throw new Error("Invalid OTP");
-//   }
-
-//   // Mark email as verified
-//   user.isEmailVerified = true;
-//   user.emailOtp = undefined;
-//   user.emailOtpExpires = undefined;
-
-//   // Generate new tokens
-//   const refreshTokenRaw = utils.generateRefreshToken();
-//   const refreshTokenHash = utils.hashToken(refreshTokenRaw);
-
-//   user.refreshTokens.push({
-//     tokenHash: refreshTokenHash,
-//     expiresAt: Date.now() + REFRESH_TOKEN_TTL_MS,
-//   });
-
-//   await user.save();
-
-//   return {
-//     user,
-//     nextStep: getNextStep(user),
-//   };
-// }
-
-
-
-// async function verifyEmailOtp(token, otp) {
-//   const decoded = utils.verifyToken(token);
-
-//   const user = await User.findById(decoded.userId);
-//   if (!user) {
-//     throw new Error("User not found");
-//   }
-
-//   if (!user.emailOtp || !user.emailOtpExpires) {
-//     throw new Error("OTP not found");
-//   }
-
-//   if (Date.now() > user.emailOtpExpires) {
-//     throw new Error("OTP expired");
-//   }
-
-//   if (String(otp) !== String(user.emailOtp)) {
-//     throw new Error("Invalid OTP");
-//   }
-
-//   user.isEmailVerified = true;
-//   user.emailOtp = undefined;
-//   user.emailOtpExpires = undefined;
-
-//   await user.save();
-
-//   return {
-//     user,
-//     nextStep: getNextStep(user),
-//   };
-// }
-
 async function loginSendOtp(phone, ip) {
   if (!phone) throw new Error("Phone is required");
 
@@ -681,69 +596,6 @@ async function loginVerifyOtp(phone, otp) {
   return { user, accessToken, refreshToken: refreshTokenRaw };
 }
 
-// async function refreshAccessToken(userId, refreshTokenRaw) {
-//   console.log("userId:", userId);
-//   const user = await User.findById(userId);
-//   if (!user) throw new Error("User not found");
-
-//   // clean expired tokens
-//   user.refreshTokens = user.refreshTokens.filter(
-//     (rt) => rt.expiresAt > Date.now()
-//   );
-
-//   const incomingHash = utils.hashToken(refreshTokenRaw);
-//   const found = user.refreshTokens.find((rt) => rt.tokenHash === incomingHash);
-//   if (!found) throw new Error("Invalid refresh token");
-
-//   // issue new access token (and optionally new refresh token)
-//   const accessToken = utils.generateAccessToken(user);
-//   return { accessToken };
-// }
-
-
-
-
-// async function refreshAccessToken(refreshTokenRaw) {
-//   // 🔐 1) Hash incoming token
-//   const incomingHash = utils.hashToken(refreshTokenRaw);
-
-//   // 👤 2) Find user by refresh token
-//   const user = await User.findOne({
-//     "refreshTokens.tokenHash": incomingHash
-//   });
-
-//   if (!user) {
-//     throw new Error("Invalid refresh token");
-//   }
-
-//   // 🧹 3) Remove expired tokens
-//   user.refreshTokens = user.refreshTokens.filter(
-//     rt => rt.expiresAt > Date.now()
-//   );
-
-//   // 🔍 4) Ensure token still exists
-//   const stillValid = user.refreshTokens.some(
-//     rt => rt.tokenHash === incomingHash
-//   );
-
-//   if (!stillValid) {
-//     throw new Error("Refresh token expired");
-//   }
-
-//   // 🔑 5) Generate new access token
-//   const accessToken = utils.generateAccessToken(user);
-
-//   await user.save();
-  
-
-//   return { accessToken };
-// }
-
-
-
-
-
-
 async function refreshAccessToken(refreshTokenRaw) {
   // 1. Hash incoming token to compare with DB
   const incomingHash = utils.hashToken(refreshTokenRaw);
@@ -777,22 +629,25 @@ async function refreshAccessToken(refreshTokenRaw) {
 
   // 6. Profile fetch karo (Empty string handling ke liye)
   // const profile = await profileModel.findOne({ userId: user._id }).lean();
-
-  const [profile, blockedContacts, blockedUser] = await Promise.all([
-    profileModel.findOne({ userId: user._id }).lean(),
+ const [profile, blockedContacts, blockedUser] = await Promise.all([
+    profileModel.findOneAndUpdate(
+      { userId: user._id },
+      { $set: { "onboardingProgress.emailVerified": true } },
+      { upsert: true, new: true, lean: true }
+    ),
     BlockedContact.find({ userId: user._id }).lean(),
     Block.find({ blockerId: user._id }).lean()
   ]);
-  
+
+
 
   await user.save();
 
   // 7. RETURN MASTER FORMAT
   return {
     accessToken,
-    refreshToken: refreshTokenRaw, // Manager requirement: Refresh token wapas bhejna
-    // user: formatUserProfile(user, profile)
-    ser: formatUserProfile(user, profile, blockedContacts, blockedUser)
+    refreshToken: refreshTokenRaw, 
+    user: formatUserProfile(user, profile, blockedContacts, blockedUser)
   };
 }
 
