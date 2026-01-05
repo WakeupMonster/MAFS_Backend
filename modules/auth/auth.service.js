@@ -3,6 +3,11 @@ const redis = require("../../common/redis");
 const profileModel = require("../profile/profile.model");
 const User = require("./auth.model");
 const utils = require("./auth.utils");
+const { formatUserProfile } = require("./auth.formatter");
+const BlockedContact = require("../BlockedContact/blockedContacts.model");
+const Block = require("../profile/user.block");
+const { normalizePhone, hashPhone } = require("../../common/utils/phone.util");
+const UserSubscription = require("../auth/UserSubscription.model");
 
 // const PHONE_OTP_TTL_MS = Number(1000 * 60 * 5); // 5 min
 const EMAIL_OTP_TTL_MS = Number(1000 * 60 * 10); // 10 min
@@ -109,7 +114,6 @@ async function sendPhoneOtp(phone) {
 //   };
 // }
 
-
 // async function verifyPhoneOtpUnified(phone, otp) {
 //   const redisKey = `login:${phone}`;
 //   const storedOtp = await redis.get(redisKey);
@@ -167,7 +171,6 @@ async function sendPhoneOtp(phone) {
 //   };
 // }
 
-
 // async function verifyPhoneOtpUnified(phone, otp) {
 //   const redisKey = `login:${phone}`;
 //   const storedOtp = await redis.get(redisKey);
@@ -187,12 +190,12 @@ async function sendPhoneOtp(phone) {
 //   user.isPhoneVerified = true;
 //   const accessToken = utils.generateAccessToken(user);
 //   const refreshTokenRaw = utils.generateRefreshToken();
-  
+
 //   // Save refresh token logic (as per your existing code)
 //   const refreshHash = utils.hashToken(refreshTokenRaw);
 //   user.refreshTokens.push({
 //     tokenHash: refreshHash,
-//     expiresAt: Date.now() + 30 * 24 * 60 * 60 * 1000, 
+//     expiresAt: Date.now() + 30 * 24 * 60 * 60 * 1000,
 //   });
 //   await user.save();
 
@@ -242,7 +245,7 @@ async function sendPhoneOtp(phone) {
 //       settings: profile.settings || {},
 //       blockedContacts: profile.blockedContacts || [],
 //       blockedUsers: profile.blockedUsers || [],
-      
+
 //       // --- Account Management (The Status Block) ---
 //       account: {
 //         status: user.accountStatus || "active",
@@ -250,20 +253,13 @@ async function sendPhoneOtp(phone) {
 //         deactivationDetails: user.deactivationDetails || { isDeactivated: false },
 //         deletionDetails: user.deletionDetails || { isScheduledForDeletion: false }
 //       },
-      
+
 //       onboarding: getNextStep(user),
 //       lastProfileUpdate: profile.updatedAt,
 //       createdAt: user.createdAt
 //     }
 //   };
 // }
-
- 
-const { formatUserProfile } = require("./auth.formatter");
-const BlockedContact = require("../BlockedContact/blockedContacts.model");
-const Block = require("../profile/user.block")
-const { normalizePhone, hashPhone } = require("../../common/utils/phone.util");
-const UserSubscription = require("../auth/UserSubscription.model")
 
 async function verifyPhoneOtpUnified(phone, otp) {
   const redisKey = `login:${phone}`;
@@ -309,16 +305,18 @@ async function verifyPhoneOtpUnified(phone, otp) {
   );
 
   // 7️⃣ Profile upsert
-  const profile = await profileModel.findOneAndUpdate(
-    { userId: user._id },
-    { $set: { "onboardingProgress.phoneVerified": true } },
-    { upsert: true, new: true, setDefaultsOnInsert: true }
-  ).lean();
+  const profile = await profileModel
+    .findOneAndUpdate(
+      { userId: user._id },
+      { $set: { "onboardingProgress.phoneVerified": true } },
+      { upsert: true, new: true, setDefaultsOnInsert: true }
+    )
+    .lean();
 
   // 8️⃣ Blocks (as is)
   const [blockedContacts, blockedUser] = await Promise.all([
     BlockedContact.find({ userId: user._id }).lean(),
-    Block.find({ blockerId: user._id }).lean()
+    Block.find({ blockerId: user._id }).lean(),
   ]);
 
   let subData = await UserSubscription.findOne({ userId: user._id });
@@ -327,7 +325,7 @@ async function verifyPhoneOtpUnified(phone, otp) {
     subData = await UserSubscription.create({ userId: user._id });
   }
   // Reset counters if it's a new day
-  subData.resetIfNeeded()
+  subData.resetIfNeeded();
   await redis.del(redisKey);
 
   return {
@@ -335,10 +333,15 @@ async function verifyPhoneOtpUnified(phone, otp) {
     accessToken,
     refreshToken: refreshTokenRaw,
     isNewUser: !user.firstName,
-    user: formatUserProfile(user, profile, blockedContacts, blockedUser,subData)
+    user: formatUserProfile(
+      user,
+      profile,
+      blockedContacts,
+      blockedUser,
+      subData
+    ),
   };
 }
-
 
 // async function verifyPhoneOtpUnified(phone, otp) {
 //   // 1. Redis/OTP Logic...
@@ -360,8 +363,8 @@ async function verifyPhoneOtpUnified(phone, otp) {
 //     user._id,
 //     {
 //       $set: { isPhoneVerified: true, isNewUser: false },
-//       $push: { 
-//         refreshTokens: { tokenHash: refreshHash, expiresAt: expiresAt } 
+//       $push: {
+//         refreshTokens: { tokenHash: refreshHash, expiresAt: expiresAt }
 //       }
 //     },
 //     { new: true } // Taaki updated user return ho
@@ -386,7 +389,7 @@ async function verifyPhoneOtpUnified(phone, otp) {
 //   return {
 //     accessToken,
 //     refreshToken: refreshTokenRaw,
-//     isNewUser: !user.firstName, 
+//     isNewUser: !user.firstName,
 //     user: formatUserProfile(user, profile,blockedContacts,blockedUser) // Yahan magic ho raha hai
 //   };
 // }
@@ -399,14 +402,14 @@ async function verifyPhoneOtpUnified(phone, otp) {
 //     };
 //   }
 
-  // Check profile completion via Profile model
-  // Return appropriate next step
+// Check profile completion via Profile model
+// Return appropriate next step
 
-  return {
-    screen: "profile_setup",
-    message: "Complete your profile",
-  };
-}
+// return {
+//   screen: "profile_setup",
+//   message: "Complete your profile",
+// };
+// }
 
 async function verifyPhoneOtp(phone, otp) {
   const user = await User.findOne({ phone });
@@ -510,27 +513,20 @@ async function verifyEmailOtp(userId, otp) {
       { upsert: true, new: true, lean: true }
     ),
     BlockedContact.find({ userId: user._id }).lean(),
-    Block.find({ blockerId: user._id }).lean()
+    Block.find({ blockerId: user._id }).lean(),
   ]);
 
   return {
     // Return the formatted user including block lists
-    user: formatUserProfile(user, profile, blockedContacts, blockedUser)
+    user: formatUserProfile(user, profile, blockedContacts, blockedUser),
   };
 }
-
-
-
-
-
-
-
 
 // async function verifyEmailOtp(token, otp) {
 //   // Verify token and get user
 //   const decoded = utils.verifyToken(token);
 //   const user = await User.findOne(decoded.userId);
-  
+
 //   if (!user) {
 //     throw new Error("User not found or email mismatch");
 //   }
@@ -570,8 +566,6 @@ async function verifyEmailOtp(userId, otp) {
 //     nextStep: getNextStep(user),
 //   };
 // }
-
-
 
 // async function verifyEmailOtp(token, otp) {
 //   const decoded = utils.verifyToken(token);
@@ -732,9 +726,8 @@ async function refreshAccessToken(refreshTokenRaw) {
   const [profile, blockedContacts, blockedUser] = await Promise.all([
     profileModel.findOne({ userId: user._id }).lean(),
     BlockedContact.find({ userId: user._id }).lean(),
-    Block.find({ blockerId: user._id }).lean()
+    Block.find({ blockerId: user._id }).lean(),
   ]);
-  
 
   await user.save();
 
@@ -743,7 +736,7 @@ async function refreshAccessToken(refreshTokenRaw) {
     accessToken,
     refreshToken: refreshTokenRaw, // Manager requirement: Refresh token wapas bhejna
     // user: formatUserProfile(user, profile)
-    ser: formatUserProfile(user, profile, blockedContacts, blockedUser)
+    ser: formatUserProfile(user, profile, blockedContacts, blockedUser),
   };
 }
 
