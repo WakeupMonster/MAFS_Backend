@@ -321,16 +321,13 @@ async function loginVerifyOtp(phone, otp) {
 //   return { accessToken };
 // }
 
-
-
-
 async function refreshAccessToken(refreshTokenRaw) {
   // 🔐 1) Hash incoming token
   const incomingHash = utils.hashToken(refreshTokenRaw);
 
   // 👤 2) Find user by refresh token
   const user = await User.findOne({
-    "refreshTokens.tokenHash": incomingHash
+    "refreshTokens.tokenHash": incomingHash,
   });
 
   if (!user) {
@@ -339,12 +336,12 @@ async function refreshAccessToken(refreshTokenRaw) {
 
   // 🧹 3) Remove expired tokens
   user.refreshTokens = user.refreshTokens.filter(
-    rt => rt.expiresAt > Date.now()
+    (rt) => rt.expiresAt > Date.now()
   );
 
   // 🔍 4) Ensure token still exists
   const stillValid = user.refreshTokens.some(
-    rt => rt.tokenHash === incomingHash
+    (rt) => rt.tokenHash === incomingHash
   );
 
   if (!stillValid) {
@@ -359,9 +356,6 @@ async function refreshAccessToken(refreshTokenRaw) {
   return { accessToken };
 }
 
-
-
-
 // async function logout(userId, refreshTokenRaw) {
 //   const user = await User.findById(userId);
 //   if (!user) return;
@@ -373,13 +367,12 @@ async function refreshAccessToken(refreshTokenRaw) {
 //   return;
 // }
 
-
 // auth.service.js
 async function logout(refreshTokenRaw) {
   const incomingHash = utils.hashToken(refreshTokenRaw);
 
   const user = await User.findOne({
-    "refreshTokens.tokenHash": incomingHash
+    "refreshTokens.tokenHash": incomingHash,
   });
 
   if (!user) {
@@ -389,16 +382,11 @@ async function logout(refreshTokenRaw) {
   }
 
   user.refreshTokens = user.refreshTokens.filter(
-    rt => rt.tokenHash !== incomingHash
+    (rt) => rt.tokenHash !== incomingHash
   );
 
   await user.save();
 }
-
-module.exports = {
-  logout
-};
-
 
 // In auth.service.js - Update sendPhoneOtp function
 async function sendPhoneOtpTest(phone, testMode = false) {
@@ -412,7 +400,7 @@ async function sendPhoneOtpTest(phone, testMode = false) {
   // Generate OTP
   const otp = utils.generateOtp();
   const redisKey = `login:${normalizedPhone}`;
-  
+
   // Store in Redis with TTL
   await redis.set(redisKey, otp, "EX", 300);
   console.log(`🔑 OTP saved in Redis (${redisKey}):`, otp);
@@ -425,10 +413,10 @@ async function sendPhoneOtpTest(phone, testMode = false) {
   // Save device + fcm if new login attempt
   await user.save();
 
-  return { 
-    success: true, 
+  return {
+    success: true,
     otp, // Always return OTP in response
-    message: testMode ? "OTP generated (test mode)" : "OTP sent successfully"
+    message: testMode ? "OTP generated (test mode)" : "OTP sent successfully",
   };
 }
 
@@ -442,7 +430,7 @@ module.exports = {
   loginVerifyOtp,
   refreshAccessToken,
   logout,
-   sendPhoneOtpTest
+  sendPhoneOtpTest,
   // socialAuthHandler
 };
 
@@ -642,7 +630,3 @@ module.exports = {
 //     decoded.sub
 //   );
 // };
-
-
-
-

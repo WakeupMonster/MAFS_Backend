@@ -416,8 +416,6 @@ const ProfileSchema = new mongoose.Schema({
   // Languages (5%)
   languages: [{ type: String }], // e.g., ["English", "Hindi", "Spanish"]
 
-
-
   // Communication & Preferences (12%)
   communicationStyle: {
     type: String,
@@ -429,7 +427,6 @@ const ProfileSchema = new mongoose.Schema({
     enum: ["pop", "rock", "hip_hop", "classical", "jazz", "country", "electronic", "indie", "r&b", "folk", "metal", "other"]
   }],
 
-    
   moviePreference: [{
     type: String,
     enum: ["action", "comedy", "drama", "horror", "romance", "sci_fi", "thriller", "animated", "documentary", "other"]
@@ -445,33 +442,16 @@ const ProfileSchema = new mongoose.Schema({
     enum: ["adventure", "relaxation", "cultural", "budget", "luxury", "road_trips", "international", "domestic"]
   },
 
-
-
    // Personal Information
-  height: {
-    type: String,
+  height: { 
+    type: String, 
     default: null  // Use null instead of empty string
   },
-  jobtitle: {
-    type: String,
-    default: null
-  },
-  occupation: {
-    type: String,
-    default: null
-  },
-  about_me: {
-    type: String,
-    default: null
-  },
-  company: {
-    type: String,
-    default: null
-  },
-  school: {
-    type: String,
-    default: null
-  },
+  jobtitle: { type: String, default: null },
+  occupation: { type: String, default: null },
+  about_me: { type: String, default: null },
+  company: { type: String, default: null},
+  school: { type: String, default: null },
 
   // ========================================
   // KYC (Inside Profile - Your Requirement)

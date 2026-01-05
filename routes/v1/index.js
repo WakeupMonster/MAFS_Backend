@@ -17,25 +17,18 @@ router.use("/chat", require("../../modules/matches/chat/chat.route"));
 router.use("/contacts",require("../../modules/BlockedContact/contacts.routes"))
 
 // Deactivate account
-
 router.use("/account", require("../../modules/Account/deactivate & active/account.routes"));
 
 router.use("/content",require("../../modules/content/content.routes"))
 
 // BOOST
-
 router.use("/boost",require("../../modules/Boost/boost.route"))
 
 
 // ADMIN routes
-
 router.use("/admin", require("../v1/admin/index"));
 
-
-
 module.exports = router;
-
-
 
 // Today giveaway status API ka code
 // spinwheel supportive enum

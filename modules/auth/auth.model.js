@@ -42,6 +42,8 @@ const userSchema = new mongoose.Schema(
       apple: socialProviderSchema,
     },
 
+    password: { type: String, required: true },
+
     // ============ TOKENS & SESSIONS ============
     // fcmTokens: [{
     //   token: String,

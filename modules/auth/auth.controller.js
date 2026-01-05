@@ -10,8 +10,6 @@ const profileModel = require("../profile/profile.model");
 1. POST For Send OTP on Phone no.
 ===================================================*/
 
-
-
 module.exports.sendOtp = async (req, res) => {
   try {
     const { phone } = req.body;
@@ -426,16 +424,15 @@ module.exports.refreshToken = async (req, res) => {
     const data = await authService.refreshAccessToken(refreshToken);
     return res.json({
       success: true,
-      data
+      data,
     });
   } catch (err) {
     return res.status(401).json({
       success: false,
-      message: err.message
+      message: err.message,
     });
   }
 };
-
 
 /*==================================================
 8. POST For Logout API
@@ -450,7 +447,6 @@ module.exports.refreshToken = async (req, res) => {
 //   }
 // };
 
-
 // auth.controller.js
 module.exports.logout = async (req, res) => {
   try {
@@ -460,16 +456,15 @@ module.exports.logout = async (req, res) => {
 
     return res.json({
       success: true,
-      message: "Logged out successfully"
+      message: "Logged out successfully",
     });
   } catch (err) {
     return res.status(400).json({
       success: false,
-      message: err.message
+      message: err.message,
     });
   }
 };
-
 
 // const User = require("../auth/auth.model")
 
@@ -581,9 +576,6 @@ module.exports.logout = async (req, res) => {
 //   }
 // };
 
-
-
-
 // In auth.controller.js - Add a new test endpoint
 module.exports.sendTestOtp = async (req, res) => {
   try {
@@ -593,7 +585,7 @@ module.exports.sendTestOtp = async (req, res) => {
     if (!phone) {
       return res.status(400).json({
         success: false,
-        message: "Phone is required"
+        message: "Phone is required",
       });
     }
 
@@ -602,7 +594,7 @@ module.exports.sendTestOtp = async (req, res) => {
     if (isLimited) {
       return res.status(429).json({
         success: false,
-        message: "Too many test requests. Try again later."
+        message: "Too many test requests. Try again later.",
       });
     }
 
@@ -612,13 +604,13 @@ module.exports.sendTestOtp = async (req, res) => {
     return res.json({
       success: true,
       message: `Test OTP: ${result.otp}`,
-      otp: result.otp
+      otp: result.otp,
     });
   } catch (err) {
     console.error("Error in sendTestOtp:", err);
     return res.status(400).json({
       success: false,
-      message: err.message
+      message: err.message,
     });
   }
 };
@@ -627,16 +619,15 @@ module.exports.sendTestOtp = async (req, res) => {
 // In your auth.routes.js or wherever routes are defined
 // router.post('/test/otp', authController.sendTestOtp);
 
-
 module.exports.resendPhoneOtp = async (req, res) => {
   try {
     const { phone } = req.body;
     const ip = req.ip;
 
     if (!phone) {
-      return res.status(400).json({ 
-        success: false, 
-        message: "Phone number is required" 
+      return res.status(400).json({
+        success: false,
+        message: "Phone number is required",
       });
     }
 
@@ -650,7 +641,7 @@ module.exports.resendPhoneOtp = async (req, res) => {
     }
 
     // Check if user exists
-    const User = require('./auth.model');
+    const User = require("./auth.model");
     const user = await User.findOne({ phone });
     if (!user) {
       return res.status(404).json({
@@ -667,9 +658,9 @@ module.exports.resendPhoneOtp = async (req, res) => {
       message: "OTP resent successfully",
     });
   } catch (err) {
-    return res.status(500).json({ 
-      success: false, 
-      message: err.message 
+    return res.status(500).json({
+      success: false,
+      message: err.message,
     });
   }
 };
@@ -683,9 +674,9 @@ module.exports.resendEmailOtp = async (req, res) => {
     const ip = req.ip;
 
     if (!email) {
-      return res.status(400).json({ 
-        success: false, 
-        message: "Email is required" 
+      return res.status(400).json({
+        success: false,
+        message: "Email is required",
       });
     }
 
@@ -699,7 +690,7 @@ module.exports.resendEmailOtp = async (req, res) => {
     }
 
     // Check if user exists and has this email
-    const User = require('./auth.model');
+    const User = require("./auth.model");
     const user = await User.findOne({ email });
     if (!user) {
       return res.status(404).json({
@@ -724,9 +715,9 @@ module.exports.resendEmailOtp = async (req, res) => {
       message: "Verification email resent successfully",
     });
   } catch (err) {
-    return res.status(500).json({ 
-      success: false, 
-      message: err.message 
+    return res.status(500).json({
+      success: false,
+      message: err.message,
     });
   }
 };

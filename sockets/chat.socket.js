@@ -2,6 +2,7 @@ const ChatMessage = require("../modules/matches/chat/chat.message.model");
 const { Match } = require("../modules/matches/swipe/swipe.model");
 const User = require("../modules/auth/auth.model");
 const { sendNotification } = require("../modules/notifications/firebase-admin");
+
 module.exports = function chatSocket(io, redisClient) {
   io.on("connection", (socket) => {
     console.log("✅ SOCKET CONNECTED:", socket.id, "USER:", socket.user._id);
@@ -198,7 +199,7 @@ module.exports = function chatSocket(io, redisClient) {
     // --------------------------
     // 2️⃣ SEND MESSAGE
     // --------------------------
-    // socket.on("send_message", async (payload) => {
+    /* socket.on("send_message", async (payload) => {
     //   try {
     //     const sender = socket.user._id;
     //     const { matchId, receiver, text } = payload;
@@ -260,7 +261,7 @@ module.exports = function chatSocket(io, redisClient) {
     //   } catch (err) {
     //     console.error("send_message error:", err);
     //   }
-    // });
+    // }); */
 
     // --------------------------
     // 3️⃣ DISCONNECT

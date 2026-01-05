@@ -20,13 +20,15 @@ const allowAdminMiddleware = require("../../../common/middlewares/allowAdmin.mid
  * Ye middleware is folder ke sabhi routes par lagega
  */
 
-router.use(auth);        // user must be logged in
-router.use(allowAdminMiddleware); // user must be ADMIN / SUPER_ADMIN
+// router.use(auth); // user must be logged in
+// router.use(allowAdminMiddleware); // user must be ADMIN / SUPER_ADMIN
 
-/**.
+/*
  * MODULE-WISE ADMIN ROUTES
  */
 router.use("/giveaway", giveawayAdminRoutes);
+router.use("/auth", require("../../../modules/Admin/auth/admin.auth.routes"));
+
 // router.use("/profile", profileAdminRoutes);
 // router.use("/kyc", kycAdminRoutes);
 

@@ -32,6 +32,15 @@ module.exports.verifyOtpHash = async (otp, hash) => {
   return bcrypt.compare(otp, hash);
 };
 
+module.exports.passwordHashed = async (password) => {
+  const salt = await bcrypt.genSalt(10);
+  return bcrypt.hash(password, salt);
+};
+
+module.exports.passwordCompared = async (password, comparePwd) => {
+  return bcrypt.compare(password, comparePwd);
+};
+
 module.exports.hashToken = (token) => {
   return crypto.createHash("sha256").update(token).digest("hex");
 };
