@@ -1,0 +1,539 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Chat App - Test</title>
+  <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    .message-mine {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      border-radius: 18px 18px 4px 18px;
+    }
+    .message-other {
+      background: white;
+      border: 1px solid #e5e7eb;
+      border-radius: 18px 18px 18px 4px;
+    }
+    .typing-dot {
+      animation: typingDot 1.4s infinite;
+    }
+    .typing-dot:nth-child(2) {
+      animation-delay: 0.2s;
+    }
+    .typing-dot:nth-child(3) {
+      animation-delay: 0.4s;
+    }
+    @keyframes typingDot {
+      0%, 60%, 100% { opacity: 0.3; transform: translateY(0); }
+      30% { opacity: 1; transform: translateY(-10px); }
+    }
+  </style>
+</head>
+<body class="bg-gray-100">
+  <div id="app" class="flex h-screen font-sans">
+    <!-- SIDEBAR -->
+    <div class="w-96 bg-white border-r border-gray-200 flex flex-col">
+      <!-- Header -->
+      <div class="p-4 border-b border-gray-200">
+        <h1 class="text-xl font-bold text-gray-800 mb-3">Chat App 💬</h1>
+        
+        <!-- Server Config -->
+        <div class="mb-3 p-3 bg-gray-50 rounded-lg">
+          <label class="text-xs font-semibold text-gray-600 block mb-1">Server URL</label>
+          <input 
+            type="text" 
+            id="serverUrl" 
+            value="http://localhost:3001"
+            class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+            placeholder="http://52.65.47.106:3001"
+          />
+          <p class="text-xs text-gray-500 mt-1">
+            <span id="connectionStatus">Not connected</span>
+          </p>
+        </div>
+
+        <!-- JWT Token -->
+        <input 
+          type="text" 
+          id="jwtToken" 
+          class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm mb-2"
+          placeholder="Enter JWT Token"
+        />
+        
+        <!-- Buttons -->
+        <div class="flex gap-2">
+          <button 
+            id="connectBtn" 
+            class="flex-1 bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-lg font-medium transition"
+          >
+            Connect
+          </button>
+          <button 
+            id="disconnectBtn" 
+            class="flex-1 bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-lg font-medium transition hidden"
+          >
+            Disconnect
+          </button>
+          <button 
+            id="refreshBtn" 
+            class="flex-1 bg-gray-600 hover:bg-gray-700 text-white px-4 py-2 rounded-lg font-medium transition"
+            disabled
+          >
+            Refresh
+          </button>
+        </div>
+      </div>
+
+      <!-- Chat List -->
+      <div id="chatList" class="flex-1 overflow-y-auto">
+        <div class="flex items-center justify-center h-32 text-gray-400">
+          No chats found
+        </div>
+      </div>
+    </div>
+
+    <!-- CHAT WINDOW -->
+    <div class="flex-1 flex flex-col bg-white">
+      <div id="emptyState" class="flex-1 flex items-center justify-center bg-gray-50">
+        <div class="text-center">
+          <div class="w-24 h-24 bg-gradient-to-br from-pink-400 to-purple-500 rounded-full mx-auto mb-4 flex items-center justify-center">
+            <svg class="w-12 h-12 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"></path>
+            </svg>
+          </div>
+          <h3 class="text-xl font-semibold text-gray-800 mb-2">Select a chat</h3>
+          <p class="text-gray-500">Choose a conversation from the list to start messaging</p>
+        </div>
+      </div>
+
+      <!-- Active Chat -->
+      <div id="activeChat" class="hidden flex-1 flex flex-col">
+        <!-- Chat Header -->
+        <div id="chatHeader" class="px-6 py-4 border-b border-gray-200 bg-white">
+          <!-- Will be populated dynamically -->
+        </div>
+
+        <!-- Messages -->
+        <div id="messagesContainer" class="flex-1 overflow-y-auto p-6 bg-gray-50">
+          <!-- Messages will be added here -->
+        </div>
+
+        <!-- Message Input -->
+        <div class="p-4 bg-white border-t border-gray-200">
+          <div class="flex gap-2">
+            <input 
+              type="text" 
+              id="messageInput" 
+              class="flex-1 px-4 py-3 border border-gray-300 rounded-full focus:outline-none focus:ring-2 focus:ring-blue-500"
+              placeholder="Type a message..."
+            />
+            <button 
+              id="sendBtn" 
+              class="bg-blue-500 hover:bg-blue-600 text-white px-6 py-3 rounded-full font-medium transition disabled:opacity-50"
+            >
+              <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"></path>
+              </svg>
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // GLOBAL STATE
+    let socket = null;
+    let activeChat = null;
+    let chatList = [];
+    let messages = [];
+    let typingTimer = null;
+
+    // DOM ELEMENTS
+    const serverUrlInput = document.getElementById('serverUrl');
+    const jwtTokenInput = document.getElementById('jwtToken');
+    const connectBtn = document.getElementById('connectBtn');
+    const disconnectBtn = document.getElementById('disconnectBtn');
+    const refreshBtn = document.getElementById('refreshBtn');
+    const connectionStatus = document.getElementById('connectionStatus');
+    const chatListEl = document.getElementById('chatList');
+    const emptyState = document.getElementById('emptyState');
+    const activeChatEl = document.getElementById('activeChat');
+    const chatHeader = document.getElementById('chatHeader');
+    const messagesContainer = document.getElementById('messagesContainer');
+    const messageInput = document.getElementById('messageInput');
+    const sendBtn = document.getElementById('sendBtn');
+
+    // UTILITIES
+    function formatTime(date) {
+      return new Date(date).toLocaleTimeString('en-IN', {
+        hour: '2-digit',
+        minute: '2-digit'
+      });
+    }
+
+    function getInitials(name) {
+      return name ? name[0].toUpperCase() : 'U';
+    }
+
+    function scrollToBottom() {
+      messagesContainer.scrollTop = messagesContainer.scrollHeight;
+    }
+
+    // CONNECT SOCKET
+    connectBtn.addEventListener('click', () => {
+      const token = jwtTokenInput.value.trim();
+      const serverUrl = serverUrlInput.value.trim();
+
+      if (!token) {
+        alert('Please enter JWT token');
+        return;
+      }
+
+      console.log('🔌 Connecting to:', serverUrl);
+
+      socket = io(serverUrl, {
+        auth: { token },
+        transports: ['polling', 'websocket'],
+        reconnection: true,
+        reconnectionAttempts: 5,
+        reconnectionDelay: 1000,
+        timeout: 10000,
+        forceNew: true,
+      });
+
+      // SOCKET EVENTS
+      socket.on('connect', () => {
+        console.log('✅ Connected:', socket.id);
+        connectionStatus.innerHTML = '<span class="text-green-600">● Connected</span>';
+        connectBtn.classList.add('hidden');
+        disconnectBtn.classList.remove('hidden');
+        refreshBtn.disabled = false;
+        serverUrlInput.disabled = true;
+        loadChatList();
+      });
+
+      socket.on('connect_error', (err) => {
+        console.error('❌ Connection error:', err.message);
+        connectionStatus.innerHTML = '<span class="text-red-600">● Connection failed</span>';
+        alert('Connection failed: ' + err.message);
+      });
+
+      socket.on('disconnect', () => {
+        console.log('🔌 Disconnected');
+        connectionStatus.innerHTML = '<span class="text-gray-600">Not connected</span>';
+      });
+
+      // Chat list update
+      socket.on('chat_list_update', (data) => {
+        console.log('📬 Chat list update:', data);
+        const idx = chatList.findIndex(c => c.matchId === data.matchId);
+        if (idx !== -1) {
+          const chat = chatList[idx];
+          chatList.splice(idx, 1);
+          chatList.unshift({
+            ...chat,
+            lastMessage: data.lastMessage,
+            lastMessageAt: data.lastMessageAt,
+            unreadCount: chat.unreadCount + 1
+          });
+          renderChatList();
+        }
+      });
+
+      // New message
+      socket.on('new_message', (msg) => {
+        console.log('💬 New message:', msg);
+        if (activeChat && msg.matchId === activeChat.matchId) {
+          messages.push({
+            id: msg._id,
+            text: msg.text,
+            isMine: false,
+            status: 'delivered',
+            sentAt: msg.createdAt,
+            sentAtFormatted: formatTime(msg.createdAt)
+          });
+          renderMessages();
+        }
+      });
+
+      // Message delivered
+      socket.on('message_delivered', ({ messageId }) => {
+        console.log('✅ Message delivered:', messageId);
+        const msg = messages.find(m => m.id === messageId);
+        if (msg) {
+          msg.status = 'delivered';
+          renderMessages();
+        }
+      });
+
+      // Messages read
+      socket.on('messages_read', ({ matchId }) => {
+        console.log('📖 Messages read:', matchId);
+        messages.forEach(m => {
+          if (m.isMine) m.status = 'read';
+        });
+        renderMessages();
+      });
+
+      // Typing
+      socket.on('user_typing', ({ userId, isTyping }) => {
+        console.log('✍️ User typing:', userId, isTyping);
+        const typingEl = document.getElementById('typingIndicator');
+        if (isTyping && !typingEl) {
+          const div = document.createElement('div');
+          div.id = 'typingIndicator';
+          div.className = 'flex justify-start mb-4';
+          div.innerHTML = `
+            <div class="bg-white px-4 py-2 rounded-2xl border border-gray-200">
+              <div class="flex gap-1">
+                <div class="w-2 h-2 bg-gray-400 rounded-full typing-dot"></div>
+                <div class="w-2 h-2 bg-gray-400 rounded-full typing-dot"></div>
+                <div class="w-2 h-2 bg-gray-400 rounded-full typing-dot"></div>
+              </div>
+            </div>
+          `;
+          messagesContainer.appendChild(div);
+          scrollToBottom();
+        } else if (!isTyping && typingEl) {
+          typingEl.remove();
+        }
+      });
+    });
+
+    // DISCONNECT
+    disconnectBtn.addEventListener('click', () => {
+      if (socket) {
+        socket.disconnect();
+        socket = null;
+        connectBtn.classList.remove('hidden');
+        disconnectBtn.classList.add('hidden');
+        refreshBtn.disabled = true;
+        serverUrlInput.disabled = false;
+        activeChat = null;
+        chatList = [];
+        messages = [];
+        renderChatList();
+        emptyState.classList.remove('hidden');
+        activeChatEl.classList.add('hidden');
+      }
+    });
+
+    // LOAD CHAT LIST
+    refreshBtn.addEventListener('click', loadChatList);
+
+    async function loadChatList() {
+      if (!socket) return;
+      
+      const token = jwtTokenInput.value.trim();
+      const apiBase = serverUrlInput.value.trim() + '/api/v1';
+
+      try {
+        const res = await fetch(`${apiBase}/chat/list`, {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        const json = await res.json();
+        
+        if (json.success) {
+          chatList = json.data || [];
+          renderChatList();
+        } else {
+          console.error('Failed to load chat list:', json.message);
+        }
+      } catch (err) {
+        console.error('Error loading chat list:', err);
+        alert('Failed to load chats: ' + err.message);
+      }
+    }
+
+    // RENDER CHAT LIST
+    function renderChatList() {
+      if (chatList.length === 0) {
+        chatListEl.innerHTML = `
+          <div class="flex items-center justify-center h-32 text-gray-400">
+            No chats found
+          </div>
+        `;
+        return;
+      }
+
+      chatListEl.innerHTML = chatList.map(chat => `
+        <div 
+          class="chat-item p-4 border-b border-gray-100 cursor-pointer hover:bg-gray-50 transition ${activeChat?.matchId === chat.matchId ? 'bg-blue-50' : ''}"
+          data-match-id="${chat.matchId}"
+        >
+          <div class="flex items-start gap-3">
+            <div class="relative">
+              <div class="w-12 h-12 rounded-full bg-gradient-to-br from-pink-400 to-purple-500 flex items-center justify-center text-white font-bold">
+                ${getInitials(chat.user?.name)}
+              </div>
+              ${chat.user?.isOnline ? '<div class="absolute bottom-0 right-0 w-3 h-3 bg-green-500 border-2 border-white rounded-full"></div>' : ''}
+            </div>
+            <div class="flex-1 min-w-0">
+              <div class="flex items-center justify-between">
+                <h3 class="font-semibold text-gray-800 truncate">${chat.user?.name || 'Unknown User'}</h3>
+                <span class="text-xs text-gray-500">${chat.lastMessageFormatted || ''}</span>
+              </div>
+              <div class="flex items-center justify-between mt-1">
+                <p class="text-sm text-gray-600 truncate">${chat.lastMessage || 'No messages yet'}</p>
+                ${chat.unreadCount > 0 ? `<span class="bg-red-500 text-white text-xs px-2 py-1 rounded-full font-medium ml-2">${chat.unreadCount}</span>` : ''}
+              </div>
+            </div>
+          </div>
+        </div>
+      `).join('');
+
+      // Add click listeners
+      document.querySelectorAll('.chat-item').forEach(item => {
+        item.addEventListener('click', () => {
+          const matchId = item.dataset.matchId;
+          const chat = chatList.find(c => c.matchId === matchId);
+          if (chat) openChat(chat);
+        });
+      });
+    }
+
+    // OPEN CHAT
+    async function openChat(chat) {
+      if (!socket) return;
+
+      activeChat = chat;
+      messages = [];
+      
+      const token = jwtTokenInput.value.trim();
+      const apiBase = serverUrlInput.value.trim() + '/api/v1';
+
+      // Join chat room
+      socket.emit('join_chat', { matchId: chat.matchId });
+
+      // Update header
+      chatHeader.innerHTML = `
+        <div class="flex items-center gap-3">
+          <div class="relative">
+            <div class="w-10 h-10 rounded-full bg-gradient-to-br from-pink-400 to-purple-500 flex items-center justify-center text-white font-bold">
+              ${getInitials(chat.user?.name)}
+            </div>
+            ${chat.user?.isOnline ? '<div class="absolute bottom-0 right-0 w-3 h-3 bg-green-500 border-2 border-white rounded-full"></div>' : ''}
+          </div>
+          <div>
+            <h2 class="font-semibold text-gray-800">${chat.user?.name || 'Unknown User'}</h2>
+            <p class="text-sm text-gray-500">${chat.user?.isOnline ? 'Online' : 'Offline'}</p>
+          </div>
+        </div>
+      `;
+
+      // Fetch messages
+      try {
+        const res = await fetch(`${apiBase}/chat/messages`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+          },
+          body: JSON.stringify({ matchId: chat.matchId })
+        });
+        const json = await res.json();
+        
+        if (json.success) {
+          messages = json.data || [];
+          renderMessages();
+        }
+      } catch (err) {
+        console.error('Error loading messages:', err);
+      }
+
+      // Mark as read
+      socket.emit('messages_read', { matchId: chat.matchId });
+
+      // Update unread count
+      const idx = chatList.findIndex(c => c.matchId === chat.matchId);
+      if (idx !== -1) {
+        chatList[idx].unreadCount = 0;
+        renderChatList();
+      }
+
+      // Show chat window
+      emptyState.classList.add('hidden');
+      activeChatEl.classList.remove('hidden');
+    }
+
+    // RENDER MESSAGES
+    function renderMessages() {
+      messagesContainer.innerHTML = messages.map(msg => {
+        const statusIcon = msg.isMine ? 
+          (msg.status === 'read' ? '✓✓ <span class="text-blue-500">✓✓</span>' : 
+           msg.status === 'delivered' ? '✓✓' : '✓') : '';
+
+        return `
+          <div class="mb-4 flex ${msg.isMine ? 'justify-end' : 'justify-start'}">
+            <div class="max-w-xs lg:max-w-md">
+              <div class="${msg.isMine ? 'message-mine' : 'message-other'} px-4 py-2">
+                <p class="text-sm break-words">${msg.text}</p>
+              </div>
+              <div class="flex items-center gap-1 mt-1 px-2 ${msg.isMine ? 'justify-end' : 'justify-start'}">
+                <span class="text-xs text-gray-500">${msg.sentAtFormatted}</span>
+                ${msg.isMine ? `<span class="text-xs">${statusIcon}</span>` : ''}
+              </div>
+            </div>
+          </div>
+        `;
+      }).join('');
+
+      scrollToBottom();
+    }
+
+    // SEND MESSAGE
+    sendBtn.addEventListener('click', sendMessage);
+    messageInput.addEventListener('keypress', (e) => {
+      if (e.key === 'Enter') sendMessage();
+    });
+
+    function sendMessage() {
+      const text = messageInput.value.trim();
+      if (!text || !socket || !activeChat) return;
+
+      const tempId = `temp-${Date.now()}`;
+      const newMsg = {
+        id: tempId,
+        text: text,
+        isMine: true,
+        status: 'sent',
+        sentAt: new Date(),
+        sentAtFormatted: formatTime(new Date())
+      };
+
+      messages.push(newMsg);
+      renderMessages();
+
+      socket.emit('send_message', {
+        matchId: activeChat.matchId,
+        text: text,
+        clientMessageId: tempId
+      });
+
+      messageInput.value = '';
+    }
+
+    // TYPING INDICATOR
+    messageInput.addEventListener('input', () => {
+      if (!socket || !activeChat) return;
+
+      socket.emit('typing', { 
+        matchId: activeChat.matchId, 
+        isTyping: true 
+      });
+
+      clearTimeout(typingTimer);
+      typingTimer = setTimeout(() => {
+        socket.emit('typing', { 
+          matchId: activeChat.matchId, 
+          isTyping: false 
+        });
+      }, 1000);
+    });
+  </script>
+</body>
+</html>

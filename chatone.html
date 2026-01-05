@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Final Robust Chat Test</title>
+    <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+    <style>
+        body { font-family: 'Segoe UI', sans-serif; display: flex; gap: 20px; padding: 20px; background: #121212; color: #e0e0e0; justify-content: center; }
+        .panel { width: 450px; background: #1e1e1e; border-radius: 12px; display: flex; flex-direction: column; border: 1px solid #333; }
+        .header { background: #075e54; color: white; padding: 15px; border-radius: 12px 12px 0 0; font-weight: bold; text-align: center; }
+        .messages { height: 350px; overflow-y: auto; padding: 15px; background: #0b141a; display: flex; flex-direction: column; gap: 10px; }
+        
+        /* Bubble Styles */
+        .msg { max-width: 75%; padding: 8px 12px; border-radius: 8px; font-size: 14px; line-height: 1.4; word-wrap: break-word; }
+        .me { align-self: flex-end; background: #005c4b; color: white; border-top-right-radius: 0; }
+        .other { align-self: flex-start; background: #202c33; color: white; border-top-left-radius: 0; }
+        
+        .footer { padding: 15px; background: #1e1e1e; display: flex; gap: 10px; border-top: 1px solid #333; }
+        input { flex: 1; padding: 10px; border-radius: 20px; border: 1px solid #333; background: #2a3942; color: white; outline: none; }
+        button.send { background: #00a884; color: white; border: none; border-radius: 50%; width: 40px; height: 40px; cursor: pointer; }
+        .log-box { height: 80px; font-size: 10px; background: #000; color: #888; overflow-y: auto; padding: 5px; margin: 10px; border-radius: 4px; border: 1px solid #333; }
+        .status { font-size: 11px; padding: 5px 15px; }
+        
+        /* Added for typing */
+        .typing { font-size: 10px; font-weight: normal; color: #00ffaa; display: none; }
+    </style>
+</head>
+<body>
+
+<script>
+    const MATCH_ID = "69550c123399db3c39b09871"; 
+</script>
+
+<div class="panel">
+    <div class="header">
+        User A (Sender)
+        <div id="typeA" class="typing">typing...</div>
+    </div>
+    <div id="statusA" class="status">🔴 Offline</div>
+    <div id="chatA" class="messages"></div>
+    <div class="footer">
+        <input id="inputA" placeholder="Type message..." oninput="handleTyping('A')" onkeypress="if(event.key==='Enter') send('A')">
+        <button class="send" onclick="send('A')">></button>
+    </div>
+    <div id="logA" class="log-box">Logs...</div>
+</div>
+
+<div class="panel">
+    <div class="header">
+        User B (Receiver)
+        <div id="typeB" class="typing">typing...</div>
+    </div>
+    <div id="statusB" class="status">🔴 Offline</div>
+    <div id="chatB" class="messages"></div>
+    <div class="footer">
+        <input id="inputB" placeholder="Type message..." oninput="handleTyping('B')" onkeypress="if(event.key==='Enter') send('B')">
+        <button class="send" onclick="send('B')">></button>
+    </div>
+    <div id="logB" class="log-box">Logs...</div>
+</div>
+
+<script>
+    const configs = {
+        A: {
+            token: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOiI2OTUyMWRmMjAyMGNhMzgyOGVmZDMzYmEiLCJyb2xlIjoiVVNFUiIsImlhdCI6MTc2NzYwNjQ4NywiZXhwIjoxNzY3Njc4NDg3fQ.LqCMFcRYlIYwBMDXctA0zJmP05L_BB9iyos6OAtUVlc",
+            id: "6953b15de877bc37d35435e3",
+            socket: null,
+            tOut: null
+        },
+        B: {
+            token: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOiI2OTUzYjE1ZGU4NzdiYzM3ZDM1NDM1ZTMiLCJyb2xlIjoiVVNFUiIsImlhdCI6MTc2NzYwNjI3MiwiZXhwIjoxNzY3Njc4MjcyfQ.oz1pmqevX8-S3lcHKQR7IUy5sae_79x-ogFsVxqkCWs",
+            id: "69521df2020ca3828efd33ba",
+            socket: null,
+            tOut: null
+        }
+    };
+
+    function addLog(key, msg) {
+        const log = document.getElementById('log' + key);
+        log.innerHTML += `<div>[${new Date().toLocaleTimeString()}] ${msg}</div>`;
+        log.scrollTop = log.scrollHeight;
+    }
+
+    // 🚀 NEW: Load Old/Pending Messages from API
+    async function loadHistory(key) {
+        try {
+            const res = await fetch(`http://localhost:3001/api/chat/messages?matchId=${MATCH_ID}`, {
+                method: 'GET',
+                headers: { 'Authorization': `Bearer ${configs[key].token}` }
+            });
+            const result = await res.json();
+            if (result.success) {
+                result.data.forEach(msg => renderMsg(key, msg.text, msg.isMine ? 'me' : 'other'));
+                addLog(key, "History Loaded.");
+                // History load hone ke baad read emit kardo
+                configs[key].socket.emit("messages_read", { matchId: MATCH_ID });
+            }
+        } catch (e) { addLog(key, "History Error: " + e.message); }
+    }
+
+    // 🚀 NEW: Handle Typing
+    function handleTyping(key) {
+        configs[key].socket.emit("user_typing", { matchId: MATCH_ID, isTyping: true });
+        clearTimeout(configs[key].tOut);
+        configs[key].tOut = setTimeout(() => {
+            configs[key].socket.emit("user_typing", { matchId: MATCH_ID, isTyping: false });
+        }, 2000);
+    }
+
+    function init(key) {
+        const socket = io("http://localhost:3001", {
+            auth: { token: configs[key].token },
+            transports: ["websocket"]
+        });
+
+        configs[key].socket = socket;
+
+        socket.on("connect", () => {
+            document.getElementById('status' + key).innerHTML = "🟢 Online | SID: " + socket.id;
+            addLog(key, "Connected. Emitting join_chat...");
+            socket.emit("join_chat", { matchId: MATCH_ID });
+            
+            // Purani chat laao
+            loadHistory(key);
+        });
+
+        socket.on("new_message", (data) => {
+            addLog(key, "RECEIVED: new_message event!");
+            const isMe = data.sender === configs[key].id;
+            renderMsg(key, data.text, isMe ? 'me' : 'other');
+            
+            // 🔥 CRITICAL for read:true - Agar message dusre ka hai toh read bhejdo
+            if (!isMe) {
+                socket.emit("messages_read", { matchId: MATCH_ID });
+            }
+        });
+
+        // Listen for typing
+        socket.on("user_typing", ({ userId, isTyping }) => {
+            if (userId !== configs[key].id) {
+                document.getElementById('type' + key).style.display = isTyping ? 'block' : 'none';
+            }
+        });
+
+        socket.on("connect_error", (err) => addLog(key, "Auth Error: " + err.message));
+    }
+
+    function send(key) {
+        const input = document.getElementById('input' + key);
+        const text = input.value.trim();
+        if (!text || !configs[key].socket) return;
+
+        configs[key].socket.emit("send_message", {
+            matchId: MATCH_ID,
+            text: text,
+            clientMessageId: "cli-" + Date.now()
+        });
+        input.value = "";
+        addLog(key, "Emitted: send_message");
+    }
+
+    function renderMsg(key, text, type) {
+        const chat = document.getElementById('chat' + key);
+        const div = document.createElement('div');
+        div.className = `msg ${type}`;
+        div.innerText = text;
+        chat.appendChild(div);
+        chat.scrollTop = chat.scrollHeight;
+    }
+
+    init('A');
+    init('B');
+</script>
+</body>
+</html>

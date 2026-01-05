@@ -1,6 +1,6 @@
 const { Worker } = require("bullmq");
 const utils = require("../modules/auth/auth.utils");
-const {connection} = require("../config/cache")
+// const {connection} = require("../config/cache")
 
 new Worker(
   "emailQueue",
@@ -16,8 +16,8 @@ new Worker(
     return { status: "sent" };
   },
   {
-    // connection: { host: "127.0.0.1", port: 6379 },
-      connection
+    connection: { host: "127.0.0.1", port: 6379 },
+      // connection
   }
 );
 

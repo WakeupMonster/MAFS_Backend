@@ -19,12 +19,12 @@
 // worker.on("completed", (job) => console.log("Job done:", job.id));
 // worker.on("failed", (job, err) => console.error("Job failed:", job.id, err));
 
-// require("dotenv").config({ path: "./.env" });
+require("dotenv").config({ path: "./.env" });
 const mongoose = require("mongoose");
 const { Worker } = require("bullmq");
 const utils = require("../modules/auth/auth.utils");
 const User = require("../modules/auth/auth.model");
-const {connection} = require("../config/cache")
+
 
 // ------------------------------
 // 1. CONNECT MONGODB
@@ -62,7 +62,7 @@ const worker = new Worker("smsQueue", async (job) => {
     }
   },
   {
-    connection
+    connection: { url: process.env.REDIS_URL || "redis://127.0.0.1:6379" }
   }
 );
 
