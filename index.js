@@ -384,11 +384,24 @@ const MONGODB_URI = process.env.MONGODB_URI;
 
 require('./workers/notification.worker');
 
-// Socket.io Setup with Auth Middleware
 const io = new Server(http, {
-  cors: { origin: "*" },
+  cors: { 
+    origin: "*",  // Ya specific: ["http://localhost:5173", "http://localhost:3000"]
+    methods: ["GET", "POST"],
+    credentials: true
+  },
+  transports: ["polling", "websocket"], // ⚠️ YE ORDER IMPORTANT HAI
   pingTimeout: 60000,
+  pingInterval: 25000,
+  connectTimeout: 45000,
+  allowEIO3: true  // Old socket.io clients ke liye
 });
+
+// Socket.io Setup with Auth Middleware
+// const io = new Server(http, {
+//   cors: { origin: "*" },
+//   pingTimeout: 60000,
+// });
 
 // Middleware: Taaki socket mein user._id mil sake
 io.use(async (socket, next) => {
