@@ -1,3 +1,3 @@
-const { Queue, connection } = require("./bull");
+// const { Queue, connection } = require("./bull");
 
-module.exports = new Queue("read-receipt", { connection });
+// module.exports = new Queue("read-receipt", { connection });

@@ -20,7 +20,6 @@ const auth = require("../../auth/auth.middleware");
 
 router.use(auth);
 
-// GET messages /api/v1/messages/:matchId?limit=20&page=1
 router.get("/messages", getChatMessages);
 // GET messages /api/v1/chat/messages/:matchId?limit=20&page=1
 router.get("/messages/:matchId", getChatMessages);
@@ -31,9 +30,8 @@ router.post("/send", sendMessage);
 
 // PATCH mark messages read or seen /api/v1/chat/messages/:matchId/read
 router.patch("/messages/:matchId/read", updateChatMsgRead);
-
-// DELETE single message by mesId /api/v1/chat/messages/:matchId/:mesId
 router.delete("/messages/:matchId/:mesId", deleteChatMessage);
+module.exports = router;
 
 // DELETE all message by matchId /api/v1/chat/messages/:matchId
 // router.delete("/messages/:matchId", deleteAllChatMessagesForUser);
@@ -46,4 +44,4 @@ router.delete("/messages/:matchId/:mesId", deleteChatMessage);
 //   uploadChatMediaController
 // );
 
-module.exports = router;
+
