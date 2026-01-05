@@ -19,7 +19,7 @@ const formatPublicProfile = (user, profile,swipeAction) => {
     age: profile.age || calculateAge(profile.dob),
     gender: {
       display: profile.gender || "",
-      pronouns: profile.pronouns || "she/her/hers" // Figma screen par pronouns hain
+      // pronouns: profile.pronouns || "she/her/hers" // Figma screen par pronouns hain
     },
     verificationStatus: profile.verification?.status || "pending",
     bio: profile.about || "",
