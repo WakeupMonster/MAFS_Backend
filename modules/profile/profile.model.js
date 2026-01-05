@@ -321,96 +321,11 @@ const ProfileSchema = new mongoose.Schema({
   default: []
 },
   location: {
-  type: { 
-    type: String, 
-    enum: ["Point"], 
-    default: "Point" 
-  },
-  coordinates: { 
-    type: [Number], 
-    default: [0, 0],  // This ensures new profiles get default coordinates
-    validate: {
-      validator: function(v) {
-        return Array.isArray(v) && 
-               v.length === 2 && 
-               typeof v[0] === 'number' && 
-               typeof v[1] === 'number';
-      },
-      message: 'Coordinates must be an array of two numbers [longitude, latitude]'
-    }
-  },
-  city: String,
-  state: String,
-  country: String
-  },
-  // Location (5%)
-  // location: {
-  //   type: { type: String, enum: ["Point"], default: "Point" },
-  //    coordinates: { 
-  //   type: [Number], 
-  //   default: [0, 0]  // Add this default
-  // },
-  //   city: String,
-  //   state: String,
-  //   country: String
-  // },
-
-  // ========================================
-  // TIER 2: OPTIONAL FIELDS (40%)
-  // ========================================
-  
-  bio: { type: String, maxlength: 500 }, // 5%
-
-  // Lifestyle (13%)  
-  lifestyle: {
-    pets : {
-      type: String,
-      enum: ["dog","cat","bird","fish"]
-    },
-    drinkingHabits: {
-      type: String,
-      enum: ["aries", "taurus", "gemini", "cancer", "leo", "virgo", "libra", "scorpio", "sagittarius", "capricorn", "aquarius", "pisces"]
-    },
-    smokingHabits: {
-      type: String,
-      enum: ["never", "socially", "regularly", "trying_to_quit"]
-    },
-    drinking: {
-      type: String,
-      enum: ["never", "socially", "regularly"]
-    },
-    exercise: {
-      type: String,
-      enum: ["never", "sometimes", "regularly", "daily"]
-    }
-  },
-  basics : {
-    education: {
-    level: {
-      type: String,
-      enum: ["high_school", "bachelors", "masters", "phd", "trade_school", "prefer_not_to_say"]
-    },
-    institution: String
-  },
-    zodiac: {
-      type: String,
-      enum: ["aries", "taurus", "gemini", "cancer", "leo", "virgo", "libra", "scorpio", "sagittarius", "capricorn", "aquarius", "pisces"]
-    },
-    familyPlans : {
-      type : String,
-    },
-    PersonalityType : {
-      type: String,
-      enum: ["intj", "entj", "entp","istp","isfp"]
-    },
-    communicationStyle: {
-      type: String,
-      enum: ["chattyCathy", "listener", "joker", "deepThinker", "sarcasticWit","easyGoing","storyTeller","straightShooter"]
-    },
-    loveStyle : {
-      type : String,
-      enum : ["hopelessRomantic","bestFriend","adventureSeeker","careGiver"]
-    } 
+    type: { type: String, default: "Point" },
+    coordinates: { type: [Number], default: [0, 0] }, // [Longitude, Latitude]
+    city: String,
+    country: String,
+    full_address: String
   },
 
   // Languages (5%)

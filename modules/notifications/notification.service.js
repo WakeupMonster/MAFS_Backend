@@ -5,6 +5,22 @@ const User = require('../../modules/auth/auth.model'); // Assuming you have a Us
 
 class NotificationService {
   // Send a new match notification to both users
+
+  async _executePush(userId, tokens, notification, data) {
+        if (!tokens || tokens.length === 0) return;
+
+        const result = await sendNotificationToMultiple(tokens, notification, data);
+
+        // DEAD TOKEN CLEANUP
+        if (result.failedTokens && result.failedTokens.length > 0) {
+            console.log(`🧹 Removing ${result.failedTokens.length} dead tokens for user ${userId}`);
+            await User.updateOne(
+                { _id: userId },
+                { $pull: { fcmTokens: { $in: result.failedTokens } } }
+            );
+        }
+        return result;
+    }
   async sendNewMatchNotification(userId1, userId2) {
     try {
       // Get both users' FCM tokens

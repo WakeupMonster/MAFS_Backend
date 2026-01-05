@@ -809,6 +809,7 @@ const { formatProfileResponse } = require("./profile.service");
 const cache = require("../../config/cache");
 const { uploadStream, destroy } = require("../upload/cloudinary.service");
 const redis = require("../../config/cache");
+const User = require("../auth/auth.model");
 
 // ========================================
 // HELPER: Get or Create Profile
@@ -1194,14 +1195,165 @@ module.exports.updateProfile = async (req, res) => {
     // Clear cache
     await clearProfileCache(userId);
 
-    // Format response
-    // const response = formatResponse(profile);
+//     // Format response
+//     // const response = formatResponse(profile);
 
-    return res.json({
-      success: true,
-      message: "Profile updated successfully",
-      // data: response
-    });
+//     return res.json({
+//       success: true,
+//       message: "Profile updated successfully",
+//       // data: response
+//     });
+
+//   } catch (err) {
+//     console.error("Update profile error:", err);
+//     return res.status(500).json({
+//       success: false,
+//       code: "UPDATE_FAILED",
+//       message: err.message
+//     });
+//   }
+// };
+
+const BlockedContact = require("../BlockedContact/blockedContacts.model");
+const Block = require("../profile/user.block")
+const { formatProfileResponse } = require("./profile.formatter");
+const UserSubscription = require("../auth/UserSubscription.model")
+
+exports.updateProfile = async (req, res) => {
+  try {
+    const userId = req.user._id;
+    const updateData = req.body;
+    let profile = await Profile.findOne({ userId });
+
+    if (!profile) {
+      return res.status(404).json({ success: false, message: "Profile not found" });
+    }
+
+    // --- 1. Basic Profile Update ---
+    if (updateData.profile) {
+      const p = updateData.profile;
+      const basicFields = ['nickname', 'dob', 'gender', 'height', 'about', 'jobTitle', 'company', 'school', 'pronouns', 'weight'];
+      
+      basicFields.forEach(field => {
+        if (p[field] !== undefined) profile[field] = p[field];
+      });
+
+      // Nickname uniqueness check
+      if (p.nickname) {
+        const existing = await Profile.findOne({ nickname: p.nickname, userId: { $ne: userId } });
+        if (existing) return res.status(400).json({ success: false, code: "NICKNAME_TAKEN", message: "Nickname taken" });
+      }
+    }
+
+    // --- 2. Attributes Update (Figma Traits) ---
+    if (updateData.attributes) {
+      const attr = updateData.attributes;
+      profile.attributes = profile.attributes || {};
+      
+      const traitFields = [
+        'zodiac', 'education', 'familyPlans', 'personalityType', 'communicationStyle', 
+        'loveStyle', 'bloodType', 'covidVaccine', 'religion', 'pets', 'drinking', 
+        'smoking', 'workout', 'dietary', 'sleeping', 'socialMedia'
+      ];
+
+      traitFields.forEach(field => {
+        if (attr[field] !== undefined) profile.attributes[field] = attr[field];
+      });
+
+      // Array Traits
+      const arrayTraits = ['languages', 'interests', 'music', 'movies', 'books', 'travel'];
+      arrayTraits.forEach(field => {
+        if (attr[field] !== undefined) profile.attributes[field] = Array.isArray(attr[field]) ? attr[field] : [attr[field]];
+      });
+    }
+
+    // --- 3. Discovery Preferences ---
+    if (updateData.discovery) {
+      const disc = updateData.discovery;
+      profile.discovery = profile.discovery || {};
+
+      if (disc.distanceRange) profile.discovery.distanceRange = disc.distanceRange;
+      if (disc.relationshipGoal) profile.discovery.relationshipGoal = disc.relationshipGoal;
+      if (disc.globalVisibility) profile.discovery.globalVisibility = disc.globalVisibility;
+      
+      if (disc.ageRange) {
+        profile.discovery.ageRange = {
+          min: disc.ageRange.min || profile.discovery.ageRange.min,
+          max: disc.ageRange.max || profile.discovery.ageRange.max
+        };
+      }
+
+      if (disc.showMeGender) {
+        profile.discovery.showMeGender = Array.isArray(disc.showMeGender) ? disc.showMeGender : [disc.showMeGender];
+      }
+    }
+     const user = await User.findById(userId).lean();
+
+    profile.lastProfileUpdate = new Date();
+    await profile.save();
+
+    
+    
+    const [blockedContacts, blockedUser] = await Promise.all([
+    BlockedContact.find({ userId: user._id }).lean(),
+    Block.find({ blockerId: user._id }).lean()
+  ]);
+    let subData = await UserSubscription.findOne({ userId });
+      if (!subData) {
+        // Naya user hai toh default create karo
+        subData = await UserSubscription.create({ userId});
+      }
+      // Reset counters if it's a new day
+      subData.resetIfNeeded()
+      // await redis.del(redisKey);
+    // const formatted = formatProfileResponse(profile, blockedContacts,blockedUser);
+
+    res.json({ success: true, message: "Profile updated successfully" ,  data: {
+        user: formatProfileResponse(user,profile, blockedContacts,blockedUser,subData)
+      } });
+
+    // res.json({ success: true, message: "Profile updated successfully" });
+
+  } catch (error) {
+    console.error("Update Error:", error);
+    res.status(500).json({ success: false, message: "Internal server error" });
+  }
+};
+
+exports.getMyProfile = async (req, res) => {
+  try {
+    const userId = req.user._id;
+    const profile = await Profile.findOne({ userId });
+    
+    if (!profile) return res.status(404).json({ success: false, message: "Profile not found" });
+
+
+   const user = await User.findById(userId).lean();
+     const [blockedContacts, blockedUser] = await Promise.all([
+    BlockedContact.find({ userId: user._id }).lean(),
+    Block.find({ blockerId: user._id }).lean()
+  ]);
+    let subData = await UserSubscription.findOne({ userId });
+      if (!subData) {
+        // Naya user hai toh default create karo
+        subData = await UserSubscription.create({ userId});
+      }
+      // Reset counters if it's a new day
+      subData.resetIfNeeded()
+      // await redis.del(redisKey);
+    // const formatted = formatProfileResponse(profile, blockedContacts,blockedUser);
+
+    res.json({ success: true ,  data: {
+        user: formatProfileResponse(user,profile, blockedContacts,blockedUser,subData)
+      } });
+
+
+    // const blockedContacts = await BlockedContact.find({ userId }).lean();
+    // const blockedUser = await Block.find({blockerId : userId}).lean()
+    // const formatted = formatProfileResponse(profile, blockedContacts,blockedUser);
+
+    // res.json({ success: true, data: formatted });
+  // eslint-disable-next-line no-unused-vars
   } catch (err) {
     console.error("Update profile error:", err);
     return res.status(500).json({
@@ -1274,15 +1426,28 @@ module.exports.uploadPhotos = async (req, res) => {
 
     // Clear cache
     await clearProfileCache(userId);
+const user = await User.findById(userId).lean();
+     const [blockedContacts, blockedUser] = await Promise.all([
+    BlockedContact.find({ userId: user._id }).lean(),
+    Block.find({ blockerId: user._id }).lean()
+  ]);
+    let subData = await UserSubscription.findOne({ userId });
+      if (!subData) {
+        // Naya user hai toh default create karo
+        subData = await UserSubscription.create({ userId});
+      }
+      // Reset counters if it's a new day
+      subData.resetIfNeeded()
+      // await redis.del(redisKey);
+    // const formatted = formatProfileResponse(profile, blockedContacts,blockedUser);
 
-    // Format response
-    const response = formatResponse(profile);
+    res.json({  success: true,
+      message: `${newPhotos.length} photo uploaded successfully`,  data: {
+        user: formatProfileResponse(user,profile, blockedContacts,blockedUser,subData)
+      } });
 
-    return res.json({
-      success: true,
-      message: `${newPhotos.length} photo uploaded successfully`,
-      data: response,
-    });
+
+
   } catch (err) {
     console.error("Upload photos error:", err);
     return res.status(500).json({
@@ -1337,14 +1502,27 @@ module.exports.deletePhoto = async (req, res) => {
     // Clear cache
     await clearProfileCache(userId);
 
-    // Format response
-    const response = formatResponse(profile);
+    const user = await User.findById(userId).lean();
+     const [blockedContacts, blockedUser] = await Promise.all([
+    BlockedContact.find({ userId: user._id }).lean(),
+    Block.find({ blockerId: user._id }).lean()
+  ]);
+    let subData = await UserSubscription.findOne({ userId });
+      if (!subData) {
+        // Naya user hai toh default create karo
+        subData = await UserSubscription.create({ userId});
+      }
+      // Reset counters if it's a new day
+      subData.resetIfNeeded()
+      // await redis.del(redisKey);
+    // const formatted = formatProfileResponse(profile, blockedContacts,blockedUser);
 
-    return res.json({
-      success: true,
-      message: "Photo deleted successfully",
-      data: response,
-    });
+    res.json({  success: true,
+      message: "photo deleted successfully",  data: {
+        user: formatProfileResponse(user,profile, blockedContacts,blockedUser,subData)
+      } });
+
+
   } catch (err) {
     console.error("Delete photo error:", err);
     return res.status(500).json({
@@ -1354,6 +1532,134 @@ module.exports.deletePhoto = async (req, res) => {
     });
   }
 };
+
+
+// ========================================
+// 4. REORDER PHOTOS (Drag & Drop)
+// ========================================
+module.exports.reorderPhotos = async (req, res) => {
+  try {
+    const userId = req.user._id;
+    const { photoIds } = req.body;
+
+    // 1️⃣ Validation
+    if (!Array.isArray(photoIds) || photoIds.length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: "photoIds array is required"
+      });
+    }
+
+    // 2️⃣ Profile fetch
+    const profile = await Profile.findOne({ userId });
+    if (!profile) {
+      return res.status(404).json({
+        success: false,
+        code: "PROFILE_NOT_FOUND",
+        message: "Profile not found"
+      });
+    }
+
+    // 3️⃣ Length validation (security check)
+    if (photoIds.length !== profile.photos.length) {
+      return res.status(400).json({
+        success: false,
+        message: "Photo count mismatch"
+      });
+    }
+
+    // 4️⃣ Create map for fast lookup
+const photoMap = new Map();
+profile.photos.forEach(photo => {
+  // toString() use karo taaki comparison mein issue na aaye
+  photoMap.set(photo.publicId.toString(), photo);
+});
+
+// 5️⃣ Validate all photoIds exist
+for (const id of photoIds) {
+  // Trim aur string check
+  if (!photoMap.has(id.trim())) {
+    console.log("Map Keys:", Array.from(photoMap.keys())); // Debugging ke liye
+    console.log("Looking for:", id);
+    
+    return res.status(400).json({
+      success: false,
+      message: `Invalid photoId: ${id}. Make sure it matches publicId exactly.`
+    });
+  }
+}
+
+    // // 4️⃣ Create map for fast lookup
+    // const photoMap = new Map();
+    // profile.photos.forEach(photo => {
+    //   photoMap.set(photo.publicId, photo);
+    // });
+
+    // // 5️⃣ Validate all photoIds exist
+    // for (const id of photoIds) {
+    //   if (!photoMap.has(id)) {
+    //     return res.status(400).json({
+    //       success: false,
+    //       message: `Invalid photoId: ${id}`
+    //     });
+    //   }
+    // }
+
+    // 6️⃣ Reorder logic
+    const reorderedPhotos = photoIds.map((id, index) => {
+      const photo = photoMap.get(id);
+
+      return {
+        ...photo.toObject(),
+        order: index + 1,
+        isPrimary: index === 0 // first photo becomes primary
+      };
+    });
+
+    profile.photos = reorderedPhotos;
+    const user = await User.findById(userId).lean();
+     const [blockedContacts, blockedUser] = await Promise.all([
+    BlockedContact.find({ userId: user._id }).lean(),
+    Block.find({ blockerId: user._id }).lean()
+  ]);
+    let subData = await UserSubscription.findOne({ userId });
+      if (!subData) {
+        // Naya user hai toh default create karo
+        subData = await UserSubscription.create({ userId});
+      }
+      // Reset counters if it's a new day
+      subData.resetIfNeeded()
+      // await redis.del(redisKey);
+    // const formatted = formatProfileResponse(profile, blockedContacts,blockedUser);
+
+
+    // 7️⃣ Save
+    await profile.save();
+
+    // 8️⃣ Clear cache
+    await clearProfileCache(userId);
+    
+    res.json({  success: true,
+      message: "Photos reordered successfully",  data: {
+        user: formatProfileResponse(user,profile, blockedContacts,blockedUser,subData)
+      } });
+
+  } catch (err) {
+    console.error("Reorder photos error:", err);
+    return res.status(500).json({
+      success: false,
+      message: "Failed to reorder photos"
+    });
+  }
+};
+
+
+
+
+
+
+
+
 
 // ========================================
 // 4. UPLOAD SELFIE (KYC)
@@ -1390,13 +1696,17 @@ module.exports.uploadSelfie = async (req, res) => {
       uploadedAt: new Date(),
     };
 
-    // Update KYC status
-    if (profile.kyc.status === "not_started") {
-      profile.kyc.status = "pending";
-    }
+    // // Update KYC status
+    // if (profile.kyc.status === "not_started") {
+    //   profile.kyc.status = "pending";
+    // }
+    profile.verification.selfieUrl = result.url;
+profile.verification.status = "pending"; 
+  
+
+await profile.save();
 
     // Save
-    await profile.save();
 
     // Clear cache
     await clearProfileCache(userId);
@@ -1410,19 +1720,26 @@ module.exports.uploadSelfie = async (req, res) => {
     //   data: response
     // });
 
-    return res.json({
-      success: true,
-      message: "Selfie uploaded successfully",
-      data: {
-        selfie: {
-          url: profile.kyc.selfie.url, // ✅ Selfie URL
-          uploadedAt: profile.kyc.selfie.uploadedAt,
-        },
-        kycStatus: profile.kyc.status,
-        progress: response.progress,
-        nextStep: response.nextStep,
-      },
-    });
+      const user = await User.findById(userId).lean();
+     const [blockedContacts, blockedUser] = await Promise.all([
+    BlockedContact.find({ userId: user._id }).lean(),
+    Block.find({ blockerId: user._id }).lean()
+  ]);
+    let subData = await UserSubscription.findOne({ userId });
+      if (!subData) {
+        // Naya user hai toh default create karo
+        subData = await UserSubscription.create({ userId});
+      }
+      // Reset counters if it's a new day
+      subData.resetIfNeeded()
+      // await redis.del(redisKey);
+    // const formatted = formatProfileResponse(profile, blockedContacts,blockedUser);
+
+    res.json({  success: true,
+      message: "Selfie uploaded successfully",  data: {
+        user: formatProfileResponse(user,profile, blockedContacts,blockedUser,subData)
+      } });
+
   } catch (err) {
     console.error("Upload selfie error:", err);
     return res.status(500).json({
@@ -1492,11 +1809,32 @@ module.exports.uploadIDDocument = async (req, res) => {
 
     profile.kyc.idDocument = idData;
 
-    // Update KYC status to pending (if selfie already uploaded)
-    if (profile.kyc.selfie && profile.kyc.selfie.url) {
-      profile.kyc.status = "pending";
-      profile.kyc.submittedAt = new Date();
+    // Trigger 'pending' status ONLY IF selfie is also there
+    // Selfie check (new model path): profile.verification.selfieUrl
+    if (profile.verification.selfieUrl || (profile.kyc && profile.kyc.selfie && profile.kyc.selfie.url)) {
+      profile.verification.status = "pending";
+      profile.kyc.status = "pending"; // sync both for safety
     }
+
+    //   const blockedContacts = await BlockedContact.find({ userId }).lean();
+    // const formatted = formatProfileResponse(profile, blockedContacts);
+
+
+      const user = await User.findById(userId).lean();
+     const [blockedContacts, blockedUser] = await Promise.all([
+    BlockedContact.find({ userId: user._id }).lean(),
+    Block.find({ blockerId: user._id }).lean()
+  ]);
+    let subData = await UserSubscription.findOne({ userId });
+      if (!subData) {
+        // Naya user hai toh default create karo
+        subData = await UserSubscription.create({ userId});
+      }
+      // Reset counters if it's a new day
+      subData.resetIfNeeded()
+      // await redis.del(redisKey);
+    // const formatted = formatProfileResponse(profile, blockedContacts,blockedUser);
+
 
     // Save
     await profile.save();
@@ -1513,26 +1851,10 @@ module.exports.uploadIDDocument = async (req, res) => {
     //   data: response
     // });
 
-    return res.json({
-      success: true,
-      message:
-        "ID document uploaded successfully. Your verification is under review",
-      data: {
-        idDocument: {
-          type: profile.kyc.idDocument.type, // ✅ ID type
-          frontUrl: profile.kyc.idDocument.frontUrl, // ✅ Front URL
-          backUrl: profile.kyc.idDocument.backUrl, // ✅ Back URL (if exists)
-          uploadedAt: profile.kyc.idDocument.uploadedAt,
-        },
-        kycStatus: profile.kyc.status,
-        kycMessage:
-          profile.kyc.status === "pending"
-            ? "Your verification is under review. This usually takes 24-48 hours"
-            : "Please upload selfie to submit for verification",
-        progress: response.progress,
-        nextStep: response.nextStep,
-      },
-    });
+ res.json({  success: true,
+       message: "ID document uploaded successfully. Your verification is under review", data: {
+        user: formatProfileResponse(user,profile, blockedContacts,blockedUser,subData)
+      } });
   } catch (err) {
     console.error("Upload ID error:", err);
     return res.status(500).json({
@@ -1558,6 +1880,12 @@ module.exports.updateLocation = async (req, res) => {
       });
     }
 
+  return res.status(400).json({
+    success: false,
+    message: "Valid latitude and longitude are required"
+  });
+}
+  const user = await User.findById(userId).lean();
     // if (!latitude || !longitude) {
     //   return res.status(400).json({
     //     success: false,
@@ -1578,6 +1906,14 @@ module.exports.updateLocation = async (req, res) => {
       country: country || "",
     };
 
+     const [blockedContacts, blockedUser] = await Promise.all([
+    BlockedContact.find({ userId: user._id }).lean(),
+    Block.find({ blockerId: user._id }).lean()
+  ]);
+      // const blockedContacts = await BlockedContact.find({ userId }).lean();
+      // const blockedUser = await Block.find({userId}).lean()
+    // const formatted = formatProfileResponse(user,profile, blockedContacts,blockedUser);
+
     // Save
     await profile.save();
 
@@ -1585,12 +1921,14 @@ module.exports.updateLocation = async (req, res) => {
     await clearProfileCache(userId);
 
     // Format response
-    const response = formatResponse(profile);
+    // const response = formatResponse(profile);
 
     return res.json({
       success: true,
       message: "Location updated successfully",
-      data: response.location,
+       data: {
+        user: formatProfileResponse(user,profile, blockedContacts,blockedUser)
+      }
     });
   } catch (err) {
     console.error("Update location error:", err);

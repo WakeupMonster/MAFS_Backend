@@ -4,6 +4,8 @@ const {
   getChatMessages,
   updateChatMsgRead,
   deleteChatMessage,
+  sendMessage,
+  getChatList
   // uploadChatMediaController,
   // deleteAllChatMessagesForUser,
 } = require("./chat.controller");
@@ -22,6 +24,10 @@ router.use(auth);
 router.get("/messages", getChatMessages);
 // GET messages /api/v1/chat/messages/:matchId?limit=20&page=1
 router.get("/messages/:matchId", getChatMessages);
+
+router.get("/list",getChatList)
+
+router.post("/send",sendMessage)
 
 // PATCH mark messages read or seen /api/v1/chat/messages/:matchId/read
 router.patch("/messages/:matchId/read", updateChatMsgRead);

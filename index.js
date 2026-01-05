@@ -51,46 +51,41 @@ const {
 const PORT = process.env.PORT || 3000;
 const MONGODB_URI = process.env.MONGODB_URI;
 
-// <<<<<<< HEAD
-// // Create HTTP server
-// const server = http.createServer(app);
+require('./workers/notification.worker');
 
-// // Initialize Socket.IO
-// const io = new Server(server, {
-//   cors: {
-//     origin: process.env.CLIENT_URL || '*',
-//     methods: ['GET', 'POST']
-//   }
-// });
+// Socket.io Setup with Auth Middleware
+const io = new Server(http, {
+  cors: { origin: "*" },
+  pingTimeout: 60000,
+});
 
-// // Socket.IO connection handler
-// io.on('connection', (socket) => {
-//   console.log('A user connected:', socket.id);
+// Middleware: Taaki socket mein user._id mil sake
+io.use(async (socket, next) => {
+  try {
+    const token = socket.handshake.auth.token || socket.handshake.query.token;
+    if (!token) return next(new Error("Authentication error: No token provided"));
 
-//   // Handle disconnection
-//   socket.on('disconnect', () => {
-//     console.log('User disconnected:', socket.id);
-//   });
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    const userId = decoded.userId || decoded.id;
+     if (!userId) {
+      return next(new Error("Authentication error: Invalid token payload"));
+    }
 
-//   // Test event
-//   socket.on('ping', (data) => {
-//     console.log('Ping received:', data);
-//     socket.emit('pong', { message: 'Hello from server!', timestamp: new Date() });
-//   });
-// });
+    const user = await User.findById(userId).lean();
+    if (!user) {
+      return next(new Error("Authentication error: User not found"));
+    }
 
-// // Make io accessible in routes
-// app.set('io', io);
-
-// // Start the server
-// =======
-// Require redis adapter from package
-const { createAdapter } = require("@socket.io/redis-adapter");
-const { createClient } = require("redis");
-const verifyTokenAndGetUser = require("./modules/auth/verifyTokenAndGetUser");
-
-// // GLOBAL assign redis client
-// let redisClient;
+    // const user = await User.findById(decoded.id).lean();
+    
+    if (!user) return next(new Error("Authentication error: User not found"));
+    
+    socket.user = user; // Ab har socket event mein socket.user._id milega
+    next();
+  } catch (err) {
+    next(new Error("Authentication error: Invalid token"));
+  }
+});
 
 (async () => {
   try {
@@ -166,4 +161,50 @@ const verifyTokenAndGetUser = require("./modules/auth/verifyTokenAndGetUser");
   }
 })();
 
-// block wala dekhna hain.
+
+
+
+
+
+// get profile
+
+// kyc -- key -- boolean
+// photos 
+// profile all data
+// attributes
+
+
+
+
+// implement all validations
+// show responses in location,photo,kyc and other
+// inspect discovery filter and get feed, have to dlt redis key after applying filters for fresh feed
+// enhance get user profile response
+// add names in blockContact
+// messgae pub/sub or working for push notification
+// notification apis
+// check visibility apis
+// check account and safety apis
+// social login
+//6 cards show info
+// register phone hashing
+// check dlt redis key from deacitvate/delete account, swipin action, location update,Block report,
+// superkeen -- boost -- limit
+
+
+// today
+// add null instead of empty string
+// setting ke andar block/blcok use
+// subscription model
+//  "full_address": ""  -- add field in model 
+// remaining likes/superlikes in action API.
+// how will I do give rejection when there will no superlikes
+// I have to make sure the response must be same in every API
+// Get user profile response align with auth response -- make user profile response same as auth response
+
+// events
+// top message seen events
+
+// photo dlt api
+
+// discovery filter response in each
