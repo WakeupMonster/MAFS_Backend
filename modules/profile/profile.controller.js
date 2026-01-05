@@ -2260,80 +2260,74 @@ await profile.save();
 //   }
 // };
 
-
 module.exports.uploadIDDocument = async (req, res) => {
   try {
     const userId = req.user._id;
     const files = req.files;
-    const { idType } = req.body;
 
-    if (!files || !files.front) {
-      return res.status(400).json({ success: false, message: "ID front image is required" });
+    // 1️⃣ Front image required
+    if (!files || !files.front || !files.front[0]) {
+      return res.status(400).json({
+        success: false,
+        message: "Document front image is required"
+      });
     }
 
-    if (!idType) {
-      return res.status(400).json({ success: false, message: "ID type is required" });
+    const frontFile = files.front[0];
+
+    // 2️⃣ File validation
+    const allowedMimes = ["image/jpeg", "image/jpg", "image/png"];
+    const maxSize = 5 * 1024 * 1024; // 5MB
+
+    if (!allowedMimes.includes(frontFile.mimetype)) {
+      return res.status(400).json({
+        success: false,
+        message: "Only JPG and PNG images are allowed"
+      });
     }
 
-    // Get profile
-    let profile = await Profile.findOne({ userId }); // Make sure Profile is imported
+    if (frontFile.size > maxSize) {
+      return res.status(400).json({
+        success: false,
+        message: "Image size must be less than 5MB"
+      });
+    }
 
-    // 1. Upload Front Image
-    const frontResult = await uploadStream(files.front[0].buffer, {
+    // 3️⃣ Get profile
+    const profile = await Profile.findOne({ userId });
+    if (!profile) {
+      return res.status(404).json({
+        success: false,
+        message: "Profile not found"
+      });
+    }
+
+    // 4️⃣ Upload document
+    const uploadResult = await uploadStream(frontFile.buffer, {
       folder: `mafs/users/${userId}/kyc`,
-      transformation: [{ width: 1200, height: 800, crop: "limit", quality: "auto:best" }]
+      transformation: [
+        { width: 1200, height: 800, crop: "limit", quality: "auto:best" }
+      ]
     });
 
-    // --- NEW MODEL MAPPING START ---
-    // Initialize verification if not exists
+    // 5️⃣ Ensure verification object exists
     if (!profile.verification) profile.verification = {};
-    
-    // Save to the NEW field: docUrl (as per manager's structure)
-    profile.verification.docUrl = frontResult.secure_url;
-    // (Optional) If you want to keep track of type/publicId, you can store them in hidden fields or metadata
-    
-    // Also keeping the old 'kyc' structure for internal tracking if needed, 
-    // but the main data goes to 'verification'
-    profile.kyc = {
-      ...profile.kyc,
-      idDocument: {
-        type: idType,
-        frontUrl: frontResult.secure_url,
-        frontPublicId: frontResult.public_id,
-        uploadedAt: new Date()
-      }
-    };
 
-    // 2. Upload Back Image (if provided)
-    if (files.back && files.back[0]) {
-      const backResult = await uploadStream(files.back[0].buffer, {
-        folder: `mafs/users/${userId}/kyc`,
-        transformation: [{ width: 1200, height: 800, crop: "limit", quality: "auto:best" }]
-      });
-      profile.kyc.idDocument.backUrl = backResult.secure_url;
-      profile.kyc.idDocument.backPublicId = backResult.public_id;
-    }
+    // 6️⃣ Save doc URL (AS PER DB MODEL)
+    profile.verification.docUrl = uploadResult.secure_url;
 
-    // 3. Update KYC Status & Onboarding Flag
-    profile.onboardingProgress.idDocumentUploaded = true;
-
-    // Trigger 'pending' status ONLY IF selfie is also there
-    // Selfie check (new model path): profile.verification.selfieUrl
-    if (profile.verification.selfieUrl || (profile.kyc && profile.kyc.selfie && profile.kyc.selfie.url)) {
+    // 7️⃣ Status logic (selfie + doc)
+    if (profile.verification.selfieUrl) {
       profile.verification.status = "pending";
-      profile.kyc.status = "pending"; // sync both for safety
+    } else {
+      profile.verification.status = "not_started";
     }
-
-    //   const blockedContacts = await BlockedContact.find({ userId }).lean();
-    // const formatted = formatProfileResponse(profile, blockedContacts);
-
-
-      const user = await User.findById(userId).lean();
-     const [blockedContacts, blockedUser] = await Promise.all([
+    const user = await User.findById(userId).lean();
+       const [blockedContacts, blockedUser] = await Promise.all([
     BlockedContact.find({ userId: user._id }).lean(),
     Block.find({ blockerId: user._id }).lean()
   ]);
-    let subData = await UserSubscription.findOne({ userId });
+      let subData = await UserSubscription.findOne({ userId });
       if (!subData) {
         // Naya user hai toh default create karo
         subData = await UserSubscription.create({ userId});
@@ -2343,22 +2337,130 @@ module.exports.uploadIDDocument = async (req, res) => {
       // await redis.del(redisKey);
     // const formatted = formatProfileResponse(profile, blockedContacts,blockedUser);
 
-
-    // 4. Save (This will trigger the Pre-save hook we wrote for totalCompletion)
+    // 8️⃣ Save profile
     await profile.save();
 
-    // 5. Cleanup & Response
-    if (typeof clearProfileCache === 'function') await clearProfileCache(userId);
+    // 9️⃣ Clear cache if exists
+    if (typeof clearProfileCache === "function") {
+      await clearProfileCache(userId);
+    }
 
- res.json({  success: true,
-       message: "ID document uploaded successfully. Your verification is under review", data: {
-        user: formatProfileResponse(user,profile, blockedContacts,blockedUser,subData)
-      } });
+    return res.json({
+      success: true,
+      message: "ID document uploaded successfully. Verification is under review.",
+      user: formatProfileResponse(user,profile, blockedContacts,blockedUser,subData)
+    });
+
   } catch (err) {
     console.error("Upload ID error:", err);
-    return res.status(500).json({ success: false, code: "UPLOAD_FAILED", message: err.message });
+    return res.status(500).json({
+      success: false,
+      message: "Failed to upload ID document",
+      error: err.message
+    });
   }
 };
+
+
+
+// module.exports.uploadIDDocument = async (req, res) => {
+//   try {
+//     const userId = req.user._id;
+//     const files = req.files;
+//     const { idType } = req.body;
+
+//     if (!files || !files.front) {
+//       return res.status(400).json({ success: false, message: "ID front image is required" });
+//     }
+
+//     if (!idType) {
+//       return res.status(400).json({ success: false, message: "ID type is required" });
+//     }
+
+//     // Get profile
+//     let profile = await Profile.findOne({ userId }); // Make sure Profile is imported
+
+//     // 1. Upload Front Image
+//     const frontResult = await uploadStream(files.front[0].buffer, {
+//       folder: `mafs/users/${userId}/kyc`,
+//       transformation: [{ width: 1200, height: 800, crop: "limit", quality: "auto:best" }]
+//     });
+
+//     // --- NEW MODEL MAPPING START ---
+//     // Initialize verification if not exists
+//     if (!profile.verification) profile.verification = {};
+    
+//     // Save to the NEW field: docUrl (as per manager's structure)
+//     profile.verification.docUrl = frontResult.secure_url;
+//     // (Optional) If you want to keep track of type/publicId, you can store them in hidden fields or metadata
+    
+//     // Also keeping the old 'kyc' structure for internal tracking if needed, 
+//     // but the main data goes to 'verification'
+//     profile.kyc = {
+//       ...profile.kyc,
+//       idDocument: {
+//         type: idType,
+//         frontUrl: frontResult.secure_url,
+//         frontPublicId: frontResult.public_id,
+//         uploadedAt: new Date()
+//       }
+//     };
+
+//     // 2. Upload Back Image (if provided)
+//     if (files.back && files.back[0]) {
+//       const backResult = await uploadStream(files.back[0].buffer, {
+//         folder: `mafs/users/${userId}/kyc`,
+//         transformation: [{ width: 1200, height: 800, crop: "limit", quality: "auto:best" }]
+//       });
+//       profile.kyc.idDocument.backUrl = backResult.secure_url;
+//       profile.kyc.idDocument.backPublicId = backResult.public_id;
+//     }
+
+//     // 3. Update KYC Status & Onboarding Flag
+//     profile.onboardingProgress.idDocumentUploaded = true;
+
+//     // Trigger 'pending' status ONLY IF selfie is also there
+//     // Selfie check (new model path): profile.verification.selfieUrl
+//     if (profile.verification.selfieUrl || (profile.kyc && profile.kyc.selfie && profile.kyc.selfie.url)) {
+//       profile.verification.status = "pending";
+//       profile.kyc.status = "pending"; // sync both for safety
+//     }
+
+//     //   const blockedContacts = await BlockedContact.find({ userId }).lean();
+//     // const formatted = formatProfileResponse(profile, blockedContacts);
+
+
+//       const user = await User.findById(userId).lean();
+//      const [blockedContacts, blockedUser] = await Promise.all([
+//     BlockedContact.find({ userId: user._id }).lean(),
+//     Block.find({ blockerId: user._id }).lean()
+//   ]);
+//     let subData = await UserSubscription.findOne({ userId });
+//       if (!subData) {
+//         // Naya user hai toh default create karo
+//         subData = await UserSubscription.create({ userId});
+//       }
+//       // Reset counters if it's a new day
+//       subData.resetIfNeeded()
+//       // await redis.del(redisKey);
+//     // const formatted = formatProfileResponse(profile, blockedContacts,blockedUser);
+
+
+//     // 4. Save (This will trigger the Pre-save hook we wrote for totalCompletion)
+//     await profile.save();
+
+//     // 5. Cleanup & Response
+//     if (typeof clearProfileCache === 'function') await clearProfileCache(userId);
+
+//  res.json({  success: true,
+//        message: "ID document uploaded successfully. Your verification is under review", data: {
+//         user: formatProfileResponse(user,profile, blockedContacts,blockedUser,subData)
+//       } });
+//   } catch (err) {
+//     console.error("Upload ID error:", err);
+//     return res.status(500).json({ success: false, code: "UPLOAD_FAILED", message: err.message });
+//   }
+// };
 // ========================================
 // 6. UPDATE LOCATION
 // ========================================

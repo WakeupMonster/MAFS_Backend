@@ -61,7 +61,7 @@ router.post(
 router.post(
   "/id-document",
   uploadMiddleware.uploadFields,
-  validation.validateIDUpload,
+  // validation.validateIDUpload,
   controller.uploadIDDocument
 );
 
