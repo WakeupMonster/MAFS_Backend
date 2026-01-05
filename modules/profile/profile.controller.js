@@ -2366,6 +2366,7 @@ module.exports.updateLocation = async (req, res) => {
   try {
     const userId = req.user._id;
     const { latitude, longitude, city, state, country,full_address } = req.body;
+    console.log("address",full_address)
 
     if (!latitude || !longitude || isNaN(latitude) || isNaN(longitude)) {
   return res.status(400).json({
