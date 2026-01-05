@@ -39,11 +39,7 @@
 const { Worker } = require('bullmq');
 // const notificationService = require('./notification.service');
 const notificationService = require('../modules/notifications/notification.service');
-
-const connection = {
-    host: process.env.REDIS_HOST || '127.0.0.1',
-    port: process.env.REDIS_PORT || 6379
-};
+const {connection} = require("../config/cache")
 
 const worker = new Worker('notification-queue', async (job) => {
     const { type } = job.name; // Job name as type

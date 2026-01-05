@@ -1,5 +1,6 @@
 const { Worker } = require("bullmq");
 const utils = require("../modules/auth/auth.utils");
+const {connection} = require("../config/cache")
 
 new Worker(
   "emailQueue",
@@ -16,7 +17,7 @@ new Worker(
   },
   {
     // connection: { host: "127.0.0.1", port: 6379 },
-      connection: { url: process.env.REDIS_URL || "redis://127.0.0.1:6379" }
+      connection
   }
 );
 
