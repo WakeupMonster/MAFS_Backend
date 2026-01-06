@@ -91,10 +91,6 @@ router.patch(
   controller.updateVisibility
 );
 
-router.get("/notifications", controller.getNotificationSettings);
-router.patch("/notifications", controller.updateNotificationSettings);
-
-
 router.get("/blocked/all", userAction.getBlockList);
 
 router.patch('/quick-verify/:userId', controller.quickVerifyUser);

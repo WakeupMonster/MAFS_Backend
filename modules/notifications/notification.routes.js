@@ -9,6 +9,10 @@ router.use(auth);
 router.post('/register-token',  notificationController.registerDeviceToken);
 // Unregister device token
 router.post('/unregister-token',  notificationController.unregisterDeviceToken);
+
+
+router.get("/notifications", notificationController.getNotificationSettings);
+router.patch("/notifications", notificationController.updateNotificationSettings);
 // Test notification endpoint
 // router.post('/test', async (req, res) => {
 //   try {
