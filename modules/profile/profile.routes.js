@@ -7,14 +7,13 @@ const validation = require("./profile.validation");
 const controllerDis = require("../discovery/discovery.controller");
 const userAction = require("./userActionController")
 // const ENUMS = require("../../config/enums");
-
 const  masterController  = require("./master.controller")
 
 router.use(auth);
 
 router.patch(
   "/update",
-  // validation.validateProfileUpdate,
+  validation.validateProfileUpdate,
   controller.updateProfile
 );
 
@@ -83,7 +82,7 @@ router.post("/bulk-add", masterController.bulkAddMasterData);
 router.get("/config", masterController.getAppConfig);
 
 
-router.get("/:userId", controller.getUserProfile);
+router.get("/:userId",validation.validateUserIdParam, controller.getUserProfile);
 
 router.patch(
   "/visibility",
@@ -102,6 +101,8 @@ router.get("/block-list",  userAction.getBlockList);
 
 // Report
 router.post("/report/:id", userAction.reportUser);
+
+
 module.exports = router;
 
 // Get APIs for fetch this field data genderPreference, relationshipGoal, distance, interest, age(min,max)
@@ -117,4 +118,6 @@ module.exports = router;
 
 //   res.json({ success: true, data });
 // });
+
+
 

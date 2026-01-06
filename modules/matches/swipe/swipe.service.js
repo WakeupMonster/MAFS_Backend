@@ -187,7 +187,7 @@ if (blockedPhoneHashes.length) {
 
     // 4️⃣ Strict Query Building (Discovery Filters)
     const discovery = myProfile.discovery || {};
-    const query = { userId: { $nin: excludeIds }, isDiscoverable: true, isMandatoryComplete: true };
+    const query = { userId: { $nin: excludeIds }, isDiscoverable: true, isMandatoryComplete: true,"discovery.globalVisibility": "everyone" };
     
     // Gender & Age Filters
     if (discovery.showMeGender?.length) query.gender = { $in: discovery.showMeGender };

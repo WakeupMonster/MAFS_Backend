@@ -188,7 +188,7 @@ const uploadFWB = upload.fields([
 ]);
 
 // 🔥 CHAT MEDIA (single + multiple)
-const uploadMedia = upload.array("media", 10);
+const uploadChatMedia = upload.array("media", 10);
 
 module.exports = {
   uploadPhotos, // This is the pre-configured middleware
@@ -196,5 +196,6 @@ module.exports = {
   uploadSingle,
   uploadFields,
   uploadFWB,
-  uploadMedia,
+  // uploadMedia,
+  uploadChatMedia
 };

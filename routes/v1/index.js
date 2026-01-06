@@ -15,7 +15,7 @@ router.use('/socket', socketRoutes);
 router.use("/fwb", require("../../modules/fwb/fwb.routes"));
 router.use("/chat", require("../../modules/matches/chat/chat.route"));
 router.use("/contacts",require("../../modules/BlockedContact/contacts.routes"))
-
+router.use("/kpitest",require("../../modules/admintester/admintest.route"))
 
 // Deactivate account
 

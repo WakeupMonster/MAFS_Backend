@@ -18,6 +18,7 @@ const cors = require("cors");
 
 app.use(express.json());
 
+
 app.use(cors({
   origin: "*",  // Ya specific frontend URL
   credentials: true,
@@ -39,5 +40,23 @@ app.use("/api/v1", v1Routes);
 
 
 app.get("/", (req, res) => res.json({ message: "API running" }));
+
+app.use((req, res) => {
+  res.status(404).json({
+    success: false,
+    message: "API endpoint not found"
+  });
+});
+
+// =====================
+// GLOBAL ERROR HANDLER
+// =====================
+app.use((err, req, res) => {
+
+  res.status(err.statusCode || 500).json({
+    success: false,
+    message: err.message || "Internal server error"
+  });
+});
 
 module.exports = app;

@@ -137,12 +137,16 @@ const ChatMessageSchema = new Schema(
         ref: "User"
       }
     ],
+    isDeletedForEveryone: {
+  type: Boolean,
+  default: false
+},
 
-    // 🔥 Prevent duplicate messages on retry
-    clientMessageId: {
-      type: String,
-      index: true
-    }
+    // // 🔥 Prevent duplicate messages on retry
+    // clientMessageId: {
+    //   type: String,
+    //   index: true
+    // }
   },
   { timestamps: true }
 );
@@ -151,9 +155,9 @@ const ChatMessageSchema = new Schema(
 ChatMessageSchema.index({ matchId: 1, createdAt: -1 }); // chat history
 ChatMessageSchema.index({ receiver: 1, status: 1 });   // pending messages
 ChatMessageSchema.index({ sender: 1 });
-ChatMessageSchema.index(
-  { sender: 1, clientMessageId: 1 },
-  { unique: true, sparse: true }
-);
+// ChatMessageSchema.index(
+//   { sender: 1, clientMessageId: 1 },
+//   { unique: true, sparse: true }
+// );
 
 module.exports = mongoose.model("ChatMessage", ChatMessageSchema);

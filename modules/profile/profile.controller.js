@@ -3404,43 +3404,67 @@ exports.getDiscoveryPreference = async (req, res) => {
 
 
 
+// controllers/profile.controller.js
 
 exports.updateVisibility = async (req, res) => {
   try {
-    const { visibility } = req.body;
     const userId = req.user._id;
+    const { globalVisibility } = req.body;
 
-    if (!["everyone", "matches_only", "nobody"].includes(visibility)) {
+    // 1️⃣ Validation
+    const allowed = ["everyone", "matches_only", "nobody"];
+    if (!allowed.includes(globalVisibility)) {
       return res.status(400).json({
         success: false,
-        message: "Invalid visibility value"
+        message: "Invalid globalVisibility value"
       });
     }
 
-    const update = {
-      visibility,
-      // sirf 'nobody' me completely hide
-      isDiscoverable: visibility !== "nobody"
-    };
+    // 2️⃣ Decide system flags
+    let isDiscoverable = true;
+    let canAccessSwipe = true;
 
+    if (globalVisibility === "nobody") {
+      isDiscoverable = false;
+      canAccessSwipe = false;
+    }
+
+    // 3️⃣ Update profile
     const profile = await Profile.findOneAndUpdate(
       { userId },
-      { $set: update },
+      {
+        $set: {
+          "discovery.globalVisibility": globalVisibility,
+          isDiscoverable,
+          canAccessSwipe,
+          lastProfileUpdate: new Date()
+        }
+      },
       { new: true }
-    );
+    ).select("discovery.globalVisibility isDiscoverable canAccessSwipe");
 
-    // 🔥 VERY IMPORTANT: feed cache clear
+    if (!profile) {
+      return res.status(404).json({
+        success: false,
+        message: "Profile not found"
+      });
+    }
+
+    // 4️⃣ Feed cache clear (VERY IMPORTANT 🔥)
     await redis?.del(`feed:${userId}`);
 
     return res.json({
       success: true,
+      message: "Visibility updated successfully",
       data: {
-        visibility: profile.visibility,
-        isDiscoverable: profile.isDiscoverable
+        globalVisibility: profile.discovery.globalVisibility,
+        isDiscoverable: profile.isDiscoverable,
+        canAccessSwipe: profile.canAccessSwipe
       }
     });
 
   } catch (err) {
+    console.error("Update visibility error:", err);
     return res.status(500).json({
       success: false,
       message: err.message
