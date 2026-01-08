@@ -1865,7 +1865,7 @@ const user = await User.findById(userId).lean();
 module.exports.deletePhoto = async (req, res) => {
   try {
     const userId = req.user._id;
-    const { publicId } = req.params;
+    const { publicId } = req.body;
 
     const profile = await Profile.findOne({ userId });
     if (!profile) {

@@ -40,7 +40,7 @@ router.post(
 );
 
 
-router.delete("/photos/:publicId", controller.deletePhoto);
+router.delete("/photos", controller.deletePhoto);
 router.patch("/photos/reorder", controller.reorderPhotos);
 
 
