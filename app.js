@@ -16,7 +16,9 @@ const cors = require("cors");
 // Load cron jobs
 // require("./jobs/cron/fwbCron"); // <-- cron auto starts
 
-app.use(express.json());
+app.use(express.json({ limit: "10mb" }));
+app.use(express.urlencoded({ extended: true }));
+
 
 
 app.use(cors({
