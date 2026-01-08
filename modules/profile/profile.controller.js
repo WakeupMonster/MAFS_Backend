@@ -2526,8 +2526,12 @@ module.exports.getVerificationStatus = async (req, res) => {
 module.exports.updateLocation = async (req, res) => {
   try {
     const userId = req.user._id;
-    const { latitude, longitude, city, state, country,full_address } = req.body;
+    const { latitude, longitude, city, state, country,full_address } = req.body || {};
     console.log("address,country,state,city",full_address,country,state,city)
+    console.log("METHOD:", req.method);
+console.log("HEADERS:", req.headers);
+console.log("BODY:", req.body);
+
 
     if (!latitude || !longitude || isNaN(latitude) || isNaN(longitude)) {
   return res.status(400).json({
