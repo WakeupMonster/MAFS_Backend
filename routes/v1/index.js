@@ -16,12 +16,15 @@ router.use("/fwb", require("../../modules/fwb/fwb.routes"));
 router.use("/chat", require("../../modules/matches/chat/chat.route"));
 router.use("/contacts",require("../../modules/BlockedContact/contacts.routes"))
 router.use("/kpitest",require("../../modules/admintester/admintest.route"))
+router.use("/app-settings",require("../../modules/AppConfiguration/appSettings.route"))
 
 // Deactivate account
 
 router.use("/account", require("../../modules/Account/deactivate & active/account.routes"));
 
 router.use("/content",require("../../modules/content/content.routes"))
+
+router.use("/contact",require("../../modules/AppConfiguration/contactSupport/support.routes"))
 
 // BOOST
 

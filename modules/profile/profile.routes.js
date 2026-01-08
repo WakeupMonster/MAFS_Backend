@@ -40,7 +40,7 @@ router.post(
 );
 
 
-router.delete("/photos", controller.deletePhoto);
+router.delete("/photos/:publicId", controller.deletePhoto);
 router.patch("/photos/reorder", controller.reorderPhotos);
 
 
@@ -63,6 +63,8 @@ router.post(
   // validation.validateIDUpload,
   controller.uploadIDDocument
 );
+
+router.get("/verification-status", controller.getVerificationStatus);
 
 router.post(
   "/location",

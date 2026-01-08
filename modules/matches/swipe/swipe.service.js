@@ -117,7 +117,7 @@ const UserSubscription = require("../../auth/UserSubscription.model")
 
 async function getFeedService(userId, limit = 20) {
     const CACHE_KEY = `feed:${userId.toString()}`;
-    const CACHE_TTL = 300;
+    const CACHE_TTL = 30;
 
     let sub = await UserSubscription.findOne({ userId });
     if (!sub) sub = await UserSubscription.create({ userId });
@@ -563,7 +563,14 @@ if (dynamicHighlights.length < 6) {
 
     // 7️⃣ Cache Response
     if (redis && finalResult.length) {
-        await redis.set(CACHE_KEY, JSON.stringify({ data: finalResult }), 'EX', CACHE_TTL);
+        // await redis.set(CACHE_KEY, JSON.stringify({ data: finalResult }), 'EX', CACHE_TTL);
+        
+        await redis.set(
+  CACHE_KEY,
+  { data: finalResult },
+  { EX: CACHE_TTL }
+);
+
     }
 
     return { success: true, count: finalResult.length, data: finalResult };

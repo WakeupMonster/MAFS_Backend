@@ -1865,7 +1865,7 @@ const user = await User.findById(userId).lean();
 module.exports.deletePhoto = async (req, res) => {
   try {
     const userId = req.user._id;
-    const { publicId } = req.body;
+    const { publicId } = req.params;
 
     const profile = await Profile.findOne({ userId });
     if (!profile) {
@@ -2260,6 +2260,7 @@ await profile.save();
 //   }
 // };
 
+
 module.exports.uploadIDDocument = async (req, res) => {
   try {
     const userId = req.user._id;
@@ -2362,6 +2363,61 @@ module.exports.uploadIDDocument = async (req, res) => {
     });
   }
 };
+module.exports.getVerificationStatus = async (req, res) => {
+  try {
+    const userId = req.user._id;
+
+    const profile = await Profile.findOne({ userId })
+      .select("verification")
+      .lean();
+
+    if (!profile || !profile.verification) {
+      return res.json({
+        success: true,
+        data: {
+          status: "not_started",
+          selfieUploaded: false,
+          documentUploaded: false,
+          rejectionReason: null,
+          message: "Verification not started"
+        }
+      });
+    }
+
+    const { status, selfieUrl, docUrl, rejectionReason } =
+      profile.verification;
+
+    // Status based message (frontend-friendly)
+    let message = "Verification not started";
+
+    if (status === "pending") {
+      message = "Your verification is under review";
+    } else if (status === "approved") {
+      message = "Your profile has been verified";
+    } else if (status === "rejected") {
+      message = "Your verification was rejected";
+    }
+
+    return res.json({
+      success: true,
+      data: {
+        status,
+        selfieUploaded: Boolean(selfieUrl),
+        documentUploaded: Boolean(docUrl),
+        rejectionReason: status === "rejected" ? rejectionReason || "Verification failed" : null,
+        message
+      }
+    });
+
+  } catch (err) {
+    console.error("Get verification status error:", err);
+    return res.status(500).json({
+      success: false,
+      message: "Failed to fetch verification status"
+    });
+  }
+};
+
 
 
 
@@ -2466,11 +2522,12 @@ module.exports.uploadIDDocument = async (req, res) => {
 // ========================================
 // 6. UPDATE LOCATION
 // ========================================
+
 module.exports.updateLocation = async (req, res) => {
   try {
     const userId = req.user._id;
     const { latitude, longitude, city, state, country,full_address } = req.body;
-    console.log("address",full_address)
+    console.log("address,country,state,city",full_address,country,state,city)
 
     if (!latitude || !longitude || isNaN(latitude) || isNaN(longitude)) {
   return res.status(400).json({
@@ -2479,15 +2536,7 @@ module.exports.updateLocation = async (req, res) => {
   });
 }
   const user = await User.findById(userId).lean();
-    // if (!latitude || !longitude) {
-    //   return res.status(400).json({
-    //     success: false,
-    //     code: "MISSING_COORDS",
-    //     message: "Latitude and longitude are required"
-    //   });
-    // }
-
-    // Get profile
+  
     let profile = await getOrCreateProfile(userId);
 
     // Update location
@@ -2504,11 +2553,7 @@ module.exports.updateLocation = async (req, res) => {
     BlockedContact.find({ userId: user._id }).lean(),
     Block.find({ blockerId: user._id }).lean()
   ]);
-      // const blockedContacts = await BlockedContact.find({ userId }).lean();
-      // const blockedUser = await Block.find({userId}).lean()
-    // const formatted = formatProfileResponse(user,profile, blockedContacts,blockedUser);
-
-    // Save
+   
     await profile.save();
 
     // Clear cache
@@ -3450,8 +3495,12 @@ exports.updateVisibility = async (req, res) => {
       });
     }
 
-    // 4️⃣ Feed cache clear (VERY IMPORTANT 🔥)
-    await redis?.del(`feed:${userId}`);
+    if(redis){
+      await redis.del(`feed:${userId.toString()}`);
+    }
+    
+    // // 4️⃣ Feed cache clear (VERY IMPORTANT 🔥)
+    // await redis?.del(`feed:${userId}`);
 
     return res.json({
       success: true,

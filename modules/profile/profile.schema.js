@@ -34,10 +34,20 @@ exports.profileUpdateSchema = Joi.object({
    LOCATION
 ================================ */
 
+// exports.locationSchema = Joi.object({
+//   latitude: Joi.number().min(-90).max(90).required(),
+//   longitude: Joi.number().min(-180).max(180).required()
+// });
 exports.locationSchema = Joi.object({
   latitude: Joi.number().min(-90).max(90).required(),
-  longitude: Joi.number().min(-180).max(180).required()
+  longitude: Joi.number().min(-180).max(180).required(),
+
+  city: Joi.string().allow("", null),
+  state: Joi.string().allow("", null),
+  country: Joi.string().allow("", null),
+  full_address: Joi.string().allow("", null)
 });
+
 
 /* ===============================
    USER ID PARAM

@@ -24,7 +24,7 @@ const authMiddleware = require("../auth.middleware");
  */
 router.post(
   "/login",
-  validation.validateSocialLogin,
+  // validation.validateSocialLogin,
   controller.socialLogin
 );
 
