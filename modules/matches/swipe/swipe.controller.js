@@ -16,7 +16,7 @@ exports.getFeed = async (req, res) => {
 
     return res.json({
       success: true,
-      count: feedResult.data.length,   // ✅ Access data array
+      count: feedResult.data.length,  
        cached: feedResult.cached,
       data: feedResult.data,
       userQuota: feedResult.userQuota

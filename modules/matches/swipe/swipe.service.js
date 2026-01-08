@@ -114,6 +114,8 @@ function calculateDistance(lat1, lon1, lat2, lon2) {
 }
 
 const UserSubscription = require("../../auth/UserSubscription.model")
+const { canUserAccessFeed } = require("../../../common/utils/profileAccess");
+
 
 async function getFeedService(userId, limit = 20) {
     const CACHE_KEY = `feed:${userId.toString()}`;
@@ -128,10 +130,20 @@ async function getFeedService(userId, limit = 20) {
     // 1️⃣ User Profile & Filters Fetch
     const myProfile = await Profile.findOne({ userId }).lean();
     if (!myProfile) throw new Error("Profile not found");
+    const canAccess = canUserAccessFeed({ profile: myProfile });
 
-    if (!myProfile.isDiscoverable || !myProfile.location?.coordinates) {
-        return { success: false, message: "Complete profile & location required", data: [], onboardingRequired: true };
-    }
+    if (!canAccess || !myProfile.location?.coordinates) {
+  return {
+    success: false,
+    message: "Profile not eligible for discovery",
+    data: [],
+    onboardingRequired: true
+  };
+}
+
+    // if (!myProfile.isDiscoverable || !myProfile.location?.coordinates) {
+    //     return { success: false, message: "Complete profile & location required", data: [], onboardingRequired: true };
+    // }
 
     // 2️⃣ Redis Cache Check
     if (redis) {
@@ -187,7 +199,7 @@ if (blockedPhoneHashes.length) {
 
     // 4️⃣ Strict Query Building (Discovery Filters)
     const discovery = myProfile.discovery || {};
-    const query = { userId: { $nin: excludeIds }, isDiscoverable: true, isMandatoryComplete: true,"discovery.globalVisibility": "everyone" };
+    const query = { userId: { $nin: excludeIds }, isMandatoryComplete: true,"discovery.globalVisibility": "everyone" };
     
     // Gender & Age Filters
     if (discovery.showMeGender?.length) query.gender = { $in: discovery.showMeGender };

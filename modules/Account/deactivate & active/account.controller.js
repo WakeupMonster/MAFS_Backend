@@ -12,6 +12,7 @@ exports.deactivateAccount = async (req, res) => {
     const userId = req.user._id;
 
     const profile = await Profile.findOne({ userId });
+    console.log("profileflagcan", profile.canAccessSwipe ,userId,profile.discovery.globalVisibility)
 
     if (!profile) {
       return res.status(404).json({
@@ -21,7 +22,7 @@ exports.deactivateAccount = async (req, res) => {
     }
 
     // Already deactivated
-    if (profile.visibility === "nobody") {
+    if (profile.discovery.globalVisibility === "nobody") {
       return res.status(400).json({
         success: false,
         message: "Account already deactivated"
@@ -29,9 +30,9 @@ exports.deactivateAccount = async (req, res) => {
     }
 
     // Industry approach: hide profile + disable access
-    profile.visibility = "nobody";
-    profile.canAccessSwipe = false;
-    profile.isDiscoverable = false;
+    profile.discovery.globalVisibility = "nobody";
+    // profile.canAccessSwipe  = false;
+    // profile.isDiscoverable = false;
 
       if (redis) {
                  const CACHE_KEY = `feed:${userId.toString()}`;
@@ -69,6 +70,7 @@ exports.deactivateAccount = async (req, res) => {
  * REACTIVATE ACCOUNT
  * ================================
  */
+
 exports.reactivateAccount = async (req, res) => {
   try {
     const userId = req.user._id;
@@ -82,7 +84,7 @@ exports.reactivateAccount = async (req, res) => {
       });
     }
 
-    if (profile.visibility !== "nobody") {
+    if (profile.discovery.globalVisibility  !== "nobody") {
       return res.status(400).json({
         success: false,
         message: "Account is already active"
@@ -90,11 +92,11 @@ exports.reactivateAccount = async (req, res) => {
     }
 
     // Restore based on profile state
-    const canAccess = profile.isMandatoryComplete && profile.kyc.status === "approved";
+    // const canAccess = profile.isMandatoryComplete && profile.verification.status === "approved";
 
-    profile.visibility = "everyone";
-    profile.canAccessSwipe = canAccess;
-    profile.isDiscoverable = canAccess;
+    profile.discovery.globalVisibility = "everyone";
+    // profile.canAccessSwipe = canAccess;
+    // profile.isDiscoverable = canAccess;
 
     await profile.save();
 
@@ -102,11 +104,7 @@ exports.reactivateAccount = async (req, res) => {
 
     return res.json({
       success: true,
-      message: "Account reactivated successfully",
-      data: {
-        canAccessSwipe: profile.canAccessSwipe,
-        isDiscoverable: profile.isDiscoverable
-      }
+      message: "Account reactivated successfully"
     });
 
   } catch (error) {
@@ -601,6 +599,15 @@ exports.deleteAccount = async (req, res) => {
 
 exports.markAsMarried = async (req, res) => {
   const userId = req.user._id;
+    // const profile = await Profile.findOne({ userId });
+
+    // if (!profile) {
+    //   return res.status(404).json({
+    //     success: false,
+    //     message: "Profile not found"
+    //   });
+    // }
+
 
   try {
     // 1️⃣ Update user status
@@ -615,7 +622,7 @@ exports.markAsMarried = async (req, res) => {
       {
         isDiscoverable: false,
         canAccessSwipe: false,
-        visibility: "nobody"
+        // profile.discovery.globalVisibility: "nobody"
       }
     );
 

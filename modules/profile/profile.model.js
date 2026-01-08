@@ -1013,8 +1013,8 @@ const ProfileSchema = new mongoose.Schema({
   // --- 9. GLOBAL SYSTEM FLAGS ---
   isMandatoryComplete: { type: Boolean, default: false },
   isProfileComplete: { type: Boolean, default: false },
-  isDiscoverable: { type: Boolean, default: false },
-  canAccessSwipe: { type: Boolean, default: false },
+  // isDiscoverable: { type: Boolean, default: false },
+  // canAccessSwipe: { type: Boolean, default: false },
   lastProfileUpdate: { type: Date }
 
 }, { timestamps: true });
@@ -1061,19 +1061,19 @@ ProfileSchema.pre('save', function(next) {
   const isProfileReady = hasNickname && hasDob && hasGender && hasMinPhotos && hasLocation;
   
   // Condition B: KYC Status approved?
-  const isVerified = profile.verification?.status === 'approved';
+  // const isVerified = profile.verification?.status === 'approved';
 
   // Final System Flags
   profile.isMandatoryComplete = isProfileReady;
   
   // Robust Guard: User can ONLY swipe and be seen IF Profile is Ready AND KYC is Approved
-  if (isProfileReady && isVerified) {
-    profile.canAccessSwipe = true;
-    profile.isDiscoverable = true;
-  } else {
-    profile.canAccessSwipe = false;
-    profile.isDiscoverable = false;
-  }
+  // if (isProfileReady && isVerified) {
+  //   profile.canAccessSwipe = true;
+  //   profile.isDiscoverable = true;
+  // } else {
+  //   profile.canAccessSwipe = false;
+  //   profile.isDiscoverable = false;
+  // }
 
   next();
 });

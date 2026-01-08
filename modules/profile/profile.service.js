@@ -397,7 +397,7 @@ exports.formatProfileResponse = (profile,user = {},blockedContacts = []) => {
     userId: profile.userId,
     __v: profile.__v || 0,
     bookPreference: profile.attributes?.books || [],
-    canAccessSwipe: profile.canAccessSwipe || false,
+    // canAccessSwipe: profile.canAccessSwipe || false,
     basics: {
       PersonalityType: profile.attributes?.personalityType ? profile.attributes.personalityType : "",
       communicationStyle: profile.attributes?.communicationStyle ? profile.attributes.communicationStyle : "",
