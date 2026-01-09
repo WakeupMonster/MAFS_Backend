@@ -303,7 +303,8 @@ async function verifyPhoneOtpUnified(phone, otp) {
         phone: normalizedPhone,
         phoneHash: phoneHash,   // 🔥 CRITICAL LINE
         isPhoneVerified: true,
-        isNewUser: false
+        isNewUser: false,
+        lastLoginAt: new Date() 
       },
       $push: {
         refreshTokens: {

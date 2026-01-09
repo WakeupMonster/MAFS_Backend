@@ -137,6 +137,7 @@ tonight.setHours(24, 0, 0, 0);
     photos: (p.photos || []).map(photo => ({
       id: photo._id || photo.id || null,
       url: photo.url || null,
+      publicId : photo.publicId || null,
       order: photo.order || 0
     })),
 

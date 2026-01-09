@@ -1939,6 +1939,7 @@ module.exports.deletePhoto = async (req, res) => {
 // ========================================
 // 4. REORDER PHOTOS (Drag & Drop)
 // ========================================
+
 module.exports.reorderPhotos = async (req, res) => {
   try {
     const userId = req.user._id;

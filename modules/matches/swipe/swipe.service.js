@@ -276,74 +276,6 @@ traits.forEach(trait => {
     if (score > 75) cardHighlights.push(`${score}% Compatible`);
 
 
-
-
-
-    // const dynamicHighlights = [];
-
-    // // Card 1: Vibe Match (Interests)
-    // if (common.length > 0) {
-    //     dynamicHighlights.push({
-    //         type: "INTEREST_MATCH",
-    //         icon: "🔥",
-    //         title: "Common Vibe",
-    //         description: `You both love ${common[0]}${common.length > 1 ? ` & ${common.length - 1} more` : ""}`
-    //     });
-    // }
-
-    // // Card 2: Relationship Goal Match
-    // if (targetGoal === activeSearchGoal) {
-    //     dynamicHighlights.push({
-    //         type: "GOAL_MATCH",
-    //         icon: "🎯",
-    //         title: "Same Intent",
-    //         description: `Both looking for ${targetGoal}`
-    //     });
-    // }
-
-    // // Card 3: Lifestyle/Trait Match
-    // if (matchedTraits.length > 0) {
-    //     dynamicHighlights.push({
-    //         type: "TRAIT_MATCH",
-    //         icon: "✅",
-    //         title: "Lifestyle Match",
-    //         description: `You match on ${matchedTraits[0]} habits`
-    //     });
-    // }
-
-    // // Card 4: Distance/Location
-    // dynamicHighlights.push({
-    //     type: "LOCATION",
-    //     icon: "📍",
-    //     title: "Nearby",
-    //     description: distanceKm <= 1 ? "In your neighborhood" : `${distanceKm} km away`
-    // });
-
-    // // Card 5: Compatibility (Excellent/Great)
-    // dynamicHighlights.push({
-    //     type: "COMPATIBILITY",
-    //     icon: "✨",
-    //     // title: compatibilityLabel,
-    //     compatibilityLabel: score > 75 ? "Excellent Match" : (score > 40 ? "Great Match" : "Good Match"),
-    //     description: `${score}% Compatible with your profile`
-    // });
-
-    // // Card 6: New User / Verification Status
-    // if (profile.verification?.status === "approved") {
-    //     dynamicHighlights.push({
-    //         type: "VERIFIED",
-    //         icon: "🛡️",
-    //         title: "Verified Profile",
-    //         description: "Authenticity checked by MAFS"
-    //     });
-    // } else {
-    //     dynamicHighlights.push({
-    //         type: "NEW_JOINER",
-    //         icon: "🎈",
-    //         title: "Fresh Face",
-    //         description: "Just joined the community"
-    //     });
-    //   }
 const dynamicHighlights = [];
 
 // --- 1. Priority Matches (Real Data) ---
@@ -378,9 +310,11 @@ if (dynamicHighlights.length < 6) {
     if (profile.photos.length > 3) {
         dynamicHighlights.push({ type: "PHOTO_QUALITY", icon: "📸", title: "Photo Gallery", description: "Check out more moments" });
     }
+
+
 }
-    const likeStatus = checkUserQuota(sub, 'like');
-    const superStatus = checkUserQuota(sub, 'superlike');
+    // const likeStatus = checkUserQuota(sub, 'like');
+    // const superStatus = checkUserQuota(sub, 'superlike');
 
     // newreturn
     return {
@@ -408,6 +342,7 @@ if (dynamicHighlights.length < 6) {
     // --- 4. ATTRIBUTES (With Null Fallback) ---
     // Manager ne kaha hai "" ki jagah null use karo
     attributes: {
+      interests : targetAttr.interests || null,
         zodiac: targetAttr.zodiac || null,
         education: targetAttr.education || null,
         vaccineStatus: targetAttr.vaccineStatus || null,
@@ -436,144 +371,12 @@ if (dynamicHighlights.length < 6) {
     // --- 6. DYNAMIC HIGHLIGHTS (UI Cards) ---
     dynamicHighlights: dynamicHighlights.slice(0, 6)
 };
-
-    
-
-    // return {
-    //     // --- Core Info ---
-    //     id: profile.userId,
-    //     nickname: profile.nickname || "User",
-    //     displayName: `${profile.nickname || "User"}, ${calculateAge(profile.dob)}`,
-    //     age: calculateAge(profile.dob),
-    //     bio: profile.about || profile.bio || "",
-    //     images: (profile.photos || []).sort((a,b) => a.order - b.order).map(p => p.url),
-        
-    //     // --- Discovery/Matching Info ---
-    //     relationshipGoal: targetGoal || "Not specified",
-    //     interests: targetInterests,
-    //     traits: {
-    //         // Basics
-    //         zodiac: targetAttr.zodiac || "",
-    //         education: targetAttr.education || "",
-    //         vaccineStatus: targetAttr.vaccineStatus || "",
-    //         familyPlans: targetAttr.familyPlans || "",
-    //         personalityType: targetAttr.personalityType || "",
-    //         communicationStyle: targetAttr.communicationStyle || "",
-    //         loveStyle: targetAttr.loveStyle || "",
-    //         bloodType: targetAttr.bloodType || "",
-            
-    //         // Lifestyle
-    //         pets: targetAttr.pets || "",
-    //         drinking: targetAttr.drinking || "",
-    //         smoking: targetAttr.smoking || "",
-    //         workout: targetAttr.workout || "",
-    //         dietary: targetAttr.dietary || "",
-    //         socialMedia: targetAttr.socialMedia || "",
-    //         sleeping: targetAttr.sleeping || ""
-    //     },
-    //     matchedTraits: matchedTraits,
-    //     commonInterests: common,
-    //     hasCommonInterests: common.length > 0,
-    //     matchScoreTotal: score,
-        
-    //     // --- Score & Labeling ---
-    //     matchScore: Math.min(score, 100), // Score 100 se upar na dikhe UI par
-    //     compatibilityLabel: score > 75 ? "Excellent Match" : (score > 40 ? "Great Match" : "Good Match"),
-        
-    //     // --- Status Flags ---
-    //     isSuperKeen: isSuperliked,
-    //     isVerified: profile.verification?.status === "approved",
-        
-    //     // --- Frontend UI Helpers ---
-    //     distanceText: distanceKm <= 1 ? "1 km away" : `${distanceKm} km away`,
-    //     // location: {
-    //     //     city: profile.location?.city || "Indore",
-    //     //     distance: distanceKm
-    //     // },
-    //     city: profile.location?.city || "",
-    //     // Frontend ko har card ke liye ready-made text mil gaya
-    //     displayHighlight: cardHighlights[0] || "New for you", 
-    //     allHighlights: cardHighlights,
-    //     dynamicHighlights: dynamicHighlights.slice(0, 6),
-    //     userQuota: {
-    //         likes: {
-    //             remaining: likeStatus.remaining,
-    //             canLike: likeStatus.allowed,
-    //             total: likeStatus.total
-    //         },
-    //         superlikes: {
-    //             remaining: superStatus.remaining,
-    //             canSuperlike: superStatus.allowed,
-    //             total: superStatus.total
-    //         },
-    //         isPremium: sub.planId !== 'free'
-    //     }
-    // };
-});
-    // const transformedProfiles = profiles.map((profile) => {
-    //     const targetAttr = profile.attributes || {};
-    //     const targetInterests = targetAttr.interests || profile.interests || [];
-    //     const isSuperliked = superlikeSet.has(profile.userId.toString());
-        
-    //     // Match Score Calculation
-    //     let score = isSuperliked ? 1000 : 0;
-
-    //     // Interest Match (+25 points each)
-    //     const common = targetInterests.filter(i => myPreferredInterests.includes(i));
-    //     score += (common.length * 25);
-
-    //     // Relationship Goal Match (+40 points)
-    //     if (profile.discovery?.relationshipGoal === activeSearchGoal) {
-    //         score += 40;
-    //     }
-
-    //     // Advanced Traits Match (+15 points each)
-    //     const traits = ['smoking', 'drinking', 'zodiac', 'pets', 'workout'];
-    //     traits.forEach(trait => {
-    //         if (myAdvancedFilters[trait] && targetAttr[trait] === myAdvancedFilters[trait]) {
-    //             score += 15;
-    //         }
-    //     });
-
-    //     // Exact Distance Calculation
-    //     let distanceKm = 0;
-    //     if (myProfile.location?.coordinates && profile.location?.coordinates) {
-    //         distanceKm = calculateDistance(
-    //             myProfile.location.coordinates[1], myProfile.location.coordinates[0], 
-    //             profile.location.coordinates[1], profile.location.coordinates[0]
-    //         );
-    //     }
-
-    //     // --- Frontend Friendly Response (Figma exact match) ---
-    //     return {
-    //         id: profile.userId,
-    //         nickname: profile.nickname || "User",
-    //         displayName: `${profile.nickname || "User"}, ${calculateAge(profile.dob)}`,
-    //         dob : profile.dob.toISOString().split("T")[0] || "",
-    //         age: calculateAge(profile.dob),
-    //         city: profile.location?.city || "Indore",
-    //         bio: profile.about || profile.bio || "",
-    //         images: (profile.photos || []).sort((a,b) => a.order - b.order).map(p => p.url),
-    //         interests: targetInterests,
-    //         distanceText: distanceKm <= 1 ? "1 km away" : `${distanceKm} km away`,
-    //         isSuperKeen: isSuperliked,
-    //         intentMessage: isSuperliked ? "They chose you with intent!" : "",
-    //         relationshipGoal: profile.discovery?.relationshipGoal || "",
-    //         commonInterests: common,
-    //         hasCommonInterests: common.length > 0,
-    //         matchScore: score,
-    //         compatibilityLabel: score > 75 ? "Excellent Match" : (score > 40 ? "Great Match" : "Good Match"),
-          
-    //             // distance: distanceKm
-            
-    //     };
-    // });
-
-    // Sort by Match Score (Highest first)
-    transformedProfiles.sort((a, b) => b.matchScore - a.matchScore);
+  });
+    console.log(transformedProfiles)
+    transformedProfiles.sort((a, b) => b.context.matchScore - a.context.matchScore);
     const finalResult = transformedProfiles.slice(0, limit);
-
-    // 7️⃣ Cache Response
+  console.log("finalResult")
+  console.log(finalResult)
     if (redis && finalResult.length) {
         // await redis.set(CACHE_KEY, JSON.stringify({ data: finalResult }), 'EX', CACHE_TTL);
         

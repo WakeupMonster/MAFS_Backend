@@ -73,9 +73,6 @@ const userSchema = new mongoose.Schema({
   default: "USER",
   index: true
 },
-
-
-
   accountStatus: {
   type: String,
   enum: ["active", "deactivated", "married", "deleted","banned"],
@@ -155,6 +152,11 @@ premiumExpiresAt: {
   default: null
 },
 
+lastLoginAt: {
+  type: Date,
+  default: null,
+  index: true
+},
 
 
 authMethod: {

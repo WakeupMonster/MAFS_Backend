@@ -26,7 +26,8 @@ exports.getKpiOverview = async (req, res) => {
 
       User.countDocuments({
         lastLoginAt: { $gte: last24Hours },
-        isDeleted: false
+        role: "USER",
+accountStatus: "active"
       }),
 
       UserSubscription.countDocuments({

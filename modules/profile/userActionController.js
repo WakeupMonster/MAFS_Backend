@@ -28,24 +28,67 @@ exports.blockUser = async (req, res) => {
 };
 
 // 2. Report User (URL Param se ID + Body se Reason)
+// exports.reportUser = async (req, res) => {
+//    const userId = req.user._id;
+//   try {
+//     const { reason, description } = req.body;
+//     await Report.create({
+//       reporterId: req.user._id,
+//       reportedId: req.params.id,
+//       reason,
+//       description
+//     });
+//      if (redis) {
+//             const CACHE_KEY = `feed:${userId.toString()}`;
+//             await redis.del(CACHE_KEY);
+//             console.log("Redis cache cleared for new filters");
+//         }
+//     res.status(201).json({ success: true, message: "Report submitted" });
+//   } catch (e) { res.status(500).json({ success: false, message: e.message }); }
+// };
+
 exports.reportUser = async (req, res) => {
-   const userId = req.user._id;
+  const reporterId = req.user._id;
+
   try {
     const { reason, description } = req.body;
+
+    // 🔥 Simple severity mapping (can improve later)
+    let severity = "medium";
+    if (["abuse", "harassment", "threat"].includes(reason)) {
+      severity = "high";
+    } else if (["spam", "fake"].includes(reason)) {
+      severity = "low";
+    }
+
     await Report.create({
-      reporterId: req.user._id,
+      reporterId,
       reportedId: req.params.id,
       reason,
-      description
+      description,
+      status: "new",      // 🔥 explicit
+      severity            // 🔥 admin dashboard use karega
     });
-     if (redis) {
-            const CACHE_KEY = `feed:${userId.toString()}`;
-            await redis.del(CACHE_KEY);
-            console.log("Redis cache cleared for new filters");
-        }
-    res.status(201).json({ success: true, message: "Report submitted" });
-  } catch (e) { res.status(500).json({ success: false, message: e.message }); }
+
+    // Redis clear (as-is)
+    if (redis) {
+      const CACHE_KEY = `feed:${reporterId.toString()}`;
+      await redis.del(CACHE_KEY);
+    }
+
+    return res.status(201).json({
+      success: true,
+      message: "Report submitted successfully"
+    });
+
+  } catch (e) {
+    return res.status(500).json({
+      success: false,
+      message: e.message
+    });
+  }
 };
+
 
 // 3. Get Blocked Users (Figma Design Format)
 
