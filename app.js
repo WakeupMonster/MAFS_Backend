@@ -53,6 +53,8 @@ app.use((req, res) => {
 // =====================
 // GLOBAL ERROR HANDLER
 // =====================
+
+
 app.use((err, req, res) => {
 
   res.status(err.statusCode || 500).json({

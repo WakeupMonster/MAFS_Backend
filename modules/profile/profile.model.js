@@ -808,20 +808,12 @@
 //     this.isMandatoryComplete && this.kyc.status === "approved";
 //   this.isDiscoverable = this.canAccessSwipe;
 // }
-
-  
 //   this.lastProfileUpdate = new Date();
-  
 //   next();
 // });
-
-
-
-
 // ProfileSchema.index({ location: "2dsphere" });
 
 // module.exports = mongoose.model("Profile", ProfileSchema);
-
 
 // // Add this before the model is created
 // // ProfileSchema.pre('save', function(next) {
@@ -945,15 +937,29 @@ const ProfileSchema = new mongoose.Schema({
   },
 
   // --- 5. VERIFICATION (KYC) ---
+
   verification: {
     status: { 
         type: String, 
         enum: ["not_started", "pending", "approved", "rejected"], 
-        default: "not_started" 
+        default: "not_started",
+        index: true 
     },
+    verifiedBy: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: "User",
+    default: null
+  },
+   verifiedAt: {
+    type: Date,
+    default: null
+  },
     selfieUrl: String,
     docUrl: String,
-    rejectionReason: String
+    rejectionReason: {
+      type : String,
+      default : null
+    }
   },
 
   // --- 6. SUBSCRIPTION & CONSUMABLES ---

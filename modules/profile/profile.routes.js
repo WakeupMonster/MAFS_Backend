@@ -10,10 +10,11 @@ const userAction = require("./userActionController")
 const  masterController  = require("./master.controller")
 
 router.use(auth);
+// router.get("/upload-signature", controller.getUploadSignature);
 
 router.patch(
   "/update",
-  validation.validateProfileUpdate,
+  // validation.validateProfileUpdate,
   controller.updateProfile
 );
 
@@ -22,7 +23,6 @@ router.patch(
   auth,
   controller.updateDiscoveryFilters
 );
-router.get("/discovery-preference", auth, controller.getDiscoveryPreference);
 
 router.patch("/", controllerDis.updatePreference);
 
@@ -94,32 +94,10 @@ router.patch(
 
 router.get("/blocked/all", userAction.getBlockList);
 
-router.patch('/quick-verify/:userId', controller.quickVerifyUser);
-
-// Block/Unblock
 router.post("/block/:id",  userAction.blockUser);
 router.delete("/unblock/:id",  userAction.unblockUser);
 router.get("/block-list",  userAction.getBlockList);
 
 // Report
 router.post("/report/:id", userAction.reportUser);
-
-
 module.exports = router;
-
-// Get APIs for fetch this field data genderPreference, relationshipGoal, distance, interest, age(min,max)
-// router.get("/getdetails", getDetails);
-// router.get("/enums/all", (req, res) => {
-//   const data = {
-//     gender: ENUMS.gender.map(e => `${e.label}${e.emoji}`),
-//     genderPreference: ENUMS.genderPreference.map(e => `${e.label}${e.emoji}`),
-//     religion: ENUMS.religion.map(e => `${e.label}${e.emoji}`),
-//     relationshipGoals: ENUMS.relationshipGoals.map(e => `${e.label}${e.emoji}`),
-//     interests: ENUMS.interests.map(e => `${e.label}${e.emoji}`)
-//   };
-
-//   res.json({ success: true, data });
-// });
-
-
-

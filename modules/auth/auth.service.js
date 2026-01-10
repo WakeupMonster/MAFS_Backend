@@ -288,6 +288,19 @@ async function verifyPhoneOtpUnified(phone, otp) {
       phoneHash: phoneHash // 🔥 NEW USER CASE
     });
   }
+// 🔐 ACCOUNT STATE CHECK (CRITICAL)
+if (user.banDetails?.isBanned) {
+  throw new Error("Your account has been banned. Please contact support.");
+}
+
+if (
+  user.suspensionDetails?.isSuspended &&
+  user.suspensionDetails.suspendUntil > new Date()
+) {
+  throw new Error(
+    `Your account is suspended until ${user.suspensionDetails.suspendUntil.toISOString()}`
+  );
+}
 
   // 5️⃣ Tokens
   const accessToken = utils.generateAccessToken(user);
@@ -301,7 +314,7 @@ async function verifyPhoneOtpUnified(phone, otp) {
     {
       $set: {
         phone: normalizedPhone,
-        phoneHash: phoneHash,   // 🔥 CRITICAL LINE
+        phoneHash: phoneHash,   
         isPhoneVerified: true,
         isNewUser: false,
         lastLoginAt: new Date() 

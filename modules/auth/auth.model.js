@@ -1,5 +1,6 @@
 const mongoose = require("mongoose");
 
+
 const refreshTokenSchema = new mongoose.Schema({
   tokenHash: { type: String, required: true },
   expiresAt: { type: Date, required: true },
@@ -83,7 +84,8 @@ const userSchema = new mongoose.Schema({
   banDetails: {
   isBanned: {
     type: Boolean,
-    default: false
+    default: false,
+    index : true
   },
   reason: {
     type: String,
@@ -91,7 +93,7 @@ const userSchema = new mongoose.Schema({
   },
   bannedBy: {
     type: mongoose.Schema.Types.ObjectId,
-    ref: "Admin",
+    ref: "User",
     default: null
   },
   bannedAt: {
@@ -123,6 +125,36 @@ deletionDetails: {
   scheduledAt: {
     type: Date,
     default: null
+  }
+},
+
+suspensionDetails: {
+  isSuspended: {
+    type: Boolean,
+    default: false,
+    index: true
+  },
+
+  reason: {
+    type: String,
+    default: null
+  },
+
+  suspendedBy: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: "User", // admin
+    default: null
+  },
+
+  suspendedAt: {
+    type: Date,
+    default: null
+  },
+
+  suspendUntil: {
+    type: Date,
+    default: null,
+    index: true
   }
 },
 
