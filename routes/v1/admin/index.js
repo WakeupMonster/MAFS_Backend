@@ -1,20 +1,8 @@
 const express = require("express");
 const router = express.Router();
 
-// Common middlewares
-const auth = require("../../../modules/auth/auth.middleware");
-// const asyncHandler = require("../../common/middlewares/asyncHandler");
-
-// Role middleware (admin only)
-// const { allowAdmin } = require("../../../common/middlewares/allowAdmin.middleware");
-
 // Admin routes
 const giveawayAdminRoutes = require("./giveaway.routes");
-const allowAdminMiddleware = require("../../../common/middlewares/allowAdmin.middleware");
-// future ready
-// const profileAdminRoutes = require("./profile.routes");
-// const kycAdminRoutes = require("./kyc.routes");
-
 /**
  * ADMIN GLOBAL MIDDLEWARE
  * Ye middleware is folder ke sabhi routes par lagega
@@ -28,6 +16,11 @@ const allowAdminMiddleware = require("../../../common/middlewares/allowAdmin.mid
  */
 router.use("/giveaway", giveawayAdminRoutes);
 router.use("/auth", require("../../../modules/Admin/auth/admin.auth.routes"));
+router.use("/cms", require("../../../modules/Admin/cms/content.routes"));
+router.use(
+  "/user-management",
+  require("../../../modules/Admin/usersManagement/user.management.route")
+);
 
 // router.use("/profile", profileAdminRoutes);
 // router.use("/kyc", kycAdminRoutes);

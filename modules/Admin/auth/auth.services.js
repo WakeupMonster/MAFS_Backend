@@ -1,5 +1,8 @@
 const redis = require("../../../common/redis");
-const utils = require("../utils");
+const utils = require("../../auth/auth.utils");
+const {
+  forgotPasswordEmailTemplate,
+} = require("../../../common/utils/forgotPasswordEmailTemplate");
 
 /*------------Optional Services to Authenticate User Email Address For Login/Register---------------*/
 module.exports.EmailOtpServices = async (email) => {
@@ -12,64 +15,66 @@ module.exports.EmailOtpServices = async (email) => {
   // console.log("Email otp: ", otp, "Email RedisKey: ", redisKey);
 
   // Send Email
-  const subject = "Your Email verification code";
-  const text = `Your email verification code from MAFS Dating App : ${otp}`;
-  await utils.sendEmail(email, subject, text);
+  const subject = "Password Reset Verification Code";
+  const html = forgotPasswordEmailTemplate(otp);
+
+  await utils.sendEmail(email, subject, html);
   return { ok: true };
 };
 
-module.exports.verifyEmailOTPServices = async (email, otp) => {
-  const redisKey = `login:${email.trim()}`;
-  const storedOtp = await redis.get(redisKey);
+module.exports.adminResetPassword = async (
+  adminId,
+  currentPassword,
+  newPassword
+) => {
+  try {
+    if (!currentPassword || !newPassword) {
+      throw {
+        statusCode: 400,
+        message: "Current password and new password are required",
+      };
+    }
 
-  if (!storedOtp) throw new Error("OTP expired or not found");
-  if (storedOtp !== otp) throw new Error("Invalid OTP");
+    if (currentPassword === newPassword) {
+      throw {
+        statusCode: 400,
+        message: "New password must be different from current password",
+      };
+    }
 
-  let user = await User.findOne({ email });
-  const isNewUser = !user;
+    const admin = await User.findOne({
+      _id: adminId,
+      role: "ADMIN",
+    }).select("+password +refreshTokens");
 
-  /* ------------------ Check Deactivated Account ------------------ */
-  if (user && user.isActive === false) {
-    const subject = "Your MAFS Account is Inactive";
+    if (!admin) {
+      throw {
+        statusCode: 404,
+        message: "Admin not found",
+      };
+    }
 
-    await utils.sendEmail(user.email, subject, emailTemplate(user));
-    // ❗ MUST throw error
-    throw new Error("Account is deactivated. Please contact support.");
-  }
+    // 🔐 Verify current password
+    const isMatch = await utils.passwordCompared(
+      currentPassword,
+      admin.password
+    );
 
-  if (!user) {
-    user = new User({
-      userName: utils.generateUsername(),
-      email,
-      isEmailVerified: true,
-      accountType: "USER",
-    });
-  } else {
-    user.emailOtp = storedOtp;
-    // user.emailOtpExpires = undefined;
-    user.isEmailVerified = true;
-    user.isNewUser = false;
-  }
+    if (!isMatch) {
+      throw {
+        statusCode: 401,
+        message: "Current password is incorrect",
+      };
+    }
 
-  const accessToken = utils.generateAccessToken(user);
-  const refreshTokenRaw = utils.generateRefreshToken();
-  const refreshHash = utils.hashToken(refreshTokenRaw);
+    // 🔒 Hash & update password
+    admin.password = await utils.passwordHashed(newPassword);
 
-  // Rotation: Keep refresh tokens array manageable
-  if (user.refreshTokens.length >= 5) user.refreshTokens.shift();
+    // 🔁 Invalidate all sessions
+    admin.refreshTokens = [];
 
-  user.refreshTokens.push({
-    tokenHash: refreshHash,
-    expiresAt: new Date(Date.now() + REFRESH_TOKEN_TTL_MS),
-  });
+    await admin.save();
 
-  await user.save();
-  await redis.del(redisKey);
-
-  return {
-    user,
-    accessToken,
-    refreshToken: refreshTokenRaw,
-    isNewUser,
-  };
+    return true;
+  } catch (error) {}
 };

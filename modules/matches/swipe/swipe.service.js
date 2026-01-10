@@ -9,8 +9,7 @@ const mongoose = require("mongoose");
 const userActionsModel = require("./BlockReport/userActions.model");
 const redis = require("../../../config/cache");
 const BlockedContact = require("../../BlockedContact/blockedContacts.model");
-const { checkUserQuota } = require("../../../common/utils/quotaHelper")
-
+const { checkUserQuota } = require("../../../common/utils/quotaHelper");
 
 // let redis;
 // try {
@@ -19,39 +18,53 @@ const { checkUserQuota } = require("../../../common/utils/quotaHelper")
 //   redis = null;
 // }
 
-const SWIPE_QUEUE_PREFIX = "swipe_queue:";     // list of candidate userIds for a user
-const SWIPED_SET_PREFIX = "swiped:";           // set of userIds user has swiped
-const SWIPE_RATE_PREFIX = "swipe_count:";      // rate limit counter
+const SWIPE_QUEUE_PREFIX = "swipe_queue:"; // list of candidate userIds for a user
+const SWIPED_SET_PREFIX = "swiped:"; // set of userIds user has swiped
+const SWIPE_RATE_PREFIX = "swipe_count:"; // rate limit counter
 
 const DEFAULT_FETCH_LIMIT = 20;
 const SWIPE_QUEUE_TTL = 60; // seconds cache lifetime for prefetch
 
 function buildCandidateQuery(myProfile, excludeIds = []) {
   // Gender filter
-  const genderFilter = myProfile.preferences?.genderPreference?.length > 0
-    ? { gender: { $in: myProfile.preferences.genderPreference } }
-    : {};
+  const genderFilter =
+    myProfile.preferences?.genderPreference?.length > 0
+      ? { gender: { $in: myProfile.preferences.genderPreference } }
+      : {};
 
   // Age filter
   const ageMin = myProfile.preferences?.ageRange?.min || 18;
   const ageMax = myProfile.preferences?.ageRange?.max || 60;
   const now = new Date();
-  const maxDob = new Date(now.getFullYear() - ageMin, now.getMonth(), now.getDate());
-  const minDob = new Date(now.getFullYear() - ageMax - 1, now.getMonth(), now.getDate());
+  const maxDob = new Date(
+    now.getFullYear() - ageMin,
+    now.getMonth(),
+    now.getDate()
+  );
+  const minDob = new Date(
+    now.getFullYear() - ageMax - 1,
+    now.getMonth(),
+    now.getDate()
+  );
 
   return {
     isDiscoverable: true,
     isProfileCompleted: true,
     userId: {
       $ne: myProfile.userId,
-      $nin: excludeIds
+      $nin: excludeIds,
     },
     ...genderFilter,
-    dob: { $lte: maxDob, $gte: minDob }
+    dob: { $lte: maxDob, $gte: minDob },
   };
 }
 
-async function prefetchCandidates(userId, myProfile, limit, blockedUserIds = []) {
+async function prefetchCandidates(
+  userId,
+  myProfile,
+  limit,
+  blockedUserIds = []
+) {
   try {
     const queueKey = SWIPE_QUEUE_PREFIX + userId;
 
@@ -64,17 +77,19 @@ async function prefetchCandidates(userId, myProfile, limit, blockedUserIds = [])
         $nearSphere: {
           $geometry: {
             type: "Point",
-            coordinates: myProfile.location.coordinates
+            coordinates: myProfile.location.coordinates,
           },
-          $maxDistance: (myProfile.preferences?.distanceRange || 50) * 1000
-        }
+          $maxDistance: (myProfile.preferences?.distanceRange || 50) * 1000,
+        },
       };
     }
 
     // Find candidates not in redis already
     const existingIds = await redis.lRange(queueKey, 0, -1).catch(() => []);
     if (existingIds.length > 0) {
-      query._id = { $nin: existingIds.map(id => new mongoose.Types.ObjectId(id)) };
+      query._id = {
+        $nin: existingIds.map((id) => new mongoose.Types.ObjectId(id)),
+      };
     }
 
     // Fetch candidates from DB
@@ -86,7 +101,7 @@ async function prefetchCandidates(userId, myProfile, limit, blockedUserIds = [])
     if (candidates.length === 0) return [];
 
     // Add new candidates to Redis queue
-    const newIds = candidates.map(c => c._id.toString());
+    const newIds = candidates.map((c) => c._id.toString());
     if (newIds.length > 0) {
       await redis.lPush(queueKey, newIds);
       await redis.expire(queueKey, SWIPE_QUEUE_TTL);
@@ -94,163 +109,205 @@ async function prefetchCandidates(userId, myProfile, limit, blockedUserIds = [])
 
     return newIds;
   } catch (error) {
-    console.error('Error in prefetchCandidates:', error);
+    console.error("Error in prefetchCandidates:", error);
     return [];
   }
 }
 
 // Helper for Exact Distance (Ensure this is in your file)
 function calculateDistance(lat1, lon1, lat2, lon2) {
-    const R = 6371; 
-    const dLat = (lat2 - lat1) * (Math.PI / 180);
-    const dLon = (lon2 - lon1) * (Math.PI / 180);
-    const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-              Math.cos(lat1 * (Math.PI / 180)) * Math.cos(lat2 * (Math.PI / 180)) *
-              Math.sin(dLon / 2) * Math.sin(dLon / 2);
-    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-    return Math.round(R * c); 
+  const R = 6371;
+  const dLat = (lat2 - lat1) * (Math.PI / 180);
+  const dLon = (lon2 - lon1) * (Math.PI / 180);
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos(lat1 * (Math.PI / 180)) *
+      Math.cos(lat2 * (Math.PI / 180)) *
+      Math.sin(dLon / 2) *
+      Math.sin(dLon / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return Math.round(R * c);
 }
 
-const UserSubscription = require("../../auth/UserSubscription.model")
+const UserSubscription = require("../../auth/UserSubscription.model");
 
 async function getFeedService(userId, limit = 20) {
-    const CACHE_KEY = `feed:${userId.toString()}`;
-    const CACHE_TTL = 300;
+  const CACHE_KEY = `feed:${userId.toString()}`;
+  const CACHE_TTL = 300;
 
-    let sub = await UserSubscription.findOne({ userId });
-    if (!sub) sub = await UserSubscription.create({ userId });
-    
-    // 2. Reset daily counters if needed
-    sub.resetIfNeeded();
+  let sub = await UserSubscription.findOne({ userId });
+  if (!sub) sub = await UserSubscription.create({ userId });
 
-    // 1️⃣ User Profile & Filters Fetch
-    const myProfile = await Profile.findOne({ userId }).lean();
-    if (!myProfile) throw new Error("Profile not found");
+  // 2. Reset daily counters if needed
+  sub.resetIfNeeded();
 
-    if (!myProfile.isDiscoverable || !myProfile.location?.coordinates) {
-        return { success: false, message: "Complete profile & location required", data: [], onboardingRequired: true };
+  // 1️⃣ User Profile & Filters Fetch
+  const myProfile = await Profile.findOne({ userId }).lean();
+  if (!myProfile) throw new Error("Profile not found");
+
+  if (!myProfile.isDiscoverable || !myProfile.location?.coordinates) {
+    return {
+      success: false,
+      message: "Complete profile & location required",
+      data: [],
+      onboardingRequired: true,
+    };
+  }
+
+  // 2️⃣ Redis Cache Check
+  if (redis) {
+    try {
+      const cached = await redis.get(CACHE_KEY);
+      if (cached) console.log("Feed from redis");
+      return {
+        success: true,
+        count: JSON.parse(cached).data?.length,
+        cached: true,
+        data: JSON.parse(cached).data,
+      };
+    } catch (err) {
+      console.error("Redis Error:", err);
     }
+  }
 
-    // 2️⃣ Redis Cache Check
-    if (redis) {
-        try {
-            const cached = await redis.get(CACHE_KEY);
-            if (cached)
-              console.log("Feed from redis")
-              return { success: true, count: JSON.parse(cached).data?.length, cached: true, data: JSON.parse(cached).data };
-        } catch (err) { console.error("Redis Error:", err); }
-    }
+  // 3️⃣ Exclusion Lists (Swipes, Blocks, etc.)
+  const [
+    swipes, // 1. Maine kise like/pass kiya
+    matches, // 2. Mere matches
+    myBlocked, // 3. Maine kise block kiya
+    blockedMe, // 4. Mujhe kisne block kiya
+    myReports, // 5. Maine kise report kiya
+    superlikes,
+  ] = await Promise.all([
+    Swipe.find({
+      swiperId: userId,
+      action: { $in: ["like", "pass"] },
+    }).distinct("targetId"),
+    Match.find({ users: userId }).distinct("users"),
+    // userActionsModel.find({ $or: [{ actorId: userId }, { targetId: userId }] }).distinct("targetId"),
+    Block.find({ blockerId: userId }).distinct("blockedId"),
+    // Jinhone mujhe block kiya
+    Block.find({ blockedId: userId }).distinct("blockerId"),
+    // Maine jinhe report kiya (unhe bhi feed se hata dena chahiye)
+    Report.find({ reporterId: userId }).distinct("reportedId"),
+    Swipe.find({ targetId: userId, action: "superlike" }).distinct("swiperId"),
+  ]);
 
-    // 3️⃣ Exclusion Lists (Swipes, Blocks, etc.)
-    const [swipes,          // 1. Maine kise like/pass kiya
-    matches,         // 2. Mere matches
-    myBlocked,       // 3. Maine kise block kiya
-    blockedMe,       // 4. Mujhe kisne block kiya
-    myReports,       // 5. Maine kise report kiya
-    superlikes] = await Promise.all([
-        Swipe.find({ swiperId: userId, action: { $in: ["like", "pass"] } }).distinct("targetId"),
-        Match.find({ users: userId }).distinct("users"),
-        // userActionsModel.find({ $or: [{ actorId: userId }, { targetId: userId }] }).distinct("targetId"),
-        Block.find({ blockerId: userId }).distinct("blockedId"),
-        // Jinhone mujhe block kiya
-        Block.find({ blockedId: userId }).distinct("blockerId"),
-        // Maine jinhe report kiya (unhe bhi feed se hata dena chahiye)
-        Report.find({ reporterId: userId }).distinct("reportedId"),
-        Swipe.find({ targetId: userId, action: "superlike" }).distinct("swiperId")
-    ]);
+  const blockedPhoneHashes = await BlockedContact.find({
+    userId,
+  }).distinct("blockedPhoneHash");
 
+  let blockedByContactUserIds = [];
 
-    const blockedPhoneHashes = await BlockedContact.find({
-  userId
-}).distinct("blockedPhoneHash");
+  if (blockedPhoneHashes.length) {
+    const users = await User.find({
+      phoneHash: { $in: blockedPhoneHashes },
+    }).distinct("_id");
 
-let blockedByContactUserIds = [];
+    blockedByContactUserIds = users.map((id) => id.toString());
+  }
 
-if (blockedPhoneHashes.length) {
-  const users = await User.find({
-    phoneHash: { $in: blockedPhoneHashes }
-  }).distinct("_id");
+  const superlikeSet = new Set(superlikes.map((id) => id.toString()));
+  console.log(superlikeSet, "superlikeSet");
+  const excludeIds = [
+    ...new Set([
+      ...swipes,
+      ...matches,
+      ...myBlocked,
+      ...blockedMe,
+      ...myReports,
+      ...blockedByContactUserIds,
+      userId,
+    ]),
+  ].map((id) => id.toString());
 
-  blockedByContactUserIds = users.map(id => id.toString());
-}
+  // 4️⃣ Strict Query Building (Discovery Filters)
+  const discovery = myProfile.discovery || {};
+  const query = {
+    userId: { $nin: excludeIds },
+    isDiscoverable: true,
+    isMandatoryComplete: true,
+  };
 
+  // Gender & Age Filters
+  if (discovery.showMeGender?.length)
+    query.gender = { $in: discovery.showMeGender };
+  if (discovery.ageRange) {
+    const now = new Date();
+    query.dob = {
+      $gte: new Date(now.getFullYear() - (discovery.ageRange.max || 50), 0, 1),
+      $lte: new Date(
+        now.getFullYear() - (discovery.ageRange.min || 18),
+        11,
+        31
+      ),
+    };
+  }
 
-    const superlikeSet = new Set(superlikes.map(id => id.toString()));
-    console.log(superlikeSet,"superlikeSet")
-    const excludeIds = [...new Set([...swipes, 
-        ...matches, 
-        ...myBlocked, 
-        ...blockedMe, 
-        ...myReports,...blockedByContactUserIds, userId])].map(id => id.toString());
+  // HARD FILTER: Has a Bio (Figma Requirement)
+  if (discovery.hasBio) {
+    query.about = { $exists: true, $ne: "" };
+  }
 
-    // 4️⃣ Strict Query Building (Discovery Filters)
-    const discovery = myProfile.discovery || {};
-    const query = { userId: { $nin: excludeIds }, isDiscoverable: true, isMandatoryComplete: true };
-    
-    // Gender & Age Filters
-    if (discovery.showMeGender?.length) query.gender = { $in: discovery.showMeGender };
-    if (discovery.ageRange) {
-        const now = new Date();
-        query.dob = {
-            $gte: new Date(now.getFullYear() - (discovery.ageRange.max || 50), 0, 1),
-            $lte: new Date(now.getFullYear() - (discovery.ageRange.min || 18), 11, 31)
-        };
-    }
+  // Location Radius
+  if (myProfile.location?.coordinates) {
+    query.location = {
+      $near: {
+        $geometry: {
+          type: "Point",
+          coordinates: myProfile.location.coordinates,
+        },
+        $maxDistance: (discovery.distanceRange || 50) * 1000,
+      },
+    };
+  }
 
-    // HARD FILTER: Has a Bio (Figma Requirement)
-    if (discovery.hasBio) {
-        query.about = { $exists: true, $ne: "" };
-    }
+  // 5️⃣ DB Fetch
+  const profiles = await Profile.find(query).limit(50).lean();
 
-    // Location Radius
-    if (myProfile.location?.coordinates) {
-        query.location = {
-            $near: {
-                $geometry: { type: "Point", coordinates: myProfile.location.coordinates },
-                $maxDistance: (discovery.distanceRange || 50) * 1000
-            }
-        };
-    }
-
-    // 5️⃣ DB Fetch
-    const profiles = await Profile.find(query).limit(50).lean();
-
-    // 6️⃣ Figma Scoring Engine
-    const myPreferredInterests = discovery.preferredInterests || [];
-    const myAdvancedFilters = discovery.advancedFilters || {};
-    // Overwrite protection: Agar filterRelationshipGoal hai toh wo lo, warna profile goal
-    const activeSearchGoal = discovery.filterRelationshipGoal || discovery.relationshipGoal;
-const transformedProfiles = profiles.map((profile) => {
+  // 6️⃣ Figma Scoring Engine
+  const myPreferredInterests = discovery.preferredInterests || [];
+  const myAdvancedFilters = discovery.advancedFilters || {};
+  // Overwrite protection: Agar filterRelationshipGoal hai toh wo lo, warna profile goal
+  const activeSearchGoal =
+    discovery.filterRelationshipGoal || discovery.relationshipGoal;
+  const transformedProfiles = profiles.map((profile) => {
     const targetAttr = profile.attributes || {};
     const targetInterests = targetAttr.interests || profile.interests || [];
     const isSuperliked = superlikeSet.has(profile.userId.toString());
-    console.log(isSuperliked,"has in set")
+    console.log(isSuperliked, "has in set");
     // 1️⃣ Match Score Calculation (Score Logic Same Rakhenge)
     let score = isSuperliked ? 1000 : 0;
-    const common = targetInterests.filter(i => myPreferredInterests.includes(i));
-    score += (common.length * 25);
-    
+    const common = targetInterests.filter((i) =>
+      myPreferredInterests.includes(i)
+    );
+    score += common.length * 25;
+
     const targetGoal = profile.discovery?.relationshipGoal;
     if (targetGoal === activeSearchGoal) score += 40;
 
-const matchedTraits = [];
+    const matchedTraits = [];
     // Advanced Traits Match (+15 points each)
-const traits = ['smoking', 'drinking', 'zodiac', 'pets', 'workout'];
-traits.forEach(trait => {
-    if (myAdvancedFilters[trait] && targetAttr[trait] === myAdvancedFilters[trait]) {
+    const traits = ["smoking", "drinking", "zodiac", "pets", "workout"];
+    traits.forEach((trait) => {
+      if (
+        myAdvancedFilters[trait] &&
+        targetAttr[trait] === myAdvancedFilters[trait]
+      ) {
         score += 15;
         matchedTraits.push(targetAttr[trait]);
-    }
-});
-    
+      }
+    });
 
     // 2️⃣ Distance calculation
     let distanceKm = 0;
     if (myProfile.location?.coordinates && profile.location?.coordinates) {
-        distanceKm = calculateDistance(
-            myProfile.location.coordinates[1], myProfile.location.coordinates[0], 
-            profile.location.coordinates[1], profile.location.coordinates[0]
-        );
+      distanceKm = calculateDistance(
+        myProfile.location.coordinates[1],
+        myProfile.location.coordinates[0],
+        profile.location.coordinates[1],
+        profile.location.coordinates[0]
+      );
     }
 
     // 3️⃣ Frontend "Hand-holding" logic (Card Highlights)
@@ -260,10 +317,6 @@ traits.forEach(trait => {
     if (targetGoal) cardHighlights.push(`Looking for: ${targetGoal}`);
     if (distanceKm <= 5) cardHighlights.push(`Very close to you!`);
     if (score > 75) cardHighlights.push(`${score}% Compatible`);
-
-
-
-
 
     // const dynamicHighlights = [];
 
@@ -330,70 +383,111 @@ traits.forEach(trait => {
     //         description: "Just joined the community"
     //     });
     //   }
-const dynamicHighlights = [];
+    const dynamicHighlights = [];
 
-// --- 1. Priority Matches (Real Data) ---
-if (common.length > 0) {
-    dynamicHighlights.push({ type: "INTEREST_MATCH", icon: "🔥", title: "Common Vibe", description: `You both love ${common[0]}` });
-}
-if (targetGoal === activeSearchGoal) {
-    dynamicHighlights.push({ type: "GOAL_MATCH", icon: "🎯", title: "Same Intent", description: `Both looking for ${targetGoal}` });
-}
-if (matchedTraits.length > 0) {
-    dynamicHighlights.push({ type: "TRAIT_MATCH", icon: "✅", title: "Lifestyle", description: `Matches on ${matchedTraits[0]} habits` });
-}
-
-// --- 2. Essential Info (Hamesha hoti hai) ---
-dynamicHighlights.push({ type: "LOCATION", icon: "📍", title: "Nearby", description: distanceKm <= 1 ? "In your neighborhood" : `${distanceKm} km away` });
-
-if (profile.verification?.status === "approved") {
-    dynamicHighlights.push({ type: "VERIFIED", icon: "🛡️", title: "Verified", description: "Authenticity checked by MAFS" });
-}
-
-// --- 3. Fallbacks (Jab 6 cards pure karne ho) ---
-if (dynamicHighlights.length < 6) {
-    // Fallback: Bio Card
-    if (profile.about && profile.about.length > 20) {
-        dynamicHighlights.push({ type: "BIO_PREVIEW", icon: "✍️", title: "About Me", description: profile.about.substring(0, 40) + "..." });
+    // --- 1. Priority Matches (Real Data) ---
+    if (common.length > 0) {
+      dynamicHighlights.push({
+        type: "INTEREST_MATCH",
+        icon: "🔥",
+        title: "Common Vibe",
+        description: `You both love ${common[0]}`,
+      });
     }
-    
-    // Fallback: Freshness Card
-    dynamicHighlights.push({ type: "ACTIVITY", icon: "⚡", title: "Active Now", description: "This user is looking for a match!" });
-    
-    // Fallback: Quality Card
-    if (profile.photos.length > 3) {
-        dynamicHighlights.push({ type: "PHOTO_QUALITY", icon: "📸", title: "Photo Gallery", description: "Check out more moments" });
+    if (targetGoal === activeSearchGoal) {
+      dynamicHighlights.push({
+        type: "GOAL_MATCH",
+        icon: "🎯",
+        title: "Same Intent",
+        description: `Both looking for ${targetGoal}`,
+      });
     }
-}
-    const likeStatus = checkUserQuota(sub, 'like');
-    const superStatus = checkUserQuota(sub, 'superlike');
+    if (matchedTraits.length > 0) {
+      dynamicHighlights.push({
+        type: "TRAIT_MATCH",
+        icon: "✅",
+        title: "Lifestyle",
+        description: `Matches on ${matchedTraits[0]} habits`,
+      });
+    }
+
+    // --- 2. Essential Info (Hamesha hoti hai) ---
+    dynamicHighlights.push({
+      type: "LOCATION",
+      icon: "📍",
+      title: "Nearby",
+      description:
+        distanceKm <= 1 ? "In your neighborhood" : `${distanceKm} km away`,
+    });
+
+    if (profile.verification?.status === "approved") {
+      dynamicHighlights.push({
+        type: "VERIFIED",
+        icon: "🛡️",
+        title: "Verified",
+        description: "Authenticity checked by MAFS",
+      });
+    }
+
+    // --- 3. Fallbacks (Jab 6 cards pure karne ho) ---
+    if (dynamicHighlights.length < 6) {
+      // Fallback: Bio Card
+      if (profile.about && profile.about.length > 20) {
+        dynamicHighlights.push({
+          type: "BIO_PREVIEW",
+          icon: "✍️",
+          title: "About Me",
+          description: profile.about.substring(0, 40) + "...",
+        });
+      }
+
+      // Fallback: Freshness Card
+      dynamicHighlights.push({
+        type: "ACTIVITY",
+        icon: "⚡",
+        title: "Active Now",
+        description: "This user is looking for a match!",
+      });
+
+      // Fallback: Quality Card
+      if (profile.photos.length > 3) {
+        dynamicHighlights.push({
+          type: "PHOTO_QUALITY",
+          icon: "📸",
+          title: "Photo Gallery",
+          description: "Check out more moments",
+        });
+      }
+    }
+    const likeStatus = checkUserQuota(sub, "like");
+    const superStatus = checkUserQuota(sub, "superlike");
 
     // newreturn
     return {
-    // --- Core Identifiers ---
-    userId: profile.userId, 
+      // --- Core Identifiers ---
+      userId: profile.userId,
 
-    // --- 1. PROFILE (Nested Group) ---
-    profile: {
+      // --- 1. PROFILE (Nested Group) ---
+      profile: {
         nickname: profile.nickname || "User",
         age: calculateAge(profile.dob),
         bio: profile.about || "",
         city: profile.location?.city || "",
         distanceText: distanceKm <= 1 ? "1 km away" : `${distanceKm} km away`,
-        isVerified: profile.verification?.status === "approved"
-    },
+        isVerified: profile.verification?.status === "approved",
+      },
 
-    // --- 2. IMAGES (Formatted as Objects) ---
-    images: (profile.photos || [])
+      // --- 2. IMAGES (Formatted as Objects) ---
+      images: (profile.photos || [])
         .sort((a, b) => a.order - b.order)
-        .map(p => ({ url: p.url })),
+        .map((p) => ({ url: p.url })),
 
-    // --- 3. GOALS ---
-    relationshipGoal: targetGoal || "Not specified",
+      // --- 3. GOALS ---
+      relationshipGoal: targetGoal || "Not specified",
 
-    // --- 4. ATTRIBUTES (With Null Fallback) ---
-    // Manager ne kaha hai "" ki jagah null use karo
-    attributes: {
+      // --- 4. ATTRIBUTES (With Null Fallback) ---
+      // Manager ne kaha hai "" ki jagah null use karo
+      attributes: {
         zodiac: targetAttr.zodiac || null,
         education: targetAttr.education || null,
         vaccineStatus: targetAttr.vaccineStatus || null,
@@ -408,22 +502,25 @@ if (dynamicHighlights.length < 6) {
         workout: targetAttr.workout || null,
         dietary: targetAttr.dietary || null,
         socialMedia: targetAttr.socialMedia || null,
-        sleeping: targetAttr.sleeping || null
-    },
+        sleeping: targetAttr.sleeping || null,
+      },
 
-    // --- 5. CONTEXT (Match Details) ---
-    context: {
+      // --- 5. CONTEXT (Match Details) ---
+      context: {
         matchScore: Math.min(score, 100),
-        compatibilityLabel: score > 75 ? "Excellent Match" : (score > 40 ? "Great Match" : "Good Match"),
+        compatibilityLabel:
+          score > 75
+            ? "Excellent Match"
+            : score > 40
+            ? "Great Match"
+            : "Good Match",
         isSuperLikeSender: isSuperliked, // Blue border logic for UI
-        commonInterests: common
-    },
+        commonInterests: common,
+      },
 
-    // --- 6. DYNAMIC HIGHLIGHTS (UI Cards) ---
-    dynamicHighlights: dynamicHighlights.slice(0, 6)
-};
-
-    
+      // --- 6. DYNAMIC HIGHLIGHTS (UI Cards) ---
+      dynamicHighlights: dynamicHighlights.slice(0, 6),
+    };
 
     // return {
     //     // --- Core Info ---
@@ -433,7 +530,7 @@ if (dynamicHighlights.length < 6) {
     //     age: calculateAge(profile.dob),
     //     bio: profile.about || profile.bio || "",
     //     images: (profile.photos || []).sort((a,b) => a.order - b.order).map(p => p.url),
-        
+
     //     // --- Discovery/Matching Info ---
     //     relationshipGoal: targetGoal || "Not specified",
     //     interests: targetInterests,
@@ -447,7 +544,7 @@ if (dynamicHighlights.length < 6) {
     //         communicationStyle: targetAttr.communicationStyle || "",
     //         loveStyle: targetAttr.loveStyle || "",
     //         bloodType: targetAttr.bloodType || "",
-            
+
     //         // Lifestyle
     //         pets: targetAttr.pets || "",
     //         drinking: targetAttr.drinking || "",
@@ -461,15 +558,15 @@ if (dynamicHighlights.length < 6) {
     //     commonInterests: common,
     //     hasCommonInterests: common.length > 0,
     //     matchScoreTotal: score,
-        
+
     //     // --- Score & Labeling ---
     //     matchScore: Math.min(score, 100), // Score 100 se upar na dikhe UI par
     //     compatibilityLabel: score > 75 ? "Excellent Match" : (score > 40 ? "Great Match" : "Good Match"),
-        
+
     //     // --- Status Flags ---
     //     isSuperKeen: isSuperliked,
     //     isVerified: profile.verification?.status === "approved",
-        
+
     //     // --- Frontend UI Helpers ---
     //     distanceText: distanceKm <= 1 ? "1 km away" : `${distanceKm} km away`,
     //     // location: {
@@ -478,7 +575,7 @@ if (dynamicHighlights.length < 6) {
     //     // },
     //     city: profile.location?.city || "",
     //     // Frontend ko har card ke liye ready-made text mil gaya
-    //     displayHighlight: cardHighlights[0] || "New for you", 
+    //     displayHighlight: cardHighlights[0] || "New for you",
     //     allHighlights: cardHighlights,
     //     dynamicHighlights: dynamicHighlights.slice(0, 6),
     //     userQuota: {
@@ -495,98 +592,91 @@ if (dynamicHighlights.length < 6) {
     //         isPremium: sub.planId !== 'free'
     //     }
     // };
-});
-    // const transformedProfiles = profiles.map((profile) => {
-    //     const targetAttr = profile.attributes || {};
-    //     const targetInterests = targetAttr.interests || profile.interests || [];
-    //     const isSuperliked = superlikeSet.has(profile.userId.toString());
-        
-    //     // Match Score Calculation
-    //     let score = isSuperliked ? 1000 : 0;
+  });
+  // const transformedProfiles = profiles.map((profile) => {
+  //     const targetAttr = profile.attributes || {};
+  //     const targetInterests = targetAttr.interests || profile.interests || [];
+  //     const isSuperliked = superlikeSet.has(profile.userId.toString());
 
-    //     // Interest Match (+25 points each)
-    //     const common = targetInterests.filter(i => myPreferredInterests.includes(i));
-    //     score += (common.length * 25);
+  //     // Match Score Calculation
+  //     let score = isSuperliked ? 1000 : 0;
 
-    //     // Relationship Goal Match (+40 points)
-    //     if (profile.discovery?.relationshipGoal === activeSearchGoal) {
-    //         score += 40;
-    //     }
+  //     // Interest Match (+25 points each)
+  //     const common = targetInterests.filter(i => myPreferredInterests.includes(i));
+  //     score += (common.length * 25);
 
-    //     // Advanced Traits Match (+15 points each)
-    //     const traits = ['smoking', 'drinking', 'zodiac', 'pets', 'workout'];
-    //     traits.forEach(trait => {
-    //         if (myAdvancedFilters[trait] && targetAttr[trait] === myAdvancedFilters[trait]) {
-    //             score += 15;
-    //         }
-    //     });
+  //     // Relationship Goal Match (+40 points)
+  //     if (profile.discovery?.relationshipGoal === activeSearchGoal) {
+  //         score += 40;
+  //     }
 
-    //     // Exact Distance Calculation
-    //     let distanceKm = 0;
-    //     if (myProfile.location?.coordinates && profile.location?.coordinates) {
-    //         distanceKm = calculateDistance(
-    //             myProfile.location.coordinates[1], myProfile.location.coordinates[0], 
-    //             profile.location.coordinates[1], profile.location.coordinates[0]
-    //         );
-    //     }
+  //     // Advanced Traits Match (+15 points each)
+  //     const traits = ['smoking', 'drinking', 'zodiac', 'pets', 'workout'];
+  //     traits.forEach(trait => {
+  //         if (myAdvancedFilters[trait] && targetAttr[trait] === myAdvancedFilters[trait]) {
+  //             score += 15;
+  //         }
+  //     });
 
-    //     // --- Frontend Friendly Response (Figma exact match) ---
-    //     return {
-    //         id: profile.userId,
-    //         nickname: profile.nickname || "User",
-    //         displayName: `${profile.nickname || "User"}, ${calculateAge(profile.dob)}`,
-    //         dob : profile.dob.toISOString().split("T")[0] || "",
-    //         age: calculateAge(profile.dob),
-    //         city: profile.location?.city || "Indore",
-    //         bio: profile.about || profile.bio || "",
-    //         images: (profile.photos || []).sort((a,b) => a.order - b.order).map(p => p.url),
-    //         interests: targetInterests,
-    //         distanceText: distanceKm <= 1 ? "1 km away" : `${distanceKm} km away`,
-    //         isSuperKeen: isSuperliked,
-    //         intentMessage: isSuperliked ? "They chose you with intent!" : "",
-    //         relationshipGoal: profile.discovery?.relationshipGoal || "",
-    //         commonInterests: common,
-    //         hasCommonInterests: common.length > 0,
-    //         matchScore: score,
-    //         compatibilityLabel: score > 75 ? "Excellent Match" : (score > 40 ? "Great Match" : "Good Match"),
-          
-    //             // distance: distanceKm
-            
-    //     };
-    // });
+  //     // Exact Distance Calculation
+  //     let distanceKm = 0;
+  //     if (myProfile.location?.coordinates && profile.location?.coordinates) {
+  //         distanceKm = calculateDistance(
+  //             myProfile.location.coordinates[1], myProfile.location.coordinates[0],
+  //             profile.location.coordinates[1], profile.location.coordinates[0]
+  //         );
+  //     }
 
-    // Sort by Match Score (Highest first)
-    transformedProfiles.sort((a, b) => b.matchScore - a.matchScore);
-    const finalResult = transformedProfiles.slice(0, limit);
+  //     // --- Frontend Friendly Response (Figma exact match) ---
+  //     return {
+  //         id: profile.userId,
+  //         nickname: profile.nickname || "User",
+  //         displayName: `${profile.nickname || "User"}, ${calculateAge(profile.dob)}`,
+  //         dob : profile.dob.toISOString().split("T")[0] || "",
+  //         age: calculateAge(profile.dob),
+  //         city: profile.location?.city || "Indore",
+  //         bio: profile.about || profile.bio || "",
+  //         images: (profile.photos || []).sort((a,b) => a.order - b.order).map(p => p.url),
+  //         interests: targetInterests,
+  //         distanceText: distanceKm <= 1 ? "1 km away" : `${distanceKm} km away`,
+  //         isSuperKeen: isSuperliked,
+  //         intentMessage: isSuperliked ? "They chose you with intent!" : "",
+  //         relationshipGoal: profile.discovery?.relationshipGoal || "",
+  //         commonInterests: common,
+  //         hasCommonInterests: common.length > 0,
+  //         matchScore: score,
+  //         compatibilityLabel: score > 75 ? "Excellent Match" : (score > 40 ? "Great Match" : "Good Match"),
 
-    // 7️⃣ Cache Response
-    if (redis && finalResult.length) {
-        await redis.set(CACHE_KEY, JSON.stringify({ data: finalResult }), 'EX', CACHE_TTL);
-    }
+  //             // distance: distanceKm
 
-    return { success: true, count: finalResult.length, data: finalResult };
+  //     };
+  // });
+
+  // Sort by Match Score (Highest first)
+  transformedProfiles.sort((a, b) => b.matchScore - a.matchScore);
+  const finalResult = transformedProfiles.slice(0, limit);
+
+  // 7️⃣ Cache Response
+  if (redis && finalResult.length) {
+    await redis.set(
+      CACHE_KEY,
+      JSON.stringify({ data: finalResult }),
+      "EX",
+      CACHE_TTL
+    );
+  }
+
+  return { success: true, count: finalResult.length, data: finalResult };
 }
 
 function calculateAge(dob) {
-    if (!dob) return 0;
-    const diff = Date.now() - new Date(dob).getTime();
-    return Math.floor(diff / 31557600000); // Years in ms
+  if (!dob) return 0;
+  const diff = Date.now() - new Date(dob).getTime();
+  return Math.floor(diff / 31557600000); // Years in ms
 }
 
-
-
-
-
-
-
-
-
-
-
-
-
 // targetprofile   ---   after match
-const { addNotificationJob } = require('../../../queues/notification.queue');
+const { addNotificationJob } = require("../../../queues/notification.queue");
 async function doSwipe(swiperId, targetId, action) {
   // 1. Initial Self-Swipe Check
   if (swiperId.toString() === targetId.toString()) {
@@ -594,17 +684,20 @@ async function doSwipe(swiperId, targetId, action) {
   }
 
   const session = await mongoose.startSession();
-  
+
   try {
     let result = { success: true, match: false, message: "Swipe processed" };
 
     // Sab kuch ek hi transaction block mein
     await session.withTransaction(async () => {
-      
       // 2. Fetch Subscription (Session ke saath)
-      let sub = await UserSubscription.findOne({ userId: swiperId }).session(session);
+      let sub = await UserSubscription.findOne({ userId: swiperId }).session(
+        session
+      );
       if (!sub) {
-        [sub] = await UserSubscription.create([{ userId: swiperId }], { session });
+        [sub] = await UserSubscription.create([{ userId: swiperId }], {
+          session,
+        });
       }
 
       // 3. Reset daily counters if it's a new day
@@ -614,27 +707,41 @@ async function doSwipe(swiperId, targetId, action) {
       const quota = checkUserQuota(sub, action);
       if (!quota.allowed) {
         const now = new Date();
-        const tonight = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
-        
+        const tonight = new Date(
+          now.getFullYear(),
+          now.getMonth(),
+          now.getDate() + 1
+        );
+
         // Return structured error for Frontend
-        result = { 
-            success: false, 
-            error: "LIMIT_REACHED",
-            errorCode: action === 'like' ? "EXHAUSTED_DAILY_LIKE" : "EXHAUSTED_DAILY_SUPERLIKE",
-            message: action === 'like' ? "Daily likes limit reached!" : "No Superlikes left for today!",
-            data: {
-                quotaStatus: {
-                    used: action === 'like' ? sub.dailyLikesUsed : sub.dailySuperlikesUsed,
-                    limit: action === 'like' ? 30 : 3,
-                    remaining: 0,
-                    resetAt: tonight
-                },
-                upsell: {
-                    title: "Don't stop swiping!",
-                    description: "Upgrade now to get unlimited likes and more superlikes.",
-                    action: "SHOW_PREMIUM_MODAL"
-                }
-            }
+        result = {
+          success: false,
+          error: "LIMIT_REACHED",
+          errorCode:
+            action === "like"
+              ? "EXHAUSTED_DAILY_LIKE"
+              : "EXHAUSTED_DAILY_SUPERLIKE",
+          message:
+            action === "like"
+              ? "Daily likes limit reached!"
+              : "No Superlikes left for today!",
+          data: {
+            quotaStatus: {
+              used:
+                action === "like"
+                  ? sub.dailyLikesUsed
+                  : sub.dailySuperlikesUsed,
+              limit: action === "like" ? 30 : 3,
+              remaining: 0,
+              resetAt: tonight,
+            },
+            upsell: {
+              title: "Don't stop swiping!",
+              description:
+                "Upgrade now to get unlimited likes and more superlikes.",
+              action: "SHOW_PREMIUM_MODAL",
+            },
+          },
         };
         // Yahan se bahar nikal jao (Transaction abort nahi hogi, bas update nahi hoga)
         return;
@@ -646,101 +753,127 @@ async function doSwipe(swiperId, targetId, action) {
         Block.findOne({
           $or: [
             { blockerId: swiperId, blockedId: targetId },
-            { blockerId: targetId, blockedId: swiperId }
-          ]
-        }).session(session)
+            { blockerId: targetId, blockedId: swiperId },
+          ],
+        }).session(session),
       ]);
 
-      if (!targetProfile) throw new Error('Target profile not found');
-      if (blockExists) throw new Error("Action not allowed. User interaction is blocked.");
+      if (!targetProfile) throw new Error("Target profile not found");
+      if (blockExists)
+        throw new Error("Action not allowed. User interaction is blocked.");
 
       // 6. Avoid Duplicates
-      const existingSwipe = await Swipe.findOne({ swiperId, targetId }).session(session);
+      const existingSwipe = await Swipe.findOne({ swiperId, targetId }).session(
+        session
+      );
       if (existingSwipe) {
-        result = { success: true, already: true, message: "Already swiped", match: false };
+        result = {
+          success: true,
+          already: true,
+          message: "Already swiped",
+          match: false,
+        };
         return;
       }
 
       // 7. 🔥 UPDATE COUNTER & SAVE (Ye line DB update karegi)
-      if (action === 'like') {
+      if (action === "like") {
         sub.dailyLikesUsed += 1;
-      } else if (action === 'superlike') {
+      } else if (action === "superlike") {
         sub.dailySuperlikesUsed += 1;
       }
       await sub.save({ session }); // Ab ye save hoga because of clean session
 
       // 8. Create Swipe Record
-      await Swipe.create([{ swiperId, targetId, action, createdAt: new Date() }], { session });
+      await Swipe.create(
+        [{ swiperId, targetId, action, createdAt: new Date() }],
+        { session }
+      );
 
       // 9. Match Logic
       let mutualSwipe = null;
-      if (['like', 'superlike'].includes(action)) {
+      if (["like", "superlike"].includes(action)) {
         const mutualSwipe = await Swipe.findOne({
-          swiperId: targetId, 
-          targetId: swiperId, 
-          action: { $in: ['like', 'superlike'] }
+          swiperId: targetId,
+          targetId: swiperId,
+          action: { $in: ["like", "superlike"] },
         }).session(session);
 
         if (mutualSwipe) {
-          const [match] = await Match.create([{
-            users: [swiperId, targetId], 
-            status: 'matched', 
-            lastActivity: new Date()
-          }], { session });
+          const [match] = await Match.create(
+            [
+              {
+                users: [swiperId, targetId],
+                status: "matched",
+                lastActivity: new Date(),
+              },
+            ],
+            { session }
+          );
 
-          const myProfile = await Profile.findOne({ userId: swiperId }).session(session);
+          const myProfile = await Profile.findOne({ userId: swiperId }).session(
+            session
+          );
 
-  result = { 
-    success: true, 
-    message: "It's a match!",
-    data: {
-      isMatch: true,
-      matchDetails: {
-        matchId: match._id,
-        chatId: match._id, // Room ID for socket/chat
-        user: {
-          userId: targetId,
-          nickname: targetProfile.nickname,
-          photoUrl: targetProfile.photos?.[0]?.url || null
-        },
-        myPhotoUrl: myProfile?.photos?.[0]?.url || null
-      },
-      // 🔥 Wallet Section (Calculated from updated 'sub')
-      wallet: {
-        likesRemaining: Math.max(0, 30 - sub.dailyLikesUsed),
-        superLikesRemaining: Math.max(0, 2 - sub.dailySuperlikesUsed) + (sub.superlikeBalance || 0),
-        rewindsRemaining: sub.planId !== 'free' ? 999 : 0 
-      }
-    }
-  };
-  addNotificationJob('NEW_MATCH', { userId1: swiperId, userId2: targetId });
-  } else {
-        // 🔥 CASE 2: NO MATCH (Manager's exact request)
-        // Ye response dikhega jab user swipe karega par samne wale ne abhi like nahi kiya
-        result = {
-          success: true,
-          data: {
-            isMatch: false,
-            matchDetails: null,
-            wallet: { 
-              likesRemaining: Math.max(0, 30 - sub.dailyLikesUsed), 
-              superLikesRemaining: Math.max(0, 3 - sub.dailySuperlikesUsed) + (sub.superlikeBalance || 0), 
-              rewindsRemaining: sub.planId !== 'free' ? 5 : 0 
-            }
-            
+          result = {
+            success: true,
+            message: "It's a match!",
+            data: {
+              isMatch: true,
+              matchDetails: {
+                matchId: match._id,
+                chatId: match._id, // Room ID for socket/chat
+                user: {
+                  userId: targetId,
+                  nickname: targetProfile.nickname,
+                  photoUrl: targetProfile.photos?.[0]?.url || null,
+                },
+                myPhotoUrl: myProfile?.photos?.[0]?.url || null,
+              },
+              // 🔥 Wallet Section (Calculated from updated 'sub')
+              wallet: {
+                likesRemaining: Math.max(0, 30 - sub.dailyLikesUsed),
+                superLikesRemaining:
+                  Math.max(0, 2 - sub.dailySuperlikesUsed) +
+                  (sub.superlikeBalance || 0),
+                rewindsRemaining: sub.planId !== "free" ? 999 : 0,
+              },
+            },
+          };
+          addNotificationJob("NEW_MATCH", {
+            userId1: swiperId,
+            userId2: targetId,
+          });
+        } else {
+          // 🔥 CASE 2: NO MATCH (Manager's exact request)
+          // Ye response dikhega jab user swipe karega par samne wale ne abhi like nahi kiya
+          result = {
+            success: true,
+            data: {
+              isMatch: false,
+              matchDetails: null,
+              wallet: {
+                likesRemaining: Math.max(0, 30 - sub.dailyLikesUsed),
+                superLikesRemaining:
+                  Math.max(0, 3 - sub.dailySuperlikesUsed) +
+                  (sub.superlikeBalance || 0),
+                rewindsRemaining: sub.planId !== "free" ? 5 : 0,
+              },
+            },
+          };
+          if (action === "like" || action === "superlike") {
+            addNotificationJob("NEW_LIKE", {
+              senderId: swiperId,
+              receiverId: targetId,
+            });
           }
-          
-        }
-        if (action === 'like' || action === 'superlike') {
-            addNotificationJob('NEW_LIKE', { senderId: swiperId, receiverId: targetId });
-          }
 
-          // result = { 
-          //   success: true, 
-          //   match: true, 
-          //   matchId: match._id, 
+          // result = {
+          //   success: true,
+          //   match: true,
+          //   matchId: match._id,
           //   message: "It's a match!",
-          //   partnerData: { 
+          //   partnerData: {
           //       name: targetProfile.nickname,
           //       image: targetProfile.photos?.[0]?.url
           //   }
@@ -750,28 +883,24 @@ async function doSwipe(swiperId, targetId, action) {
 
       // 10. Cache Clearing (Transaction ke andar ya bahar)
       if (redis) {
-          await redis.del(`feed:${swiperId.toString()}`);
-          if (result.match) {
-            await Promise.all([
-              redis.del(`matches:${swiperId}`),
-              redis.del(`matches:${targetId}`)
-            ]);
-          }
+        await redis.del(`feed:${swiperId.toString()}`);
+        if (result.match) {
+          await Promise.all([
+            redis.del(`matches:${swiperId}`),
+            redis.del(`matches:${targetId}`),
+          ]);
+        }
       }
     });
 
     return result;
-
   } catch (error) {
-    console.error('Swipe error:', error);
+    console.error("Swipe error:", error);
     throw error;
   } finally {
     await session.endSession();
   }
 }
-
-
-
 
 // async function getFeedService(userId, limit = 20) {
 //   const CACHE_KEY = `feed:${userId.toString()}`;
@@ -810,7 +939,7 @@ async function doSwipe(swiperId, targetId, action) {
 //   if (!myProfile) throw new Error("Profile not found");
 
 //   // ================================
-//   // STEP 3️⃣: Superlikes nikalo 
+//   // STEP 3️⃣: Superlikes nikalo
 //   // ================================
 //   const superlikes = await Swipe.find({
 //     targetId: userId,
@@ -909,8 +1038,6 @@ async function doSwipe(swiperId, targetId, action) {
 //       }
 //     };
 //   }
-
-  
 
 //   // ================================
 //   // STEP 7️⃣: DB se profiles lao
@@ -1020,7 +1147,6 @@ async function doSwipe(swiperId, targetId, action) {
 //   }
 // }
 
-
 // // Helper function to calculate distance between two points (in km)
 // function calculateDistance(coord1, coord2) {
 //   const [lon1, lat1] = coord1;
@@ -1029,7 +1155,7 @@ async function doSwipe(swiperId, targetId, action) {
 //   const R = 6371; // Earth's radius in km
 //   const dLat = (lat2 - lat1) * Math.PI / 180;
 //   const dLon = (lon2 - lon1) * Math.PI / 180;
-//   const a = 
+//   const a =
 //     Math.sin(dLat / 2) * Math.sin(dLat / 2) +
 //     Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLon / 2) * Math.sin(dLon / 2);
 //   const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
@@ -1074,12 +1200,12 @@ async function doSwipe(swiperId, targetId, action) {
 //   ])].filter(id => !superlikeSet.has(id));
 
 //   const query = { userId: { $nin: excludeIds }, isDiscoverable: true };
-  
+
 //   // Safe Preferences Check
 //   const prefs = myProfile.preferences || {};
-  
+
 //   if (prefs.genderPreference?.length) query.gender = { $in: prefs.genderPreference };
-  
+
 //   if (prefs.ageRange) {
 //     const now = new Date();
 //     query.dob = {
@@ -1116,7 +1242,7 @@ async function doSwipe(swiperId, targetId, action) {
 //   const transformedProfiles = profiles.map((profile, index) => {
 //     const isSuperliked = superlikeSet.has(profile.userId.toString());
 //     const isBoosted = !!boostedResults[index];
-    
+
 //     let score = isSuperliked ? 1000 : 0;
 //     if (isBoosted) score += 200;
 //     if (interestSet.size && profile.interests?.length) {
@@ -1133,7 +1259,7 @@ async function doSwipe(swiperId, targetId, action) {
 //     }
 
 //     // ✅ FIXED: Safe Distance Check
-//     // let distanceText = "Near you"; 
+//     // let distanceText = "Near you";
 //     // if (prefs.distanceRange) {
 //     //     distanceText = `${prefs.distanceRange} km away`;
 //     // }
@@ -1144,7 +1270,7 @@ async function doSwipe(swiperId, targetId, action) {
 //         const [lon1, lat1] = myProfile.location.coordinates;
 //         const [lon2, lat2] = profile.location.coordinates;
 //         const km = calculateDistance(lat1, lon1, lat2, lon2);
-        
+
 //         distanceText = km <= 1 ? "Less than 1 km away" : `${km} km away`;
 //     }
 
@@ -1179,24 +1305,17 @@ async function doSwipe(swiperId, targetId, action) {
 //   return { success: true, count: finalResult.length, cached: false, data: finalResult };
 // }
 
-
-
-
-
 // Function ke bahar sabse upar (Helper)
 // function calculateDistance(lat1, lon1, lat2, lon2) {
-//   const R = 6371; 
+//   const R = 6371;
 //   const dLat = (lat2 - lat1) * Math.PI / 180;
 //   const dLon = (lon2 - lon1) * Math.PI / 180;
-//   const a = 
+//   const a =
 //     Math.sin(dLat / 2) * Math.sin(dLat / 2) +
 //     Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLon / 2) * Math.sin(dLon / 2);
 //   const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 //   return Math.round(R * c);
 // }
-
-
-
 
 // ye done wala hain
 // async function getFeedService(userId, limit = 20) {
@@ -1232,13 +1351,13 @@ async function doSwipe(swiperId, targetId, action) {
 
 //   // 4️⃣ QUERY BUILDING
 //   const discovery = myProfile.discovery || {};
-//   const query = { 
-//     userId: { $nin: excludeIds }, 
-//     isDiscoverable: true 
+//   const query = {
+//     userId: { $nin: excludeIds },
+//     isDiscoverable: true
 //   };
-  
+
 //   if (discovery.showMeGender?.length) query.gender = { $in: discovery.showMeGender };
-  
+
 //   if (discovery.ageRange) {
 //     const now = new Date();
 //     query.dob = {
@@ -1266,11 +1385,11 @@ async function doSwipe(swiperId, targetId, action) {
 //   const transformedProfiles = profiles.map((profile) => {
 //     const isSuperliked = superlikeSet.has(profile.userId.toString());
 //     const targetAttr = profile.attributes || {}; // Fallback to empty object
-    
+
 //     // Yahan ho rahi thi galti - ab safe check hai
-//     const targetInterests = targetAttr.interests || profile.interests || []; 
-//     const common = Array.isArray(targetInterests) 
-//                    ? targetInterests.filter(i => myInterests.includes(i)) 
+//     const targetInterests = targetAttr.interests || profile.interests || [];
+//     const common = Array.isArray(targetInterests)
+//                    ? targetInterests.filter(i => myInterests.includes(i))
 //                    : [];
 
 //     let score = isSuperliked ? 1000 : 0;
@@ -1285,10 +1404,9 @@ async function doSwipe(swiperId, targetId, action) {
 //         const [lon1, lat1] = myProfile.location.coordinates;
 //         const [lon2, lat2] = profile.location.coordinates;
 //         const km = calculateDistance(lat1, lon1, lat2, lon2);
-        
+
 //         distanceText = km <= 1 ? "Less than 1 km away" : `${km} km away`;
 //     }
-
 
 //     return {
 //       id: profile.userId,
@@ -1375,17 +1493,17 @@ async function doSwipe(swiperId, targetId, action) {
 
 //   // 4️⃣ DYNAMIC QUERY BUILDING (Merging New Discovery Model)
 //   const discovery = myProfile.discovery || {};
-//   const query = { 
-//     userId: { $nin: excludeIds }, 
+//   const query = {
+//     userId: { $nin: excludeIds },
 //     isDiscoverable: true,
 //     isMandatoryComplete: true // Sirf verified log dikhao
 //   };
-  
+
 //   // Gender Filter (Naye model ka showMeGender array)
 //   if (discovery.showMeGender?.length) {
 //     query.gender = { $in: discovery.showMeGender };
 //   }
-  
+
 //   // Age Range Filter
 //   if (discovery.ageRange) {
 //     const now = new Date();
@@ -1434,7 +1552,7 @@ async function doSwipe(swiperId, targetId, action) {
 //     const isSuperliked = superlikeSet.has(profile.userId.toString());
 //     const isBoosted = !!boostedResults[index];
 //     const targetAttr = profile.attributes || {};
-    
+
 //     // --- SCORING LOGIC (Hindi: Yahan scoring handle ho rahi hai) ---
 //     let score = isSuperliked ? 2000 : 0; // Superlike priority
 //     if (isBoosted) score += 500; // Boost priority
@@ -1457,7 +1575,7 @@ async function doSwipe(swiperId, targetId, action) {
 
 //     // Distance-based bonus (Pass hone par score badhega)
 //     const distanceKm = calculateDistance(
-//         myProfile.location.coordinates[1], myProfile.location.coordinates[0], 
+//         myProfile.location.coordinates[1], myProfile.location.coordinates[0],
 //         profile.location.coordinates[1], profile.location.coordinates[0]
 //     );
 //     score += Math.max(0, 50 - distanceKm); // Jitna pas, utna score (+0 to +50)
@@ -1500,13 +1618,8 @@ async function doSwipe(swiperId, targetId, action) {
 //   return { success: true, count: finalResult.length, cached: false, data: finalResult };
 // }
 
-
-
-
-
-
 // async function doSwipe(swiperId, targetId, action) {
-  
+
 //   if (swiperId.toString() === targetId.toString()) {
 //     throw new Error("Cannot swipe on your own profile");
 //   }
@@ -1528,9 +1641,9 @@ async function doSwipe(swiperId, targetId, action) {
 //     // Calculate reset time (Midnight)
 //     const now = new Date();
 //     const tonight = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
-    
-//     return { 
-//         success: false, 
+
+//     return {
+//         success: false,
 //         error: "LIMIT_REACHED",
 //         errorCode: action === 'like' ? "EXHAUSTED_DAILY_LIKE" : "EXHAUSTED_DAILY_SUPERLIKE",
 //         message: action === 'like' ? "Daily likes limit reached!" : "No Superlikes left for today!",
@@ -1549,7 +1662,7 @@ async function doSwipe(swiperId, targetId, action) {
 //         }
 //     };
 // }
- 
+
 //   let result = { success: true, match: false, message: "Swipe processed" };
 
 //   try {
@@ -1596,16 +1709,16 @@ async function doSwipe(swiperId, targetId, action) {
 //       // 5. Check for mutual like/match
 //       if (['like', 'superlike'].includes(action)) {
 //         const mutualSwipe = await Swipe.findOne({
-//           swiperId: targetId, 
-//           targetId: swiperId, 
+//           swiperId: targetId,
+//           targetId: swiperId,
 //           action: { $in: ['like', 'superlike'] }
 //         }).session(session);
 
 //         if (mutualSwipe) {
 //           // Mutual Interest Found! Create a Match
 //           const [match] = await Match.create([{
-//             users: [swiperId, targetId], 
-//             status: 'matched', 
+//             users: [swiperId, targetId],
+//             status: 'matched',
 //             lastActivity: new Date()
 //           }], { session });
 
@@ -1617,10 +1730,10 @@ async function doSwipe(swiperId, targetId, action) {
 //             ]);
 //           }
 
-//           result = { 
-//             success: true, 
-//             match: true, 
-//             matchId: match._id, 
+//           result = {
+//             success: true,
+//             match: true,
+//             matchId: match._id,
 //             message: "It's a match!",
 //             partnerData: { // Frontend ke liye extra details agar match popup dikhana ho
 //                 name: targetProfile.nickname,
@@ -1644,7 +1757,6 @@ async function doSwipe(swiperId, targetId, action) {
 //     await session.endSession();
 //   }
 // }
-
 
 // async function doSwipe(swiperId, targetId, action) {
 //   if (swiperId.toString() === targetId.toString()) {
@@ -1741,9 +1853,9 @@ async function doSwipe(swiperId, targetId, action) {
 //   }
 // }
 async function undoSwipe(swiperId, targetId) {
-
-  const lastSwipe = await Swipe.findOne({ swiperId, targetId })
-    .sort({ createdAt: -1 });
+  const lastSwipe = await Swipe.findOne({ swiperId, targetId }).sort({
+    createdAt: -1,
+  });
 
   if (!lastSwipe) throw new Error("No swipe to undo");
 
@@ -1752,7 +1864,7 @@ async function undoSwipe(swiperId, targetId) {
   }
 
   const match = await Match.findOne({
-    users: { $all: [swiperId, targetId] }
+    users: { $all: [swiperId, targetId] },
   });
   if (match) throw new Error("Cannot undo after match");
 
@@ -1762,13 +1874,12 @@ async function undoSwipe(swiperId, targetId) {
     await Promise.all([
       redis.sRem(`swiped:${swiperId}`, targetId.toString()),
       redis.lPush(`queue:${swiperId}`, targetId.toString()),
-      redis.del(`feed:${swiperId}`)
+      redis.del(`feed:${swiperId}`),
     ]);
   }
 
   return { success: true, message: "Swipe undone" };
 }
-
 
 // async function undoSwipe(swiperId, targetId) {
 //   // const res = await Swipe.findOneAndDelete({ swiperId, targetId });
@@ -1787,7 +1898,6 @@ async function undoSwipe(swiperId, targetId) {
 //   users: { $all: [swiperId, targetId] }
 // });
 // if (match) throw new Error("Cannot undo after match");
-
 
 //   if (redis) {
 //     await redis.sRem(SWIPED_SET_PREFIX + swiperId, targetId.toString()).catch(() => { });
@@ -1814,8 +1924,6 @@ function calculateAge(dob) {
   }
   return age;
 }
-
-
 
 // const redisClient = require("../../../config/cache");
 // const Discovery = require("../../discovery/discovery.model");
@@ -1885,7 +1993,6 @@ function calculateAge(dob) {
 //   return { source: "db", data: profiles };
 // };
 
-
 module.exports = {
   getFeedService,
   // getFeedService,
@@ -1894,5 +2001,6 @@ module.exports = {
   // getDiscoverableProfiles,
   prefetchCandidates, // export for worker or cron prefetcher
   // constants exported for tests or admin
-  SWIPE_QUEUE_PREFIX, SWIPED_SET_PREFIX
-}
+  SWIPE_QUEUE_PREFIX,
+  SWIPED_SET_PREFIX,
+};

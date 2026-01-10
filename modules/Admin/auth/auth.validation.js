@@ -16,15 +16,32 @@ const adminRegisterSchema = Joi.object({
     "string.min": "Password must be at least 8 characters long",
   }),
   avatar: Joi.string().uri().optional(),
-}).xor("email", "phone"); // Crucial: Ensures one is present, but allows the other to be null/undefined
+});
+// .xor("email", "phone"); // Crucial: Ensures one is present, but allows the other to be null/undefined
 
 const adminLoginSchema = Joi.object({
-  identifier: Joi.string().required().messages({
-    "string.empty": "Email or Phone is required",
+  // identifier: Joi.string().required().messages({
+  //   "string.empty": "Email or Phone is required",
+  // }),
+  email: Joi.string().required().messages({
+    "string.empty": "Email is required",
   }),
   password: Joi.string().required().messages({
     "string.empty": "Password is required",
   }),
 });
 
-module.exports = { adminRegisterSchema, adminLoginSchema };
+const adminResetPasswordSchema = Joi.object({
+  currentPassword: Joi.string().required().messages({
+    "string.empty": "Current Password is required",
+  }),
+  newPassword: Joi.string().required().messages({
+    "string.empty": "New Password is required",
+  }),
+});
+
+module.exports = {
+  adminRegisterSchema,
+  adminLoginSchema,
+  adminResetPasswordSchema,
+};

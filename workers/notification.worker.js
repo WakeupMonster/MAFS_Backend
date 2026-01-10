@@ -37,8 +37,8 @@
 
 const { Worker } = require("bullmq");
 // const notificationService = require('./notification.service');
-const notificationService = require('../modules/notifications/notification.service');
-const {connection} = require("../config/cache")
+const notificationService = require("../modules/notifications/notification.service");
+const connection = require("../config/cache");
 
 const worker = new Worker(
   "notification-queue",
