@@ -15,6 +15,9 @@ const socialService = require("./social.service");
 module.exports.socialLogin = async (req, res) => {
   try {
     const { provider, idToken, accessToken, deviceId, fcmToken } = req.body;
+    console.log("idToken",idToken)
+    console.log("accessToken",accessToken)
+
 
     // ============ VALIDATION ============
     if (!provider) {

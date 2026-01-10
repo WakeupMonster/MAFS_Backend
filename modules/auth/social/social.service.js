@@ -15,13 +15,14 @@ const { verifyAppleToken } = require("./providers/apple.provider");
 const REFRESH_TOKEN_TTL_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
 
 async function socialLogin(provider, idToken, accessToken) {
+  console.log(provider,"provider")
   try {
     // ================= STEP 1: VERIFY TOKEN =================
     let providerUserInfo;
 
     switch (provider.toLowerCase()) {
       case "google":
-        providerUserInfo = await verifyGoogleToken(idToken);
+        providerUserInfo = await verifyGoogleToken(idToken,accessToken);
         break;
 
       case "facebook":

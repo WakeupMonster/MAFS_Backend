@@ -72,30 +72,30 @@ const userSchema = new mongoose.Schema(
     //   matches: { type: Boolean, default: true }
     // },
 
-    //   notificationSettings: {
-    //   push: { type: Boolean, default: true },
-    //   email: { type: Boolean, default: false },
-    //   matches: { type: Boolean, default: true },
-    //   messages: { type: Boolean, default: true }
-    // },
+//   notificationSettings: {
+//   push: { type: Boolean, default: true },
+//   email: { type: Boolean, default: false },
+//   matches: { type: Boolean, default: true },
+//   messages: { type: Boolean, default: true }
+// },
+
 
     // ============ STATUS FLAGS ============
     isNewUser: { type: Boolean, default: true, index: true },
     isProfileCompleted: { type: Boolean, default: false },
 
-    role: {
-      type: String,
-      enum: ["USER", "ADMIN"],
-      default: "USER",
-      index: true,
-    },
-
-    accountStatus: {
-      type: String,
-      enum: ["active", "deactivated", "married", "deleted", "banned"],
-      default: "active",
-      index: true,
-    },
+  role: {
+  type: String,
+  enum: ["USER", "ADMIN"],
+  default: "USER",
+  index: true
+},
+  accountStatus: {
+  type: String,
+  enum: ["active", "deactivated", "married", "deleted","banned"],
+  default: "active",
+  index: true
+},
 
     banDetails: {
       isBanned: {
@@ -163,10 +163,12 @@ const userSchema = new mongoose.Schema(
       default: false,
     },
 
-    premiumExpiresAt: {
-      type: Date,
-      default: null,
-    },
+premiumExpiresAt: {
+  type: Date,
+  default: null
+},
+
+
 
     authMethod: {
       type: String,

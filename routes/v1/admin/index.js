@@ -3,6 +3,10 @@ const router = express.Router();
 
 // Admin routes
 const giveawayAdminRoutes = require("./giveaway.routes");
+const allowAdminMiddleware = require("../../../common/middlewares/allowAdmin.middleware");
+
+// const kycAdminRoutes = require('./kyc.routes');
+
 /**
  * ADMIN GLOBAL MIDDLEWARE
  * Ye middleware is folder ke sabhi routes par lagega

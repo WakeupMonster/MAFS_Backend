@@ -2,11 +2,10 @@ const UserAuth = require("../auth/auth.model");
 const Profile = require("./profile.model");
 
 module.exports.updateBasicInfo = async (userId, data) => {
-  const profile = await Profile.findOneAndUpdate(
-    { userId },
-    data,
-    { new: true, upsert: true }
-  );
+  const profile = await Profile.findOneAndUpdate({ userId }, data, {
+    new: true,
+    upsert: true,
+  });
   return profile;
 };
 
@@ -15,7 +14,7 @@ module.exports.updateLocation = async (userId, data) => {
     type: "Point",
     coordinates: [data.longitude, data.latitude],
     city: data.city || "",
-    country: data.country || ""
+    country: data.country || "",
   };
 
   const profile = await Profile.findOneAndUpdate(
@@ -23,7 +22,7 @@ module.exports.updateLocation = async (userId, data) => {
     { location },
     { new: true, upsert: true }
   );
-  
+
   return profile;
 };
 
@@ -53,30 +52,36 @@ module.exports.uploadPhoto = async (userId, data) => {
 
 module.exports.markProfileCompleted = async (userId) => {
   await UserAuth.findByIdAndUpdate(userId, {
-    isProfileCompleted: true
+    isProfileCompleted: true,
   });
 
   return { completed: true };
 };
-
 
 module.exports.formatProfileResponse = (profile, user = {}) => {
   return {
     _id: profile._id,
     userId: profile.userId,
     __v: profile.__v || 0,
-
-    bookPreference: profile.bookPreference || [],
-    canAccessSwipe: profile.canAccessSwipe ?? false,
-
-    // 🔹 Flatten discoveryFilters
-    basics: profile.discoveryFilters?.basics || {
-      PersonalityType: [],
-      communicationStyle: [],
-      education: [],
-      familyPlans: [],
-      loveStyle: [],
-      zodiac: []
+    bookPreference: profile.attributes?.books || [],
+    // canAccessSwipe: profile.canAccessSwipe || false,
+    basics: {
+      PersonalityType: profile.attributes?.personalityType
+        ? profile.attributes.personalityType
+        : "",
+      communicationStyle: profile.attributes?.communicationStyle
+        ? profile.attributes.communicationStyle
+        : "",
+      education: profile.attributes?.education
+        ? profile.attributes.education
+        : "",
+      familyPlans: profile.attributes?.familyPlans
+        ? profile.attributes.familyPlans
+        : "",
+      loveStyle: profile.attributes?.loveStyle
+        ? profile.attributes.loveStyle
+        : "",
+      zodiac: profile.attributes?.zodiac ? profile.attributes.zodiac : "",
     },
 
     interests: profile.interests || [],
@@ -85,14 +90,14 @@ module.exports.formatProfileResponse = (profile, user = {}) => {
       drinking: [],
       exercise: [],
       pets: [],
-      smokingHabits: []
+      smokingHabits: [],
     },
 
     relationshipGoal: {
-  key: profile.relationshipGoal?.key || "",
-  title: profile.relationshipGoal?.title || "",
-  subtitle: profile.relationshipGoal?.subtitle || ""
-},
+      key: profile.relationshipGoal?.key || "",
+      title: profile.relationshipGoal?.title || "",
+      subtitle: profile.relationshipGoal?.subtitle || "",
+    },
 
     isDiscoverable: profile.isDiscoverable ?? false,
     isMandatoryComplete: profile.isMandatoryComplete ?? false,
@@ -112,23 +117,20 @@ module.exports.formatProfileResponse = (profile, user = {}) => {
     //   }
     // ],
 
-
     kyc: [
-  {
-    type: "selfie",
-    status: profile.kyc?.selfie?.url
-      ? profile.kyc.status
-      : "not_started",
-    reason: profile.kyc?.rejectionReason || ""
-  },
-  {
-    type: "doc",
-    status: profile.kyc?.idDocument?.frontUrl
-      ? profile.kyc.status
-      : "not_started",
-    reason: profile.kyc?.rejectionReason || ""
-  }
-],
+      {
+        type: "selfie",
+        status: profile.kyc?.selfie?.url ? profile.kyc.status : "not_started",
+        reason: profile.kyc?.rejectionReason || "",
+      },
+      {
+        type: "doc",
+        status: profile.kyc?.idDocument?.frontUrl
+          ? profile.kyc.status
+          : "not_started",
+        reason: profile.kyc?.rejectionReason || "",
+      },
+    ],
 
     languages: profile.languages || [],
 
@@ -139,28 +141,29 @@ module.exports.formatProfileResponse = (profile, user = {}) => {
     // },
 
     location: {
-  coordinates: profile.location?.coordinates || [0, 0],
-  address: [
-    profile.location?.city,
-    profile.location?.state,
-    profile.location?.country
-  ].filter(Boolean).join(", "),
-  type: "Point"
-},
+      coordinates: profile.location?.coordinates || [0, 0],
+      address: [
+        profile.location?.city,
+        profile.location?.state,
+        profile.location?.country,
+      ]
+        .filter(Boolean)
+        .join(", "),
+      type: "Point",
+    },
 
     moviePreference: profile.moviePreference || [],
     musicPreference: profile.musicPreference || [],
 
     totalCompletion: profile.onboardingProgress?.totalCompletion || 0,
 
-    photos:
-      profile.photos?.length
-        ? profile.photos
-        : [{ id: "", order: "", url: "" }],
+    photos: profile.photos?.length
+      ? profile.photos
+      : [{ id: "", order: "", url: "" }],
 
     account_status: {
       isBlocked: false,
-      reason: ""
+      reason: "",
     },
 
     email: user.email || "",
@@ -177,6 +180,6 @@ module.exports.formatProfileResponse = (profile, user = {}) => {
     visibility: profile.visibility || "everyone",
     createdAt: profile.createdAt,
     updatedAt: profile.updatedAt,
-    lastProfileUpdate: profile.updatedAt
+    lastProfileUpdate: profile.updatedAt,
   };
 };
