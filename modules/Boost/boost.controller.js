@@ -13,12 +13,12 @@ exports.activateBoost = async (req, res) => {
   }
 
     // 1️⃣ Premium check
-  if (!req.user.isPremium || req.user.premiumExpiresAt < new Date()) {
-    return res.status(403).json({
-      success: false,
-      message: "Premium required for boost"
-    });
-  }
+  // if (!req.user.isPremium || req.user.premiumExpiresAt < new Date()) {
+  //   return res.status(403).json({
+  //     success: false,
+  //     message: "Premium required for boost"
+  //   });
+  // }
 
   // 2️⃣ Premium check
   if (!user.isPremium) {
@@ -41,6 +41,7 @@ exports.activateBoost = async (req, res) => {
 
   // 4️⃣ Activate boost
   await redis.set(`boost:${userId}`, 1, Number({ EX: BOOST_TTL_SECONDS }));
+  console.log(`boost:${userId}`,"bosted user")
 
   // 5️⃣ Clear feed cache (VERY IMPORTANT)
   await redis.del(`feed:${userId}`);

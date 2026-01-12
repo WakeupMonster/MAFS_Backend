@@ -7,9 +7,6 @@ const router = express.Router();
 const adminGiveawayController = require("../../../modules/giveaway/admin/giveaway.controller");
 
 
-/**
- * 🎁 PRIZE MANAGEMENT
- */
 
 // missing api Monthly bulk create missing
 
@@ -51,10 +48,6 @@ router.patch(
   adminGiveawayController.updateCampaign
 );
 
-/**
- * 🏆 WINNER & RECOVERY
- */
-
 router.get(
   "/campaigns/:id/winner",
   adminGiveawayController.getWinner
@@ -75,7 +68,6 @@ router.get("/pending-deliveries",adminGiveawayController.getPendingDeliveries)
 
 router.get("/claims",adminGiveawayController.getAllClaims)
 
-// router.post("/claim",adminGiveawayController.claimPrize)
 
 router.get("/campaigns/winner/:id/",adminGiveawayController.getWinner)
 
@@ -83,33 +75,17 @@ router.get("/get-delivered-price",adminGiveawayController.getDeliveredPrizes)
 
 router.get("/audit",adminGiveawayController.getGiveawayAuditReport)
 
-// GET  /admin/giveaway/audit
-
-
-/**
- * 📅 BULK CREATE GIVEAWAY CAMPAIGNS
- * Create multiple daily campaigns using date range
- */
 router.post(
   "/campaigns/bulk",
   // validate("adminBulkCreateCampaign"),
   adminGiveawayController.bulkCreateCampaignByRanges
 );
 
-
-/**
- * 🚫 DISABLE A CAMPAIGN (Permanent / Manual)
- * Use case: Admin wants to completely disable a campaign
- */
 router.patch(
   "/campaigns/:id/disable",
   adminGiveawayController.disableCampaign
 );
 
-/**
- * ⏸️ PAUSE A CAMPAIGN (Temporary)
- * Use case: Pause for a specific reason/day
- */
 router.patch(
   "/campaigns/:campaignId/pause",
   adminGiveawayController.pauseCampaign

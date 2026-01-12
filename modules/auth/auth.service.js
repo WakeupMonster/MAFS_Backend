@@ -277,7 +277,7 @@ async function verifyPhoneOtpUnified(phone, otp) {
     throw new Error("Invalid OTP");
   }
 
-  // 3️⃣ Generate phoneHash 🔥
+  // 3️⃣ Generate phoneHash 
   const phoneHash = hashPhone(normalizedPhone);
 
   // 4️⃣ Find or create user
@@ -285,10 +285,10 @@ async function verifyPhoneOtpUnified(phone, otp) {
   if (!user) {
     user = await User.create({
       phone: normalizedPhone,
-      phoneHash: phoneHash // 🔥 NEW USER CASE
+      phoneHash: phoneHash //  NEW USER CASE
     });
   }
-// 🔐 ACCOUNT STATE CHECK (CRITICAL)
+// ACCOUNT STATE CHECK (CRITICAL)
 if (user.banDetails?.isBanned) {
   throw new Error("Your account has been banned. Please contact support.");
 }

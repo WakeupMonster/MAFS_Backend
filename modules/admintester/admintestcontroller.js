@@ -5,6 +5,8 @@ const User = require("../auth/auth.model");
 const Profile = require("../profile/profile.model");
 const Report = require("../profile/user.report");
 const UserSubscription = require("../auth/UserSubscription.model");
+const redis = require("../../config/cache"); 
+const Block = require("../profile/user.block")
 
 exports.getKpiOverview = async (req, res) => {
   try {
@@ -82,10 +84,6 @@ accountStatus: "active"
     });
   }
 };
-
-
-const redis = require("../../config/cache"); 
-
 
 // exports.getKpiOverview = async (req, res) => {
 //   const CACHE_KEY = "admin:kpi:overview";
@@ -546,11 +544,26 @@ report.handledBy = adminId;
     await report.save();
 
     // Send email (pseudo)
-    await utils.sendEmail(
-      report.reporterId.email,
-      "We are reviewing your report",
-      message
-    );
+    // await utils.sendEmail(
+    //   report.reporterId.email,
+    //   "We are reviewing your report",
+    //   message
+    // );
+    const reporter = await User.findById(report.reporterId)
+  .select("email");
+
+if (reporter?.email) {
+  await utils.sendEmail(
+    reporter.email,
+    "We are reviewing your report",
+    `<p>${message}</p><p>— Support Team</p>`
+  );
+} else {
+  console.log(
+    `Report reply skipped email: reporter ${report.reporterId} has no email`
+  );
+}
+
 
     res.json({
       success: true,
@@ -618,3 +631,45 @@ exports.updateReportStatus = async (req, res) => {
     });
   }
 };
+
+
+
+exports.getBlockedUsers = async (req, res) => {
+  try {
+    const { blockerId, blockedId, page = 1, limit = 20 } = req.query;
+
+    const filter = {};
+
+    if (blockerId) filter.blockerId = blockerId;
+    if (blockedId) filter.blockedId = blockedId;
+
+    const blocks = await Block.find(filter)
+      .populate("blockerId", "phone email")
+      .populate("blockedId", "phone email")
+      .sort({ createdAt: -1 })
+      .skip((page - 1) * limit)
+      .limit(Number(limit))
+      .lean();
+
+    const total = await Block.countDocuments(filter);
+
+    return res.json({
+      success: true,
+      data: {
+        blocks,
+        pagination: {
+          page: Number(page),
+          limit: Number(limit),
+          total
+        }
+      }
+    });
+
+  } catch (err) {
+    console.error("Admin block list error:", err);
+    return res.status(500).json({
+      success: false,
+      message: "Failed to load block data"
+    });
+  }
+};    

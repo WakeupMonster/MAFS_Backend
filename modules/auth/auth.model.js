@@ -1,6 +1,5 @@
 const mongoose = require("mongoose");
 
-
 const refreshTokenSchema = new mongoose.Schema({
   tokenHash: { type: String, required: true },
   expiresAt: { type: Date, required: true },
@@ -65,6 +64,7 @@ const userSchema = new mongoose.Schema({
 
 
   // ============ STATUS FLAGS ============
+
   isNewUser: { type: Boolean, default: true, index: true },
   isProfileCompleted: { type: Boolean, default: false },
 
@@ -156,7 +156,7 @@ suspensionDetails: {
     default: null,
     index: true
   }
-},
+},  
 
 onboarding: {
   isComplete: {
@@ -210,5 +210,10 @@ userSchema.index({ "social.apple.id": 1 });
 userSchema.index({ isPhoneVerified: 1 });
 userSchema.index({ isEmailVerified: 1 });
 refreshTokenSchema.index({ expiresAt: 1 });
+// Active premium users
+userSchema.index({ isPremium: 1 });
+userSchema.index({ premiumExpiresAt: 1 });
+userSchema.index({ "deactivationDetails.isDeactivated": 1 });
+userSchema.index({ "deletionDetails.isScheduledForDeletion": 1 });
 
 module.exports = mongoose.model("User", userSchema);

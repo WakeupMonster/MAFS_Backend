@@ -1,11 +1,12 @@
 const express = require("express");
 const router = express.Router();
 const auth = require("../auth/auth.middleware");
-const {getKpiOverview,verifyUserProfile,banUser,unbanUser,suspendUser,replyToReport,updateReportStatus} = require("./admintestcontroller")
+const {getKpiOverview,verifyUserProfile,banUser,unbanUser,suspendUser,replyToReport,updateReportStatus,getBlockedUsers} = require("./admintestcontroller")
 
 router.use(auth);
 
 router.get("/getkpi",getKpiOverview)
+router.get("/blocks",getBlockedUsers)
 router.post("/users/:userId/verify",verifyUserProfile)
 router.post("/users/:id/ban",banUser)
 router.post("/users/:id/unban",unbanUser)
