@@ -1,0 +1,140 @@
+{
+  "tables": [
+    {
+      "name": "User",
+      "columns": [
+        { "name": "id", "type": "uuid", "pk": true },
+        { "name": "name", "type": "varchar" },
+        { "name": "email", "type": "varchar" },
+        { "name": "phone", "type": "varchar" },
+        { "name": "gender", "type": "varchar" },
+        { "name": "dob", "type": "date" },
+        { "name": "profile_status", "type": "varchar" },
+        { "name": "verification_status", "type": "varchar" },
+        { "name": "created_at", "type": "timestamp" }
+      ]
+    },
+    {
+      "name": "UserProfile",
+      "columns": [
+        { "name": "id", "type": "uuid", "pk": true },
+        { "name": "user_id", "type": "uuid", "fk": true },
+        { "name": "bio", "type": "text" },
+        { "name": "photos", "type": "json" },
+        { "name": "interests", "type": "json" },
+        { "name": "location", "type": "varchar" },
+        { "name": "visibility", "type": "boolean" },
+        { "name": "last_updated", "type": "timestamp" }
+      ]
+    },
+    {
+      "name": "Swipe",
+      "columns": [
+        { "name": "id", "type": "uuid", "pk": true },
+        { "name": "from_user_id", "type": "uuid", "fk": true },
+        { "name": "to_user_id", "type": "uuid", "fk": true },
+        { "name": "action", "type": "varchar" },
+        { "name": "created_at", "type": "timestamp" }
+      ]
+    },
+    {
+      "name": "Match",
+      "columns": [
+        { "name": "id", "type": "uuid", "pk": true },
+        { "name": "user1_id", "type": "uuid", "fk": true },
+        { "name": "user2_id", "type": "uuid", "fk": true },
+        { "name": "matched_at", "type": "timestamp" },
+        { "name": "is_active", "type": "boolean" }
+      ]
+    },
+    {
+      "name": "ChatRoom",
+      "columns": [
+        { "name": "id", "type": "uuid", "pk": true },
+        { "name": "match_id", "type": "uuid", "fk": true },
+        { "name": "created_at", "type": "timestamp" }
+      ]
+    },
+    {
+      "name": "Message",
+      "columns": [
+        { "name": "id", "type": "uuid", "pk": true },
+        { "name": "chat_room_id", "type": "uuid", "fk": true },
+        { "name": "sender_id", "type": "uuid", "fk": true },
+        { "name": "message_type", "type": "varchar" },
+        { "name": "content", "type": "text" },
+        { "name": "created_at", "type": "timestamp" },
+        { "name": "is_flagged", "type": "boolean" }
+      ]
+    },
+    {
+      "name": "Report",
+      "columns": [
+        { "name": "id", "type": "uuid", "pk": true },
+        { "name": "reported_by_user_id", "type": "uuid", "fk": true },
+        { "name": "reported_user_id", "type": "uuid", "fk": true },
+        { "name": "reason", "type": "varchar" },
+        { "name": "reference_type", "type": "varchar" },
+        { "name": "reference_id", "type": "uuid" },
+        { "name": "status", "type": "varchar" },
+        { "name": "created_at", "type": "timestamp" }
+      ]
+    },
+    {
+      "name": "Plan",
+      "columns": [
+        { "name": "id", "type": "uuid", "pk": true },
+        { "name": "name", "type": "varchar" },
+        { "name": "price", "type": "decimal" },
+        { "name": "duration", "type": "int" },
+        { "name": "features", "type": "json" }
+      ]
+    },
+    {
+      "name": "Subscription",
+      "columns": [
+        { "name": "id", "type": "uuid", "pk": true },
+        { "name": "user_id", "type": "uuid", "fk": true },
+        { "name": "plan_id", "type": "uuid", "fk": true },
+        { "name": "status", "type": "varchar" },
+        { "name": "start_date", "type": "date" },
+        { "name": "end_date", "type": "date" }
+      ]
+    },
+    {
+      "name": "Payment",
+      "columns": [
+        { "name": "id", "type": "uuid", "pk": true },
+        { "name": "user_id", "type": "uuid", "fk": true },
+        { "name": "subscription_id", "type": "uuid", "fk": true },
+        { "name": "amount", "type": "decimal" },
+        { "name": "status", "type": "varchar" },
+        { "name": "gateway_ref", "type": "varchar" },
+        { "name": "created_at", "type": "timestamp" }
+      ]
+    },
+    {
+      "name": "Admin",
+      "columns": [
+        { "name": "id", "type": "uuid", "pk": true },
+        { "name": "name", "type": "varchar" },
+        { "name": "email", "type": "varchar" },
+        { "name": "role", "type": "varchar" },
+        { "name": "created_at", "type": "timestamp" }
+      ]
+    },
+    {
+      "name": "AdminLog",
+      "columns": [
+        { "name": "id", "type": "uuid", "pk": true },
+        { "name": "admin_id", "type": "uuid", "fk": true },
+        { "name": "action", "type": "varchar" },
+        { "name": "target_type", "type": "varchar" },
+        { "name": "target_id", "type": "uuid" },
+        { "name": "changes", "type": "json" },
+        { "name": "ip_address", "type": "varchar" },
+        { "name": "created_at", "type": "timestamp" }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <title>Chat Architecture Tester</title>
+    <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+    <style>
+        body {
+            font-family: sans-serif;
+            display: flex;
+            gap: 20px;
+            padding: 20px;
+            background: #f4f4f4;
+        }
+
+        .panel {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+        }
+
+        #chat-window {
+            flex: 2;
+            display: none;
+        }
+
+        #auth-panel {
+            flex: 1;
+        }
+
+        .msg {
+            margin: 10px 0;
+            padding: 8px;
+            border-radius: 4px;
+        }
+
+        .sent {
+            background: #e3f2fd;
+            text-align: right;
+        }
+
+        .received {
+            background: #f5f5f5;
+            text-align: left;
+        }
+
+        .status {
+            font-size: 10px;
+            color: #888;
+        }
+
+        #typing-indicator {
+            font-style: italic;
+            color: green;
+            height: 20px;
+        }
+    </style>
+</head>
+
+<body>
+
+    <div id="auth-panel" class="panel">
+        <h3>1. Connection</h3>
+        <input type="text" id="token" placeholder="Paste User JWT Token" style="width: 100%"><br><br>
+        <button onclick="connect()">Connect Socket</button>
+        <p id="conn-status">Status: Disconnected</p>
+
+        <hr>
+        <h3>2. Enter Room</h3>
+        <input type="text" id="matchId" placeholder="Match ID">
+        <input type="text" id="receiverId" placeholder="Receiver User ID"><br><br>
+        <button onclick="joinChat()">Join Chat Room</button>
+    </div>
+
+    <div id="chat-window" class="panel">
+        <h3 id="active-title">Chatting in Match: ...</h3>
+        <div id="typing-indicator"></div>
+        <div id="messages"
+            style="height: 300px; overflow-y: auto; border: 1px solid #ddd; padding: 10px; margin-bottom: 10px;"></div>
+
+        <input type="text" id="messageText" placeholder="Type a message..." oninput="sendTyping()">
+        <button onclick="sendMessage()">Send</button>
+        <button onclick="leaveChat()" style="color: red;">Leave Chat</button>
+    </div>
+
+    <script>
+        let socket;
+        let currentMatchId = null;
+
+        function connect() {
+            const token = document.getElementById('token').value;
+
+            console.log("token: ", token)
+            if (!token) {
+                alert("Please paste a JWT token first!");
+                return;
+            }
+
+            // Replace with your server URL
+            // The "auth" object is sent only once during the initial handshake
+            socket = io("http://localhost:3001", {
+                auth: { token: token },
+                transports: ['websocket'] // Force websocket to avoid CORS/polling issues in dev
+            });
+
+            socket.on("connect", () => {
+                document.getElementById('conn-status').innerText = "Status: Connected as " + socket.id;
+            });
+
+            // Listen for new messages
+            socket.on("new_message", (msg) => {
+                appendMessage(msg, 'received');
+                console.log("receive msg: ", msg)
+            });
+
+            // Listen for typing
+            socket.on("typing", (data) => {
+                // console.log("data: ", data)
+                document.getElementById('typing-indicator').innerText = `${data.sender} is typing...`;
+            });
+
+            socket.on("stop_typing", () => {
+                document.getElementById('typing-indicator').innerText = "";
+            });
+
+            // Listen for read receipts
+            socket.on("messages_read", (data) => {
+                console.log("Messages marked as read by:", data.readerId);
+                // In a real app, you'd turn grey ticks into blue ticks here
+            });
+
+            socket.on("connect_error", (err) => {
+                alert("Auth failed: " + err.message);
+            });
+        }
+
+        function joinChat() {
+            currentMatchId = document.getElementById('matchId').value;
+            if (!currentMatchId) return alert("Enter Match ID");
+
+            socket.emit("join_chat", { matchId: currentMatchId });
+
+            document.getElementById('chat-window').style.display = "block";
+            document.getElementById('active-title').innerText = "Room: " + currentMatchId;
+            document.getElementById('messages').innerHTML = ""; // Clear for new room
+        }
+
+        function leaveChat() {
+            socket.emit("leave_chat", { matchId: currentMatchId });
+            document.getElementById('chat-window').style.display = "none";
+            currentMatchId = null;
+        }
+
+        function sendMessage() {
+            const text = document.getElementById('messageText').value;
+            const receiver = document.getElementById('receiverId').value;
+            const payload = {
+                matchId: currentMatchId,
+                receiver: receiver,
+                text: text,
+                clientTempId: Date.now().toString()
+            };
+
+            // Send with Ack (Acknowledge)
+            socket.emit("send_message", payload, (response) => {
+                if (response.success) {
+                    appendMessage(response.data, 'sent');
+                    document.getElementById('messageText').value = "";
+                } else {
+                    alert("Error: " + response.error);
+                }
+            });
+        }
+
+        function sendTyping() {
+            socket.emit("typing", { matchId: currentMatchId });
+            // Stop typing after 2 seconds of no input
+            clearTimeout(window.typingTimeout);
+            window.typingTimeout = setTimeout(() => {
+                socket.emit("stop_typing", { matchId: currentMatchId });
+            }, 2000);
+        }
+
+        function appendMessage(msg, type) {
+            const div = document.createElement('div');
+            div.className = `msg ${type}`;
+            div.innerHTML = `
+            <div>${msg.text}</div>
+            <div class="status">${new Date(msg.createdAt).toLocaleTimeString()} - Status: ${msg.status}</div>
+        `;
+            document.getElementById('messages').appendChild(div);
+            const box = document.getElementById('messages');
+            box.scrollTop = box.scrollHeight;
+        }
+    </script>
+</body>
+
+</html>

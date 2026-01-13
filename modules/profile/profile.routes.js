@@ -5,9 +5,9 @@ const auth = require("../auth/auth.middleware");
 const uploadMiddleware = require("../upload/upload.middleware");
 const validation = require("./profile.validation");
 const controllerDis = require("../discovery/discovery.controller");
-const userAction = require("./userActionController")
+const userAction = require("./userActionController");
 // const ENUMS = require("../../config/enums");
-const  masterController  = require("./master.controller")
+const masterController = require("./master.controller");
 
 router.use(auth);
 // router.get("/upload-signature", controller.getUploadSignature);
@@ -18,11 +18,16 @@ router.patch(
   controller.updateProfile
 );
 
+<<<<<<< HEAD
 router.patch(
   "/discovery-preference",
   auth,
   controller.updateDiscoveryFilters
 );
+=======
+router.patch("/discovery-preference", auth, controller.updateDiscoveryFilters);
+router.get("/discovery-preference", auth, controller.getDiscoveryPreference);
+>>>>>>> origin/feature/raj
 
 router.patch("/", controllerDis.updatePreference);
 
@@ -39,10 +44,8 @@ router.post(
   controller.uploadPhotos
 );
 
-
 router.delete("/photos", controller.deletePhoto);
 router.patch("/photos/reorder", controller.reorderPhotos);
-
 
 router.post(
   "/selfie",
@@ -76,24 +79,27 @@ router.get("/status", controller.getStatus);
 
 router.get("/me", controller.getMyProfile);
 
-
 // 1. POST API - Database mein data bharne ke liye (Admin use karega)
 router.post("/bulk-add", masterController.bulkAddMasterData);
 
 // 2. GET API - Frontend ko manager wala format dene ke liye
 router.get("/config", masterController.getAppConfig);
 
-
-router.get("/:userId",validation.validateUserIdParam, controller.getUserProfile);
+router.get(
+  "/:userId",
+  validation.validateUserIdParam,
+  controller.getUserProfile
+);
 
 router.patch(
   "/visibility",
-  auth,  // Ensure user is authenticated
+  auth, // Ensure user is authenticated
   controller.updateVisibility
 );
 
 router.get("/blocked/all", userAction.getBlockList);
 
+<<<<<<< HEAD
 router.post("/block/:id",  userAction.blockUser);
 router.delete("/unblock/:id",  userAction.unblockUser);
 router.get("/block-list",  userAction.getBlockList);
@@ -101,3 +107,30 @@ router.get("/block-list",  userAction.getBlockList);
 // Report
 router.post("/report/:id", userAction.reportUser);
 module.exports = router;
+=======
+router.patch("/quick-verify/:userId", controller.quickVerifyUser);
+
+// Block/Unblock
+router.post("/block/:id", userAction.blockUser);
+router.delete("/unblock/:id", userAction.unblockUser);
+router.get("/block-list", userAction.getBlockList);
+
+// Report
+router.post("/report/:id", userAction.reportUser);
+
+module.exports = router;
+
+// Get APIs for fetch this field data genderPreference, relationshipGoal, distance, interest, age(min,max)
+// router.get("/getdetails", getDetails);
+// router.get("/enums/all", (req, res) => {
+//   const data = {
+//     gender: ENUMS.gender.map(e => `${e.label}${e.emoji}`),
+//     genderPreference: ENUMS.genderPreference.map(e => `${e.label}${e.emoji}`),
+//     religion: ENUMS.religion.map(e => `${e.label}${e.emoji}`),
+//     relationshipGoals: ENUMS.relationshipGoals.map(e => `${e.label}${e.emoji}`),
+//     interests: ENUMS.interests.map(e => `${e.label}${e.emoji}`)
+//   };
+
+//   res.json({ success: true, data });
+// });
+>>>>>>> origin/feature/raj

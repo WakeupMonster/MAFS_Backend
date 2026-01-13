@@ -1,56 +1,21 @@
-// const crypto = require("crypto");
-
-// function normalizePhone(phone) {
-//   if (!phone) return null;
-
-//   return phone
-//     .replace(/\s+/g, "")
-//     .replace(/-/g, "")
-//     .replace(/\(/g, "")
-//     .replace(/\)/g, "")
-//     .replace(/^0+/, "")
-//     .startsWith("+")
-//     ? phone
-//     : `+${phone}`;
-// }
-
-
-// function hashPhone(phone) {
-//   return crypto
-//     .createHash("sha256")
-//     .update(phone)
-//     .digest("hex");
-// }
-
-// module.exports = {
-//   normalizePhone,
-//   hashPhone
-// };
-
 const crypto = require("crypto");
 
 function normalizePhone(phone) {
-  // 🛡️ Defensive check
-  if (!phone || typeof phone !== "string") return null;
+  if (!phone) return null;
 
-  // 1️⃣ Clean phone
-  let cleaned = phone
-    .trim()
+  return phone
     .replace(/\s+/g, "")
-    .replace(/[-()]/g, "")
-    .replace(/^0+/, "");
-
-  // 2️⃣ Ensure country prefix
-  if (!cleaned.startsWith("+")) {
-    cleaned = `+${cleaned}`;
-  }
-
-  return cleaned;
+    .replace(/-/g, "")
+    .replace(/\(/g, "")
+    .replace(/\)/g, "")
+    .replace(/^0+/, "")
+    .startsWith("+")
+    ? phone
+    : `+${phone}`;
 }
 
-function hashPhone(phone) {
-  if (!phone || typeof phone !== "string") return null;
 
+function hashPhone(phone) {
   return crypto
     .createHash("sha256")
     .update(phone)

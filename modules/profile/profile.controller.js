@@ -9,7 +9,6 @@ const Block = require("../profile/user.block");
 const { formatProfileResponse } = require("./profile.formatter");
 const UserSubscription = require("../auth/UserSubscription.model");
 const { formatPublictargetProfile } = require("./profile.userFormatter");
-const swipeModel = require("../matches/swipe/swipe.model");
 
 async function getFullUserData(userId, existingProfile = null) {
   const [user, profile, blockedContacts, blockedUser, subData] = await Promise.all([
@@ -31,12 +30,13 @@ async function getFullUserData(userId, existingProfile = null) {
   return { user, profile, blockedContacts, blockedUser, subData: finalSub };
 }
 
+
 async function getOrCreateProfile(userId) {
   let profile = await Profile.findOne({ userId });
   if (!profile) {
     profile = await Profile.create({
       userId,
-      onboardingStartedAt: new Date()
+      onboardingStartedAt: new Date(),
     });
   }
   return profile;
@@ -53,18 +53,20 @@ async function clearProfileCache(userId) {
   }
 }
 
+
 exports.updateProfile = async (req, res) => {
   try {
     const userId = req.user._id;
     const updateData = req.body;
     let profile = await Profile.findOne({ userId });
 
-    if (!profile) return res.status(404).json({ success: false, message: "Profile not found" });
+    if (!profile) return res.status(404).json({ success: false, message: "Profile not found" })
 
     if (updateData.profile) {
       const p = updateData.profile;
       const basicFields = ['nickname', 'dob', 'gender', 'height', 'about', 'jobTitle', 'company', 'school', 'pronouns', 'weight'];
       basicFields.forEach(field => { if (p[field] !== undefined) profile[field] = p[field]; });
+
 
       if (p.nickname) {
         const existing = await Profile.findOne({ nickname: p.nickname, userId: { $ne: userId } }).lean();
@@ -90,10 +92,11 @@ exports.updateProfile = async (req, res) => {
       if (disc.distanceRange) profile.discovery.distanceRange = disc.distanceRange;
       if (disc.relationshipGoal) profile.discovery.relationshipGoal = disc.relationshipGoal;
       if (disc.globalVisibility) profile.discovery.globalVisibility = disc.globalVisibility;
+
       if (disc.ageRange) {
         profile.discovery.ageRange = {
           min: disc.ageRange.min || profile.discovery.ageRange.min,
-          max: disc.ageRange.max || profile.discovery.ageRange.max
+          max: disc.ageRange.max || profile.discovery.ageRange.max,
         };
       }
       if (disc.showMeGender) profile.discovery.showMeGender = Array.isArray(disc.showMeGender) ? disc.showMeGender : [disc.showMeGender];
@@ -124,11 +127,398 @@ exports.getMyProfile = async (req, res) => {
       data: { user: formatProfileResponse(data.user, data.profile, data.blockedContacts, data.blockedUser, data.subData) }
     });
   } catch (err) {
-    res.status(500).json({ success: false, message: "Failed to fetch profile" });
+    res
+      .status(500)
+      .json({ success: false, message: "Failed to fetch profile" });
   }
 };
 
-exports.uploadPhotos = async (req, res) => {
+// exports.updateProfile = async (req, res) => {
+//   try {
+//     const userId = req.user._id;
+//     const updateData = req.body;
+//     const profile = await Profile.findOne({ userId });
+
+//     if (!profile) {
+//       return res.status(404).json({
+//         success: false,
+//         code: "PROFILE_NOT_FOUND",
+//         message: "Profile not found"
+//       });
+//     }
+
+//      if (updateData.profile || updateData.attributes || updateData.discovery) {
+//       const { profile: profileData, attributes} = updateData;
+
+//       // 1. Update profile fields
+//       if (profileData) {
+//         // Map new structure to existing fields
+//         if (profileData.about !== undefined) profile.about_me = profileData.about;
+//         if (profileData.jobTitle !== undefined) profile.jobtitle = profileData.jobTitle;
+
+//         // Direct field updates
+//         const profileFields = ['nickname', 'dob', 'age', 'gender', 'height', 'company', 'school','occupation' ];
+//         profileFields.forEach(field => {
+//           if (profileData[field] !== undefined) {
+//             profile[field] = profileData[field];
+//           }
+//         });
+//       }
+//       // 2. Handle attributes
+//       if (attributes) {
+//         profile.attributes = profile.attributes || {};
+
+// // if (attributes.relationshipGoal) {
+// //   profile.attributes.relationshipGoal = {
+// //     title: attributes.relationshipGoal.title || "",
+// //     subtitle: attributes.relationshipGoal.subtitle || ""
+// //   };
+// // }
+
+//         // Basic attributes
+//         const attributeFields = [
+//           'zodiac', 'education', 'familyPlans', 'personalityType',
+//           'communicationStyle', 'loveStyle', 'pets', 'drinking',
+//           'smoking', 'workout', 'dietary', 'sleeping', 'socialMedia', 'religion'
+//         ];
+
+//         attributeFields.forEach(field => {
+//           if (attributes[field] !== undefined) {
+//             profile.attributes[field] = attributes[field];
+//           }
+//         });
+//         // Array fields
+//         const arrayFields = ['languages', 'interests', 'music', 'movies', 'books', 'travel'];
+//         arrayFields.forEach(field => {
+//           if (attributes[field] !== undefined) {
+//             profile.attributes[field] = Array.isArray(attributes[field])
+//               ? attributes[field]
+//               : [attributes[field]];
+//           }
+//         });
+//       }
+//     }
+
+//     // Helper function to safely update fields
+//     const updateField = (field, value, trim = true) => {
+//       if (value !== undefined) {
+//         profile[field] = trim ? String(value).trim() : value;
+//       }
+//     };
+
+//     // Basic Info
+//     if (updateData.fullName !== undefined) {
+//       profile.fullName = updateData.fullName.trim();
+//     }
+
+//     if (updateData.nickname !== undefined) {
+//       const nickname = updateData.nickname.trim();
+//       const existing = await Profile.findOne({
+//         nickname,
+//         userId: { $ne: userId }
+//       });
+//       if (existing) {
+//         return res.status(400).json({
+//           success: false,
+//           code: "NICKNAME_TAKEN",
+//           message: "Nickname already taken"
+//         });
+//       }
+//       profile.nickname = nickname;
+//     }
+
+//     if (updateData.gender !== undefined) {
+//       const validGenders = ["male", "female", "non-binary", "trans-man", "trans-women", "genderqueer", "everyone", "other"];
+//       if (!validGenders.includes(updateData.gender)) {
+//         return res.status(400).json({
+//           success: false,
+//           code: "INVALID_GENDER",
+//           message: "Invalid gender value"
+//         });
+//       }
+//       profile.gender = updateData.gender;
+//     }
+
+//     if (updateData.dob !== undefined) {
+//       const dob = new Date(updateData.dob);
+//       if (isNaN(dob.getTime())) {
+//         return res.status(400).json({
+//           success: false,
+//           code: "INVALID_DOB",
+//           message: "Invalid date of birth"
+//         });
+//       }
+//       profile.dob = dob;
+//       // Calculate age
+//       const today = new Date();
+//       const birthDate = new Date(dob);
+//       let age = today.getFullYear() - birthDate.getFullYear();
+//       const m = today.getMonth() - birthDate.getMonth();
+//       if (m < 0 || (m === 0 && today.getDate() < birthDate.getDate())) {
+//         age--;
+//       }
+//       profile.age = age;
+//     }
+
+//     if(updateData.interests !== undefined){
+//       profile.interests = updateData.interests;
+//     }
+//     // About Me
+//     if (updateData.about_me !== undefined) {
+//       profile.about_me = updateData.about_me.trim();
+//     }
+
+//     // Basic Details
+//     updateField('height', updateData.height);
+//     updateField('occupation', updateData.occupation);
+//     updateField('company', updateData.company);
+//     updateField('school', updateData.school);
+//     updateField('jobtitle', updateData.jobtitle);
+
+//     // Languages
+//     if (Array.isArray(updateData.languages)) {
+//       profile.languages = updateData.languages;
+//     }
+
+//     // Lifestyle
+//     // if (updateData.lifestyle) {
+//     //   if (updateData.lifestyle.pets) {
+//     //     const validPets = ["dog", "cat", "bird", "fish"];
+//     //     if (!validPets.includes(updateData.lifestyle.pets)) {
+//     //       return res.status(400).json({
+//     //         success: false,
+//     //         code: "INVALID_PET_TYPE",
+//     //         message: "Invalid pet type"
+//     //       });
+//     //     }
+//     //     profile.lifestyle = profile.lifestyle || {};
+//     //     profile.lifestyle.pets = updateData.lifestyle.pets;
+//     //   }
+
+//     //   if (updateData.lifestyle.drinking !== undefined) {
+//     //     const validDrinking = ["never", "socially", "regularly"];
+//     //     if (!validDrinking.includes(updateData.lifestyle.drinking)) {
+//     //       return res.status(400).json({
+//     //         success: false,
+//     //         code: "INVALID_DRINKING_VALUE",
+//     //         message: "Invalid drinking value"
+//     //       });
+//     //     }
+//     //     profile.lifestyle = profile.lifestyle || {};
+//     //     profile.lifestyle.drinking = updateData.lifestyle.drinking;
+//     //   }
+
+//     //   if (updateData.lifestyle.exercise !== undefined) {
+//     //     const validExercise = ["never", "sometimes", "regularly", "daily"];
+//     //     if (!validExercise.includes(updateData.lifestyle.exercise)) {
+//     //       return res.status(400).json({
+//     //         success: false,
+//     //         code: "INVALID_EXERCISE_VALUE",
+//     //         message: "Invalid exercise value"
+//     //       });
+//     //     }
+//     //     profile.lifestyle = profile.lifestyle || {};
+//     //     profile.lifestyle.exercise = updateData.lifestyle.exercise;
+//     //   }
+//     // }
+// // In your updateProfile function
+
+//     // Basics
+//     if (updateData.basics) {
+//       profile.basics = profile.basics || {};
+
+//       // Education
+//       if (updateData.basics.education) {
+//         profile.basics.education = profile.basics.education || {};
+
+//         if (updateData.basics.education.level) {
+//           const validEducationLevels = ["high_school", "bachelors", "masters", "phd", "trade_school", "prefer_not_to_say"];
+//           if (!validEducationLevels.includes(updateData.basics.education.level)) {
+//             return res.status(400).json({
+//               success: false,
+//               code: "INVALID_EDUCATION_LEVEL",
+//               message: "Invalid education level"
+//             });
+//           }
+//           profile.basics.education.level = updateData.basics.education.level;
+//         }
+
+//         if (updateData.basics.education.institution !== undefined) {
+//           profile.basics.education.institution = updateData.basics.education.institution.trim();
+//         }
+//       }
+
+//       // Zodiac
+//       if (updateData.basics.zodiac) {
+//         const validZodiacs = ["aries", "taurus", "gemini", "cancer", "leo", "virgo",
+//                             "libra", "scorpio", "sagittarius", "capricorn", "aquarius", "pisces"];
+//         if (!validZodiacs.includes(updateData.basics.zodiac)) {
+//           return res.status(400).json({
+//             success: false,
+//             code: "INVALID_ZODIAC",
+//             message: "Invalid zodiac sign"
+//           });
+//         }
+//         profile.basics.zodiac = updateData.basics.zodiac;
+//       }
+
+//       // Other basic fields
+//       if (updateData.basics.familyPlans !== undefined) {
+//         profile.basics.familyPlans = updateData.basics.familyPlans.trim();
+//       }
+
+//       if (updateData.basics.PersonalityType) {
+//         const validPersonalityTypes = ["intj", "entj", "entp", "istp", "isfp"];
+//         if (!validPersonalityTypes.includes(updateData.basics.PersonalityType)) {
+//           return res.status(400).json({
+//             success: false,
+//             code: "INVALID_PERSONALITY_TYPE",
+//             message: "Invalid personality type"
+//           });
+//         }
+//         profile.basics.PersonalityType = updateData.basics.PersonalityType;
+//       }
+
+//       if (updateData.basics.communicationStyle) {
+//         const validStyles = ["chattyCathy", "listener", "joker", "deepThinker",
+//                            "sarcasticWit", "easyGoing", "storyTeller", "straightShooter"];
+//         if (!validStyles.includes(updateData.basics.communicationStyle)) {
+//           return res.status(400).json({
+//             success: false,
+//             code: "INVALID_COMMUNICATION_STYLE",
+//             message: "Invalid communication style"
+//           });
+//         }
+//         profile.basics.communicationStyle = updateData.basics.communicationStyle;
+//       }
+
+//       if (updateData.basics.loveStyle) {
+//         const validLoveStyles = ["hopelessRomantic", "bestFriend", "adventureSeeker", "careGiver"];
+//         if (!validLoveStyles.includes(updateData.basics.loveStyle)) {
+//           return res.status(400).json({
+//             success: false,
+//             code: "INVALID_LOVE_STYLE",
+//             message: "Invalid love style"
+//           });
+//         }
+//         profile.basics.loveStyle = updateData.basics.loveStyle;
+//       }
+//     }
+
+//     // Preferences
+//     if (updateData.discovery) {
+//       // Age Range
+//       if (updateData.discovery.ageRange) {
+//         if (updateData.discovery.ageRange.min !== undefined) {
+//           const minAge = parseInt(updateData.discovery.ageRange.min);
+//           if (isNaN(minAge) || minAge < 18 || minAge > 100) {
+//             return res.status(400).json({
+//               success: false,
+//               code: "INVALID_MIN_AGE",
+//               message: "Minimum age must be between 18 and 100"
+//             });
+//           }
+//           profile.discovery.ageRange.min = minAge;
+//         }
+
+//         if (updateData.discovery.ageRange.max !== undefined) {
+//           const maxAge = parseInt(updateData.discovery.ageRange.max);
+//           if (isNaN(maxAge) || maxAge < 18 || maxAge > 100) {
+//             return res.status(400).json({
+//               success: false,
+//               code: "INVALID_MAX_AGE",
+//               message: "Maximum age must be between 18 and 100"
+//             });
+//           }
+//           profile.discovery.ageRange.max = maxAge;
+//         }
+
+//         // Ensure min <= max
+//         if (profile.discovery.ageRange.min > profile.discovery.ageRange.max) {
+//           return res.status(400).json({
+//             success: false,
+//             code: "INVALID_AGE_RANGE",
+//             message: "Minimum age cannot be greater than maximum age"
+//           });
+//         }
+//       }
+
+//       // Distance Range
+//       if (updateData.discovery.distanceRange !== undefined) {
+//         const distance = parseInt(updateData.discovery.distanceRange);
+//         if (isNaN(distance) || distance < 1 || distance > 500) {
+//           return res.status(400).json({
+//             success: false,
+//             code: "INVALID_DISTANCE",
+//             message: "Distance must be between 1 and 500 km"
+//           });
+//         }
+//         profile.discovery.distanceRange = distance;
+//       }
+//       if (updateData.discovery?.relationshipGoal) {
+//   profile.discovery.relationshipGoal = {
+//     key: updateData.discovery.relationshipGoal.key || "",
+//     title: updateData.discovery.relationshipGoal.title || "",
+//     subtitle: updateData.discovery.relationshipGoal.subtitle || ""
+//   };
+// }
+
+//       // Gender Preference
+//       if (updateData.discovery.showMeGender) {
+//         if (!Array.isArray(updateData.discovery.showMeGender)) {
+//           return res.status(400).json({
+//             success: false,
+//             code: "INVALID_GENDER_PREFERENCE",
+//             message: "Gender preference must be an array"
+//           });
+//         }
+
+//         const validGenders = ["male", "female", "non-binary", "trans-man", "trans-women", "everyone", "other"];
+//         const invalidGenders = updateData.discovery.showMeGender.filter(
+//           gender => !validGenders.includes(gender)
+//         );
+
+//         if (invalidGenders.length > 0) {
+//           return res.status(400).json({
+//             success: false,
+//             code: "INVALID_GENDER_VALUES",
+//             message: `Invalid gender values: ${invalidGenders.join(", ")}`
+//           });
+//         }
+
+//         profile.discovery.showMeGender = updateData.discovery.showMeGender;
+//       }
+//     }
+
+//     // Update the last updated timestamp
+//     profile.lastProfileUpdate = new Date();
+
+//     // const response = formatResponse(profile);
+
+//     // Save the updated profile
+//     await profile.save();
+
+//     // Return the updated profile
+//     res.json({
+//       success: true,
+//       message: "Profile updated successfully",
+//       // data: response
+//     });
+
+//   } catch (error) {
+//     console.error("Error updating profile:", error);
+//     res.status(500).json({
+//       success: false,
+//       code: "INTERNAL_SERVER_ERROR",
+//       message: "An error occurred while updating the profile"
+//     });
+//   }
+// };
+
+// ========================================
+// 2. UPLOAD PHOTOS
+// ========================================
+module.exports.uploadPhotos = async (req, res) => {
   try {
     const userId = req.user._id;
     const files = req.files;
@@ -162,7 +552,6 @@ exports.uploadPhotos = async (req, res) => {
 
     await profile.save();
     const [data] = await Promise.all([getFullUserData(userId, profile), clearProfileCache(userId)]);
-
     res.json({
       success: true,
       message: `${newPhotosResults.length} photo uploaded successfully`,
@@ -222,6 +611,7 @@ exports.reorderPhotos = async (req, res) => {
     });
 
     profile.photos = reorderedPhotos;
+
     await profile.save();
     const [data] = await Promise.all([getFullUserData(userId, profile), clearProfileCache(userId)]);
 
@@ -234,41 +624,6 @@ exports.reorderPhotos = async (req, res) => {
     res.status(400).json({ success: false, message: err.message });
   }
 };
-
-// Function name vahi hai, bas logic change kiya hai file handle karne ka
-// module.exports.uploadSelfie = async (req, res) => {
-//   try {
-//     const userId = req.user._id;
-//     // Ab file buffer nahi, direct URL aayega frontend se
-//     const { selfieUrl } = req.body; 
-
-//     if (!selfieUrl) return res.status(400).json({ success: false, message: "Selfie URL required" });
-
-//     const profile = await getOrCreateProfile(userId);
-//     if (profile.verification?.status === "approved") return res.status(400).json({ success: false, message: "Already approved" });
-
-//     // Parallel processing: DB updates
-//     const [data] = await Promise.all([
-//       getFullUserData(userId, profile), // Metadata fetch
-//       Profile.updateOne({ userId }, { 
-//         $set: { 
-//           "verification.selfieUrl": selfieUrl, 
-//           "verification.status": "pending" 
-//         } 
-//       })
-//     ]);
-
-//     await clearProfileCache(userId);
-
-//     res.json({
-//       success: true,
-//       message: "Selfie verified and updated",
-//       data: { user: formatProfileResponse(data.user, profile, data.blockedContacts, data.blockedUser, data.subData) }
-//     });
-//   } catch (err) {
-//     res.status(500).json({ success: false, message: "Sync failed" });
-//   }
-// };
 
 module.exports.uploadSelfie = async (req, res) => {
   try {
@@ -310,6 +665,7 @@ module.exports.uploadSelfie = async (req, res) => {
   }
 };
 
+
 module.exports.uploadIDDocument = async (req, res) => {
   try {
     const userId = req.user._id;
@@ -343,6 +699,7 @@ module.exports.uploadIDDocument = async (req, res) => {
           transformation: [{ width: 1200, height: 800, crop: "limit", quality: "auto:best" }]
         });
 
+
         // Atomic update taaki pre-save hook skip ho aur speed mile
         const updateFields = {
           "verification.docUrl": result.secure_url,
@@ -370,39 +727,7 @@ module.exports.uploadIDDocument = async (req, res) => {
     }
   }
 };
-// exports.uploadIDDocument = async (req, res) => {
-//   try {
-//     const userId = req.user._id;
-//     const frontFile = req.files?.front?.[0];
-//     if (!frontFile) return res.status(400).json({ success: false, message: "Document front image is required" });
 
-//     const profile = await Profile.findOne({ userId });
-//     if (!profile) return res.status(404).json({ success: false, message: "Profile not found" });
-
-//     const [uploadResult, data] = await Promise.all([
-//       uploadStream(frontFile.buffer, {
-//         folder: `mafs/users/${userId}/kyc`,
-//         transformation: [{ width: 1200, height: 800, crop: "limit", quality: "auto:best" }]
-//       }),
-//       getFullUserData(userId, profile)
-//     ]);
-
-//     if (!profile.verification) profile.verification = {};
-//     profile.verification.docUrl = uploadResult.secure_url;
-//     profile.verification.status = profile.verification.selfieUrl ? "pending" : "not_started";
-
-//     await profile.save();
-//     await clearProfileCache(userId);
-
-//     res.json({
-//       success: true,
-//       message: "ID document uploaded successfully.",
-//       data: { user: formatProfileResponse(data.user, profile, data.blockedContacts, data.blockedUser, data.subData) }
-//     });
-//   } catch (err) {
-//     res.status(500).json({ success: false, message: "Failed to upload ID document" });
-//   }
-// };
 
 exports.getVerificationStatus = async (req, res) => {
   try {
@@ -519,26 +844,6 @@ exports.getUserProfile = async (req, res) => {
   }
 };
 
-// exports.getUserProfile = async (req, res) => {
-//   try {
-//     const { userId: targetUserId } = req.params;
-//     const viewer = req.user;
-
-//     const [targetProfile, swipeAction, blockStatus] = await Promise.all([
-//       Profile.findOne({ userId: targetUserId }).lean(),
-//       swipeModel.findOne({ swiperId: viewer._id, targetId: targetUserId }).lean(),
-//       Block.findOne({ $or: [{ blockerId: viewer._id, blockedId: targetUserId }, { blockerId: targetUserId, blockedId: viewer._id }] }).lean()
-//     ]);
-
-//     if (!targetProfile) return res.status(404).json({ success: false, message: "User profile not found" });
-//     if (blockStatus) return res.status(403).json({ success: false, message: "Profile is private or unavailable" });
-
-//     const formattedData = await formatPublicProfile(viewer, targetProfile, swipeAction);
-//     res.json({ success: true, data: formattedData });
-//   } catch (err) {
-//     res.status(500).json({ success: false, message: "Failed to load profile details" });
-//   }
-// };
 
 exports.updateDiscoveryFilters = async (req, res) => {
   try {
@@ -558,22 +863,15 @@ exports.updateDiscoveryFilters = async (req, res) => {
     await profile.save();
     if (redis) await redis.del(`feed:${userId.toString()}`);
 
-    return res.json({ success: true, message: "Filters applied! Feed is refreshing." });
+
+    return res.json({
+      success: true,
+      message: "Filters applied! Feed is refreshing.",
+    });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
   }
 };
-
-exports.getDiscoveryPreference = async (req, res) => {
-  try {
-    const profile = await Profile.findOne({ userId: req.user._id }).select('preferences discoveryFilters').lean();
-    if (!profile) return res.status(404).json({ success: false, message: "Profile not found" });
-    res.json({ success: true, data: { preferences: profile.preferences, discoveryFilters: profile.discoveryFilters } });
-  } catch (err) {
-    res.status(400).json({ success: false, message: err.message });
-  }
-};
-
 exports.updateVisibility = async (req, res) => {
   try {
     const userId = req.user._id;
@@ -599,46 +897,3 @@ exports.updateVisibility = async (req, res) => {
     res.status(500).json({ success: false, message: err.message });
   }
 };
-
-
-// const cloudinary = require('cloudinary').v2;
-// const mongoose = require('mongoose');
-
-// exports.getUploadSignature = async (req, res) => {
-//   try {
-//     // 1. Check karein ki user authenticated hai aur ID valid hai
-//     if (!req.user || !req.user._id) {
-//       return res.status(401).json({ success: false, message: "User not authenticated" });
-//     }
-
-//     const userId = req.user._id.toString();
-
-//     // 2. Mongoose ID check (Safety layer)
-//     if (!mongoose.Types.ObjectId.isValid(userId)) {
-//       return res.status(400).json({ success: false, message: "Invalid ID format" });
-//     }
-
-//     const timestamp = Math.round(new Date().getTime() / 1000);
-//     const folder = `mafs/users/${userId}/photos`;
-
-//     // 3. Signature generate karna
-//     const signature = cloudinary.utils.api_sign_request(
-//       { timestamp, folder },
-//       process.env.CLOUDINARY_API_SECRET
-//     );
-
-//     res.json({
-//       success: true,
-//       data: {
-//         signature,
-//         timestamp,
-//         cloudName: process.env.CLOUDINARY_CLOUD_NAME,
-//         apiKey: process.env.CLOUDINARY_API_KEY,
-//         folder,
-//         uploadUrl: `https://api.cloudinary.com/v1_1/${process.env.CLOUDINARY_CLOUD_NAME}/image/upload`
-//       }
-//     });
-//   } catch (err) {
-//     res.status(500).json({ success: false, message: err.message });
-//   }
-// };

@@ -3,6 +3,11 @@ const redis = require("../../common/redis");
 const profileModel = require("../profile/profile.model");
 const User = require("./auth.model");
 const utils = require("./auth.utils");
+const { formatUserProfile } = require("./auth.formatter");
+const BlockedContact = require("../BlockedContact/blockedContacts.model");
+const Block = require("../profile/user.block");
+const { normalizePhone, hashPhone } = require("../../common/utils/phone.util");
+const UserSubscription = require("../auth/UserSubscription.model");
 
 // const PHONE_OTP_TTL_MS = Number(1000 * 60 * 5); // 5 min
 const EMAIL_OTP_TTL_MS = Number(1000 * 60 * 10); // 10 min
@@ -109,7 +114,6 @@ async function sendPhoneOtp(phone) {
 //   };
 // }
 
-
 // async function verifyPhoneOtpUnified(phone, otp) {
 //   const redisKey = `login:${phone}`;
 //   const storedOtp = await redis.get(redisKey);
@@ -167,7 +171,6 @@ async function sendPhoneOtp(phone) {
 //   };
 // }
 
-
 // async function verifyPhoneOtpUnified(phone, otp) {
 //   const redisKey = `login:${phone}`;
 //   const storedOtp = await redis.get(redisKey);
@@ -187,12 +190,12 @@ async function sendPhoneOtp(phone) {
 //   user.isPhoneVerified = true;
 //   const accessToken = utils.generateAccessToken(user);
 //   const refreshTokenRaw = utils.generateRefreshToken();
-  
+
 //   // Save refresh token logic (as per your existing code)
 //   const refreshHash = utils.hashToken(refreshTokenRaw);
 //   user.refreshTokens.push({
 //     tokenHash: refreshHash,
-//     expiresAt: Date.now() + 30 * 24 * 60 * 60 * 1000, 
+//     expiresAt: Date.now() + 30 * 24 * 60 * 60 * 1000,
 //   });
 //   await user.save();
 
@@ -242,7 +245,7 @@ async function sendPhoneOtp(phone) {
 //       settings: profile.settings || {},
 //       blockedContacts: profile.blockedContacts || [],
 //       blockedUsers: profile.blockedUsers || [],
-      
+
 //       // --- Account Management (The Status Block) ---
 //       account: {
 //         status: user.accountStatus || "active",
@@ -250,7 +253,7 @@ async function sendPhoneOtp(phone) {
 //         deactivationDetails: user.deactivationDetails || { isDeactivated: false },
 //         deletionDetails: user.deletionDetails || { isScheduledForDeletion: false }
 //       },
-      
+
 //       onboarding: getNextStep(user),
 //       lastProfileUpdate: profile.updatedAt,
 //       createdAt: user.createdAt
@@ -258,12 +261,6 @@ async function sendPhoneOtp(phone) {
 //   };
 // }
 
- 
-const { formatUserProfile } = require("./auth.formatter");
-const BlockedContact = require("../BlockedContact/blockedContacts.model");
-const Block = require("../profile/user.block")
-const { normalizePhone, hashPhone } = require("../../common/utils/phone.util");
-const UserSubscription = require("../auth/UserSubscription.model")
 
 async function verifyPhoneOtpUnified(phone, otp) {
   // 1️⃣ Normalize phone (VERY IMPORTANT)
@@ -277,7 +274,7 @@ async function verifyPhoneOtpUnified(phone, otp) {
     throw new Error("Invalid OTP");
   }
 
-  // 3️⃣ Generate phoneHash 
+  // 3️⃣ Generate phoneHash 🔥
   const phoneHash = hashPhone(normalizedPhone);
 
   // 4️⃣ Find or create user
@@ -285,22 +282,9 @@ async function verifyPhoneOtpUnified(phone, otp) {
   if (!user) {
     user = await User.create({
       phone: normalizedPhone,
-      phoneHash: phoneHash //  NEW USER CASE
+      phoneHash: phoneHash // 🔥 NEW USER CASE
     });
   }
-// ACCOUNT STATE CHECK (CRITICAL)
-if (user.banDetails?.isBanned) {
-  throw new Error("Your account has been banned. Please contact support.");
-}
-
-if (
-  user.suspensionDetails?.isSuspended &&
-  user.suspensionDetails.suspendUntil > new Date()
-) {
-  throw new Error(
-    `Your account is suspended until ${user.suspensionDetails.suspendUntil.toISOString()}`
-  );
-}
 
   // 5️⃣ Tokens
   const accessToken = utils.generateAccessToken(user);
@@ -314,7 +298,7 @@ if (
     {
       $set: {
         phone: normalizedPhone,
-        phoneHash: phoneHash,   
+        phoneHash: phoneHash,   // 🔥 CRITICAL LINE
         isPhoneVerified: true,
         isNewUser: false,
         lastLoginAt: new Date() 
@@ -359,7 +343,6 @@ if (
   };
 }
 
-
 // async function verifyPhoneOtpUnified(phone, otp) {
 //   // 1. Redis/OTP Logic...
 //   const redisKey = `login:${phone}`;
@@ -380,8 +363,8 @@ if (
 //     user._id,
 //     {
 //       $set: { isPhoneVerified: true, isNewUser: false },
-//       $push: { 
-//         refreshTokens: { tokenHash: refreshHash, expiresAt: expiresAt } 
+//       $push: {
+//         refreshTokens: { tokenHash: refreshHash, expiresAt: expiresAt }
 //       }
 //     },
 //     { new: true } // Taaki updated user return ho
@@ -406,7 +389,7 @@ if (
 //   return {
 //     accessToken,
 //     refreshToken: refreshTokenRaw,
-//     isNewUser: !user.firstName, 
+//     isNewUser: !user.firstName,
 //     user: formatUserProfile(user, profile,blockedContacts,blockedUser) // Yahan magic ho raha hai
 //   };
 // }
@@ -419,14 +402,13 @@ if (
 //     };
 //   }
 
-//   // Check profile completion via Profile model
-//   // Return appropriate next step
+// Check profile completion via Profile model
+// Return appropriate next step
 
-//   return {
-//     currentScreenSlug : "profile_setup",
-//     isComplete : user.isProfileCompleted,
-//     message: "Complete your profile",
-//   };
+// return {
+//   screen: "profile_setup",
+//   message: "Complete your profile",
+// };
 // }
 
 async function verifyPhoneOtp(phone, otp) {
@@ -456,33 +438,32 @@ async function verifyPhoneOtp(phone, otp) {
   return user;
 }
 
-async function sendEmailOtp(token, email) {
-  // Verify token and get user
-  const decoded = utils.verifyToken(token);
-  const user = await User.findById(decoded.userId);
-  
+async function sendEmailOtp(userId, email) {
+  // Ensure phone verified before email step
+  const user = await User.findById(userId);
   if (!user) throw new Error("User not found");
-  if (!user.isPhoneVerified) {
+  if (!user.isPhoneVerified)
     throw new Error("Phone must be verified before email verification");
-  }
 
   // If email already used by another account
-  const existing = await User.findOne({ email, _id: { $ne: user._id } });
-  if (existing) {
+  const existing = await User.findOne({ email });
+  if (existing && existing._id.toString() !== userId.toString()) {
     throw new Error("Email already in use");
   }
 
   // Save email to user
   user.email = email;
 
-  // Generate and store OTP
-  const otp = utils.generateOtp();
-  user.emailOtp = otp;
+  // Generate RAW OTP
+  const otp = utils.generateOtp(); // e.g., "123456"
+
+  // Store RAW OTP instead of hash
+  user.emailOtp = otp; // <-- raw
   user.emailOtpExpires = Date.now() + EMAIL_OTP_TTL_MS;
 
   await user.save();
 
-  // Send email with OTP
+  // send email
   const subject = "Your verification code";
   const text = `Your email verification code is ${otp}`;
   await utils.sendEmail(email, subject, text);
@@ -490,20 +471,24 @@ async function sendEmailOtp(token, email) {
   return { ok: true };
 }
 
-
-
-
-async function verifyEmailOtp(token, otp) {
-  const decoded = utils.verifyToken(token);
-
-  const user = await User.findById(decoded.userId);
+async function verifyEmailOtp(userId, otp) {
+  const user = await User.findById(userId);
   if (!user) throw new Error("User not found");
 
-  if (!user.emailOtp || !user.emailOtpExpires) throw new Error("OTP not found");
-  if (Date.now() > user.emailOtpExpires) throw new Error("OTP expired");
-  if (String(otp) !== String(user.emailOtp)) throw new Error("Invalid OTP");
+  // Check OTP existence + expiry
+  if (!user.emailOtp || !user.emailOtpExpires) {
+    throw new Error("OTP not found");
+  }
 
-  // Email mark as verified
+  if (Date.now() > user.emailOtpExpires) {
+    throw new Error("OTP expired");
+  }
+
+  // Validate OTP (plain text)
+  if (otp !== user.emailOtp) {
+    throw new Error("Invalid OTP");
+  }
+
   user.isEmailVerified = true;
   user.emailOtp = undefined;
   user.emailOtpExpires = undefined;
@@ -528,15 +513,14 @@ async function verifyEmailOtp(token, otp) {
       { upsert: true, new: true, lean: true }
     ),
     BlockedContact.find({ userId: user._id }).lean(),
-    Block.find({ blockerId: user._id }).lean()
+    Block.find({ blockerId: user._id }).lean(),
   ]);
 
   return {
     // Return the formatted user including block lists
-    user: formatUserProfile(user, profile, blockedContacts, blockedUser)
+    user: formatUserProfile(user, profile, blockedContacts, blockedUser),
   };
 }
-
 
 async function loginSendOtp(phone, ip) {
   if (!phone) throw new Error("Phone is required");
@@ -611,57 +595,54 @@ async function loginVerifyOtp(phone, otp) {
 }
 
 async function refreshAccessToken(refreshTokenRaw) {
-  // 1. Hash incoming token to compare with DB
+  // 🔐 1) Hash incoming token
   const incomingHash = utils.hashToken(refreshTokenRaw);
 
-  // 2. Find user who has this specific hash
+  // 👤 2) Find user by refresh token
   const user = await User.findOne({
-    "refreshTokens.tokenHash": incomingHash
+    "refreshTokens.tokenHash": incomingHash,
   });
 
   if (!user) {
-    throw new Error("Invalid refresh token"); // Database mein match nahi mila
+    throw new Error("Invalid refresh token");
   }
 
-  // 3. Purane/Expired tokens hatao (Maintenance)
+  // 🧹 3) Remove expired tokens
   user.refreshTokens = user.refreshTokens.filter(
-    rt => rt.expiresAt > Date.now()
+    (rt) => rt.expiresAt > Date.now()
   );
 
-  // 4. Double check ki current wala abhi bhi list mein hai (Expired toh nahi tha?)
-  const isStillValid = user.refreshTokens.some(
-    rt => rt.tokenHash === incomingHash
+  // 🔍 4) Ensure token still exists
+  const stillValid = user.refreshTokens.some(
+    (rt) => rt.tokenHash === incomingHash
   );
 
-  if (!isStillValid) {
-    await user.save(); // Clean up array in DB
+  if (!stillValid) {
     throw new Error("Refresh token expired");
   }
 
-  // 5. Naya Access Token generate karo
+  // 🔑 5) Generate new access token
   const accessToken = utils.generateAccessToken(user);
 
   // 6. Profile fetch karo (Empty string handling ke liye)
   // const profile = await profileModel.findOne({ userId: user._id }).lean();
- const [profile, blockedContacts, blockedUser] = await Promise.all([
+  const [profile, blockedContacts, blockedUser] = await Promise.all([
     profileModel.findOneAndUpdate(
       { userId: user._id },
       { $set: { "onboardingProgress.emailVerified": true } },
       { upsert: true, new: true, lean: true }
     ),
     BlockedContact.find({ userId: user._id }).lean(),
-    Block.find({ blockerId: user._id }).lean()
+    Block.find({ blockerId: user._id }).lean(),
   ]);
-
-
 
   await user.save();
 
   // 7. RETURN MASTER FORMAT
   return {
     accessToken,
-    refreshToken: refreshTokenRaw, 
-    user: formatUserProfile(user, profile, blockedContacts, blockedUser)
+    refreshToken: refreshTokenRaw,
+    user: formatUserProfile(user, profile, blockedContacts, blockedUser),
   };
 }
 
@@ -712,8 +693,6 @@ async function refreshAccessToken(refreshTokenRaw) {
 //   };
 // }
 
-
-
 // async function logout(userId, refreshTokenRaw) {
 //   const user = await User.findById(userId);
 //   if (!user) return;
@@ -725,13 +704,12 @@ async function refreshAccessToken(refreshTokenRaw) {
 //   return;
 // }
 
-
 // auth.service.js
 async function logout(refreshTokenRaw) {
   const incomingHash = utils.hashToken(refreshTokenRaw);
 
   const user = await User.findOne({
-    "refreshTokens.tokenHash": incomingHash
+    "refreshTokens.tokenHash": incomingHash,
   });
 
   if (!user) {
@@ -741,16 +719,11 @@ async function logout(refreshTokenRaw) {
   }
 
   user.refreshTokens = user.refreshTokens.filter(
-    rt => rt.tokenHash !== incomingHash
+    (rt) => rt.tokenHash !== incomingHash
   );
 
   await user.save();
 }
-
-module.exports = {
-  logout
-};
-
 
 // In auth.service.js - Update sendPhoneOtp function
 async function sendPhoneOtpTest(phone, testMode = false) {
@@ -764,9 +737,9 @@ async function sendPhoneOtpTest(phone, testMode = false) {
   // Generate OTP
   const otp = utils.generateOtp();
   const redisKey = `login:${normalizedPhone}`;
-  
+
   // Store in Redis with TTL
-  await redis.set(redisKey, otp, "EX", 3000);
+  await redis.set(redisKey, otp, "EX", 300);
   console.log(`🔑 OTP saved in Redis (${redisKey}):`, otp);
 
   // In test mode, don't send actual SMS
@@ -777,10 +750,10 @@ async function sendPhoneOtpTest(phone, testMode = false) {
   // Save device + fcm if new login attempt
   await user.save();
 
-  return { 
-    success: true, 
+  return {
+    success: true,
     otp, // Always return OTP in response
-    message: testMode ? "OTP generated (test mode)" : "OTP sent successfully"
+    message: testMode ? "OTP generated (test mode)" : "OTP sent successfully",
   };
 }
 
@@ -794,7 +767,7 @@ module.exports = {
   loginVerifyOtp,
   refreshAccessToken,
   logout,
-   sendPhoneOtpTest
+  sendPhoneOtpTest,
   // socialAuthHandler
 };
 
@@ -994,7 +967,3 @@ module.exports = {
 //     decoded.sub
 //   );
 // };
-
-
-
-

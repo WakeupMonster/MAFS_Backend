@@ -137,8 +137,6 @@ console.log("swipes",swipes)
 // 2. redis.mGet use karein (Jo ab humne cache.js mein define kiya hai)
 const boostResults = await redis.mGet(boostKeys);
 
-console.log("boostresult",boostResults)
-
   // 6️⃣ Figma Scoring Engine
   const myPreferredInterests = discovery.preferredInterests || [];
   const myAdvancedFilters = discovery.advancedFilters || {};
@@ -148,16 +146,11 @@ console.log("boostresult",boostResults)
     const targetAttr = profile.attributes || {};
     const targetInterests = targetAttr.interests || profile.interests || [];
     const isSuperliked = superlikeSet.has(profile.userId.toString());
-    console.log(
-  "BOOST CHECK →",
-  profile.userId.toString(),
-  boostResults?.[index]
-);
-
+    
     // const isBoosted = boostResults && boostResults[index] !== null;
     const isBoosted = boostResults?.[index] === "1";
 
-    // console.log(isSuperliked, "has in set")
+    console.log(isSuperliked, "has in set")
     // 1️⃣ Match Score Calculation (Score Logic Same Rakhenge)
     let score = isSuperliked ? 1000 : 0;
     if (isBoosted) {

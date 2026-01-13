@@ -6,12 +6,12 @@ const validate = require("../../common/middlewares/validate");
 
 // const {importContacts,blockContacts,getBlockedContacts,unblockContact} = require("./contacts.controller");
 
-const {importContactsSchema} = require("./contacts.validation");
+const {importContactsSchema,blockContactsSchema} = require("./contacts.validation");
 const { importContacts, blockContacts, getBlockedContacts, unblockByPhone } = require("./contacts.controller");
 
 router.post("/import",auth,validate(importContactsSchema),importContacts);
 
-router.post("/block",auth,blockContacts);
+router.post("/block",auth,validate(blockContactsSchema),blockContacts);
 
 router.get("/blocked", auth, getBlockedContacts);
 

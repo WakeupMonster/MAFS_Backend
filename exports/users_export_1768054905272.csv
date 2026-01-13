@@ -1,0 +1,13 @@
+UserId,Email,Phone,AccountStatus,IsPremium,AuthMethod,CreatedAt,Nickname,Gender,Age,JobTitle,City,ProfileCompletion,KYCStatus
+695bc67693e6561b6fea7db0,rptech9009@gmail.com,+918085047792,active,No,phone,2026-01-05T14:11:02.522Z,shivraj,man,,Designer,Indore,85%,approved
+695be857cd1ca69631c73ac3,,+918085047793,active,No,phone,2026-01-05T16:35:35.237Z,Avni,woman,,Designer,Indore,100%,approved
+695bf2d160ec18fe65090882,gurjarmp@gma.com,+918085047794,active,No,phone,2026-01-05T17:20:17.157Z,Kajal,woman,,Manager,,90%,approved
+695debc25563c9827f5a3c4b,raj.yadav29.wm@gmail.com,+918349020828,active,No,phone,2026-01-07T05:14:42.016Z,,,,,,0%,approved
+695e08db799fda33e30a7f7e,patelrajeev10342@gmail.com,+918085047791,active,Yes,phone,2026-01-07T07:18:51.169Z,palak,woman,,Manager,Indore,70%,approved
+695e0a0f799fda33e30a7f92,rajeevwm2@gmail.com,+918085047790,active,No,phone,2026-01-07T07:23:59.463Z,keshav,man,,Designer,,50%,approved
+695f492ec2e28a70c1655b9b,,+918085047789,active,No,phone,2026-01-08T06:05:34.566Z,,,,,,25%,not_started
+695f8cde2b3dcdf08cf8fc35,,+916261113030,active,No,phone,2026-01-08T10:54:22.435Z,,,,,Indore,10%,not_started
+695f90dd72d51066f430ff24,,+916261113031,active,No,phone,2026-01-08T11:11:25.703Z,hemant,man,,engineer,Indore,70%,approved
+69609efcb3a5c8293dc0ea52,,+916261113000,active,No,phone,2026-01-09T06:23:56.956Z,,,,,,0%,pending
+6960bb81766bf671c00ebf65,,+916261113002,banned,No,phone,2026-01-09T08:25:37.355Z,,,,,,0%,not_started
+6961fdba3deaa60525828ddc,riya.sharma@example.com,+91987654310,active,No,email,2024-11-20T08:45:10.000Z,Riya,female,25,Software Engineer,Indore,95%,approved

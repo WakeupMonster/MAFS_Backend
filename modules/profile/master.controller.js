@@ -27,7 +27,7 @@
 // // 2. Admin: Bulk Add (Figma ki saari list ek sath daalne ke liye)
 // exports.adminBulkAdd = async (req, res) => {
 //   try {
-//     const { items } = req.body; 
+//     const { items } = req.body;
 //     // items example: [{category: 'music', label: 'Pop 🎵', value: 'pop'}, ...]
 //     await MasterData.insertMany(items, { ordered: false });
 //     res.status(201).json({ success: true, message: "Items added" });
@@ -35,7 +35,6 @@
 //     res.status(500).json({ success: false, message: err.message });
 //   }
 // };
-
 
 const MasterData = require("./master.model");
 
@@ -46,10 +45,10 @@ exports.getAppConfig = async (req, res) => {
     // 1. Grouping Logic
     const groupedData = allItems.reduce((acc, item) => {
       if (!acc[item.category]) acc[item.category] = [];
-      
+
       const itemObj = {
         id: item.value, // Manager wants "id"
-        label: item.label
+        label: item.label,
       };
 
       // Agar subtitle hai toh hi add karo
@@ -61,7 +60,7 @@ exports.getAppConfig = async (req, res) => {
 
     const config = {
       distance: { min: 1, max: 500, unit: "km" },
-      age: { min: 18, max: 60 }
+      age: { min: 18, max: 60 },
     };
 
     return res.status(200).json({
@@ -69,22 +68,22 @@ exports.getAppConfig = async (req, res) => {
       message: "App configuration fetched successfully",
       data: {
         ...groupedData,
-        config: config
-      }
+        config: config,
+      },
     });
   } catch (err) {
     res.status(500).json({ success: false, message: "Server Error" });
   }
 };
 
-
-
 exports.bulkAddMasterData = async (req, res) => {
   try {
     const { items } = req.body;
 
     if (!items || !Array.isArray(items)) {
-      return res.status(400).json({ success: false, message: "Invalid data format" });
+      return res
+        .status(400)
+        .json({ success: false, message: "Invalid data format" });
     }
 
     // "bulkWrite" use karna best hai production mein speed ke liye

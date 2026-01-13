@@ -25,7 +25,6 @@ const { Worker } = require("bullmq");
 const utils = require("../modules/auth/auth.utils");
 const User = require("../modules/auth/auth.model");
 
-
 // ------------------------------
 // 1. CONNECT MONGODB
 // ------------------------------
@@ -44,14 +43,16 @@ connectMongo();
 // ------------------------------
 // 2. CREATE WORKER
 // ------------------------------
-const worker = new Worker("smsQueue", async (job) => {
+const worker = new Worker(
+  "smsQueue",
+  async (job) => {
     if (job.name === "send-otp") {
       const { phone, otp, userId } = job.data;
 
       // STEP A → Save OTP in DB
       await User.findByIdAndUpdate(userId, {
         phoneOtp: otp,
-        phoneOtpExpires: Date.now() + 5 * 60 * 1000
+        phoneOtpExpires: Date.now() + 5 * 60 * 1000,
       });
 
       console.log("OTP stored in DB:", otp);
@@ -62,7 +63,7 @@ const worker = new Worker("smsQueue", async (job) => {
     }
   },
   {
-    connection: { url: process.env.REDIS_URL || "redis://127.0.0.1:6379" }
+    connection: { url: process.env.REDIS_URL || "redis://127.0.0.1:6379" },
   }
 );
 

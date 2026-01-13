@@ -6,26 +6,26 @@ const router = express.Router();
 // Controllers (baad me banenge)
 const adminGiveawayController = require("../../../modules/giveaway/admin/giveaway.controller");
 
+// const auth = require("../../../modules/auth/auth.middleware");
+const allowAdminMiddleware = require("../../../common/middlewares/allowAdmin.middleware");
 
 
 // missing api Monthly bulk create missing
 
 router.post(
   "/prizes",
-//   validate("adminCreatePrize"),
+  //   validate("adminCreatePrize"),
+  allowAdminMiddleware,
   adminGiveawayController.createPrize
 );
 
-
-router.get(
-  "/prizes",
-  adminGiveawayController.getAllPrizes
-);
+router.get( "/prizes", allowAdminMiddleware, adminGiveawayController.getAllPrizes );
 
 router.patch(
   "/prizes/:id",
-//   validate("adminUpdatePrize"),
-  adminGiveawayController.updatePrize
+  //   validate("adminUpdatePrize"),
+allowAdminMiddleware,
+adminGiveawayController.updatePrize
 );
 
 /**
@@ -33,18 +33,17 @@ router.patch(
  */
 router.post(
   "/campaigns",
-//   validate("adminCreateCampaign"),
+  //   validate("adminCreateCampaign"),
+  allowAdminMiddleware,
   adminGiveawayController.createCampaign
 );
 
-router.get(
-  "/campaigns",
-  adminGiveawayController.getAllCampaigns
-);
+router.get( "/campaigns", allowAdminMiddleware, adminGiveawayController.getAllCampaigns );
 
 router.patch(
   "/campaigns/:id",
-//   validate("adminUpdateCampaign"),
+  //   validate("adminUpdateCampaign"),
+  allowAdminMiddleware,
   adminGiveawayController.updateCampaign
 );
 
@@ -53,46 +52,39 @@ router.get(
   adminGiveawayController.getWinner
 );
 
-router.post(
-  "/campaigns/:id/resend-prize",
-  adminGiveawayController.resendPrize
-);
+router.post("/campaigns/:id/resend-prize", allowAdminMiddleware, adminGiveawayController.resendPrize);
+
+router.post("/mark-as-deliver", allowAdminMiddleware, adminGiveawayController.markPrizeAsDelivered);
+
+router.get("/pending-deliveries", allowAdminMiddleware, adminGiveawayController.getPendingDeliveries);
+
+router.get("/claims", allowAdminMiddleware, adminGiveawayController.getAllClaims);
 
 
-router.post(
-  "/mark-as-deliver",
-  adminGiveawayController.markPrizeAsDelivered
-); 
+router.get("/campaigns/winner/:id/", allowAdminMiddleware, adminGiveawayController.getWinner );
 
-router.get("/pending-deliveries",adminGiveawayController.getPendingDeliveries)
+router.get("/get-delivered-price", allowAdminMiddleware, adminGiveawayController.getDeliveredPrizes );
 
-router.get("/claims",adminGiveawayController.getAllClaims)
-
-
-router.get("/campaigns/winner/:id/",adminGiveawayController.getWinner)
-
-router.get("/get-delivered-price",adminGiveawayController.getDeliveredPrizes)
-
-router.get("/audit",adminGiveawayController.getGiveawayAuditReport)
+router.get("/audit", allowAdminMiddleware, adminGiveawayController.getGiveawayAuditReport );
 
 router.post(
   "/campaigns/bulk",
   // validate("adminBulkCreateCampaign"),
+  allowAdminMiddleware,
   adminGiveawayController.bulkCreateCampaignByRanges
 );
 
 router.patch(
   "/campaigns/:id/disable",
+  allowAdminMiddleware,
   adminGiveawayController.disableCampaign
 );
 
 router.patch(
   "/campaigns/:campaignId/pause",
+  allowAdminMiddleware,
   adminGiveawayController.pauseCampaign
 );
-
-
-
 
 /**
  * ⚠️ TEMPORARY – CRON TEST ROUTE
@@ -100,30 +92,12 @@ router.patch(
  */
 const runGiveawayWorker = require("../../../jobs/giveaway/giveaway.worker");
 
-router.post(
-  "/run-cron",
-  async (req, res) => {
-    await runGiveawayWorker();
-    return res.json({
-      success: true,
-      message: "Giveaway cron executed manually"
-    });
-  }
-);
-
+router.post("/run-cron", async (req, res) => {
+  await runGiveawayWorker();
+  return res.json({
+    success: true,
+    message: "Giveaway cron executed manually",
+  });
+});
 
 module.exports = router;
-
-
-// PATCH /admin/giveaway/:id/disable -- campaign.isActive = false;
-
-// PATCH /admin/giveaway/:campaignId/pause -- campaign.isActive = false;
-
-
-// POST /admin/giveaway/campaigns/bulk
-
-// GET  /admin/giveaway/config
-// PATCH /admin/giveaway/config
-
-
-// PATCH /admin/giveaway/settings for yealy limit
