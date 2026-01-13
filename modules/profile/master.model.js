@@ -1,9 +1,9 @@
 // const mongoose = require("mongoose");
 
 // const MasterDataSchema = new mongoose.Schema({
-//   category: {
-//     type: String,
-//     required: true,
+//   category: { 
+//     type: String, 
+//     required: true, 
 //     index: true // Searching fast karne ke liye
 //   },
 //   label: { type: String, required: true }, // "English 🇺🇸"
@@ -18,10 +18,10 @@
 const mongoose = require("mongoose");
 
 const MasterDataSchema = new mongoose.Schema({
-  category: { type: String, required: true, index: true },
+  category: { type: String, required: true, index: true }, 
   label: { type: String, required: true },
   value: { type: String, required: true }, // Isse hum "id" ki tarah response mein bhejenge
-  subtitle: { type: String, default: null }, // Specifically for Relationship Goals
+  subtitle: { type: String, default: null } // Specifically for Relationship Goals
 });
 
 module.exports = mongoose.model("MasterData", MasterDataSchema);

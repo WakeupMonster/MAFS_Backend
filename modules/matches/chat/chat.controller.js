@@ -1,6 +1,7 @@
 /* eslint-disable no-unused-vars */
 // routes/messages.js
 
+
 // GET /api/v1/messages/:matchId
 // exports.getChatMessages = async (req, res) => {
 //   try {
@@ -89,6 +90,8 @@
 //   }
 // };
 
+
+
 const ChatMessage = require("./chat.message.model");
 const { Match } = require("../swipe/swipe.model");
 
@@ -100,26 +103,25 @@ exports.sendMessage = async (req, res) => {
 
     // Security: Check if match exists and user is part of it
     const match = await Match.findOne({ _id: matchId, users: sender });
-    if (!match)
-      return res.status(403).json({ success: false, message: "Invalid Match" });
+    if (!match) return res.status(403).json({ success: false, message: "Invalid Match" });
 
     const newMessage = await ChatMessage.create({
       matchId,
       sender,
       receiver: receiverId,
       text,
-      media,
+      media
     });
 
     // 🔥 VVIP: Match model update karo taaki Matches Tab mein chat upar aa jaye
     await Match.findByIdAndUpdate(matchId, {
       lastMessage: text || "Sent a media",
       lastMessageAt: new Date(),
-      lastMessageBy: sender,
+      lastMessageBy: sender
     });
 
     // TODO: Yahan Socket.io emit jayega real-time ke liye
-
+    
     return res.status(201).json({ success: true, data: newMessage });
   } catch (err) {
     res.status(500).json({ success: false, message: "Chat failed" });
@@ -130,39 +132,45 @@ exports.sendMessage = async (req, res) => {
 exports.getChatMessages = async (req, res) => {
   try {
     const userId = req.user._id;
-    // const { matchId } = req.body;
-    // const { matchId } = req.query;
+    // const { matchId } = req.body; 
+    // const { matchId } = req.query; 
     const { matchId } = req.params;
 
     const { page = 1, limit = 20 } = req.query;
 
     const messages = await ChatMessage.find({
       matchId,
-      deletedFor: { $ne: userId },
+      deletedFor: { $ne: userId }
     })
-      .sort({ createdAt: -1 }) // Naye messages pehle
-      .skip((page - 1) * limit)
-      .limit(parseInt(limit))
-      .lean();
-    const formattedMessages = messages.reverse().map((msg) => ({
-      id: msg._id,
-      text: msg.text,
-      media: msg.media || [],
-      isMine: msg.sender.toString() === userId.toString(),
+    .sort({ createdAt: -1 }) // Naye messages pehle
+    .skip((page - 1) * limit)
+    .limit(parseInt(limit))
+    .lean();
+     const formattedMessages = messages
+      .reverse()
+      .map(msg => ({
+        id: msg._id,
+        text: msg.text,
+ media: msg.media || [], 
+        isMine: msg.sender.toString() === userId.toString(),
 
-      status: msg.readAt ? "read" : msg.deliveredAt ? "delivered" : "sent",
+        status: msg.readAt
+          ? "read"
+          : msg.deliveredAt
+          ? "delivered"
+          : "sent",
 
-      sentAt: msg.createdAt,
-      sentAtFormatted: new Date(msg.createdAt).toLocaleTimeString("en-IN", {
-        hour: "2-digit",
-        minute: "2-digit",
-      }),
-    }));
+        sentAt: msg.createdAt,
+        sentAtFormatted: new Date(msg.createdAt).toLocaleTimeString("en-IN", {
+          hour: "2-digit",
+          minute: "2-digit"
+        })
+      }));
 
     // Frontend ko ascending order mein chahiye hote hain
     return res.json({
       success: true,
-      data: formattedMessages,
+      data: formattedMessages
     });
   } catch (err) {
     res.status(500).json({ success: false, message: "Server error" });
@@ -264,8 +272,11 @@ exports.deleteChatMessage = async (req, res) => {
   }
 };
 
+
+
 const redis = require("../../../config/cache");
 const Profile = require("../../../modules/profile/profile.model");
+
 
 exports.getChatList = async (req, res) => {
   try {
@@ -273,7 +284,7 @@ exports.getChatList = async (req, res) => {
 
     // 1️⃣ Fetch matches sorted by last message (TOP REORDER BASE)
     const matches = await Match.find({
-      users: userId,
+      users: userId
     })
       .sort({ lastMessageAt: -1 })
       .lean();
@@ -283,26 +294,29 @@ exports.getChatList = async (req, res) => {
     for (const match of matches) {
       // 2️⃣ Find other user
       const otherUserId = match.users.find(
-        (u) => u.toString() !== userId.toString()
+        u => u.toString() !== userId.toString()
       );
 
       const profile = await Profile.findOne({ userId: otherUserId })
-        .select("nickname photos")
-        .lean();
+  .select("nickname photos")
+  .lean();
+
 
       // 3️⃣ Unread count
       const unreadCount = await ChatMessage.countDocuments({
         matchId: match._id,
         receiver: userId,
         readAt: null,
-        deletedFor: { $ne: userId },
+        deletedFor: { $ne: userId }
       });
 
       // 4️⃣ Online status (Redis)
-      const isOnline = await redis.redisClient.get(
-        `user:online:${otherUserId}`
-      );
+     const isOnline = await redis.redisClient.get(
+  `user:online:${otherUserId}`
+);
 
+
+    
       chatList.push({
         matchId: match._id,
 
@@ -310,7 +324,7 @@ exports.getChatList = async (req, res) => {
           id: otherUserId,
           name: profile?.nickname || "User",
           avatarUrl: profile?.photos?.[0]?.url || null,
-          isOnline: Boolean(isOnline),
+          isOnline: Boolean(isOnline)
         },
 
         lastMessage: match.lastMessage
@@ -320,26 +334,28 @@ exports.getChatList = async (req, res) => {
               formattedTime: new Date(match.lastMessageAt).toLocaleTimeString(
                 "en-IN",
                 { hour: "2-digit", minute: "2-digit" }
-              ),
+              )
             }
           : null,
 
-        unreadCount,
+        unreadCount
       });
     }
 
     return res.json({
       success: true,
-      data: chatList,
+      data: chatList
     });
+
   } catch (err) {
     console.error("Chat list error:", err);
     return res.status(500).json({
       success: false,
-      message: "Server error",
+      message: "Server error"
     });
   }
 };
+
 
 // const { uploadStream } = require("../../upload/cloudinary.service");
 
@@ -401,14 +417,14 @@ exports.uploadChatMediaController = async (req, res) => {
     if (!matchId || !receiverId) {
       return res.status(400).json({
         success: false,
-        message: "receiverId are required",
+        message: "receiverId are required"
       });
     }
 
     if (!files || files.length === 0) {
       return res.status(400).json({
         success: false,
-        message: "No media files uploaded",
+        message: "No media files uploaded"
       });
     }
 
@@ -417,7 +433,7 @@ exports.uploadChatMediaController = async (req, res) => {
     if (!matchExists) {
       return res.status(404).json({
         success: false,
-        message: "Match not found",
+        message: "Match not found"
       });
     }
 
@@ -427,7 +443,7 @@ exports.uploadChatMediaController = async (req, res) => {
         const result = await uploadStream(file.buffer, {
           folder: `mafs/chat/${matchId}`,
           resource_type: "auto",
-          transformation: [{ quality: "auto:good" }],
+          transformation: [{ quality: "auto:good" }]
         });
 
         return {
@@ -439,7 +455,7 @@ exports.uploadChatMediaController = async (req, res) => {
               ? "video"
               : file.mimetype === "image/gif"
               ? "gif"
-              : "image",
+              : "image"
         };
       })
     );
@@ -461,17 +477,19 @@ exports.uploadChatMediaController = async (req, res) => {
       data: {
         messageId: message._id,
         media: message.media,
-        createdAt: message.createdAt,
-      },
+        createdAt: message.createdAt
+      }
     });
+
   } catch (err) {
     console.error("❌ uploadChatMediaController error:", err);
     return res.status(500).json({
       success: false,
-      message: err.message || "Failed to upload chat media",
+      message: err.message || "Failed to upload chat media"
     });
   }
 };
+
 
 const { destroy } = require("../../upload/cloudinary.service");
 
@@ -486,7 +504,7 @@ exports.deleteChatMessageWithMedia = async (req, res) => {
     if (!message) {
       return res.status(404).json({
         success: false,
-        message: "Message not found",
+        message: "Message not found"
       });
     }
 
@@ -497,7 +515,7 @@ exports.deleteChatMessageWithMedia = async (req, res) => {
     ) {
       return res.status(403).json({
         success: false,
-        message: "Not allowed to delete this message",
+        message: "Not allowed to delete this message"
       });
     }
 
@@ -505,18 +523,21 @@ exports.deleteChatMessageWithMedia = async (req, res) => {
        🔥 DELETE FOR EVERYONE
     ================================= */
     if (deleteForEveryone === "true") {
+
       // Only sender can delete for everyone
       if (message.sender.toString() !== userId.toString()) {
         return res.status(403).json({
           success: false,
-          message: "Only sender can delete for everyone",
+          message: "Only sender can delete for everyone"
         });
       }
 
       // 🔥 Delete media from Cloudinary
       if (message.media && message.media.length > 0) {
         await Promise.all(
-          message.media.map((m) => (m.publicId ? destroy(m.publicId) : null))
+          message.media.map(m =>
+            m.publicId ? destroy(m.publicId) : null
+          )
         );
       }
 
@@ -528,7 +549,7 @@ exports.deleteChatMessageWithMedia = async (req, res) => {
 
       return res.json({
         success: true,
-        message: "Message deleted for everyone",
+        message: "Message deleted for everyone"
       });
     }
 
@@ -542,13 +563,14 @@ exports.deleteChatMessageWithMedia = async (req, res) => {
 
     return res.json({
       success: true,
-      message: "Message deleted for you",
+      message: "Message deleted for you"
     });
+
   } catch (err) {
     console.error("❌ deleteChatMessageWithMedia error:", err);
     return res.status(500).json({
       success: false,
-      message: err.message || "Failed to delete message",
+      message: err.message || "Failed to delete message"
     });
   }
 };

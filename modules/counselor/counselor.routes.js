@@ -13,5 +13,4 @@ router.get("/sessions", (req, res) => {
     data: []
   });
 });
-
 module.exports = router;

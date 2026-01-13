@@ -6,11 +6,8 @@ const jwt = require("jsonwebtoken");
 const User = require("./modules/auth/auth.model"); // Path check kar lena
 
 // Redis Client
-const redis = require("./config/cache");
-const {
-  connectWithRetry,
-  registerGracefulShutdown,
-} = require("./config/database");
+const redis = require("./config/cache"); 
+const { connectWithRetry, registerGracefulShutdown } = require("./config/database");
 
 // Chat Socket Logic
 const chatSocket = require("./sockets/chat.socket");
@@ -18,7 +15,7 @@ const chatSocket = require("./sockets/chat.socket");
 const PORT = process.env.PORT || 3001;
 const MONGODB_URI = process.env.MONGODB_URI;
 
-require("./workers/notification.worker");
+require('./workers/notification.worker');
 
 const io = new Server(http, {
   cors: { 
@@ -43,12 +40,11 @@ const io = new Server(http, {
 io.use(async (socket, next) => {
   try {
     const token = socket.handshake.auth.token || socket.handshake.query.token;
-    if (!token)
-      return next(new Error("Authentication error: No token provided"));
+    if (!token) return next(new Error("Authentication error: No token provided"));
 
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
     const userId = decoded.userId || decoded.id;
-    if (!userId) {
+     if (!userId) {
       return next(new Error("Authentication error: Invalid token payload"));
     }
 
@@ -58,9 +54,9 @@ io.use(async (socket, next) => {
     }
 
     // const user = await User.findById(decoded.id).lean();
-
+    
     if (!user) return next(new Error("Authentication error: User not found"));
-
+    
     socket.user = user; // Ab har socket event mein socket.user._id milega
     next();
   // eslint-disable-next-line no-unused-vars
@@ -83,8 +79,11 @@ io.use(async (socket, next) => {
     http.listen(PORT, () => {
       console.log(`🚀 API & Socket Server running on port ${PORT}`);
     });
+
   } catch (err) {
     console.error("❌ Failed to start app:", err);
     process.exit(1);
   }
 })();
+
+console.log("REDIS_URL =", process.env.REDIS_URL);

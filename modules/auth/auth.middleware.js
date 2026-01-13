@@ -1,5 +1,5 @@
 const jwt = require("jsonwebtoken");
-const User = require("./auth.model");
+const User = require("../auth/auth.model");
 
 module.exports = async function authMiddleware(req, res, next) {
   try {
@@ -8,14 +8,16 @@ module.exports = async function authMiddleware(req, res, next) {
     if (!authHeader || !authHeader.startsWith("Bearer ")) {
       return res.status(401).json({ message: "No token provided" });
     }
-
     const token = authHeader.split(" ")[1];
 
     // Verify token
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
 
     // Attach user to request
-
+    //  const user = await User.findById(userId).select(
+    //   "accountStatus banDetails deactivationDetails deletionDetails"
+    // );
+    
     const user = await User.findById(decoded.userId);
     if (!user) {
       return res.status(401).json({ message: "Invalid token user not found" });
@@ -23,7 +25,7 @@ module.exports = async function authMiddleware(req, res, next) {
     if (user.accountStatus === "deleted") {
       return res.status(401).json({
         success: false,
-        message: "Account no longer exists",
+        message: "Account no longer exists"
       });
     }
 
@@ -46,10 +48,9 @@ module.exports = async function authMiddleware(req, res, next) {
     next();
 
   // eslint-disable-next-line no-unused-vars
-    req.user = user;
-    next();
-  // eslint-disable-next-line no-unused-vars
   } catch (err) {
     return res.status(401).json({ message: "Invalid or expired token" });
   }
 };
+
+
