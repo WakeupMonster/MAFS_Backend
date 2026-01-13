@@ -19,8 +19,20 @@ const allowAdminMiddleware = require("../../../common/middlewares/allowAdmin.mid
  * MODULE-WISE ADMIN ROUTES
  */
 router.use("/giveaway", giveawayAdminRoutes);
+
+/*
+ * ============= FOR AUTHENTICATION =====================
+ */
 router.use("/auth", require("../../../modules/Admin/auth/admin.auth.routes"));
+
+/*
+ * ============= FOR CMS: FAQ, PRIVACY & POLICY, T&C =====================
+ */
 router.use("/cms", require("../../../modules/Admin/cms/content.routes"));
+
+/*
+ * ============= FOR USER-MANAGEMENT =====================
+ */
 router.use(
   "/user-management",
   require("../../../modules/Admin/usersManagement/user.management.route")

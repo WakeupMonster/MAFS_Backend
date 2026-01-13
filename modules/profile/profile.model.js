@@ -203,194 +203,199 @@
 
 const mongoose = require("mongoose");
 
-const ProfileSchema = new mongoose.Schema({
-  userId: { 
-    type: mongoose.Schema.Types.ObjectId, 
-    ref: "User", 
-    required: true, 
-    unique: true, 
-    index: true 
-  },
-
-  // --- 1. PROFILE BASIC INFO (Manager's Response Structure) ---
-  nickname: { type: String, trim: true, index: true },
-  dob: { type: Date },
-  age: { type: Number }, 
-  gender: { type: String }, // IDs: 'man', 'woman', 'non_binary', etc.
-  pronouns: { type: String, default: null },
-  height: { type: Number, default: null }, // Numeric (cm)
-  weight: { type: Number, default: null },
-  about: { type: String, maxlength: 500 }, // Manager's "about"
-  jobTitle: { type: String, default: null },
-  company: { type: String, default: null },
-  school: { type: String, default: null },
-  livingIn: { type: String, default: null },
-
-  // --- 2. ATTRIBUTES (Figma Edit Profile & Enums) ---
-  attributes: {
-    // Basics
-    zodiac: { type: String, default: null },
-    education: { type: String, default: null },
-    familyPlans: { type: String, default: null },
-    personalityType: { type: String, default: null },
-    communicationStyle: { type: String, default: null },
-    loveStyle: { type: String, default: null },
-    bloodType: { type: String, default: null },
-    covidVaccine: { type: String, default: null },
-    religion: { type: String, default: null },
-    
-    // Lifestyle
-    pets: { type: String, default: null },
-    drinking: { type: String, default: null },
-    smoking: { type: String, default: null },
-    workout: { type: String, default: null },
-    dietary: { type: String, default: null },
-    sleeping: { type: String, default: null },
-    socialMedia: { type: String, default: null },
-    
-    // Arrays (Store Meta IDs)
-    languages: { type: [String], default: [] },
-    interests: { type: [String], default: [] },
-    music: { type: [String], default: [] },
-    movies: { type: [String], default: [] },
-    books: { type: [String], default: [] },
-    travel: { type: [String], default: [] }
-  },
-
-  // --- 3. DISCOVERY PREFERENCES (Swipe Filters) ---
-  discovery: {
-    distanceRange: { type: Number, default: 50 , min: 1, max: 500}, // in km
-    ageRange: {
-      min: { type: Number, default: 18 },
-      max: { type: Number, default: 60 }
+const ProfileSchema = new mongoose.Schema(
+  {
+    userId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+      required: true,
+      unique: true,
+      index: true,
     },
-    showMeGender: { type: [String], default: [] }, 
-    relationshipGoal: { type: String, default: null }, // Stored as ID String
-    globalVisibility: { 
-        type: String, 
-        enum: ["everyone", "matches_only", "nobody"], 
-        default: "everyone" 
+
+    // --- 1. PROFILE BASIC INFO (Manager's Response Structure) ---
+    nickname: { type: String, trim: true, index: true },
+    dob: { type: Date },
+    age: { type: Number },
+    gender: { type: String }, // IDs: 'man', 'woman', 'non_binary', etc.
+    pronouns: { type: String, default: null },
+    height: { type: Number, default: null }, // Numeric (cm)
+    weight: { type: Number, default: null },
+    about: { type: String, maxlength: 500 }, // Manager's "about"
+    jobTitle: { type: String, default: null },
+    company: { type: String, default: null },
+    school: { type: String, default: null },
+    livingIn: { type: String, default: null },
+
+    // --- 2. ATTRIBUTES (Figma Edit Profile & Enums) ---
+    attributes: {
+      // Basics
+      zodiac: { type: String, default: null },
+      education: { type: String, default: null },
+      familyPlans: { type: String, default: null },
+      personalityType: { type: String, default: null },
+      communicationStyle: { type: String, default: null },
+      loveStyle: { type: String, default: null },
+      bloodType: { type: String, default: null },
+      covidVaccine: { type: String, default: null },
+      religion: { type: String, default: null },
+
+      // Lifestyle
+      pets: { type: String, default: null },
+      drinking: { type: String, default: null },
+      smoking: { type: String, default: null },
+      workout: { type: String, default: null },
+      dietary: { type: String, default: null },
+      sleeping: { type: String, default: null },
+      socialMedia: { type: String, default: null },
+
+      // Arrays (Store Meta IDs)
+      languages: { type: [String], default: [] },
+      interests: { type: [String], default: [] },
+      music: { type: [String], default: [] },
+      movies: { type: [String], default: [] },
+      books: { type: [String], default: [] },
+      travel: { type: [String], default: [] },
     },
-    filterRelationshipGoal: String,
-    preferredInterests: [String],
-  
-  // Advanced Scoring Filters
-  advancedFilters: {
-    zodiac: [String],
-    education: [String],
-    familyPlans: String,
-    personalityType: String,
-    communicationStyle: String,
-    loveStyle: String,
-    pets: String,
-    drinking: String,
-    smoking: String,
-    workout: String,
-    dietary: String,
-    socialMedia: String,
-    sleeping: String
-  }
-  },
 
-  // --- 4. MEDIA & LOCATION ---
-  photos: [{
-    id: { type: String },
-    url: { type: String },
-    publicId: { type: String },
-    order: { type: Number }, // 0 is Main
-    uploadedAt: { type: Date, default: Date.now }
-  }],
+    // --- 3. DISCOVERY PREFERENCES (Swipe Filters) ---
+    discovery: {
+      distanceRange: { type: Number, default: 50, min: 1, max: 500 }, // in km
+      ageRange: {
+        min: { type: Number, default: 18 },
+        max: { type: Number, default: 60 },
+      },
+      showMeGender: { type: [String], default: [] },
+      relationshipGoal: { type: String, default: null }, // Stored as ID String
+      globalVisibility: {
+        type: String,
+        enum: ["everyone", "matches_only", "nobody"],
+        default: "everyone",
+      },
+      filterRelationshipGoal: String,
+      preferredInterests: [String],
 
-  location: {
-    type: { type: String, default: "Point" },
-    coordinates: { type: [Number], default: [0, 0] }, // [Longitude, Latitude]
-    city: String,
-    country: String,
-    full_address: String
-  },
-
-  // --- 5. VERIFICATION (KYC) ---
-  verification: {
-    status: { 
-        type: String, 
-        enum: ["not_started", "pending", "approved", "rejected"], 
-        default: "not_started" 
+      // Advanced Scoring Filters
+      advancedFilters: {
+        zodiac: [String],
+        education: [String],
+        familyPlans: String,
+        personalityType: String,
+        communicationStyle: String,
+        loveStyle: String,
+        pets: String,
+        drinking: String,
+        smoking: String,
+        workout: String,
+        dietary: String,
+        socialMedia: String,
+        sleeping: String,
+      },
     },
-    selfieUrl: String,
-    docUrl: String,
-    rejectionReason: String
-  },
 
-  // --- 6. SUBSCRIPTION & CONSUMABLES ---
-  subscription: {
-    planId: { type: String, default: "free" },
-    isActive: { type: Boolean, default: false },
-    expiryDate: Date,
-    isTrial: { type: Boolean, default: false },
-    superLikesCount: { type: Number, default: 0 },
-    boostsCount: { type: Number, default: 0 },
-    rewindsCount: { type: Number, default: 0 }
-  },
-  // --- 7. ONBOARDING & STATUS FLAGS ---
-  onboardingProgress: {
-    // Mandatory Flags
-    phoneVerified: { type: Boolean, default: false },
-    emailVerified: { type: Boolean, default: false },
-    nicknameSet: { type: Boolean, default: false },
-    dobSet: { type: Boolean, default: false },
-    genderSet: { type: Boolean, default: false },
-    relationshipGoalSet: { type: Boolean, default: false },
-    genderPreferenceSet: { type: Boolean, default: false },
-    ageRangeSet: { type: Boolean, default: false },
-    distanceRangeSet: { type: Boolean, default: false },
-    interestsSet: { type: Boolean, default: false },
-    photosUploaded: { type: Boolean, default: false },
-    selfieUploaded: { type: Boolean, default: false },
-    idDocumentUploaded: { type: Boolean, default: false },
-    locationSet: { type: Boolean, default: false },
+    // --- 4. MEDIA & LOCATION ---
+    photos: [
+      {
+        id: { type: String },
+        url: { type: String },
+        publicId: { type: String },
+        order: { type: Number }, // 0 is Main
+        uploadedAt: { type: Date, default: Date.now },
+      },
+    ],
+
+    location: {
+      type: { type: String, default: "Point" },
+      coordinates: { type: [Number], default: [0, 0] }, // [Longitude, Latitude]
+      city: String,
+      country: String,
+      full_address: String,
+    },
+
+    // --- 5. VERIFICATION (KYC) ---
+    verification: {
+      status: {
+        type: String,
+        enum: ["not_started", "pending", "approved", "rejected"],
+        default: "not_started",
+      },
+      selfieUrl: String,
+      docUrl: String,
+      rejectionReason: String,
+    },
+
+    // --- 6. SUBSCRIPTION & CONSUMABLES ---
+    subscription: {
+      planId: { type: String, default: "free" },
+      isActive: { type: Boolean, default: false },
+      expiryDate: Date,
+      isTrial: { type: Boolean, default: false },
+      superLikesCount: { type: Number, default: 0 },
+      boostsCount: { type: Number, default: 0 },
+      rewindsCount: { type: Number, default: 0 },
+    },
     
-    // Optional Flags
-    bioSet: { type: Boolean, default: false },
-    lifestyleSet: { type: Boolean, default: false },
-    languagesSet: { type: Boolean, default: false },
-    educationSet: { type: Boolean, default: false },
-    
-    // Calculated values
-    mandatoryCompletion: { type: Number, default: 0 },
-    optionalCompletion: { type: Number, default: 0 },
-    totalCompletion: { type: Number, default: 0 },
-    currentStep: { type: String, default: "nickname" },
-    lastCompletedStep: { type: String }
-  },
+    // --- 7. ONBOARDING & STATUS FLAGS ---
+    onboardingProgress: {
+      // Mandatory Flags
+      phoneVerified: { type: Boolean, default: false },
+      emailVerified: { type: Boolean, default: false },
+      nicknameSet: { type: Boolean, default: false },
+      dobSet: { type: Boolean, default: false },
+      genderSet: { type: Boolean, default: false },
+      relationshipGoalSet: { type: Boolean, default: false },
+      genderPreferenceSet: { type: Boolean, default: false },
+      ageRangeSet: { type: Boolean, default: false },
+      distanceRangeSet: { type: Boolean, default: false },
+      interestsSet: { type: Boolean, default: false },
+      photosUploaded: { type: Boolean, default: false },
+      selfieUploaded: { type: Boolean, default: false },
+      idDocumentUploaded: { type: Boolean, default: false },
+      locationSet: { type: Boolean, default: false },
 
-  // --- 8. SETTINGS & BLOCKS ---
-  settings: {
-    notifications: {
-      push: { type: Boolean, default: true },
-      email: { type: Boolean, default: false },
-      matches: { type: Boolean, default: true },
-      messages: { type: Boolean, default: true }
+      // Optional Flags
+      bioSet: { type: Boolean, default: false },
+      lifestyleSet: { type: Boolean, default: false },
+      languagesSet: { type: Boolean, default: false },
+      educationSet: { type: Boolean, default: false },
+
+      // Calculated values
+      mandatoryCompletion: { type: Number, default: 0 },
+      optionalCompletion: { type: Number, default: 0 },
+      totalCompletion: { type: Number, default: 0 },
+      currentStep: { type: String, default: "nickname" },
+      lastCompletedStep: { type: String },
     },
-    blockedUsers: [{ type: String }], // Array of User IDs
-    blockedContacts: [{ type: String }] // Array of Phone Hashes/Numbers
+
+    // --- 8. SETTINGS & BLOCKS ---
+    settings: {
+      notifications: {
+        push: { type: Boolean, default: true },
+        email: { type: Boolean, default: false },
+        matches: { type: Boolean, default: true },
+        messages: { type: Boolean, default: true },
+      },
+      blockedUsers: [{ type: String }], // Array of User IDs
+      blockedContacts: [{ type: String }], // Array of Phone Hashes/Numbers
+    },
+
+    // --- 9. GLOBAL SYSTEM FLAGS ---
+    isMandatoryComplete: { type: Boolean, default: false },
+    isProfileComplete: { type: Boolean, default: false },
+    // isDiscoverable: { type: Boolean, default: false },
+    // canAccessSwipe: { type: Boolean, default: false },
+    lastProfileUpdate: { type: Date },
   },
-
-  // --- 9. GLOBAL SYSTEM FLAGS ---
-  isMandatoryComplete: { type: Boolean, default: false },
-  isProfileComplete: { type: Boolean, default: false },
-  // isDiscoverable: { type: Boolean, default: false },
-  // canAccessSwipe: { type: Boolean, default: false },
-  lastProfileUpdate: { type: Date }
-
-}, { timestamps: true });
+  { timestamps: true }
+);
 
 // Index for distance-based queries
 ProfileSchema.index({ location: "2dsphere" });
 
 // --- Profile Eligibility & Completion Logic ---
-ProfileSchema.pre('save', function(next) {
+ProfileSchema.pre("save", function (next) {
   const profile = this;
-  
+
   // 1. Mandatory Progress Check
   const hasNickname = !!profile.nickname;
   const hasDob = !!profile.dob;
@@ -398,7 +403,9 @@ ProfileSchema.pre('save', function(next) {
   const hasLocation = !!(profile.location && profile.location.city);
   const hasMinPhotos = !!(profile.photos && profile.photos.length >= 1);
   const hasGoal = !!profile.discovery?.relationshipGoal;
-  const hasInterests = !!(profile.attributes?.interests && profile.attributes.interests.length >= 3);
+  const hasInterests = !!(
+    profile.attributes?.interests && profile.attributes.interests.length >= 3
+  );
 
   // 2. Onboarding Progress Flags Update
   profile.onboardingProgress.nicknameSet = hasNickname;
@@ -418,19 +425,20 @@ ProfileSchema.pre('save', function(next) {
   if (hasMinPhotos) score += 25; // Photos are high value
   if (hasGoal) score += 15;
   if (hasInterests) score += 15;
-  
+
   profile.onboardingProgress.totalCompletion = score;
 
   // 4. ROBUST ELIGIBILITY CHECK (Production Approach)
   // Condition A: Mandatory profile fields complete?
-  const isProfileReady = hasNickname && hasDob && hasGender && hasMinPhotos && hasLocation;
-  
+  const isProfileReady =
+    hasNickname && hasDob && hasGender && hasMinPhotos && hasLocation;
+
   // Condition B: KYC Status approved?
   // const isVerified = profile.verification?.status === 'approved';
 
   // Final System Flags
   profile.isMandatoryComplete = isProfileReady;
-  
+
   // Robust Guard: User can ONLY swipe and be seen IF Profile is Ready AND KYC is Approved
   // if (isProfileReady && isVerified) {
   //   profile.canAccessSwipe = true;
@@ -445,14 +453,10 @@ ProfileSchema.pre('save', function(next) {
 
 module.exports = mongoose.model("Profile", ProfileSchema);
 
-
-
-
-
 // ProfileSchema.pre('save', function(next) {
 //   const profile = this;
 //   const attr = profile.attributes || {};
-  
+
 //   let score = 0;
 
 //   // --- 1. MANDATORY CORE (Total: 70%) ---
@@ -476,14 +480,14 @@ module.exports = mongoose.model("Profile", ProfileSchema);
 //   // Figma Traits - Chips (Total 15%)
 //   // Hum har field ke liye 1-1 ya 2-2 points denge
 //   const traits = [
-//     'zodiac', 'education', 'familyPlans', 'personalityType', 
-//     'communicationStyle', 'loveStyle', 'pets', 'drinking', 
+//     'zodiac', 'education', 'familyPlans', 'personalityType',
+//     'communicationStyle', 'loveStyle', 'pets', 'drinking',
 //     'smoking', 'workout', 'dietary', 'religion'
 //   ];
 
 //   let filledTraits = 0;
 //   traits.forEach(t => { if (attr[t]) filledTraits++; });
-  
+
 //   // Scoring traits: 15 points total for 12 traits (~1.25 per trait)
 //   score += Math.round((filledTraits / traits.length) * 15);
 
@@ -495,7 +499,7 @@ module.exports = mongoose.model("Profile", ProfileSchema);
 //   const isVerified = profile.verification?.status === 'approved';
 
 //   profile.isMandatoryComplete = isProfileReady;
-  
+
 //   // Swipe allowed only if Ready + Approved
 //   if (isProfileReady && isVerified) {
 //     profile.canAccessSwipe = true;

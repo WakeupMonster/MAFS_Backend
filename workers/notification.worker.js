@@ -37,11 +37,11 @@
 
 const { Worker } = require("bullmq");
 // const notificationService = require('./notification.service');
-const notificationService = require('../modules/notifications/notification.service');
+const notificationService = require("../modules/notifications/notification.service");
 
 const connection = {
-    host: process.env.REDIS_HOST || '127.0.0.1',
-    port: process.env.REDIS_PORT || 6379
+  host: process.env.REDIS_HOST || "127.0.0.1",
+  port: process.env.REDIS_PORT || 6379,
 };
 
 const worker = new Worker(

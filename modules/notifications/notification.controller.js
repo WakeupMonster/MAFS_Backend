@@ -1,6 +1,7 @@
 // modules/notifications/notification.controller.js
-const User = require('../auth/auth.model');
+const User = require("../auth/auth.model");
 const Profile = require("../profile/profile.model");
+
 const registerDeviceToken = async (req, res) => {
   try {
     // const { userId } = req.user;
@@ -102,25 +103,22 @@ const updateNotificationSettings = async (req, res) => {
     if (!profile) {
       return res.status(404).json({
         success: false,
-        message: "Profile not found"
+        message: "Profile not found",
       });
     }
 
     return res.json({
       success: true,
       message: "Notification settings updated",
-      data: profile.settings.notifications
+      data: profile.settings.notifications,
     });
   } catch (err) {
     return res.status(500).json({
       success: false,
-      message: err.message
+      message: err.message,
     });
   }
 };
-
-
-
 
 const getNotificationSettings = async (req, res) => {
   try {
@@ -133,26 +131,25 @@ const getNotificationSettings = async (req, res) => {
     if (!profile) {
       return res.status(404).json({
         success: false,
-        message: "Profile not found"
+        message: "Profile not found",
       });
     }
 
     return res.json({
       success: true,
-      data: profile.settings.notifications
+      data: profile.settings.notifications,
     });
   } catch (err) {
     return res.status(500).json({
       success: false,
-      message: err.message
+      message: err.message,
     });
   }
 };
-
 
 module.exports = {
   registerDeviceToken,
   unregisterDeviceToken,
   getNotificationSettings,
-  updateNotificationSettings
+  updateNotificationSettings,
 };

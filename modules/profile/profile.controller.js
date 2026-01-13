@@ -2324,7 +2324,7 @@ module.exports.uploadIDDocument = async (req, res) => {
     if (!files || !files.front || !files.front[0]) {
       return res.status(400).json({
         success: false,
-        message: "Document front image is required"
+        message: "Document front image is required",
       });
     }
 
@@ -2337,14 +2337,14 @@ module.exports.uploadIDDocument = async (req, res) => {
     if (!allowedMimes.includes(frontFile.mimetype)) {
       return res.status(400).json({
         success: false,
-        message: "Only JPG and PNG images are allowed"
+        message: "Only JPG and PNG images are allowed",
       });
     }
 
     if (frontFile.size > maxSize) {
       return res.status(400).json({
         success: false,
-        message: "Image size must be less than 5MB"
+        message: "Image size must be less than 5MB",
       });
     }
 
@@ -2353,7 +2353,7 @@ module.exports.uploadIDDocument = async (req, res) => {
     if (!profile) {
       return res.status(404).json({
         success: false,
-        message: "Profile not found"
+        message: "Profile not found",
       });
     }
 
@@ -2361,8 +2361,8 @@ module.exports.uploadIDDocument = async (req, res) => {
     const uploadResult = await uploadStream(frontFile.buffer, {
       folder: `mafs/users/${userId}/kyc`,
       transformation: [
-        { width: 1200, height: 800, crop: "limit", quality: "auto:best" }
-      ]
+        { width: 1200, height: 800, crop: "limit", quality: "auto:best" },
+      ],
     });
 
     // 5️⃣ Ensure verification object exists
@@ -2378,18 +2378,18 @@ module.exports.uploadIDDocument = async (req, res) => {
       profile.verification.status = "not_started";
     }
     const user = await User.findById(userId).lean();
-       const [blockedContacts, blockedUser] = await Promise.all([
-    BlockedContact.find({ userId: user._id }).lean(),
-    Block.find({ blockerId: user._id }).lean()
-  ]);
-      let subData = await UserSubscription.findOne({ userId });
-      if (!subData) {
-        // Naya user hai toh default create karo
-        subData = await UserSubscription.create({ userId});
-      }
-      // Reset counters if it's a new day
-      subData.resetIfNeeded()
-      // await redis.del(redisKey);
+    const [blockedContacts, blockedUser] = await Promise.all([
+      BlockedContact.find({ userId: user._id }).lean(),
+      Block.find({ blockerId: user._id }).lean(),
+    ]);
+    let subData = await UserSubscription.findOne({ userId });
+    if (!subData) {
+      // Naya user hai toh default create karo
+      subData = await UserSubscription.create({ userId });
+    }
+    // Reset counters if it's a new day
+    subData.resetIfNeeded();
+    // await redis.del(redisKey);
     // const formatted = formatProfileResponse(profile, blockedContacts,blockedUser);
 
     // 8️⃣ Save profile
@@ -2402,18 +2402,24 @@ module.exports.uploadIDDocument = async (req, res) => {
 
     return res.json({
       success: true,
-      message: "ID document uploaded successfully. Verification is under review.",
+      message:
+        "ID document uploaded successfully. Verification is under review.",
       data: {
-        user: formatProfileResponse(user,profile, blockedContacts,blockedUser,subData)
-      } 
+        user: formatProfileResponse(
+          user,
+          profile,
+          blockedContacts,
+          blockedUser,
+          subData
+        ),
+      },
     });
-
   } catch (err) {
     console.error("Upload ID error:", err);
     return res.status(500).json({
       success: false,
       message: "Failed to upload ID document",
-      error: err.message
+      error: err.message,
     });
   }
 };
@@ -2433,13 +2439,12 @@ module.exports.getVerificationStatus = async (req, res) => {
           selfieUploaded: false,
           documentUploaded: false,
           rejectionReason: null,
-          message: "Verification not started"
-        }
+          message: "Verification not started",
+        },
       });
     }
 
-    const { status, selfieUrl, docUrl, rejectionReason } =
-      profile.verification;
+    const { status, selfieUrl, docUrl, rejectionReason } = profile.verification;
 
     // Status based message (frontend-friendly)
     let message = "Verification not started";
@@ -2458,22 +2463,21 @@ module.exports.getVerificationStatus = async (req, res) => {
         status,
         selfieUploaded: Boolean(selfieUrl),
         documentUploaded: Boolean(docUrl),
-        rejectionReason: status === "rejected" ? rejectionReason || "Verification failed" : null,
-        message
-      }
+        rejectionReason:
+          status === "rejected"
+            ? rejectionReason || "Verification failed"
+            : null,
+        message,
+      },
     });
-
   } catch (err) {
     console.error("Get verification status error:", err);
     return res.status(500).json({
       success: false,
-      message: "Failed to fetch verification status"
+      message: "Failed to fetch verification status",
     });
   }
 };
-
-
-
 
 // module.exports.uploadIDDocument = async (req, res) => {
 //   try {
@@ -2501,12 +2505,12 @@ module.exports.getVerificationStatus = async (req, res) => {
 //     // --- NEW MODEL MAPPING START ---
 //     // Initialize verification if not exists
 //     if (!profile.verification) profile.verification = {};
-    
+
 //     // Save to the NEW field: docUrl (as per manager's structure)
 //     profile.verification.docUrl = frontResult.secure_url;
 //     // (Optional) If you want to keep track of type/publicId, you can store them in hidden fields or metadata
-    
-//     // Also keeping the old 'kyc' structure for internal tracking if needed, 
+
+//     // Also keeping the old 'kyc' structure for internal tracking if needed,
 //     // but the main data goes to 'verification'
 //     profile.kyc = {
 //       ...profile.kyc,
@@ -2541,7 +2545,6 @@ module.exports.getVerificationStatus = async (req, res) => {
 //     //   const blockedContacts = await BlockedContact.find({ userId }).lean();
 //     // const formatted = formatProfileResponse(profile, blockedContacts);
 
-
 //       const user = await User.findById(userId).lean();
 //      const [blockedContacts, blockedUser] = await Promise.all([
 //     BlockedContact.find({ userId: user._id }).lean(),
@@ -2556,7 +2559,6 @@ module.exports.getVerificationStatus = async (req, res) => {
 //       subData.resetIfNeeded()
 //       // await redis.del(redisKey);
 //     // const formatted = formatProfileResponse(profile, blockedContacts,blockedUser);
-
 
 //     // 4. Save (This will trigger the Pre-save hook we wrote for totalCompletion)
 //     await profile.save();
@@ -2580,21 +2582,27 @@ module.exports.getVerificationStatus = async (req, res) => {
 module.exports.updateLocation = async (req, res) => {
   try {
     const userId = req.user._id;
-    const { latitude, longitude, city, state, country,full_address } = req.body || {};
-    console.log("address,country,state,city",full_address,country,state,city)
+    const { latitude, longitude, city, state, country, full_address } =
+      req.body || {};
+    console.log(
+      "address,country,state,city",
+      full_address,
+      country,
+      state,
+      city
+    );
     console.log("METHOD:", req.method);
-console.log("HEADERS:", req.headers);
-console.log("BODY:", req.body);
-
+    console.log("HEADERS:", req.headers);
+    console.log("BODY:", req.body);
 
     if (!latitude || !longitude || isNaN(latitude) || isNaN(longitude)) {
-  return res.status(400).json({
-    success: false,
-    message: "Valid latitude and longitude are required"
-  });
-}
-  const user = await User.findById(userId).lean();
-  
+      return res.status(400).json({
+        success: false,
+        message: "Valid latitude and longitude are required",
+      });
+    }
+    const user = await User.findById(userId).lean();
+
     let profile = await getOrCreateProfile(userId);
 
     // Update location
@@ -2607,11 +2615,11 @@ console.log("BODY:", req.body);
       full_address: full_address || "",
     };
 
-     const [blockedContacts, blockedUser] = await Promise.all([
-    BlockedContact.find({ userId: user._id }).lean(),
-    Block.find({ blockerId: user._id }).lean()
-  ]);
-   
+    const [blockedContacts, blockedUser] = await Promise.all([
+      BlockedContact.find({ userId: user._id }).lean(),
+      Block.find({ blockerId: user._id }).lean(),
+    ]);
+
     await profile.save();
 
     // Clear cache
@@ -3073,6 +3081,7 @@ exports.getUserProfile = async (req, res) => {
       .json({ success: false, message: "Failed to load profile details" });
   }
 };
+
 exports.updateDiscoveryFilters = async (req, res) => {
   try {
     const userId = req.user._id;
@@ -3493,8 +3502,6 @@ exports.getDiscoveryPreference = async (req, res) => {
 //   // Example: await cache.del(`profile:${userId}`);
 // }
 
-
-
 // controllers/profile.controller.js
 
 exports.updateVisibility = async (req, res) => {
@@ -3507,7 +3514,7 @@ exports.updateVisibility = async (req, res) => {
     if (!allowed.includes(globalVisibility)) {
       return res.status(400).json({
         success: false,
-        message: "Invalid globalVisibility value"
+        message: "Invalid globalVisibility value",
       });
     }
 
@@ -3528,8 +3535,8 @@ exports.updateVisibility = async (req, res) => {
           "discovery.globalVisibility": globalVisibility,
           isDiscoverable,
           canAccessSwipe,
-          lastProfileUpdate: new Date()
-        }
+          lastProfileUpdate: new Date(),
+        },
       },
       { new: true }
     ).select("discovery.globalVisibility isDiscoverable canAccessSwipe");
@@ -3537,14 +3544,14 @@ exports.updateVisibility = async (req, res) => {
     if (!profile) {
       return res.status(404).json({
         success: false,
-        message: "Profile not found"
+        message: "Profile not found",
       });
     }
 
-    if(redis){
+    if (redis) {
       await redis.del(`feed:${userId.toString()}`);
     }
-    
+
     // // 4️⃣ Feed cache clear (VERY IMPORTANT 🔥)
     // await redis?.del(`feed:${userId}`);
 
@@ -3554,8 +3561,8 @@ exports.updateVisibility = async (req, res) => {
       data: {
         globalVisibility: profile.discovery.globalVisibility,
         isDiscoverable: profile.isDiscoverable,
-        canAccessSwipe: profile.canAccessSwipe
-      }
+        canAccessSwipe: profile.canAccessSwipe,
+      },
     });
   } catch (err) {
     console.error("Update visibility error:", err);
@@ -3617,6 +3624,3 @@ exports.quickVerifyUser = async (req, res) => {
     res.status(500).json({ success: false, message: err.message });
   }
 };
-
-
-

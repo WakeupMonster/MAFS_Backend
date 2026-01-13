@@ -3,7 +3,10 @@ const redis = require("../../../common/redis");
 const User = require("../../auth/auth.model");
 const { createCacheKey } = require("../../auth/auth.utils");
 const Profile = require("../../profile/profile.model");
-const { adminUserListSchema } = require("./user.management.validation");
+const {
+  adminUserListSchema,
+  updateUserSchema,
+} = require("./user.management.validation");
 const fs = require("fs");
 const path = require("path");
 const { stringify } = require("csv-stringify");
@@ -193,169 +196,448 @@ module.exports.GETAllUsers = async (req, res) => {
 /* ============================================
  * SAMPLE GET ALL USERS – ADMIN
  * ============================================ */
+// module.exports.SampleGETallUser = async (req, res) => {
+//   try {
+//     /* -----------------------------
+//      * 1️⃣ Query Params
+//      * ----------------------------- */
+//     const {
+//       page = 1,
+//       limit = 20,
+//       search,
+//       accountStatus,
+//       isPremium,
+//     } = req.query;
+
+//     const pageNum = Math.max(Number(page), 1);
+//     const limitNum = Math.min(Number(limit), 50);
+//     const skip = (pageNum - 1) * limitNum;
+
+//     // /* -----------------------------
+//     //  * 2️⃣ USER MATCH (Indexed)
+//     //  * ----------------------------- */
+//     // const userMatch = { role: "USER" };
+
+//     // if (accountStatus) {
+//     //   userMatch.accountStatus = accountStatus;
+//     // }
+
+//     // if (isPremium !== undefined) {
+//     //   userMatch.isPremium = isPremium === "true";
+//     // }
+
+//     // if (search) {
+//     //   userMatch.$or = [{ email: search }, { phone: search }];
+//     // }
+
+//     // /* -----------------------------
+//     //  * 3️⃣ PROFILE SEARCH
+//     //  * ----------------------------- */
+//     // const profileMatch = {};
+//     // if (search) {
+//     //   profileMatch.$or = [
+//     //     { nickname: search },
+//     //     { gender: search },
+//     //     { "verification.status": search },
+//     //     { "discovery.relationshipGoal": search },
+//     //   ];
+//     // }
+
+//     const searchRegex = search ? new RegExp(search.trim(), "i") : null;
+
+//     /* USER MATCH */
+//     const userMatch = { role: "USER" };
+
+//     if (accountStatus) {
+//       userMatch.accountStatus = accountStatus;
+//     }
+
+//     if (isPremium !== undefined) {
+//       userMatch.isPremium = isPremium === "true";
+//     }
+
+//     if (searchRegex) {
+//       userMatch.$or = [{ email: searchRegex }, { phone: searchRegex }];
+//     }
+
+//     /* PROFILE MATCH */
+//     const profileMatch = {};
+
+//     if (searchRegex) {
+//       profileMatch.$or = [
+//         { "profile.nickname": searchRegex },
+//         { "profile.gender": searchRegex },
+//         { "profile.verification.status": searchRegex },
+//         { "profile.discovery.relationshipGoal": searchRegex },
+//       ];
+//     }
+
+//     /* -----------------------------
+//      * 4️⃣ AGGREGATION PIPELINE
+//      * ----------------------------- */
+//     const pipeline = [
+//       { $match: userMatch },
+//       {
+//         $lookup: {
+//           from: "profiles",
+//           localField: "_id",
+//           foreignField: "userId",
+//           as: "profile",
+//         },
+//       },
+//       { $unwind: { path: "$profile", preserveNullAndEmptyArrays: true } },
+//       ...(Object.keys(profileMatch).length ? [{ $match: profileMatch }] : []),
+// {
+//   $project: {
+//     _id: 1,
+//     role: 1,
+
+//     /* ---------------- ACCOUNT ---------------- */
+//     account: {
+//       status: "$accountStatus",
+//       isPremium: "$isPremium",
+//       phone: "$phone",
+//       email: "$email",
+//       authMethod: "$authMethod",
+//       banDetails: "$banDetails",
+//       deactivationDetails: "$deactivationDetails",
+//       deletionDetails: "$deletionDetails",
+//       createdAt: "$createdAt",
+//     },
+
+//     /* ---------------- PROFILE ---------------- */
+//     profile: {
+//       profileId: "$profile._id",
+//       nickname: "$profile.nickname",
+//       dob: "$profile.dob",
+//       age: "$profile.age",
+//       gender: "$profile.gender",
+//       height: "$profile.height",
+//       about: "$profile.about",
+//       jobTitle: "$profile.jobTitle",
+//       company: "$profile.company",
+//       totalCompletion: "$profile.onboardingProgress.totalCompletion",
+//     },
+
+//     /* ---------------- ATTRIBUTES ---------------- */
+//     attributes: {
+//       zodiac: "$profile.attributes.zodiac",
+//       education: "$profile.attributes.education",
+//       familyPlans: "$profile.attributes.familyPlans",
+//       personalityType: "$profile.attributes.personalityType",
+//       communicationStyle: "$profile.attributes.communicationStyle",
+//       loveStyle: "$profile.attributes.loveStyle",
+//       pets: "$profile.attributes.pets",
+//       drinking: "$profile.attributes.drinking",
+//       smoking: "$profile.attributes.smoking",
+//       workout: "$profile.attributes.workout",
+//       dietary: "$profile.attributes.dietary",
+//       sleeping: "$profile.attributes.sleeping",
+//       socialMedia: "$profile.attributes.socialMedia",
+//       languages: "$profile.attributes.languages",
+//       interests: "$profile.attributes.interests",
+//       music: "$profile.attributes.music",
+//       movies: "$profile.attributes.movies",
+//       books: "$profile.attributes.books",
+//       travel: "$profile.attributes.travel",
+//       religion: "$profile.attributes.religion",
+//     },
+
+//     /* ---------------- DISCOVERY ---------------- */
+//     discovery: {
+//       distanceRange: "$profile.discovery.distanceRange",
+//       ageRange: "$profile.discovery.ageRange",
+//       showMeGender: "$profile.discovery.showMeGender",
+//       relationshipGoal: "$profile.discovery.relationshipGoal",
+//       globalVisibility: "$profile.discovery.globalVisibility",
+//     },
+
+//     discoveryFilters: "$profile.discoveryFilters",
+
+//     /* ---------------- LOCATION ---------------- */
+//     location: "$profile.location",
+
+//     /* ---------------- PHOTOS ---------------- */
+//     photos: "$profile.photos",
+
+//     /* ---------------- VERIFICATION ---------------- */
+//     verification: "$profile.verification",
+
+//     /* ---------------- META ---------------- */
+//     createdAt: 1,
+//     lastProfileUpdate: "$profile.lastProfileUpdate",
+//     isPhoneVerified: 1,
+//     isEmailVerified: 1,
+//   },
+// },
+//       { $sort: { createdAt: -1 } },
+//       { $skip: skip },
+//       { $limit: limitNum },
+//     ];
+
+//     /* -----------------------------
+//      * 5️⃣ COUNT
+//      * ----------------------------- */
+//     const countPipeline = [{ $match: userMatch }, { $count: "total" }];
+
+//     const [users, countResult] = await Promise.all([
+//       User.aggregate(pipeline),
+//       User.aggregate(countPipeline),
+//     ]);
+
+//     console.log("users: ", users);
+//     console.log("searchRegex: ", searchRegex);
+
+//     const total = countResult[0]?.total || 0;
+
+//     return res.status(200).json({
+//       success: true,
+//       meta: {
+//         page: pageNum,
+//         limit: limitNum,
+//         total,
+//         totalPages: Math.ceil(total / limitNum),
+//       },
+//       data: users,
+//     });
+//   } catch (error) {
+//     console.error("GET USERS ERROR:", error);
+//     return res.status(500).json({
+//       success: false,
+//       message: "Failed to fetch users",
+//     });
+//   }
+// };
+
 module.exports.SampleGETallUser = async (req, res) => {
   try {
-    /* -----------------------------
-     * 1️⃣ Query Params
-     * ----------------------------- */
-    const {
-      page = 1,
-      limit = 20,
-      search,
-      accountStatus,
-      isPremium,
-    } = req.query;
+    const page = Math.max(parseInt(req.query.page) || 1, 1);
+    const limit = Math.min(parseInt(req.query.limit) || 20, 100);
+    const skip = (page - 1) * limit;
+    const search = req.query.search?.trim();
 
-    const pageNum = Math.max(Number(page), 1);
-    const limitNum = Math.min(Number(limit), 50);
-    // const skip = (pageNum - 1) * limitNum;
+    // 1️⃣ Initial Filter (Matches only on User Model)
+    const baseMatch = { role: "USER" };
+    if (req.query.accountStatus)
+      baseMatch.accountStatus = req.query.accountStatus;
+    if (req.query.isPremium)
+      baseMatch.isPremium = req.query.isPremium === "true";
 
-    /* -----------------------------
-     * 2️⃣ USER MATCH (Auth Model)
-     * ----------------------------- */
-    const userMatch = { role: "USER" };
-
-    if (accountStatus) {
-      userMatch.accountStatus = accountStatus;
+    // isBanned filter (Specific boolean check)
+    if (req.query.isBanned !== undefined) {
+      baseMatch["banDetails.isBanned"] = req.query.isBanned === "true";
     }
 
-    if (isPremium !== undefined) {
-      userMatch.isPremium = isPremium === "true";
-    }
+    // 2️⃣ Regex Preparation
+    const searchRegex = search
+      ? new RegExp(search.replace(/[.*+?^${}()|[\/]\\]/g, "\\$&"), "i")
+      : null;
 
-    if (search) {
-      userMatch.$or = [
-        { email: { $regex: search, $options: "i" } },
-        { phone: { $regex: search, $options: "i" } },
-      ];
-    }
-
-    /* -----------------------------
-     * 3️⃣ AGGREGATION PIPELINE
-     * ----------------------------- */
     const pipeline = [
-      // STEP 1: Filter users (FAST – indexed)
-      { $match: userMatch },
+      { $match: baseMatch },
 
-      // STEP 2: Join profile collection
+      /* ---- Lookups ---- */
       {
         $lookup: {
-          from: "profiles", // Profile collection name
-          localField: "_id", // User._id
-          foreignField: "userId", // Profile.userId
+          from: "profiles",
+          localField: "_id",
+          foreignField: "userId",
           as: "profile",
         },
       },
+      { $unwind: { path: "$profile", preserveNullAndEmptyArrays: true } },
 
-      // STEP 3: Convert profile array → object
       {
-        $unwind: {
-          path: "$profile",
-          preserveNullAndEmptyArrays: true,
+        $lookup: {
+          from: "accounts",
+          localField: "_id",
+          foreignField: "userId",
+          as: "account",
         },
       },
+      { $unwind: { path: "$account", preserveNullAndEmptyArrays: true } },
 
-      // STEP 4: Select only required fields
+      /* -----------------------------------------------------------
+       * 3️⃣ GLOBAL SEARCH MATCH (15+ Fields)
+       * ----------------------------------------------------------- */
+      ...(searchRegex
+        ? [
+            {
+              $match: {
+                $or: [
+                  // User Model Search
+                  { email: searchRegex },
+                  { phone: searchRegex },
+                  { accountStatus: searchRegex },
+                  { authMethod: searchRegex },
+
+                  // Profile Model Search
+                  { "profile.nickname": searchRegex },
+                  { "profile.gender": searchRegex },
+                  { "profile.jobTitle": searchRegex },
+                  { "profile.company": searchRegex },
+                  { "profile.attributes.zodiac": searchRegex },
+                  { "profile.attributes.religion": searchRegex },
+                  { "profile.attributes.interests": searchRegex },
+                  { "profile.attributes.languages": searchRegex },
+                  { "profile.discovery.relationshipGoal": searchRegex },
+                  { "profile.verification.status": searchRegex },
+                  { "profile.location.city": searchRegex },
+                  { "profile.location.country": searchRegex },
+                ],
+              },
+            },
+            /* -----------------------------------------------------------
+             * 4️⃣ SEARCH RANKING (Score results by relevance)
+             * ----------------------------------------------------------- */
+            {
+              $addFields: {
+                searchScore: {
+                  $sum: [
+                    {
+                      $cond: [
+                        {
+                          $regexMatch: {
+                            input: { $ifNull: ["$profile.nickname", ""] },
+                            regex: searchRegex,
+                          },
+                        },
+                        10,
+                        0,
+                      ],
+                    },
+                    {
+                      $cond: [
+                        {
+                          $regexMatch: {
+                            input: { $ifNull: ["$account.email", ""] },
+                            regex: searchRegex,
+                          },
+                        },
+                        8,
+                        0,
+                      ],
+                    },
+                    {
+                      $cond: [
+                        {
+                          $regexMatch: {
+                            input: { $ifNull: ["$profile.jobTitle", ""] },
+                            regex: searchRegex,
+                          },
+                        },
+                        5,
+                        0,
+                      ],
+                    },
+                  ],
+                },
+              },
+            },
+            { $sort: { searchScore: -1, createdAt: -1 } },
+          ]
+        : [{ $sort: { createdAt: -1 } }]),
+
+      /* -----------------------------------------------------------
+       * 5️⃣ FACET FOR PAGINATION & PROJECTION
+       * ----------------------------------------------------------- */
       {
-        $project: {
-          _id: 1,
-          email: 1,
-          isEmailVerified: 1,
-          phone: 1,
-          isPhoneVerified: 1,
-          isProfileCompleted: 1,
-          role: 1,
-          accountStatus: 1,
-          banDetails: 1,
-          deactivationDetails: 1,
-          deletionDetails: 1,
-          onboarding: 1,
-          isPremium: 1,
-          authMethod: 1,
-          createdAt: 1,
-
-          // Profile fields
-          profileId: "$profile._id",
-          fullName: "$profile.fullName",
-          nickname: "$profile.nickname",
-          dob: "$profile.dob",
-          age: "$profile.age",
-          gender: "$profile.gender",
-
-          relationshipGoal: "$profile.relationshipGoal",
-          preferences: "$profile.preferences",
-          discoveryFilters: "$profile.discoveryFilters",
-          interests: "$profile.interests",
-          photos: "$profile.photos",
-          location: "$profile.location",
-          languages: "$profile.languages",
-
-          communicationStyle: "$profile.communicationStyle",
-          musicPreference: "$profile.musicPreference",
-          moviePreference: "$profile.moviePreference",
-          bookPreference: "$profile.bookPreference",
-          travelPreference: "$profile.travelPreference",
-
-          height: "$profile.height",
-          occupation: "$profile.occupation",
-          company: "$profile.company",
-
-          kyc: "$profile.kyc",
-
-          onboardingProgress: "$profile.onboardingProgress",
-          profileCompletion: "$profile.onboardingProgress.totalCompletion",
-
-          isMandatoryComplete: "$profile.isMandatoryComplete",
-          isProfileComplete: "$profile.isProfileComplete",
-          canAccessSwipe: "$profile.canAccessSwipe",
-          isDiscoverable: "$profile.isDiscoverable",
-
-          lastProfileUpdate: "$profile.lastProfileUpdate",
+        $facet: {
+          data: [
+            { $skip: skip },
+            { $limit: limit },
+            {
+              $project: {
+                _id: 1,
+                role: 1,
+                account: {
+                  status: "$accountStatus",
+                  isPremium: "$isPremium",
+                  phone: "$phone",
+                  email: "$email",
+                  authMethod: "$authMethod",
+                  banDetails: "$banDetails",
+                  deactivationDetails: "$deactivationDetails",
+                  deletionDetails: "$deletionDetails",
+                  createdAt: "$createdAt",
+                },
+                profile: {
+                  profileId: "$profile._id",
+                  nickname: "$profile.nickname",
+                  dob: "$profile.dob",
+                  age: "$profile.age",
+                  gender: "$profile.gender",
+                  height: "$profile.height",
+                  about: "$profile.about",
+                  jobTitle: "$profile.jobTitle",
+                  company: "$profile.company",
+                  totalCompletion:
+                    "$profile.onboardingProgress.totalCompletion",
+                },
+                attributes: {
+                  zodiac: "$profile.attributes.zodiac",
+                  education: "$profile.attributes.education",
+                  familyPlans: "$profile.attributes.familyPlans",
+                  personalityType: "$profile.attributes.personalityType",
+                  communicationStyle: "$profile.attributes.communicationStyle",
+                  loveStyle: "$profile.attributes.loveStyle",
+                  pets: "$profile.attributes.pets",
+                  drinking: "$profile.attributes.drinking",
+                  smoking: "$profile.attributes.smoking",
+                  workout: "$profile.attributes.workout",
+                  dietary: "$profile.attributes.dietary",
+                  sleeping: "$profile.attributes.sleeping",
+                  socialMedia: "$profile.attributes.socialMedia",
+                  languages: "$profile.attributes.languages",
+                  interests: "$profile.attributes.interests",
+                  music: "$profile.attributes.music",
+                  movies: "$profile.attributes.movies",
+                  books: "$profile.attributes.books",
+                  travel: "$profile.attributes.travel",
+                  religion: "$profile.attributes.religion",
+                },
+                discovery: {
+                  distanceRange: "$profile.discovery.distanceRange",
+                  ageRange: "$profile.discovery.ageRange",
+                  showMeGender: "$profile.discovery.showMeGender",
+                  relationshipGoal: "$profile.discovery.relationshipGoal",
+                  globalVisibility: "$profile.discovery.globalVisibility",
+                },
+                discoveryFilters: "$profile.discoveryFilters",
+                location: "$profile.location",
+                photos: "$profile.photos",
+                verification: "$profile.verification",
+                createdAt: 1,
+                lastProfileUpdate: "$profile.lastProfileUpdate",
+                isPhoneVerified: 1,
+                isEmailVerified: 1,
+              },
+            },
+          ],
+          total: [{ $count: "count" }],
         },
       },
-
-      // STEP 5: Sort (latest users first)
-      { $sort: { createdAt: -1 } },
-
-      // STEP 6: Pagination
-      // { $skip: skip },
-      // { $limit: limitNum },
     ];
 
-    /* -----------------------------
-     * 4️⃣ COUNT QUERY (Pagination)
-     * ----------------------------- */
-    const countPipeline = [{ $match: userMatch }, { $count: "total" }];
+    // console.log("searchRegex: ", searchRegex);
 
-    /* -----------------------------
-     * 5️⃣ Execute Queries
-     * ----------------------------- */
-    const [users, countResult] = await Promise.all([
-      User.aggregate(pipeline),
-      User.aggregate(countPipeline),
-    ]);
+    const result = await User.aggregate(pipeline);
+    const users = result[0]?.data || [];
+    const total = result[0]?.total[0]?.count || 0;
 
-    const total = countResult[0]?.total || 0;
-
-    /* -----------------------------
-     * 6️⃣ Response
-     * ----------------------------- */
     return res.status(200).json({
       success: true,
-      meta: {
-        page: pageNum,
-        limit: limitNum,
+      pagination: {
+        page,
+        limit,
         total,
-        totalPages: Math.ceil(total / limitNum),
+        totalPages: Math.ceil(total / limit),
       },
       data: users,
     });
   } catch (error) {
-    console.error("GET USERS ERROR:", error);
-    return res.status(500).json({
-      success: false,
-      message: "Failed to fetch users",
-    });
+    console.error("GET USER LIST ERROR:", error);
+    res.status(500).json({ success: false, message: "Failed to fetch users" });
   }
 };
 
@@ -407,58 +689,85 @@ module.exports.GETSingleUserDetails = async (req, res) => {
 
       {
         $project: {
-          /* -------- AUTH FIELDS -------- */
           _id: 1,
-          email: 1,
-          isEmailVerified: 1,
-          phone: 1,
-          isPhoneVerified: 1,
           role: 1,
-          accountStatus: 1,
-          isPremium: 1,
-          authMethod: 1,
-          createdAt: 1,
-          updatedAt: 1,
 
-          /* -------- PROFILE FIELDS -------- */
-          profileId: "$profile._id",
-          fullName: "$profile.fullName",
-          nickname: "$profile.nickname",
-          dob: "$profile.dob",
-          age: "$profile.age",
-          gender: "$profile.gender",
+          /* ---------------- ACCOUNT ---------------- */
+          account: {
+            status: "$accountStatus",
+            isPremium: "$isPremium",
+            phone: "$phone",
+            email: "$email",
+            authMethod: "$authMethod",
+            banDetails: "$banDetails",
+            deactivationDetails: "$deactivationDetails",
+            deletionDetails: "$deletionDetails",
+            createdAt: "$createdAt",
+          },
 
-          relationshipGoal: "$profile.relationshipGoal",
-          preferences: "$profile.preferences",
+          /* ---------------- PROFILE ---------------- */
+          profile: {
+            profileId: "$profile._id",
+            nickname: "$profile.nickname",
+            dob: "$profile.dob",
+            age: "$profile.age",
+            gender: "$profile.gender",
+            height: "$profile.height",
+            about: "$profile.about",
+            jobTitle: "$profile.jobTitle",
+            company: "$profile.company",
+            totalCompletion: "$profile.onboardingProgress.totalCompletion",
+          },
+
+          /* ---------------- ATTRIBUTES ---------------- */
+          attributes: {
+            zodiac: "$profile.attributes.zodiac",
+            education: "$profile.attributes.education",
+            familyPlans: "$profile.attributes.familyPlans",
+            personalityType: "$profile.attributes.personalityType",
+            communicationStyle: "$profile.attributes.communicationStyle",
+            loveStyle: "$profile.attributes.loveStyle",
+            pets: "$profile.attributes.pets",
+            drinking: "$profile.attributes.drinking",
+            smoking: "$profile.attributes.smoking",
+            workout: "$profile.attributes.workout",
+            dietary: "$profile.attributes.dietary",
+            sleeping: "$profile.attributes.sleeping",
+            socialMedia: "$profile.attributes.socialMedia",
+            languages: "$profile.attributes.languages",
+            interests: "$profile.attributes.interests",
+            music: "$profile.attributes.music",
+            movies: "$profile.attributes.movies",
+            books: "$profile.attributes.books",
+            travel: "$profile.attributes.travel",
+            religion: "$profile.attributes.religion",
+          },
+
+          /* ---------------- DISCOVERY ---------------- */
+          discovery: {
+            distanceRange: "$profile.discovery.distanceRange",
+            ageRange: "$profile.discovery.ageRange",
+            showMeGender: "$profile.discovery.showMeGender",
+            relationshipGoal: "$profile.discovery.relationshipGoal",
+            globalVisibility: "$profile.discovery.globalVisibility",
+          },
+
           discoveryFilters: "$profile.discoveryFilters",
-          interests: "$profile.interests",
-          photos: "$profile.photos",
+
+          /* ---------------- LOCATION ---------------- */
           location: "$profile.location",
-          languages: "$profile.languages",
 
-          communicationStyle: "$profile.communicationStyle",
-          musicPreference: "$profile.musicPreference",
-          moviePreference: "$profile.moviePreference",
-          bookPreference: "$profile.bookPreference",
-          travelPreference: "$profile.travelPreference",
+          /* ---------------- PHOTOS ---------------- */
+          photos: "$profile.photos",
 
-          height: "$profile.height",
-          occupation: "$profile.occupation",
-          company: "$profile.company",
-          school: "$profile.school",
-          about_me: "$profile.about_me",
+          /* ---------------- VERIFICATION ---------------- */
+          verification: "$profile.verification",
 
-          kyc: "$profile.kyc",
-
-          onboardingProgress: "$profile.onboardingProgress",
-          profileCompletion: "$profile.onboardingProgress.totalCompletion",
-
-          isMandatoryComplete: "$profile.isMandatoryComplete",
-          isProfileComplete: "$profile.isProfileComplete",
-          canAccessSwipe: "$profile.canAccessSwipe",
-          isDiscoverable: "$profile.isDiscoverable",
-
+          /* ---------------- META ---------------- */
+          createdAt: 1,
           lastProfileUpdate: "$profile.lastProfileUpdate",
+          isPhoneVerified: 1,
+          isEmailVerified: 1,
         },
       },
     ];
@@ -503,34 +812,42 @@ module.exports.UPDATESingleUserDetail = async (req, res) => {
 
   try {
     const { userId } = req.params;
-    const { accountStatus, isPremium, profile } = req.body;
 
     /* --------------------------------
-     * 1️⃣ Validate userId
+     * 1️⃣ Validate Request Body with Joi
      * ------------------------------- */
-    if (!mongoose.Types.ObjectId.isValid(userId)) {
+    const { error, value } = updateUserSchema.validate(req.body, {
+      abortEarly: false,
+    });
+
+    if (error) {
+      await session.abortTransaction();
+      const errorMessages = error.details.map((detail) =>
+        detail.message.replace(/"/g, "")
+      );
       return res.status(400).json({
         success: false,
-        message: "Invalid userId",
+        message: "Validation Error",
+        errors: errorMessages,
       });
     }
 
+    // Use 'value' (sanitized data) instead of 'req.body'
+    const { accountStatus, isPremium, profile } = value;
+
+    if (!mongoose.Types.ObjectId.isValid(userId)) {
+      return res
+        .status(400)
+        .json({ success: false, message: "Invalid userId" });
+    }
+
     /* --------------------------------
-     * 2️⃣ Build User update payload
+     * 2️⃣ Update User Model
      * ------------------------------- */
     const userUpdate = {};
+    if (accountStatus) userUpdate.accountStatus = accountStatus;
+    if (typeof isPremium === "boolean") userUpdate.isPremium = isPremium;
 
-    if (accountStatus) {
-      userUpdate.accountStatus = accountStatus;
-    }
-
-    if (typeof isPremium === "boolean") {
-      userUpdate.isPremium = isPremium;
-    }
-
-    /* --------------------------------
-     * 3️⃣ Update User model
-     * ------------------------------- */
     const user = await User.findOneAndUpdate(
       { _id: userId, role: "USER" },
       { $set: userUpdate },
@@ -539,109 +856,105 @@ module.exports.UPDATESingleUserDetail = async (req, res) => {
 
     if (!user) {
       await session.abortTransaction();
-      return res.status(404).json({
-        success: false,
-        message: "User not found",
-      });
+      return res
+        .status(404)
+        .json({ success: false, message: "User not found" });
     }
 
     /* --------------------------------
-     * 4️⃣ Update Profile model (optional)
+     * 3️⃣ Update Profile Model (Dot-Notation)
      * ------------------------------- */
-    let updatedProfile = null;
+    let updatedProfile = await Profile.findOne({ userId }).session(session);
 
-    if (profile && typeof profile === "object") {
-      const allowedProfileFields = [
-        "fullName",
+    if (profile) {
+      const profileUpdate = {};
+
+      // Fields to map directly
+      const flatFields = [
         "nickname",
         "gender",
         "age",
-        "isDiscoverable",
-        "occupation",
+        "height",
+        "about",
+        "jobTitle",
         "company",
+        "school",
+        "livingIn",
       ];
+      flatFields.forEach((field) => {
+        if (profile[field] !== undefined) profileUpdate[field] = profile[field];
+      });
 
-      const profileUpdate = {};
-
-      for (const key of allowedProfileFields) {
-        if (profile[key] !== undefined) {
-          profileUpdate[key] = profile[key];
+      // Map Nested Objects (Attributes/Location) using Dot Notation
+      ["attributes", "location"].forEach((parentKey) => {
+        if (profile[parentKey]) {
+          Object.keys(profile[parentKey]).forEach((childKey) => {
+            profileUpdate[`${parentKey}.${childKey}`] =
+              profile[parentKey][childKey];
+          });
         }
-      }
+      });
 
-      if (Object.keys(profileUpdate).length) {
+      if (Object.keys(profileUpdate).length > 0) {
         profileUpdate.lastProfileUpdate = new Date();
-
         updatedProfile = await Profile.findOneAndUpdate(
           { userId },
           { $set: profileUpdate },
-          { new: true, session }
+          { new: true, runValidators: true, session }
         );
       }
     }
 
-    const resProfile = {
-      profileId: updatedProfile._id,
-      fullName: updatedProfile.fullName,
-      nickname: updatedProfile.nickname,
-      dob: updatedProfile.dob,
-      age: updatedProfile.age,
-      gender: updatedProfile.gender,
-      interests: updatedProfile.interests,
-      photos: updatedProfile.photos,
-      relationshipGoal: updatedProfile.relationshipGoal,
-      preferences: updatedProfile.preferences,
+    const response = {
+      _id: user._id,
+      role: user.role,
+      account: {
+        status: user.accountStatus,
+        isPremium: user.isPremium,
+        phone: user.phone,
+        email: user.email,
+        authMethod: user.authMethod,
+        banDetails: user.banDetails,
+        deactivationDetails: user.deactivationDetails,
+        deletionDetails: user.deletionDetails,
+        createdAt: user.createdAt,
+      },
+      profile: {
+        profileId: updatedProfile._id,
+        nickname: updatedProfile.nickname,
+        dob: updatedProfile.dob,
+        age: updatedProfile.age,
+        gender: updatedProfile.gender,
+        height: updatedProfile.height,
+        about: updatedProfile.about,
+        jobTitle: updatedProfile.jobTitle,
+        company: updatedProfile.company,
+        totalCompletion: updatedProfile.onboardingProgress.totalCompletion,
+      },
+      attributes: updatedProfile.attributes,
       discoveryFilters: updatedProfile.discoveryFilters,
       location: updatedProfile.location,
-      kyc: updatedProfile.kyc,
+      photos: updatedProfile.photos,
+      verification: updatedProfile.verification,
+      subscription: updatedProfile.subscription,
       onboardingProgress: updatedProfile.onboardingProgress,
-      height: updatedProfile.height,
-      jobtitle: updatedProfile.jobtitle,
-      about_me: updatedProfile.about_me,
-      school: updatedProfile.school,
-      visibility: updatedProfile.visibility,
-      languages: updatedProfile.languages,
-      communicationStyle: updatedProfile.communicationStyle,
-      musicPreference: updatedProfile.musicPreference,
-      moviePreference: updatedProfile.moviePreference,
-      bookPreference: updatedProfile.bookPreference,
-      travelPreference: updatedProfile.travelPreference,
-      occupation: updatedProfile.occupation,
-      company: updatedProfile.company,
-      isMandatoryComplete: updatedProfile.isMandatoryComplete,
-      isProfileComplete: updatedProfile.isProfileComplete,
-      canAccessSwipe: updatedProfile.canAccessSwipe,
-      isDiscoverable: updatedProfile.isDiscoverable,
-      lastProfileUpdate: updatedProfile.lastProfileUpdate,
       createdAt: updatedProfile.createdAt,
-      updatedAt: updatedProfile.updatedAt,
+      lastProfileUpdate: updatedProfile.lastProfileUpdate,
+      isPhoneVerified: updatedProfile.isPhoneVerified,
+      isEmailVerified: updatedProfile.isEmailVerified,
     };
 
-    /* --------------------------------
-     * 5️⃣ Commit transaction
-     * ------------------------------- */
     await session.commitTransaction();
 
     return res.status(200).json({
       success: true,
-      message: "User updated successfully",
-      data: {
-        user: {
-          _id: user._id,
-          accountStatus: user.accountStatus,
-          isPremium: user.isPremium,
-        },
-        profile: resProfile,
-      },
+      message: "User and Profile updated successfully",
+      data: response,
     });
   } catch (error) {
-    await session.abortTransaction();
-    console.error("UPDATE USER ERROR:", error);
-
-    return res.status(500).json({
-      success: false,
-      message: "Failed to update user",
-    });
+    if (session.inAtomicity()) await session.abortTransaction();
+    console.error("UPDATE ERROR:", error);
+    return res.status(500).json({ success: false, message: error.message });
   } finally {
     session.endSession();
   }
@@ -695,40 +1008,27 @@ module.exports.UPDATEUserStatus = async (req, res) => {
  ============================================ */
 module.exports.GETExportAllUsers = async (req, res) => {
   try {
-    const { filters = {} } = req.body;
+    // 1️⃣ CHANGE: Use req.query for GET requests (req.body is often empty in GET)
+    const filters = req.query || {};
 
-    /* -----------------------------
-     * USER MATCH
-     * ----------------------------- */
+    // USER MATCH
     const userMatch = { role: "USER" };
+    if (filters.accountStatus) userMatch.accountStatus = filters.accountStatus;
+    if (filters.isPremium !== undefined)
+      userMatch.isPremium = filters.isPremium === "true";
 
-    if (filters.accountStatus) {
-      userMatch.accountStatus = filters.accountStatus;
-    }
-
-    if (filters.isPremium !== undefined) {
-      userMatch.isPremium = Boolean(filters.isPremium);
-    }
-
-    /* -----------------------------
-     * PROFILE MATCH
-     * ----------------------------- */
+    // PROFILE MATCH
     const profileMatch = {};
+    if (filters.gender) profileMatch["profile.gender"] = filters.gender;
 
-    if (filters.gender) {
-      profileMatch["profile.gender"] = filters.gender;
-    }
-
-    /* -----------------------------
-     * FILE SETUP
-     * ----------------------------- */
+    // FILE SETUP
     const fileName = `users_export_${Date.now()}.csv`;
-    const filePath = path.join(__dirname, "../../../exports", fileName);
+    const exportDir = path.join(__dirname, "../../../exports");
+    const filePath = path.join(exportDir, fileName);
 
-    fs.mkdirSync(path.dirname(filePath), { recursive: true });
+    if (!fs.existsSync(exportDir)) fs.mkdirSync(exportDir, { recursive: true });
 
     const writableStream = fs.createWriteStream(filePath);
-
     const csvStream = stringify({
       header: true,
       columns: [
@@ -739,10 +1039,11 @@ module.exports.GETExportAllUsers = async (req, res) => {
         "IsPremium",
         "AuthMethod",
         "CreatedAt",
-        "FullName",
         "Nickname",
         "Gender",
         "Age",
+        "JobTitle",
+        "City",
         "ProfileCompletion",
         "KYCStatus",
       ],
@@ -750,12 +1051,9 @@ module.exports.GETExportAllUsers = async (req, res) => {
 
     csvStream.pipe(writableStream);
 
-    /* -----------------------------
-     * AGGREGATION CURSOR
-     * ----------------------------- */
+    // AGGREGATION CURSOR
     const cursor = User.aggregate([
       { $match: userMatch },
-
       {
         $lookup: {
           from: "profiles",
@@ -764,103 +1062,76 @@ module.exports.GETExportAllUsers = async (req, res) => {
           as: "profile",
         },
       },
-
       { $unwind: { path: "$profile", preserveNullAndEmptyArrays: true } },
-
       ...(Object.keys(profileMatch).length ? [{ $match: profileMatch }] : []),
-
       {
         $project: {
           _id: 1,
           email: 1,
-          isEmailVerified: 1,
           phone: 1,
-          isPhoneVerified: 1,
-          isProfileCompleted: 1,
-          role: 1,
           accountStatus: 1,
           isPremium: 1,
           authMethod: 1,
           createdAt: 1,
-
-          // Profile fields
-          profileId: "$profile._id",
-          fullName: "$profile.fullName",
           nickname: "$profile.nickname",
-          dob: "$profile.dob",
-          age: "$profile.age",
           gender: "$profile.gender",
-
-          relationshipGoal: "$profile.relationshipGoal",
-          preferences: "$profile.preferences",
-          discoveryFilters: "$profile.discoveryFilters",
-          interests: "$profile.interests",
-          photos: "$profile.photos",
-          location: "$profile.location",
-          languages: "$profile.languages",
-
-          communicationStyle: "$profile.communicationStyle",
-          musicPreference: "$profile.musicPreference",
-          moviePreference: "$profile.moviePreference",
-          bookPreference: "$profile.bookPreference",
-          travelPreference: "$profile.travelPreference",
-
-          height: "$profile.height",
-          occupation: "$profile.occupation",
-          company: "$profile.company",
-
-          kyc: "$profile.kyc",
-
-          onboardingProgress: "$profile.onboardingProgress",
+          age: "$profile.age",
+          jobTitle: "$profile.jobTitle",
+          city: "$profile.location.city",
           profileCompletion: "$profile.onboardingProgress.totalCompletion",
-
-          isMandatoryComplete: "$profile.isMandatoryComplete",
-          isProfileComplete: "$profile.isProfileComplete",
-          canAccessSwipe: "$profile.canAccessSwipe",
-          isDiscoverable: "$profile.isDiscoverable",
-
-          lastProfileUpdate: "$profile.lastProfileUpdate",
+          kycStatus: "$profile.verification.status",
         },
       },
-    ]).cursor({ batchSize: 500 });
-    // .exec();
+    ]).cursor({ batchSize: 1000 });
 
-    /* -----------------------------
-     * STREAM DATA ROW BY ROW
-     * ----------------------------- */
+    // STREAM DATA
     for await (const doc of cursor) {
+      // 🛡️ SAFETY CHECK: Handle the Date properly
+      const formattedDate =
+        doc.createdAt instanceof Date
+          ? doc.createdAt.toISOString()
+          : doc.createdAt
+          ? new Date(doc.createdAt).toISOString()
+          : "";
+
       csvStream.write({
         UserId: doc._id.toString(),
         Email: doc.email || "",
         Phone: doc.phone || "",
         AccountStatus: doc.accountStatus,
-        IsPremium: doc.isPremium,
+        IsPremium: doc.isPremium ? "Yes" : "No",
         AuthMethod: doc.authMethod,
-        CreatedAt: doc.createdAt,
-        FullName: doc.fullName || "",
+        CreatedAt: formattedDate, // Use the safe date string
         Nickname: doc.nickname || "",
         Gender: doc.gender || "",
         Age: doc.age || "",
-        ProfileCompletion: doc.profileCompletion || 0,
-        KYCStatus: doc.kycStatus || "pending",
+        JobTitle: doc.jobTitle || "",
+        City: doc.city || "",
+        ProfileCompletion: `${doc.profileCompletion || 0}%`,
+        KYCStatus: doc.kycStatus || "not_started",
       });
     }
 
     csvStream.end();
 
-    /* -----------------------------
-     * RESPONSE
-     * ----------------------------- */
-    return res.status(200).json({
-      success: true,
-      message: "User export started",
-      file: fileName,
+    return new Promise((resolve, reject) => {
+      writableStream.on("finish", () => {
+        res.status(200).json({
+          success: true,
+          message: "User export completed successfully",
+          fileName: fileName,
+          downloadUrl: `/api/v1/admin/user-management/download/${fileName}`,
+        });
+        resolve();
+      });
+      writableStream.on("error", (err) => reject(err));
     });
   } catch (error) {
     console.error("EXPORT USERS ERROR:", error);
-    return res.status(500).json({
-      success: false,
-      message: "Failed to export users",
-    });
+    if (!res.headersSent) {
+      return res
+        .status(500)
+        .json({ success: false, message: "Failed to export users" });
+    }
   }
 };

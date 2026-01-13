@@ -129,13 +129,12 @@ function calculateDistance(lat1, lon1, lat2, lon2) {
   return Math.round(R * c);
 }
 
-const UserSubscription = require("../../auth/UserSubscription.model")
+const UserSubscription = require("../../auth/UserSubscription.model");
 const { canUserAccessFeed } = require("../../../common/utils/profileAccess");
 
-
 async function getFeedService(userId, limit = 20) {
-    const CACHE_KEY = `feed:${userId.toString()}`;
-    const CACHE_TTL = 30;
+  const CACHE_KEY = `feed:${userId.toString()}`;
+  const CACHE_TTL = 30;
 
   let sub = await UserSubscription.findOne({ userId });
   if (!sub) sub = await UserSubscription.create({ userId });
@@ -143,23 +142,23 @@ async function getFeedService(userId, limit = 20) {
   // 2. Reset daily counters if needed
   sub.resetIfNeeded();
 
-    // 1️⃣ User Profile & Filters Fetch
-    const myProfile = await Profile.findOne({ userId }).lean();
-    if (!myProfile) throw new Error("Profile not found");
-    const canAccess = canUserAccessFeed({ profile: myProfile });
+  // 1️⃣ User Profile & Filters Fetch
+  const myProfile = await Profile.findOne({ userId }).lean();
+  if (!myProfile) throw new Error("Profile not found");
+  const canAccess = canUserAccessFeed({ profile: myProfile });
 
-    if (!canAccess || !myProfile.location?.coordinates) {
-  return {
-    success: false,
-    message: "Profile not eligible for discovery",
-    data: [],
-    onboardingRequired: true
-  };
-}
+  if (!canAccess || !myProfile.location?.coordinates) {
+    return {
+      success: false,
+      message: "Profile not eligible for discovery",
+      data: [],
+      onboardingRequired: true,
+    };
+  }
 
-    // if (!myProfile.isDiscoverable || !myProfile.location?.coordinates) {
-    //     return { success: false, message: "Complete profile & location required", data: [], onboardingRequired: true };
-    // }
+  // if (!myProfile.isDiscoverable || !myProfile.location?.coordinates) {
+  //     return { success: false, message: "Complete profile & location required", data: [], onboardingRequired: true };
+  // }
 
   // 2️⃣ Redis Cache Check
   if (redis) {
@@ -228,19 +227,28 @@ async function getFeedService(userId, limit = 20) {
     ]),
   ].map((id) => id.toString());
 
-    // 4️⃣ Strict Query Building (Discovery Filters)
-    const discovery = myProfile.discovery || {};
-    const query = { userId: { $nin: excludeIds }, isMandatoryComplete: true,"discovery.globalVisibility": "everyone" };
-    
-    // Gender & Age Filters
-    if (discovery.showMeGender?.length) query.gender = { $in: discovery.showMeGender };
-    if (discovery.ageRange) {
-        const now = new Date();
-        query.dob = {
-            $gte: new Date(now.getFullYear() - (discovery.ageRange.max || 50), 0, 1),
-            $lte: new Date(now.getFullYear() - (discovery.ageRange.min || 18), 11, 31)
-        };
-    }
+  // 4️⃣ Strict Query Building (Discovery Filters)
+  const discovery = myProfile.discovery || {};
+  const query = {
+    userId: { $nin: excludeIds },
+    isMandatoryComplete: true,
+    "discovery.globalVisibility": "everyone",
+  };
+
+  // Gender & Age Filters
+  if (discovery.showMeGender?.length)
+    query.gender = { $in: discovery.showMeGender };
+  if (discovery.ageRange) {
+    const now = new Date();
+    query.dob = {
+      $gte: new Date(now.getFullYear() - (discovery.ageRange.max || 50), 0, 1),
+      $lte: new Date(
+        now.getFullYear() - (discovery.ageRange.min || 18),
+        11,
+        31
+      ),
+    };
+  }
 
   // HARD FILTER: Has a Bio (Figma Requirement)
   if (discovery.hasBio) {
@@ -316,8 +324,7 @@ async function getFeedService(userId, limit = 20) {
     if (distanceKm <= 5) cardHighlights.push(`Very close to you!`);
     if (score > 75) cardHighlights.push(`${score}% Compatible`);
 
-
-const dynamicHighlights = [];
+    const dynamicHighlights = [];
 
     // --- 1. Priority Matches (Real Data) ---
     if (common.length > 0) {
@@ -363,23 +370,36 @@ const dynamicHighlights = [];
       });
     }
 
-// --- 3. Fallbacks (Jab 6 cards pure karne ho) ---
-if (dynamicHighlights.length < 6) {
-    // Fallback: Bio Card
-    if (profile.about && profile.about.length > 20) {
-        dynamicHighlights.push({ type: "BIO_PREVIEW", icon: "✍️", title: "About Me", description: profile.about.substring(0, 40) + "..." });
-    }
-    
-    // Fallback: Freshness Card
-    dynamicHighlights.push({ type: "ACTIVITY", icon: "⚡", title: "Active Now", description: "This user is looking for a match!" });
-    
-    // Fallback: Quality Card
-    if (profile.photos.length > 3) {
-        dynamicHighlights.push({ type: "PHOTO_QUALITY", icon: "📸", title: "Photo Gallery", description: "Check out more moments" });
-    }
+    // --- 3. Fallbacks (Jab 6 cards pure karne ho) ---
+    if (dynamicHighlights.length < 6) {
+      // Fallback: Bio Card
+      if (profile.about && profile.about.length > 20) {
+        dynamicHighlights.push({
+          type: "BIO_PREVIEW",
+          icon: "✍️",
+          title: "About Me",
+          description: profile.about.substring(0, 40) + "...",
+        });
+      }
 
+      // Fallback: Freshness Card
+      dynamicHighlights.push({
+        type: "ACTIVITY",
+        icon: "⚡",
+        title: "Active Now",
+        description: "This user is looking for a match!",
+      });
 
-}
+      // Fallback: Quality Card
+      if (profile.photos.length > 3) {
+        dynamicHighlights.push({
+          type: "PHOTO_QUALITY",
+          icon: "📸",
+          title: "Photo Gallery",
+          description: "Check out more moments",
+        });
+      }
+    }
     // const likeStatus = checkUserQuota(sub, 'like');
     // const superStatus = checkUserQuota(sub, 'superlike');
 
@@ -406,10 +426,10 @@ if (dynamicHighlights.length < 6) {
       // --- 3. GOALS ---
       relationshipGoal: targetGoal || "Not specified",
 
-    // --- 4. ATTRIBUTES (With Null Fallback) ---
-    // Manager ne kaha hai "" ki jagah null use karo
-    attributes: {
-      interests : targetAttr.interests || null,
+      // --- 4. ATTRIBUTES (With Null Fallback) ---
+      // Manager ne kaha hai "" ki jagah null use karo
+      attributes: {
+        interests: targetAttr.interests || null,
         zodiac: targetAttr.zodiac || null,
         education: targetAttr.education || null,
         vaccineStatus: targetAttr.vaccineStatus || null,
@@ -440,25 +460,22 @@ if (dynamicHighlights.length < 6) {
         commonInterests: common,
       },
 
-    // --- 6. DYNAMIC HIGHLIGHTS (UI Cards) ---
-    dynamicHighlights: dynamicHighlights.slice(0, 6)
-};
+      // --- 6. DYNAMIC HIGHLIGHTS (UI Cards) ---
+      dynamicHighlights: dynamicHighlights.slice(0, 6),
+    };
   });
-    console.log(transformedProfiles)
-    transformedProfiles.sort((a, b) => b.context.matchScore - a.context.matchScore);
-    const finalResult = transformedProfiles.slice(0, limit);
-  console.log("finalResult")
-  console.log(finalResult)
-    if (redis && finalResult.length) {
-        // await redis.set(CACHE_KEY, JSON.stringify({ data: finalResult }), 'EX', CACHE_TTL);
-        
-        await redis.set(
-  CACHE_KEY,
-  { data: finalResult },
-  { EX: CACHE_TTL }
-);
+  console.log(transformedProfiles);
+  transformedProfiles.sort(
+    (a, b) => b.context.matchScore - a.context.matchScore
+  );
+  const finalResult = transformedProfiles.slice(0, limit);
+  console.log("finalResult");
+  console.log(finalResult);
+  if (redis && finalResult.length) {
+    // await redis.set(CACHE_KEY, JSON.stringify({ data: finalResult }), 'EX', CACHE_TTL);
 
-    }
+    await redis.set(CACHE_KEY, { data: finalResult }, { EX: CACHE_TTL });
+  }
 
   return { success: true, count: finalResult.length, data: finalResult };
 }

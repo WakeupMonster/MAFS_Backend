@@ -377,6 +377,7 @@ module.exports.adminLogin = async (req, res) => {
         fullName: profile?.fullName || null,
         email: admin.email,
         phone: admin.phone,
+        role: admin.role,
         avatar,
         auth: {
           accessToken,

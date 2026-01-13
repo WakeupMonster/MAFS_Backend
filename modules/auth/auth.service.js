@@ -299,17 +299,17 @@ async function verifyPhoneOtpUnified(phone, otp) {
     {
       $set: {
         phone: normalizedPhone,
-        phoneHash: phoneHash,   // 🔥 CRITICAL LINE
+        phoneHash: phoneHash, // 🔥 CRITICAL LINE
         isPhoneVerified: true,
         isNewUser: false,
-        lastLoginAt: new Date() 
+        lastLoginAt: new Date(),
       },
       $push: {
         refreshTokens: {
           tokenHash: refreshHash,
-          expiresAt
-        }
-      }
+          expiresAt,
+        },
+      },
     },
     { upsert: true }
   );
@@ -532,7 +532,6 @@ async function verifyEmailOtp(userId, otp) {
   };
 }
 
-
 async function loginSendOtp(phone, ip) {
   if (!phone) throw new Error("Phone is required");
 
@@ -637,7 +636,7 @@ async function refreshAccessToken(refreshTokenRaw) {
 
   // 6. Profile fetch karo (Empty string handling ke liye)
   // const profile = await profileModel.findOne({ userId: user._id }).lean();
- const [profile, blockedContacts, blockedUser] = await Promise.all([
+  const [profile, blockedContacts, blockedUser] = await Promise.all([
     profileModel.findOneAndUpdate(
       { userId: user._id },
       { $set: { "onboardingProgress.emailVerified": true } },
@@ -647,15 +646,13 @@ async function refreshAccessToken(refreshTokenRaw) {
     Block.find({ blockerId: user._id }).lean(),
   ]);
 
-
-
   await user.save();
 
   // 7. RETURN MASTER FORMAT
   return {
     accessToken,
-    refreshToken: refreshTokenRaw, 
-    user: formatUserProfile(user, profile, blockedContacts, blockedUser)
+    refreshToken: refreshTokenRaw,
+    user: formatUserProfile(user, profile, blockedContacts, blockedUser),
   };
 }
 
@@ -705,8 +702,6 @@ async function refreshAccessToken(refreshTokenRaw) {
 //     profile: formattedProfile
 //   };
 // }
-
-
 
 // async function logout(userId, refreshTokenRaw) {
 //   const user = await User.findById(userId);

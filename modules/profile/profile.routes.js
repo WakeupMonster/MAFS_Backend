@@ -7,7 +7,7 @@ const validation = require("./profile.validation");
 const controllerDis = require("../discovery/discovery.controller");
 const userAction = require("./userActionController");
 // const ENUMS = require("../../config/enums");
-const  masterController  = require("./master.controller")
+const masterController = require("./master.controller");
 
 router.use(auth);
 
@@ -76,8 +76,11 @@ router.post("/bulk-add", masterController.bulkAddMasterData);
 // 2. GET API - Frontend ko manager wala format dene ke liye
 router.get("/config", masterController.getAppConfig);
 
-
-router.get("/:userId",validation.validateUserIdParam, controller.getUserProfile);
+router.get(
+  "/:userId",
+  validation.validateUserIdParam,
+  controller.getUserProfile
+);
 
 router.patch(
   "/visibility",
@@ -112,6 +115,3 @@ module.exports = router;
 
 //   res.json({ success: true, data });
 // });
-
-
-

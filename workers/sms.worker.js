@@ -25,7 +25,6 @@ const { Worker } = require("bullmq");
 const utils = require("../modules/auth/auth.utils");
 const User = require("../modules/auth/auth.model");
 
-
 // ------------------------------
 // 1. CONNECT MONGODB
 // ------------------------------
@@ -64,7 +63,7 @@ const worker = new Worker(
     }
   },
   {
-    connection: { url: process.env.REDIS_URL || "redis://127.0.0.1:6379" }
+    connection: { url: process.env.REDIS_URL || "redis://127.0.0.1:6379" },
   }
 );
 
