@@ -35,12 +35,13 @@ exports.activateBoost = async (req, res) => {
     return res.json({
       success: true,
       message: "Boost already active",
-      remainingSeconds: await redis.client.ttl(`boost:${userId}`)
+      // remainingSeconds: await redis.client.ttl(`boost:${userId}`)
     });
   }
 
   // 4️⃣ Activate boost
-  await redis.set(`boost:${userId}`, 1, Number({ EX: BOOST_TTL_SECONDS }));
+  // await redis.set(`boost:${userId}`, 1, Number({ EX: BOOST_TTL_SECONDS }));
+await redis.set(`boost:${userId}`, "1", { EX: BOOST_TTL_SECONDS });
   console.log(`boost:${userId}`,"bosted user")
 
   // 5️⃣ Clear feed cache (VERY IMPORTANT)
@@ -51,4 +52,33 @@ exports.activateBoost = async (req, res) => {
     message: "Boost activated successfully",
     boostDurationMinutes: 30
   });
+};
+
+// exports.unboostUser API
+exports.unboostUser = async (req, res) => {
+  try {
+    const userId = req.user._id.toString();
+
+    // 1️⃣ Redis se boost key delete karo
+    const boostKey = `boost:${userId}`;
+    const result = await redis.del(boostKey);
+
+    // 2️⃣ Feed cache delete karo taaki changes turant dikhein
+    await redis.del(`feed:${userId}`);
+
+    if (result === 0) {
+      return res.json({
+        success: true,
+        message: "User was not boosted or boost already expired"
+      });
+    }
+
+    return res.json({
+      success: true,
+      message: "Boost deactivated successfully"
+    });
+  } catch (err) {
+    console.error("Unboost Error:", err);
+    res.status(500).json({ success: false, message: "Failed to deactivate boost" });
+  }
 };

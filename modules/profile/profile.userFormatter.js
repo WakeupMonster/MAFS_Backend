@@ -30,7 +30,6 @@ const formatPublictargetProfile = (viewertargetProfile, targetProfile, swipeActi
     );
     distanceText = dist <= 1 ? "Nearby" : `${Math.round(dist)} km away`;
   }
-
   return {
     profile: {
       name: targetProfile.nickname || "",
@@ -84,62 +83,4 @@ const formatPublictargetProfile = (viewertargetProfile, targetProfile, swipeActi
     verificationStatus: targetProfile.verification?.status || "pending"
   };
 };
-
-
-// const formatPublictargetProfile = (user, targetProfile,swipeAction) => {
-//   if (!targetProfile) return null;
-  
-
-//   return {
-//     targetProfile : {
-//       name: targetProfile.nickname || "",
-//        age: targetProfile.age || calculateAge(targetProfile.dob),
-//         gender: targetProfile.gender || "",
-//         bio: targetProfile.about || "",
-//         height: targetProfile.height ? `${targetProfile.height} cm` : "",
-//         title: targetProfile.jobTitle || "",
-//       company: targetProfile.company || "",
-//        school: targetProfile.school || ""
-//         // weight: targetProfile.weight ? `${targetProfile.weight} kg` : ""
-//     },
-//     location: {
-//       city: targetProfile.location?.city || "",
-//       distance: "5 kilometer away" 
-//     },
-//     photos: targetProfile.photos || [],
-    
-//     attributes : {
-//       zodiac: targetProfile.attributes?.zodiac || "",
-//       education: targetProfile.attributes?.education || "",
-//       familyPlans: targetProfile.attributes?.familyPlans || "",
-//       vaccination: targetProfile.attributes?.vaccination || "",
-//       personalityType: targetProfile.attributes?.personalityType || "",
-//       communicationStyle: targetProfile.attributes?.communicationStyle || "",
-//       loveStyle: targetProfile.attributes?.loveStyle || "",
-//       bloodGroup: targetProfile.attributes?.bloodGroup || "",
-//        pets: targetProfile.attributes?.pets || "",
-//       drinking: targetProfile.attributes?.drinking || "",
-//       smoking: targetProfile.attributes?.smoking || "",
-//       workout: targetProfile.attributes?.workout || "",
-//       dietary: targetProfile.attributes?.dietary || "",
-//       socialMedia: targetProfile.attributes?.socialMedia || "",
-//       sleeping: targetProfile.attributes?.sleeping || "",
-//        relationshipGoals: targetProfile.discovery?.relationshipGoal || "",
-//     religion: targetProfile.attributes?.religion || "",
-//      interests: targetProfile.attributes?.interests || [],
-//     languages: targetProfile.attributes?.languages || [],
-//       music: targetProfile.attributes?.music || [],
-//       movies: targetProfile.attributes?.movies || [],
-//       books: targetProfile.attributes?.books || [],
-//       travel: targetProfile.attributes?.travel || []
-//     },
-//     status: {
-//             isLiked: !!swipeAction,
-//             isSuperLike: swipeAction?.action === "superlike",
-//             isMatch: false, // Match model se check kar sakte hain
-//             isBlockedByMe: false,
-//             verificationStatus: targetProfile.verification?.status || "pending"
-//         }
-//   };
-// };
 module.exports = { formatPublictargetProfile };

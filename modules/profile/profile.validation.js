@@ -4,9 +4,6 @@ const {
   userIdParamSchema
 } = require("./profile.schema");
 
-/* ===============================
-   COMMON VALIDATOR
-================================ */
 const validate = (schema, property = "body") => {
   return (req, res, next) => {
     const { error, value } = schema.validate(req[property], {
@@ -26,9 +23,6 @@ const validate = (schema, property = "body") => {
   };
 };
 
-/* ===============================
-   EXPORTS
-================================ */
 exports.validateProfileUpdate = validate(profileUpdateSchema);
 exports.validateLocation = validate(locationSchema);
 exports.validateUserIdParam = validate(userIdParamSchema, "params");
