@@ -142,6 +142,9 @@ module.exports.adminRegister = async (req, res) => {
   }
 };
 
+/*==================================================
+  POST API 1: ADMIN LOGIN API.
+===================================================*/
 // exports.adminLogin = async (req, res) => {
 //   try {
 //     // Step 1: identifier admin email or phone dono se login krskta hn
@@ -396,7 +399,7 @@ module.exports.adminLogin = async (req, res) => {
 };
 
 /*==================================================
-  POST API 1: REQUEST to Send OTP on Email Id
+  POST API 2: REQUEST to Send OTP on Email Id
 ===================================================*/
 module.exports.sendEmailOTP = async (req, res) => {
   try {
@@ -446,7 +449,7 @@ module.exports.sendEmailOTP = async (req, res) => {
 };
 
 /*==================================================
-  POST API 2: Verify Email OTP 
+  POST API 3: Verify Email OTP 
 ===================================================*/
 module.exports.verifyEmailOTP = async (req, res) => {
   try {
@@ -495,7 +498,7 @@ module.exports.verifyEmailOTP = async (req, res) => {
 };
 
 /*==================================================
-  POST API 3: ADMIN Forget Password
+  POST API 4: ADMIN Forget Password
 ===================================================*/
 module.exports.adminForgotPassword = async (req, res) => {
   try {
@@ -556,7 +559,7 @@ module.exports.adminForgotPassword = async (req, res) => {
 };
 
 /*==================================================
-  POST API 4: Reset Password. When admin already authenticate
+  POST API 5: Reset Password. When admin already authenticate
 ===================================================*/
 module.exports.adminResetPassword = async (req, res) => {
   try {
