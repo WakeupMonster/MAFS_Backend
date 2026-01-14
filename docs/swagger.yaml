@@ -12,7 +12,7 @@ servers:
     description: Development Server
 
 components:
-  securitySchemes:
+  securitySchemes:  
     bearerAuth:
       type: http
       scheme: bearer

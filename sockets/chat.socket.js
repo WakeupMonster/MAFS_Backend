@@ -5,6 +5,7 @@
 // // module.exports = function chatSocket(io,redisClient) {
 // //   io.on("connection", (socket) => {
 // //     console.log("✅ SOCKET CONNECTED:", socket.id, "USER:", socket.user._id);
+    
 
 // //     // --------------------------
 // //     // 1️⃣ JOIN CHAT ROOM
@@ -48,7 +49,7 @@
 // //         console.error("join_chat error:", err);
 // //       }
 // //     });
-
+    
 // // socket.on("messages_read", async ({ matchId }) => {
 // //   try {
 // //     const userId = socket.user._id;
@@ -76,6 +77,7 @@
 // //     console.error("messages_read error", err);
 // //   }
 // // });
+
 
 // // // --------------------------
 // // // 2️⃣ SEND MESSAGE (FINAL)
@@ -162,6 +164,7 @@
 // //   console.log("🔴 Receiver OFFLINE");
 // // }
 
+
 // //     // 8️⃣ if receiver offline → send push notification
 // //     if (!isReceiverPresent) {
 // //       console.log("📨 RECEIVER OFFLINE — sending push");
@@ -190,6 +193,7 @@
 // //     console.error("❌ send_message error:", err);
 // //   }
 // // });
+
 
 // //     // --------------------------
 // //     // 2️⃣ SEND MESSAGE
@@ -239,6 +243,7 @@
 // //     //   console.log("✅ MESSAGE DELIVERED:", msg._id);
 // //     // }
 
+
 // //     //     if (!isReceiverPresent) {
 // //     //       console.log("📨 RECEIVER OFFLINE — Sending push notification...");
 
@@ -276,6 +281,10 @@
 // //     });
 // //   });
 // // };
+
+
+
+
 
 // const ChatMessage = require("../modules/matches/chat/chat.message.model");
 // const { Match } = require("../modules/matches/swipe/swipe.model");
@@ -356,6 +365,7 @@
 //           // Send Push Notification if receiver is not in room
 //           await notificationService.sendNewMessageNotification(currentUserId, receiverId, text);
 
+
 //   //         const isOnlineSomewhere = await redisClient.get(`user:online:${receiverId.toString()}`);
 
 //   // if (isOnlineSomewhere) {
@@ -401,6 +411,9 @@
 //   });
 // };
 
+
+
+
 const ChatMessage = require("../modules/matches/chat/chat.message.model");
 const { Match } = require("../modules/matches/swipe/swipe.model");
 const notificationService = require("../modules/notifications/notification.service");
@@ -434,15 +447,13 @@ module.exports = function chatSocket(io, redisClient) {
           {
             matchId,
             receiver: currentUserId,
-            status: "SENT",
+            status: "SENT"
           },
           {
             status: "DELIVERED",
-            deliveredAt: new Date(),
+            deliveredAt: new Date()
           }
         );
-
-        console.log("📦 PENDING MESSAGES DELIVERED for", socket.user._id);
 
         console.log(`🎉 USER ${currentUserId} JOINED ROOM`, room);
       } catch (err) {
@@ -473,18 +484,18 @@ module.exports = function chatSocket(io, redisClient) {
         /* 2️⃣ Save message (DB = SOURCE OF TRUTH) */
         const msg = await ChatMessage.create({
           matchId,
-          sender,
-          receiver,
+          sender: currentUserId,
+          receiver: receiverId,
           text: text.trim(),
           status: "SENT",
-          clientMessageId,
+          clientMessageId
         });
 
         /* 3️⃣ Update conversation metadata (CHAT LIST ORDER) */
         await Match.findByIdAndUpdate(matchId, {
           lastMessage: msg.text,
           lastMessageAt: msg.createdAt,
-          lastMessageBy: currentUserId,
+          lastMessageBy: currentUserId
         });
 
         /* 4️⃣ Emit message to chat room */
@@ -495,7 +506,7 @@ module.exports = function chatSocket(io, redisClient) {
           matchId,
           lastMessage: msg.text,
           lastMessageAt: msg.createdAt,
-          from: currentUserId,
+          from: currentUserId
         });
 
         /* 6️⃣ DELIVERY CHECK (NO fetchSockets ❌) */
@@ -506,12 +517,12 @@ module.exports = function chatSocket(io, redisClient) {
         if (receiverOnline) {
           await ChatMessage.findByIdAndUpdate(msg._id, {
             status: "DELIVERED",
-            deliveredAt: new Date(),
+            deliveredAt: new Date()
           });
 
           socket.emit("message_delivered", {
             messageId: msg._id,
-            matchId,
+            matchId
           });
         }
 
@@ -521,12 +532,13 @@ module.exports = function chatSocket(io, redisClient) {
           receiverId,
           matchId,
           messageId: msg._id,
-          text: msg.text,
+          text: msg.text
         });
       } catch (err) {
         console.error("❌ send_message error:", err);
       }
     });
+    
 
     /* ------------------------------------------------------------------ */
     /* 3️⃣ MESSAGE READ */
@@ -537,136 +549,146 @@ module.exports = function chatSocket(io, redisClient) {
           {
             matchId,
             receiver: currentUserId,
-            status: { $ne: "READ" },
+            status: { $ne: "READ" }
           },
           {
             status: "READ",
             // read : "true",
-            readAt: new Date(),
+            readAt: new Date()
           }
         );
 
         io.to(`chat:${matchId}`).emit("messages_read", {
           matchId,
-          reader: currentUserId,
+          reader: currentUserId
         });
       } catch (err) {
         console.error("❌ messages_read error:", err);
       }
     });
 
-    socket.on("typing", ({ matchId, isTyping }) => {
-      if (!matchId) return;
+socket.on("typing", ({ matchId, isTyping }) => {
+  if (!matchId) return;
 
-      const room = `chat:${matchId}`;
+  const room = `chat:${matchId}`;
 
-      // sender ko chhod ke sabko bhejo
-      socket.to(room).emit("user_typing", {
-        userId: socket.user._id.toString(),
-        isTyping,
+  // sender ko chhod ke sabko bhejo
+  socket.to(room).emit("user_typing", {
+    userId: socket.user._id.toString(),
+    isTyping
+  });
+});
+
+/* ------------------------------------------------------------------ */
+/* 5️⃣ DELETE MESSAGE (DELETE FOR ME) */
+/* ------------------------------------------------------------------ */
+socket.on("delete_message", async ({ messageId, matchId }) => {
+  try {
+    if (!messageId || !matchId) return;
+
+    // 1️⃣ Mark message deleted for current user
+    await ChatMessage.findByIdAndUpdate(messageId, {
+      $addToSet: { deletedFor: currentUserId }
+    });
+
+    // 2️⃣ Notify ONLY this user to remove message from UI
+    io.to(`user:${currentUserId}`).emit("message_deleted", {
+      messageId,
+      matchId
+    });
+
+    // 3️⃣ Recalculate last visible message for this user
+    const lastVisibleMessage = await ChatMessage.findOne({
+      matchId,
+      deletedFor: { $ne: currentUserId }
+    }).sort({ createdAt: -1 });
+
+    // 4️⃣ Update chat list preview (only for this user)
+    io.to(`user:${currentUserId}`).emit("chat_list_update", {
+      matchId,
+      lastMessage: lastVisibleMessage?.text || null,
+      lastMessageAt: lastVisibleMessage?.createdAt || null
+    });
+
+  } catch (err) {
+    console.error("❌ delete_message error:", err);
+  }
+});
+
+
+/* ------------------------------------------------------------------ */
+/* 6️⃣ DELETE FOR EVERYONE */
+/* ------------------------------------------------------------------ */
+socket.on("delete_for_everyone", async ({ messageId, matchId }) => {
+  try {
+    if (!messageId || !matchId) return;
+
+    const msg = await ChatMessage.findById(messageId);
+    if (!msg) return;
+
+    // 1️⃣ Only sender allowed
+    if (msg.sender.toString() !== currentUserId) return;
+
+    // 2️⃣ Optional: Time limit check (e.g. 10 min)
+    const TEN_MIN = 10 * 60 * 1000;
+    if (Date.now() - msg.createdAt.getTime() > TEN_MIN) return;
+
+    // 3️⃣ Mark deleted for everyone
+    await ChatMessage.findByIdAndUpdate(messageId, {
+      isDeletedForEveryone: true,
+      text: null,
+      media: []
+    });
+
+    // 4️⃣ Notify BOTH users (chat room)
+    io.to(`chat:${matchId}`).emit("message_deleted_everyone", {
+      messageId,
+      matchId
+    });
+
+    // 5️⃣ Update chat list preview for both users
+    
+    const lastMsg = await ChatMessage.findOne({
+      matchId,
+      isDeletedForEveryone: false
+    }).sort({ createdAt: -1 });
+
+    await Match.findByIdAndUpdate(matchId, {
+      lastMessage: lastMsg?.text || "Message deleted",
+      lastMessageAt: lastMsg?.createdAt || new Date()
+    });
+
+     const matchDoc = await Match.findById(matchId).lean();
+    if (!matchDoc) return;
+
+    matchDoc.users.forEach((uid) => {
+      io.to(`user:${uid}`).emit("chat_list_update", {
+        matchId,
+        lastMessage: lastMsg?.text || "Message deleted",
+        lastMessageAt: lastMsg?.createdAt || new Date()
       });
     });
 
-    /* ------------------------------------------------------------------ */
-    /* 5️⃣ DELETE MESSAGE (DELETE FOR ME) */
-    /* ------------------------------------------------------------------ */
-    socket.on("delete_message", async ({ messageId, matchId }) => {
-      try {
-        if (!messageId || !matchId) return;
+  } catch (err) {
+    console.error("❌ delete_for_everyone error:", err);
+  }
+});
 
-        // 1️⃣ Mark message deleted for current user
-        await ChatMessage.findByIdAndUpdate(messageId, {
-          $addToSet: { deletedFor: currentUserId },
-        });
 
-        // 2️⃣ Notify ONLY this user to remove message from UI
-        io.to(`user:${currentUserId}`).emit("message_deleted", {
-          messageId,
-          matchId,
-        });
+// io.to(`chat:${matchId}`).emit("new_message", message);
 
-        // 3️⃣ Recalculate last visible message for this user
-        const lastVisibleMessage = await ChatMessage.findOne({
-          matchId,
-          deletedFor: { $ne: currentUserId },
-        }).sort({ createdAt: -1 });
+// io.to(`user:${receiverId}`).emit("chat_list_update", {
+//   matchId,
+//   lastMessage: "📷 Photo",
+//   lastMessageAt: message.createdAt,
+//   from: senderId
+// });
 
-        // 4️⃣ Update chat list preview (only for this user)
-        io.to(`user:${currentUserId}`).emit("chat_list_update", {
-          matchId,
-          lastMessage: lastVisibleMessage?.text || null,
-          lastMessageAt: lastVisibleMessage?.createdAt || null,
-        });
-      } catch (err) {
-        console.error("❌ delete_message error:", err);
-      }
-    });
 
-    /* ------------------------------------------------------------------ */
-    /* 6️⃣ DELETE FOR EVERYONE */
-    /* ------------------------------------------------------------------ */
-    socket.on("delete_for_everyone", async ({ messageId, matchId }) => {
-      try {
-        if (!messageId || !matchId) return;
 
-        const msg = await ChatMessage.findById(messageId);
-        if (!msg) return;
 
-        // 1️⃣ Only sender allowed
-        if (msg.sender.toString() !== currentUserId) return;
 
-        // 2️⃣ Optional: Time limit check (e.g. 10 min)
-        const TEN_MIN = 10 * 60 * 1000;
-        if (Date.now() - msg.createdAt.getTime() > TEN_MIN) return;
 
-        // 3️⃣ Mark deleted for everyone
-        await ChatMessage.findByIdAndUpdate(messageId, {
-          isDeletedForEveryone: true,
-          text: null,
-          media: [],
-        });
-
-        // 4️⃣ Notify BOTH users (chat room)
-        io.to(`chat:${matchId}`).emit("message_deleted_everyone", {
-          messageId,
-          matchId,
-        });
-
-        // 5️⃣ Update chat list preview for both users
-
-        const lastMsg = await ChatMessage.findOne({
-          matchId,
-          isDeletedForEveryone: false,
-        }).sort({ createdAt: -1 });
-
-        await Match.findByIdAndUpdate(matchId, {
-          lastMessage: lastMsg?.text || "Message deleted",
-          lastMessageAt: lastMsg?.createdAt || new Date(),
-        });
-
-        const matchDoc = await Match.findById(matchId).lean();
-        if (!matchDoc) return;
-
-        matchDoc.users.forEach((uid) => {
-          io.to(`user:${uid}`).emit("chat_list_update", {
-            matchId,
-            lastMessage: lastMsg?.text || "Message deleted",
-            lastMessageAt: lastMsg?.createdAt || new Date(),
-          });
-        });
-      } catch (err) {
-        console.error("❌ delete_for_everyone error:", err);
-      }
-    });
-
-    // io.to(`chat:${matchId}`).emit("new_message", message);
-
-    // io.to(`user:${receiverId}`).emit("chat_list_update", {
-    //   matchId,
-    //   lastMessage: "📷 Photo",
-    //   lastMessageAt: message.createdAt,
-    //   from: senderId
-    // });
 
     /* ------------------------------------------------------------------ */
     /* 4️⃣ DISCONNECT */
@@ -687,9 +709,14 @@ module.exports = function chatSocket(io, redisClient) {
   });
 };
 
-// socket.on("send_message", async ({
-//   matchId,
-//   text = "",
+
+
+
+
+
+// socket.on("send_message", async ({ 
+//   matchId, 
+//   text = "", 
 //   type = "text",   // "text" | "media"
 //   messageId       // 🔥 ONLY for media (DB already created)
 // }) => {

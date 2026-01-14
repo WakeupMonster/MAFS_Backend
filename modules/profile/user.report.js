@@ -66,7 +66,7 @@ const ReportSchema = new mongoose.Schema(
         message: String,
         repliedBy: {
           type: mongoose.Schema.Types.ObjectId,
-          ref: "Admin"
+          ref: "User"
         },
         repliedAt: {
           type: Date,
@@ -74,6 +74,11 @@ const ReportSchema = new mongoose.Schema(
         }
       }
     ],
+    resolvedBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+      default: null
+    },
 
     resolvedAt: {
       type: Date,

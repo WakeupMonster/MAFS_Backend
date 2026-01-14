@@ -20,14 +20,12 @@ const router = express.Router();
 // Middleware: ensure user is logged in (optional depending on your project)
 const auth = require("../../auth/auth.middleware");
 
-const {
-  allowDating,
-} = require("../../../common/middlewares/allowDating.middleware");
+const { allowDating } = require("../../../common/middlewares/allowDating.middleware");
 router.use(auth);
-router.use(allowDating);
+router.use(allowDating)
 router.get("/feed", validation.feed, controllerOld.getFeed);
-router.post("/action", controllerOld.action);
-router.post("/unmatch", controllerOld.unmatchUser);
+router.post("/action",  controllerOld.action);
+router.post("/unmatch",  controllerOld.unmatchUser);
 router.get("/matches", controllerOld.getMatches);
 
 // CREATE block or report
@@ -46,5 +44,6 @@ router.get("/matches", controllerOld.getMatches);
 
 router.get("/keen", controllerOld.getKeen);
 router.get("/superkeen", controllerOld.getSuperKeen);
+
 
 module.exports = router;

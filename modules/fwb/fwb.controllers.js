@@ -355,8 +355,8 @@ exports.updateFWB = async (req, res) => {
       return res.status(404).json({ success: false, message: "FWB not found" });
     }
 
-    /*========AUTO UPDATE is_active BASED ON expire_time================
-    =================================================================*/
+    /*====AUTO UPDATE is_active BASED ON expire_time
+    =======================================================*/
     if (req.body && req.body.expire_time) {
       const newDate = new Date(req.body.expire_time);
       req.body.is_active = newDate > new Date();
@@ -364,8 +364,8 @@ exports.updateFWB = async (req, res) => {
 
     let updateData = { ...req.body };
 
-    /*====UPDATE COMPANY LOGO - Delete old from Cloudinary only if new file uploaded====
-     ===================================================================*/
+    /*====UPDATE COMPANY LOGO - Delete old from Cloudinary only if new file uploaded
+    ========================================*/
     if (req.files?.com_logo && req.files.com_logo[0]) {
       const logoFile = req.files.com_logo[0];
 

@@ -183,6 +183,11 @@ async function connectRedis() {
     await redisClient.connect();
   }
 }
+async function safeMGet(keys) {
+  if (!keys || keys.length === 0) return [];
+  await connectRedis();
+  return redisClient.mGet(keys);
+}
 
 async function safeGet(key) {
   await connectRedis();
@@ -228,5 +233,6 @@ module.exports = {
   get: safeGet,
   set: safeSet,
   del: safeDel,
-  ttl: safeTTL
+  ttl: safeTTL,
+  mGet: safeMGet
 };

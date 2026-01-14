@@ -7,7 +7,7 @@ const {
   sendMessage,
   getChatList,
   uploadChatMediaController,
-  deleteChatMessageWithMedia,
+  deleteChatMessageWithMedia
   // deleteAllChatMessagesForUser,
 } = require("./chat.controller");
 const router = express.Router();
@@ -15,14 +15,16 @@ const uploadMiddleware = require("../../upload/upload.middleware");
 
 const auth = require("../../auth/auth.middleware");
 
+
 router.use(auth);
 
 router.get("/messages/:matchId", getChatMessages);
-router.get("/list", getChatList);
-router.post("/send", sendMessage);
+router.get("/list",getChatList)
+router.post("/send",sendMessage)
 router.patch("/messages/:matchId/read", updateChatMsgRead);
 router.delete("/messages/:matchId/:mesId", deleteChatMessage);
 module.exports = router;
+
 
 router.post(
   "/upload-media",
@@ -38,4 +40,7 @@ router.post(
 );
 
 // routes/messages.js
-router.delete("/messages/:messageId", deleteChatMessageWithMedia);
+router.delete(
+  "/messages/:messageId",
+  deleteChatMessageWithMedia
+);

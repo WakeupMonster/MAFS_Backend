@@ -107,4 +107,8 @@ const sendNotificationToMultiple = async (deviceTokens, notification, data = {})
   }
 };
 
-module.exports = { sendNotification, sendNotificationToMultiple, admin };
+module.exports = {
+  sendNotification,
+  sendNotificationToMultiple,
+  admin
+};
