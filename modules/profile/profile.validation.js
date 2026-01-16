@@ -12,9 +12,12 @@ const validate = (schema, property = "body") => {
     });
 
     if (error) {
+      const detail = error.details[0];
       return res.status(400).json({
         success: false,
-        message: error.details[0].message
+         message: detail.context?.label
+    ? `${detail.context.label} is invalid`
+    : "Invalid request data"
       });
     }
 

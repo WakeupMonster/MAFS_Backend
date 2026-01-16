@@ -1,21 +1,13 @@
 const express = require("express");
 const router = express.Router();
-
-// const validate = require("../../../modules/giveaway/admin/giveaway.validation");
-
-// Controllers (baad me banenge)
+const validate = require("../../../modules/giveaway/admin/giveaway.validation");
 const adminGiveawayController = require("../../../modules/giveaway/admin/giveaway.controller");
-
-
-
-// missing api Monthly bulk create missing
 
 router.post(
   "/prizes",
-//   validate("adminCreatePrize"),
+  validate("adminCreatePrize"),
   adminGiveawayController.createPrize
 );
-
 
 router.get(
   "/prizes",
@@ -28,9 +20,6 @@ router.patch(
   adminGiveawayController.updatePrize
 );
 
-/**
- * 📅 GIVEAWAY CAMPAIGNS
- */
 router.post(
   "/campaigns",
 //   validate("adminCreateCampaign"),
@@ -92,12 +81,6 @@ router.patch(
 );
 
 
-
-
-/**
- * ⚠️ TEMPORARY – CRON TEST ROUTE
- * REMOVE AFTER TESTING
- */
 const runGiveawayWorker = require("../../../jobs/giveaway/giveaway.worker");
 
 router.post(
@@ -110,8 +93,6 @@ router.post(
     });
   }
 );
-
-
 module.exports = router;
 
 

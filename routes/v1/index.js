@@ -26,7 +26,6 @@ router.use("/content",require("../../modules/content/content.routes"))
 
 router.use("/contact",require("../../modules/AppConfiguration/contactSupport/support.routes"))
 
-// BOOST
 
 
 router.use("/boost",require("../../modules/Boost/boost.route"))

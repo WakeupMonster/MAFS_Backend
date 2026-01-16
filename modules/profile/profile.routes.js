@@ -10,11 +10,12 @@ const userAction = require("./userActionController")
 const  masterController  = require("./master.controller")
 
 router.use(auth);
+
 // router.get("/upload-signature", controller.getUploadSignature);
 
 router.patch(
   "/update",
-  // validation.validateProfileUpdate,
+  validation.validateProfileUpdate,
   controller.updateProfile
 );
 
@@ -77,10 +78,8 @@ router.get("/status", controller.getStatus);
 router.get("/me", controller.getMyProfile);
 
 
-// 1. POST API - Database mein data bharne ke liye (Admin use karega)
 router.post("/bulk-add", masterController.bulkAddMasterData);
 
-// 2. GET API - Frontend ko manager wala format dene ke liye
 router.get("/config", masterController.getAppConfig);
 
 
@@ -88,7 +87,7 @@ router.get("/:userId",validation.validateUserIdParam, controller.getUserProfile)
 
 router.patch(
   "/visibility",
-  auth,  // Ensure user is authenticated
+  auth,  
   controller.updateVisibility
 );
 

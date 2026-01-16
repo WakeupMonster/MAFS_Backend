@@ -6,7 +6,6 @@ module.exports = function allowAdmin(req, res, next) {
     });
   }
 
-  // role based access
   if (req.user.role !== "ADMIN") {
     return res.status(403).json({
       success: false,

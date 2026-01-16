@@ -5,14 +5,10 @@ const GiveawayWinHistory = require("../giveawayWinHistory.model");
 const notificationService = require("../../notifications/notification.service");
 const User = require("../../../modules/auth/auth.model")
 const Prize = require("../prize.model");
+const utils = require("../../auth/auth.utils")
 
 // const GiveawayWinHistory = require("../giveawayWinHistory.model");
 
-/**
- * @desc   Create a new giveaway prize
- * @route  POST /api/v1/admin/giveaway/prizes
- * @access ADMIN
- */
 exports.createPrize = async (req, res) => {
   try {
     const {
@@ -23,11 +19,7 @@ exports.createPrize = async (req, res) => {
       spinWheelLabel
     } = req.body;
 
-    /**
-     *  Safety check (extra, validation ke upar)
-     * Validation fail hui to yahan tak aana hi nahi chahiye,
-     * but production me defensive coding zaroori hoti hai
-     */
+
     if (!title || !type || !value || !spinWheelLabel) {
       return res.status(400).json({
         success: false,
@@ -35,10 +27,6 @@ exports.createPrize = async (req, res) => {
       });
     }
 
-    /**
-     * 🎁 Create prize
-     * isActive default true rahega (schema se)
-     */
     const prize = await GiveawayPrize.create({
       title,
       type,
@@ -63,15 +51,6 @@ exports.createPrize = async (req, res) => {
   }
 };
 
-
-
-/**
- * ===============================
- * PRIZE MANAGEMENT
- * ===============================
- */
-
-// GET /admin/giveaway/prizes
 exports.getAllPrizes = async (req, res) => {
   try {
     const prizes = await GiveawayPrize.find().sort({ createdAt: -1 });
@@ -88,7 +67,6 @@ exports.getAllPrizes = async (req, res) => {
   }
 };
 
-// PATCH /admin/giveaway/prizes/:id
 exports.updatePrize = async (req, res) => {
   try {
     const { id } = req.params;
@@ -119,18 +97,6 @@ exports.updatePrize = async (req, res) => {
   }
 };
 
-/**
- * ===============================
- * GIVEAWAY CAMPAIGNS
- * ===============================
- */
-
-
-/**
- * @desc   Create a daily giveaway campaign (Prize Scheduling)
- * @route  POST /api/v1/admin/giveaway/campaigns
- * @access ADMIN
- */
 exports.createCampaign = async (req, res) => {
   try {
     const { date, prizeId, supportiveItems } = req.body;
@@ -142,21 +108,11 @@ exports.createCampaign = async (req, res) => {
       });
     }
 
-    /**
-     * ===============================
-     * 1️⃣ Normalize date (MOST IMPORTANT)
-     * ===============================
-     * Giveaway daily hota hai, time matter nahi karta
-     * Isliye date ko start of day pe normalize karte hain
-     */
+  
     const campaignDate = new Date(date);
     campaignDate.setHours(0, 0, 0, 0);
 
-    /**
-     * ===============================
-     * 2️⃣ Check: campaign already exists for this date?
-     * ===============================
-     */
+
     const existingCampaign = await GiveawayCampaign.findOne({
       date: campaignDate
     });
@@ -168,11 +124,7 @@ exports.createCampaign = async (req, res) => {
       });
     }
 
-    /**
-     * ===============================
-     * 3️⃣ Check: prize exists & active?
-     * ===============================
-     */
+
     const prize = await GiveawayPrize.findOne({
       _id: prizeId,
       isActive: true
@@ -185,15 +137,6 @@ exports.createCampaign = async (req, res) => {
       });
     }
 
-    /**
-     * ===============================
-     * 4️⃣ Create campaign
-     * ===============================
-     * drawStatus = PENDING (default)
-     * winnerUserId = null
-     * drawAt = null
-     * isActive = true
-     */
     const campaign = await GiveawayCampaign.create({
       date: campaignDate,
       prizeId: prize._id,
@@ -227,10 +170,6 @@ exports.createCampaign = async (req, res) => {
   }
 };
 
-
-
-// GET /admin/giveaway/campaigns
-
 exports.getAllCampaigns = async (req, res) => {
   try {
     const campaigns = await GiveawayCampaign
@@ -251,7 +190,6 @@ exports.getAllCampaigns = async (req, res) => {
   }
 };
 
-// PATCH /admin/giveaway/campaigns/:id
 exports.updateCampaign = async (req, res) => {
   try {
     const { id } = req.params;
@@ -287,13 +225,6 @@ exports.updateCampaign = async (req, res) => {
   }
 };
 
-/** 
- * ===============================
- * WINNER & RECOVERY
- * ===============================
- */
-
-// GET /admin/giveaway/campaigns/:id/winner
 exports.getWinner = async (req, res) => {
   try {
     const { id } = req.params;
@@ -328,7 +259,6 @@ exports.getWinner = async (req, res) => {
   }
 };
 
-// POST /admin/giveaway/campaigns/:id/resend-prize
 exports.resendPrize = async (req, res) => {
   try {
     const { id } = req.params;
@@ -340,9 +270,6 @@ exports.resendPrize = async (req, res) => {
         message: "Winner not found for this campaign"
       });
     }
-
-    // Actual delivery logic future me
-    // abhi sirf acknowledge
 
     return res.json({
       success: true,
@@ -356,27 +283,10 @@ exports.resendPrize = async (req, res) => {
   }
 };
 
-
-
-
-
-/**
- * ==========================================
- * 🚚 MARK GIVEAWAY PRIZE AS DELIVERED (ADMIN)
- * ==========================================
- * 👉 Sirf admin karega
- * 👉 Claim ke baad hi allowed
- * 👉 Audit safe
- */
-  
-
 exports.markPrizeAsDelivered = async (req, res) => {
   try {
     const { winHistoryId } = req.body;
 
-    /**
-     * 1️⃣ Win history nikaalo
-     */
     const winHistory = await GiveawayWinHistory.findById(winHistoryId);
 
     if (!winHistory) {
@@ -386,9 +296,7 @@ exports.markPrizeAsDelivered = async (req, res) => {
       });
     }
 
-    /**
-     * 2️⃣ Check: prize claim hua ya nahi
-     */
+
     if (!winHistory.claimedAt) {
       return res.status(400).json({
         success: false,
@@ -396,17 +304,12 @@ exports.markPrizeAsDelivered = async (req, res) => {
       });
     }
 
-    /**
-     * 3️⃣ Check: already delivered?
-     */
     if (winHistory.deliveryStatus === "DELIVERED") {
       return res.status(400).json({
         success: false,
         message: "Prize already delivered"
       });
     }
-
-
   
     const prize = await GiveawayCampaign.findById(winHistory.campaignId);
     const user = await User.findById(winHistory.userId);
@@ -418,21 +321,14 @@ exports.markPrizeAsDelivered = async (req, res) => {
       return res.status(400).json({ success: false, message: "Prize or User not found" });
     }
 
-    /**
-     * ======================================
-     * 5️⃣ FREE_PREMIUM DELIVERY LOGIC
-     * ======================================
-     */
     if (prize.type === "FREE_PREMIUM") {
       const today = new Date();
 
-      // base date decide karo
       const baseDate =
         user.premiumExpiresAt && user.premiumExpiresAt > today
           ? user.premiumExpiresAt
           : today;
 
-      // premium extend karo
       const extendedExpiry = new Date(baseDate);
       extendedExpiry.setDate(
         extendedExpiry.getDate() + prize.durationInDays
@@ -442,32 +338,25 @@ exports.markPrizeAsDelivered = async (req, res) => {
       await user.save();
     }
 
-    /**
-     * 4️⃣ Mark as delivered
-     */
     winHistory.deliveryStatus = "DELIVERED";
     winHistory.deliveredAt = new Date();
     await winHistory.save();
 
-    /**
-     * 5️⃣ Notify user about delivery success
-     */
     await notificationService.sendPrizeDeliveredNotification(
       winHistory.userId
     );
 
-//     const user = await User.findById(winHistory.userId).select("email");
+await utils.sendEmail(
+  user.email,
+  "🎉 Your Prize has been Delivered",
+  `
+    <h2>Congratulations 🎉</h2>
+    <p>Your prize <b>${prize.title}</b> has been successfully delivered.</p>
+    <p>Thank you for participating!</p>
+  `
+);
 
-// if (user?.email) {
-//   await sendPrizeDeliveredEmail(
-//     user.email,
-//     prize.title
-//   );
-// }
-
-    /**
-     * 6️⃣ Response to admin
-     */
+  
     return res.json({
       success: true,
       message: "Prize marked as delivered",
@@ -486,24 +375,15 @@ exports.markPrizeAsDelivered = async (req, res) => {
 };
 
 
-
-
-/**
- * ==========================================
- * 📊 GET PENDING GIVEAWAY DELIVERIES (ADMIN)
- * ==========================================
- */
 exports.getPendingDeliveries = async (req, res) => {
   try {
     const records = await GiveawayWinHistory.find({
-      claimedAt: { $ne: null },
       deliveryStatus: "PENDING"
     })
       .populate("userId", "phone email")
       .populate("campaignId", "date")
       .populate("prizeId", "title value")
       .sort({ claimedAt: -1 });
-
     res.json({
       success: true,
       count: records.length,
@@ -518,12 +398,6 @@ exports.getPendingDeliveries = async (req, res) => {
   }
 };
 
-
-/**
- * ==========================================
- * 📦 GET DELIVERED GIVEAWAY PRIZES (ADMIN)
- * ==========================================
- */
 exports.getDeliveredPrizes = async (req, res) => {
   try {
     const records = await GiveawayWinHistory.find({
@@ -549,12 +423,6 @@ exports.getDeliveredPrizes = async (req, res) => {
 };
 
 
-
-/**
- * ==========================================
- * 🧾 GET ALL GIVEAWAY CLAIMS (ADMIN)
- * ==========================================
- */
 exports.getAllClaims = async (req, res) => {
   try {
     const records = await GiveawayWinHistory.find()
@@ -708,17 +576,6 @@ exports.getGiveawayAuditReport = async (req, res) => {
   }
 };
 
-
-
-/**
- * 📅 BULK CREATE GIVEAWAY CAMPAIGNS
- * Admin can create daily campaigns using date range
- */
-
-
-
-
-
 exports.bulkCreateCampaignByRanges = async (req, res) => {
   try {
     const { ranges, isActive = true } = req.body;
@@ -749,9 +606,7 @@ exports.bulkCreateCampaignByRanges = async (req, res) => {
         supportiveItems
       } = range;
 
-      /**
-       * 1️⃣ Validate prize
-       */
+    
       const prize = await Prize.findById(prizeId);
       if (!prize || !prize.isActive) {
         return res.status(400).json({
@@ -760,9 +615,6 @@ exports.bulkCreateCampaignByRanges = async (req, res) => {
         });
       }
 
-      /**
-       * 2️⃣ Normalize dates (LOCAL SAFE)
-       */
       const [sy, sm, sd] = startDate.split("-").map(Number);
       const [ey, em, ed] = endDate.split("-").map(Number);
 
@@ -776,16 +628,12 @@ exports.bulkCreateCampaignByRanges = async (req, res) => {
         });
       }
 
-      /**
-       * 3️⃣ Normalize supportive items ONCE per range
-       */
+     
       const normalizedSupportiveItems = Array.isArray(supportiveItems)
         ? supportiveItems.filter(Boolean)
         : [];
 
-      /**
-       * 4️⃣ Expand range day-by-day
-       */
+   
       for (
         let d = new Date(start);
         d <= end;
@@ -819,9 +667,7 @@ exports.bulkCreateCampaignByRanges = async (req, res) => {
           continue;
         }
 
-        /**
-         * ✅ Push final campaign object
-         */
+     
         campaignsToInsert.push({
           date: campaignDate,
           prizeId,
@@ -832,9 +678,7 @@ exports.bulkCreateCampaignByRanges = async (req, res) => {
       }
     }
 
-    /**
-     * 5️⃣ Bulk insert
-     */
+
     if (campaignsToInsert.length > 0) {
       await GiveawayCampaign.insertMany(campaignsToInsert);
     }
@@ -859,13 +703,6 @@ exports.bulkCreateCampaignByRanges = async (req, res) => {
 };
 
 
-
-
-
-/**
- * 🚫 Disable Giveaway Campaign
- * Permanent admin action
- */
 exports.disableCampaign = async (req, res) => {
   try {
     const { id } = req.params;
@@ -904,12 +741,6 @@ exports.disableCampaign = async (req, res) => {
   }
 };
 
-
-
-/**
- * ⏸️ Pause Giveaway Campaign
- * Temporary admin action (can be resumed later)
- */
 exports.pauseCampaign = async (req, res) => {
   try {
     const { campaignId } = req.params;

@@ -190,13 +190,28 @@ lastLoginAt: {
   index: true
 },
 
+// ============ PASSWORD (ADMIN ONLY) ============
+password: {
+  type: String,
+  select: false,        
+  minlength: 8
+},
+  passwordChangedAt: {
+    type: Date
+  },
+
+  lastPasswordResetAt: {
+    type: Date
+  },
 
 authMethod: {
     type: String,
-    enum: ["phone", "email", "google", "facebook", "apple"],
+    enum: ["phone", "email", "google", "facebook", "apple","password"],
     default: "phone"
   }
 }, { timestamps: true });
+
+
 
 
 

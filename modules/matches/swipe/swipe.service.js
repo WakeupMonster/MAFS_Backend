@@ -101,11 +101,9 @@ console.log("swipes",swipes)
   ...blockedMe,
   ...myReports, ...blockedByContactUserIds, userId])].map(id => id.toString());
 
-  // 4️⃣ Strict Query Building (Discovery Filters)
   const discovery = myProfile.discovery || {};
   const query = { userId: { $nin: excludeIds }, isMandatoryComplete: true, "discovery.globalVisibility": "everyone" };
 
-  // Gender & Age Filters
   if (discovery.showMeGender?.length) query.gender = { $in: discovery.showMeGender };
   if (discovery.ageRange) {
     const now = new Date();
@@ -115,7 +113,6 @@ console.log("swipes",swipes)
     };
   }
 
-  // HARD FILTER: Has a Bio (Figma Requirement)
   if (discovery.hasBio) {
     query.about = { $exists: true, $ne: "" };
   }
@@ -130,19 +127,15 @@ console.log("swipes",swipes)
     };
   }
 
-  //  DB Fetch
   const profiles = await Profile.find(query).limit(50).lean();
   const boostKeys = profiles.map(p => `boost:${p.userId.toString()}`);
 
-// 2. redis.mGet use karein (Jo ab humne cache.js mein define kiya hai)
 const boostResults = await redis.mGet(boostKeys);
 
 console.log("boostresult",boostResults)
 
-  // 6️⃣ Figma Scoring Engine
   const myPreferredInterests = discovery.preferredInterests || [];
   const myAdvancedFilters = discovery.advancedFilters || {};
-  // Overwrite protection: Agar filterRelationshipGoal hai toh wo lo, warna profile goal
   const activeSearchGoal = discovery.filterRelationshipGoal || discovery.relationshipGoal;
   const transformedProfiles = profiles.map((profile,index) => {
     const targetAttr = profile.attributes || {};
@@ -154,7 +147,6 @@ console.log("boostresult",boostResults)
   boostResults?.[index]
 );
 
-    // const isBoosted = boostResults && boostResults[index] !== null;
     const isBoosted = boostResults?.[index] === "1";
 
     // console.log(isSuperliked, "has in set")

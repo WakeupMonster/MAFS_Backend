@@ -409,6 +409,7 @@ module.exports.GETAllUsers = async (req, res) => {
 //   }
 // };
 
+
 module.exports.SampleGETallUser = async (req, res) => {
   try {
     const page = Math.max(parseInt(req.query.page) || 1, 1);
@@ -416,27 +417,23 @@ module.exports.SampleGETallUser = async (req, res) => {
     const skip = (page - 1) * limit;
     const search = req.query.search?.trim();
 
-    // 1️⃣ Initial Filter (Matches only on User Model)
     const baseMatch = { role: "USER" };
     if (req.query.accountStatus)
       baseMatch.accountStatus = req.query.accountStatus;
     if (req.query.isPremium)
       baseMatch.isPremium = req.query.isPremium === "true";
 
-    // isBanned filter (Specific boolean check)
     if (req.query.isBanned !== undefined) {
       baseMatch["banDetails.isBanned"] = req.query.isBanned === "true";
     }
 
-    // 2️⃣ Regex Preparation
     const searchRegex = search
-      ? new RegExp(search.replace(/[.*+?^${}()|[\/]\\]/g, "\\$&"), "i")
+      ? new RegExp(search.replace(/[.*+?^${}()|[\\/]\\]/g, "\\$&"), "i")
       : null;
 
     const pipeline = [
       { $match: baseMatch },
 
-      /* ---- Lookups ---- */
       {
         $lookup: {
           from: "profiles",
@@ -457,9 +454,6 @@ module.exports.SampleGETallUser = async (req, res) => {
       },
       { $unwind: { path: "$account", preserveNullAndEmptyArrays: true } },
 
-      /* -----------------------------------------------------------
-       * 3️⃣ GLOBAL SEARCH MATCH (15+ Fields)
-       * ----------------------------------------------------------- */
       ...(searchRegex
         ? [
             {

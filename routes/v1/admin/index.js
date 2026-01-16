@@ -2,30 +2,25 @@ const express = require("express");
 const router = express.Router();
 
 // Common middlewares
-const auth = require("../../../modules/auth/auth.middleware");
+// const auth = require("../../../modules/auth/auth.middleware");
 // const asyncHandler = require("../../common/middlewares/asyncHandler");
-
 // Role middleware (admin only)
 // const { allowAdmin } = require("../../../common/middlewares/allowAdmin.middleware");
 
-// Admin routes
 const giveawayAdminRoutes = require("./giveaway.routes");
-const allowAdminMiddleware = require("../../../common/middlewares/allowAdmin.middleware");
+// const allowAdminMiddleware = require("../../../common/middlewares/allowAdmin.middleware");
+const adminCredential = require("../../../modules/Admin/auth/admin.auth.routes")
+// const cmsManagement = require("../../../modules/Admin/cms/content.routes")
+// const userManagement = require("../../../modules/Admin/usersManagement/user.management.route")
 
-// const kycAdminRoutes = require('./kyc.routes');
+// router.use(auth);        
+// router.use(allowAdminMiddleware);
 
-/**
- * ADMIN GLOBAL MIDDLEWARE
- * Ye middleware is folder ke sabhi routes par lagega
- */
 
-router.use(auth);        // user must be logged in
-router.use(allowAdminMiddleware); // user must be ADMIN / SUPER_ADMIN
-
-/**.
- * MODULE-WISE ADMIN ROUTES
- */
 router.use("/giveaway", giveawayAdminRoutes);
+router.use("/auth",adminCredential)
+// router.use("/cms",cmsManagement)
+// router.use("/user-management",userManagement)
 // router.use("/kyc", kycAdminRoutes);
 
 module.exports = router;
