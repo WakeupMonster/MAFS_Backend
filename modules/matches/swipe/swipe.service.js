@@ -27,9 +27,10 @@ function calculateDistance(lat1, lon1, lat2, lon2) {
   return Math.round(R * c);
 }
 
-async function getFeedService(userId, limit = 20) {
+async function getFeedService(userId,limit ,page) {
   const CACHE_KEY = `feed:${userId.toString()}`;
   const CACHE_TTL = 30;
+  const skip = (page - 1) * limit;
 
   let sub = await UserSubscription.findOne({ userId });
   if (!sub) sub = await UserSubscription.create({ userId });
@@ -127,7 +128,12 @@ console.log("swipes",swipes)
     };
   }
 
-  const profiles = await Profile.find(query).limit(50).lean();
+  // const profiles = await Profile.find(query).limit(50).lean();
+    const profiles = await Profile.find(query)
+    .sort({ createdAt: -1 })
+    .skip(skip)
+    .limit(limit)
+    .lean();
   const boostKeys = profiles.map(p => `boost:${p.userId.toString()}`);
 
 const boostResults = await redis.mGet(boostKeys);
@@ -230,7 +236,6 @@ console.log("boostresult",boostResults)
     }
     return {
       userId: profile.userId,
-
       profile: {
         nickname: profile.nickname || "User",
         age: calculateAge(profile.dob),
@@ -282,7 +287,7 @@ console.log("boostresult",boostResults)
     };
   });
   transformedProfiles.sort((a, b) => b.context.matchScore - a.context.matchScore);
-  const finalResult = transformedProfiles.slice(0, limit);
+  const finalResult = transformedProfiles.slice(0, limit,page);
   if (redis && finalResult.length) {
     // await redis.set(CACHE_KEY, JSON.stringify({ data: finalResult }), 'EX', CACHE_TTL);
     await redis.set(
@@ -291,7 +296,7 @@ console.log("boostresult",boostResults)
       { EX: CACHE_TTL }
     );
   }
-  return { success: true, count: finalResult.length, data: finalResult };
+  return { success: true,count: finalResult.length, data: finalResult };
 }
 function calculateAge(dob) {
   if (!dob) return 0;
