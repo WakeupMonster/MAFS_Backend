@@ -1,6 +1,6 @@
 const {
   profileUpdateSchema,
-  locationSchema,
+  // locationSchema,
   userIdParamSchema
 } = require("./profile.schema");
 
@@ -27,5 +27,5 @@ const validate = (schema, property = "body") => {
 };
 
 exports.validateProfileUpdate = validate(profileUpdateSchema);
-exports.validateLocation = validate(locationSchema);
+// exports.validateLocation = validate(locationSchema);
 exports.validateUserIdParam = validate(userIdParamSchema, "params");

@@ -125,27 +125,27 @@ exports.profileUpdateSchema = Joi.object({
    discovery: discoverySchema
 });
 
-exports.locationSchema = Joi.object({
-  latitude: Joi.number().min(-90).max(90).required() .label("Latitude")
-    .messages({
-      "any.required": "Latitude is required",
-      "number.base": "Latitude must be a number",
-      "number.min": "Latitude must be between -90 and 90",
-      "number.max": "Latitude must be between -90 and 90"
-    }),
-  longitude: Joi.number().min(-180).max(180).required() .label("Longitude")
-    .messages({
-      "any.required": "Longitude is required",
-      "number.base": "Longitude must be a number",
-      "number.min": "Longitude must be between -180 and 180",
-      "number.max": "Longitude must be between -180 and 180"
-    }),
+// exports.locationSchema = Joi.object({
+//   latitude: Joi.number().min(-90).max(90).required() .label("Latitude")
+//     .messages({
+//       "any.required": "Latitude is required",
+//       "number.base": "Latitude must be a number",
+//       "number.min": "Latitude must be between -90 and 90",
+//       "number.max": "Latitude must be between -90 and 90"
+//     }),
+//   longitude: Joi.number().min(-180).max(180).required() .label("Longitude")
+//     .messages({
+//       "any.required": "Longitude is required",
+//       "number.base": "Longitude must be a number",
+//       "number.min": "Longitude must be between -180 and 180",
+//       "number.max": "Longitude must be between -180 and 180"
+//     }),
 
-  city: Joi.string().allow("", null).label("City"),
-  state: Joi.string().allow("", null).label("State"),
-  country: Joi.string().allow("", null).label("Country"),
-  full_address: Joi.string().allow("", null).label("Full Address")
-});
+//   city: Joi.string().allow("", null).label("City"),
+//   state: Joi.string().allow("", null).label("State"),
+//   country: Joi.string().allow("", null).label("Country"),
+//   full_address: Joi.string().allow("", null).label("Full Address")
+// });
 
 exports.userIdParamSchema = Joi.object({
   userId: objectId.required()
