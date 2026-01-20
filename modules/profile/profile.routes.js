@@ -69,7 +69,7 @@ router.get("/verification-status", controller.getVerificationStatus);
 
 router.post(
   "/location",
-  validation.validateLocation,
+  // validation.validateLocation,
   controller.updateLocation
 );
 

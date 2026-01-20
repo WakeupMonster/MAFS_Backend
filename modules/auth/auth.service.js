@@ -259,55 +259,86 @@ async function verifyPhoneOtp(phone, otp) {
 
 
 
-async function sendEmailOtp(token, email) {
+// async function sendEmailOtp(token, email) {
 
-  const decoded = utils.verifyToken(token);
-  const user = await User.findById(decoded.userId);
+//   const decoded = utils.verifyToken(token);
+//   const user = await User.findById(decoded.userId);
 
-  if (!user) throw new Error("User not found");
-  if (!user.isPhoneVerified) {
-    throw new Error("Phone must be verified before email verification");
-  }
+//   if (!user) throw new Error("User not found");
+//   if (!user.isPhoneVerified) {
+//     throw new Error("Phone must be verified before email verification");
+//   }
 
-  const existing = await User.findOne({ email, _id: { $ne: user._id } });
-  if (existing) {
-    throw new Error("Email already in use");
-  }
+//   const existing = await User.findOne({ email, _id: { $ne: user._id } });
+//   if (existing) {
+//     throw new Error("Email already in use");
+//   }
 
-  user.email = email;
-  await user.save();
+//   user.email = email;
+//   await user.save();
 
-  const otp = utils.generateOtp();
+//   const otp = utils.generateOtp();
 
-  const redisKey = `user:email:otp:${user._id.toString()}`;
-  console.log("SETTING OTP IN REDIS:", redisKey);
-  await redis.set(redisKey, {otp}, { EX: EMAIL_OTP_TTL_MS / 1000 });
+//   const redisKey = `user:email:otp:${user._id.toString()}`;
+//   console.log("SETTING OTP IN REDIS:", redisKey);
+//   await redis.set(redisKey, {otp}, { EX: EMAIL_OTP_TTL_MS / 1000 });
   
 
-  const subject = "Your verification code";
-  const text = `Your email verification code is ${otp}`;
-  await utils.sendEmail(email, subject, text);
+//   const subject = "Your verification code";
+//   const text = `Your email verification code is ${otp}`;
+//   await utils.sendEmail(email, subject, text);
 
-  return { ok: true };
-}
+//   return { ok: true };
+// }
+
+// async function verifyEmailOtp(token, otp) {
+//   const decoded = utils.verifyToken(token);
+//   const user = await User.findById(decoded.userId);
+
+//   if (!user) throw new Error("User not found");
+
+//   const redisKey = `user:email:otp:${user._id}`;
+// console.log("🔥 GETTING OTP IN REDIS:", redisKey);
+//   const storedOtp = await redis.get(redisKey);
+//   if (!storedOtp) throw new Error("OTP expired");
+//   if (String(otp) !== String(storedOtp)) throw new Error("Invalid OTP");
+
+//   user.isEmailVerified = true;
+//   await user.save();
+
+//   await redis.del(redisKey);
+
+//   const [profile, blockedContacts, blockedUser] = await Promise.all([
+//     profileModel.findOneAndUpdate(
+//       { userId: user._id },
+//       { $set: { "onboardingProgress.emailVerified": true } },
+//       { upsert: true, new: true, lean: true }
+//     ),
+//     BlockedContact.find({ userId: user._id }).lean(),
+//     Block.find({ blockerId: user._id }).lean()
+//   ]);
+
+//   return {
+//     user: formatUserProfile(user, profile, blockedContacts, blockedUser)
+//   };
+// }
+
 
 async function verifyEmailOtp(token, otp) {
   const decoded = utils.verifyToken(token);
-  const user = await User.findById(decoded.userId);
 
+  const user = await User.findById(decoded.userId);
   if (!user) throw new Error("User not found");
 
-  const redisKey = `user:email:otp:${user._id}`;
-console.log("🔥 GETTING OTP IN REDIS:", redisKey);
-  const storedOtp = await redis.get(redisKey);
-  if (!storedOtp) throw new Error("OTP expired");
-  if (String(otp) !== String(storedOtp)) throw new Error("Invalid OTP");
+  if (!user.emailOtp || !user.emailOtpExpires) throw new Error("OTP not found");
+  if (Date.now() > user.emailOtpExpires) throw new Error("OTP expired");
+  if (String(otp) !== String(user.emailOtp)) throw new Error("Invalid OTP");
 
+  // Email mark as verified
   user.isEmailVerified = true;
+  user.emailOtp = undefined;
+  user.emailOtpExpires = undefined;
   await user.save();
-
-  await redis.del(redisKey);
-
   const [profile, blockedContacts, blockedUser] = await Promise.all([
     profileModel.findOneAndUpdate(
       { userId: user._id },
@@ -319,47 +350,46 @@ console.log("🔥 GETTING OTP IN REDIS:", redisKey);
   ]);
 
   return {
+    // Return the formatted user including block lists
     user: formatUserProfile(user, profile, blockedContacts, blockedUser)
   };
 }
 
 
 
-
-
-// async function sendEmailOtp(token, email) {
-//   // Verify token and get user
-//   const decoded = utils.verifyToken(token);
-//   const user = await User.findById(decoded.userId);
+async function sendEmailOtp(token, email) {
+  // Verify token and get user
+  const decoded = utils.verifyToken(token);
+  const user = await User.findById(decoded.userId);
   
-//   if (!user) throw new Error("User not found");
-//   if (!user.isPhoneVerified) {
-//     throw new Error("Phone must be verified before email verification");
-//   }
+  if (!user) throw new Error("User not found");
+  if (!user.isPhoneVerified) {
+    throw new Error("Phone must be verified before email verification");
+  }
 
-//   // If email already used by another account
-//   const existing = await User.findOne({ email, _id: { $ne: user._id } });
-//   if (existing) {
-//     throw new Error("Email already in use");
-//   }
+  // If email already used by another account
+  const existing = await User.findOne({ email, _id: { $ne: user._id } });
+  if (existing) {
+    throw new Error("Email already in use");
+  }
 
-//   // Save email to user
-//   user.email = email;
+  // Save email to user
+  user.email = email;
 
-//   // Generate and store OTP
-//   const otp = utils.generateOtp();
-//   user.emailOtp = otp;
-//   user.emailOtpExpires = Date.now() + EMAIL_OTP_TTL_MS;
+  // Generate and store OTP
+  const otp = utils.generateOtp();
+  user.emailOtp = otp;
+  user.emailOtpExpires = Date.now() + EMAIL_OTP_TTL_MS;
 
-//   await user.save();
+  await user.save();
 
-//   // Send email with OTP
-//   const subject = "Your verification code";
-//   const text = `Your email verification code is ${otp}`;
-//   await utils.sendEmail(email, subject, text);
+  // Send email with OTP
+  const subject = "Your verification code";
+  const text = `Your email verification code is ${otp}`;
+  await utils.sendEmail(email, subject, text);
 
-//   return { ok: true };
-// }
+  return { ok: true };
+}
 // async function verifyEmailOtp(token, otp) {
 //   const decoded = utils.verifyToken(token);
 

@@ -28,6 +28,7 @@ router.use("/boost",require("../../modules/Boost/boost.route"))
 
 
 // ADMIN routes
+// BOOST MANAGEMENT CAN BE ADDED IN THE ADMIN PANEL LATER
 
 router.use("/admin", require("../v1/admin/index"));
 

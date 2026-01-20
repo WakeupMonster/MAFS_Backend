@@ -1,5 +1,5 @@
 const mongoose = require("mongoose");
-const redis = require("../../../common/redis");
+const redis = require("../../../config/cache");
 const User = require("../../auth/auth.model");
 const { createCacheKey } = require("../../auth/auth.utils");
 const Profile = require("../../profile/profile.model");

@@ -20,6 +20,8 @@ router.patch(
   adminGiveawayController.updatePrize
 );
 
+router.delete("/prizes/:id",adminGiveawayController.deletePrize)
+router.delete("/campaigns/:id",adminGiveawayController.deleteCampaign)
 router.post(
   "/campaigns",
 //   validate("adminCreateCampaign"),
@@ -80,31 +82,17 @@ router.patch(
   adminGiveawayController.pauseCampaign
 );
 
-
-const runGiveawayWorker = require("../../../jobs/giveaway/giveaway.worker");
-
-router.post(
-  "/run-cron",
-  async (req, res) => {
-    await runGiveawayWorker();
-    return res.json({
-      success: true,
-      message: "Giveaway cron executed manually"
-    });
-  }
-);
 module.exports = router;
+// const runGiveawayWorker = require("../../../jobs/giveaway/giveaway.worker");
 
-
-// PATCH /admin/giveaway/:id/disable -- campaign.isActive = false;
-
-// PATCH /admin/giveaway/:campaignId/pause -- campaign.isActive = false;
-
-
-// POST /admin/giveaway/campaigns/bulk
-
-// GET  /admin/giveaway/config
-// PATCH /admin/giveaway/config
-
-
-// PATCH /admin/giveaway/settings for yealy limit
+// router.post(
+//   "/run-cron",
+//   async (req, res) => {
+//     await runGiveawayWorker();
+//     return res.json({
+//       success: true,
+//       message: "Giveaway cron executed manually"
+//     });
+//   }
+// );
+// module.exports = router;

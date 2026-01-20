@@ -608,7 +608,7 @@ exports.updateVisibility = async (req, res) => {
 //   try {
 //     // 1. Check karein ki user authenticated hai aur ID valid hai
 //     if (!req.user || !req.user._id) {
-//       return res.status(401).json({ success: false, message: "User not authenticated" });
+//       retrn res.status(401).json({ success: false, message: "User not authenticated" });
 //     }
 
 //     const userId = req.user._id.toString();

@@ -7,8 +7,6 @@ const User = require("../../../modules/auth/auth.model")
 const Prize = require("../prize.model");
 const utils = require("../../auth/auth.utils")
 
-// const GiveawayWinHistory = require("../giveawayWinHistory.model");
-
 exports.createPrize = async (req, res) => {
   try {
     const {
@@ -445,106 +443,6 @@ exports.getAllClaims = async (req, res) => {
   }
 };
 
-
-
-exports.claimPrize = async (req, res) => {
-  try {
-    const userId = req.user._id;
-
-    /**
-     * 1️⃣ Aaj ka date (00:00)
-     */
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-
-    /**
-     * 2️⃣ Completed campaign nikaalo
-     */
-    const campaign = await GiveawayCampaign.findOne({
-      date: today,
-      drawStatus: "COMPLETED"
-    });
-
-    if (!campaign) {
-      return res.status(400).json({
-        success: false,
-        message: "No giveaway available to claim today"
-      });
-    }
-
-    /**
-     * 3️⃣ Verify: user winner hai ya nahi
-     */
-    if (campaign.winnerUserId.toString() !== userId.toString()) {
-      return res.status(403).json({
-        success: false,
-        message: "You are not the winner of today’s giveaway"
-      });
-    }
-
-    /**
-     * 4️⃣ Win history record nikaalo
-     */
-    const winHistory = await GiveawayWinHistory.findOne({
-      userId,
-      campaignId: campaign._id
-    });
-
-    if (!winHistory) {
-      return res.status(404).json({
-        success: false,
-        message: "Win record not found"
-      });
-    }
-
-    /**
-     * 5️⃣ Double claim protection
-     */
-    if (winHistory.claimedAt) {
-      return res.status(400).json({
-        success: false,
-        message: "Prize already claimed"
-      });
-    }
-
-    /**
-     * 6️⃣ Claim prize (LOCK)
-     */
-    winHistory.claimedAt = new Date();
-    winHistory.deliveryStatus = "PENDING"; // default hi hai, clarity ke liye
-    await winHistory.save();
-
-    /**
-     * 7️⃣ Success response
-     */
-    return res.status(200).json({
-      success: true,
-      message: "Prize claimed successfully",
-      data: {
-        campaignId: campaign._id,
-        prizeId: winHistory.prizeId,
-        claimedAt: winHistory.claimedAt,
-        deliveryStatus: winHistory.deliveryStatus
-      }
-    });
-
-  } catch (error) {
-    console.error("Claim prize error:", error);
-    return res.status(500).json({
-      success: false,
-      message: "Failed to claim prize"
-    });
-  }
-};
-
-
-
-
-/**
- * ==========================================
- * 🧾 GIVEAWAY AUDIT REPORT (ADMIN)
- * ==========================================
- */
 exports.getGiveawayAuditReport = async (req, res) => {
   try {
     const filter = {};
@@ -744,8 +642,9 @@ exports.disableCampaign = async (req, res) => {
 exports.pauseCampaign = async (req, res) => {
   try {
     const { campaignId } = req.params;
-
+    console.log(campaignId,"campaignId")
     const campaign = await GiveawayCampaign.findById(campaignId);
+    console.log(campaign.isActive,"active")
     if (!campaign) {
       return res.status(404).json({
         success: false,
@@ -763,6 +662,7 @@ exports.pauseCampaign = async (req, res) => {
     campaign.isActive = false;
     campaign.failureReason = "Paused by admin";
     await campaign.save();
+    console.log(campaign.isActive,"afteractive")
 
     return res.json({
       success: true,
@@ -781,8 +681,127 @@ exports.pauseCampaign = async (req, res) => {
 
 
 
+/**
+ * @desc    Delete a prize by ID
+ * @route   DELETE /api/v1/admin/giveaway/prizes/:id
+ * @access  Private/Admin
+ */
+exports.deletePrize = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+
+    // Find and delete the prize
+    const prize = await Prize.findByIdAndDelete(id);
+    
+    if (!prize) {
+      return res.status(404).json({
+        success: false,
+        message: 'Prize not found'
+      });
+    }
+
+    // Log the deletion
+    // await GiveawayAudit.create({
+    //   action: 'DELETE_PRIZE',
+    //   admin: req.user._id,
+    //   targetId: id,
+    //   details: {
+    //     prizeName: prize.name,
+    //     prizeId: prize._id
+    //   }
+    // });
+
+    res.status(200).json({
+      success: true,
+      message: 'Prize deleted successfully',
+      data: { id }
+    });
+
+  } catch (error) {
+    console.error('Delete Prize Error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to delete prize',
+      error: error.message
+    });
+  }
+};
 
 
+/**
+ * @desc    Delete a campaign by ID
+ * @route   DELETE /api/v1/admin/giveaway/campaigns/:id
+ * @access  Private/Admin
+ */
+exports.deleteCampaign = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+
+    // Check if there are any winners for this campaign
+    const hasWinners = await GiveawayWinHistory.exists({ 
+      campaignId: id,
+      wonAt: { $exists: true } // Ensure wonAt is present
+    });
+
+    if (hasWinners) {
+      return res.status(400).json({
+        success: false,
+        message: 'Cannot delete campaign with existing winners',
+        code: 'CAMPAIGN_HAS_WINNERS'
+      });
+    }
+
+    // Also check if there are any pending claims
+    const hasPendingClaims = await GiveawayWinHistory.exists({ 
+      campaignId: id,
+      claimedAt: null, // Not claimed yet
+      wonAt: { $exists: true } // But has won
+    });
+
+    if (hasPendingClaims) {
+      return res.status(400).json({
+        success: false,
+        message: 'Cannot delete campaign with pending claims',
+        code: 'CAMPAIGN_HAS_PENDING_CLAIMS'
+      });
+    }
+
+    // Find and delete the campaign
+    const campaign = await GiveawayCampaign.findByIdAndDelete(id);
+    
+    if (!campaign) {
+      return res.status(404).json({
+        success: false,
+        message: 'Campaign not found'
+      });
+    }
+
+    // Log the deletion
+    // await GiveawayAudit.create({
+    //   action: 'DELETE_CAMPAIGN',
+    //   admin: req.user._id,
+    //   targetId: id,
+    //   details: {
+    //     campaignName: campaign.name,
+    //     campaignId: campaign._id
+    //   }
+    // });
+
+    res.status(200).json({
+      success: true,
+      message: 'Campaign deleted successfully',
+      data: { id }
+    });
+
+  } catch (error) {
+    console.error('Delete Campaign Error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to delete campaign',
+      error: error.message
+    });
+  }
+};
 
 
 

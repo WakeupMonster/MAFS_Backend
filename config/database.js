@@ -3,7 +3,7 @@
 const mongoose = require('mongoose');
 const logger = console; // replace with your logger (winston) if available
 
-const DEFAULT_URI = process.env.MONGODB_URI || 'mongodb://localhost:27017/mafs_dev';
+const DEFAULT_URI = process.env.MONGODB_URI;
 
 const options = {
   // recommended options

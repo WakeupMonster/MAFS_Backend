@@ -673,3 +673,49 @@ exports.getBlockedUsers = async (req, res) => {
     });
   }
 };    
+
+
+exports.getPendingVerifications = async (req, res, next) => {
+  try {
+    // Find all profiles with pending verification
+    const pendingProfiles = await Profile.aggregate([
+      {
+        $match: {
+          'verification.status': 'pending'
+        }
+      },
+      {
+        $lookup: {
+          from: 'users',
+          localField: 'userId',
+          foreignField: '_id',
+          as: 'user'
+        }
+      },
+      { $unwind: '$user' },
+      {
+        $project: {
+          _id: 1,
+          userId: 1,
+          verification: 1,
+          'user.email': 1,
+          'user.phone': 1,
+          'user.createdAt': 1,
+          'profilePhoto': 1,
+          'fullName': 1
+        }
+      },
+      { $sort: { createdAt: -1 } }
+    ]);
+    res.json({
+      success: true,
+      count: pendingProfiles.length,
+      data: pendingProfiles
+    });
+  } catch (error) {
+    res.status(500).json({
+      success:false,
+      message : "Failed to fetch pending verifications"
+    })
+  }
+};
