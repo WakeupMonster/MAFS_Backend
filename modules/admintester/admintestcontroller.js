@@ -5,8 +5,9 @@ const User = require("../auth/auth.model");
 const Profile = require("../profile/profile.model");
 const Report = require("../profile/user.report");
 const UserSubscription = require("../auth/UserSubscription.model");
-const redis = require("../../config/cache"); 
-const Block = require("../profile/user.block")
+const redis = require("../../config/cache");
+const utils = require("../auth/auth.utils");
+const Block = require("../profile/user.block");
 
 exports.getKpiOverview = async (req, res) => {
   try {
@@ -20,67 +21,66 @@ exports.getKpiOverview = async (req, res) => {
       activeUsers24h,
       paidUsers,
       pendingVerifications,
-      openReports
+      openReports,
     ] = await Promise.all([
       User.countDocuments({
-  accountStatus: "active",
-  role: "USER"
-}),
+        accountStatus: "active",
+        role: "USER",
+      }),
 
       User.countDocuments({
         lastLoginAt: { $gte: last24Hours },
         role: "USER",
-accountStatus: "active"
+        accountStatus: "active",
       }),
 
       UserSubscription.countDocuments({
-        isActive: true
+        isActive: true,
       }),
 
       Profile.countDocuments({
-        "verification.status": "pending"
+        "verification.status": "pending",
       }),
 
       Report.countDocuments({
-        status: { $in: ["new", "in_progress"] }
-      })
+        status: { $in: ["new", "in_progress"] },
+      }),
     ]);
 
     // ---------- 3. Response formatting for UI ----------
     const response = {
       kpis: {
         totalUsers: {
-          value: totalUsers
+          value: totalUsers,
         },
         activeUsers24h: {
-          value: activeUsers24h
+          value: activeUsers24h,
         },
         paidUsers: {
-          value: paidUsers
+          value: paidUsers,
         },
         pendingVerifications: {
           value: pendingVerifications,
-          actionable: true
+          actionable: true,
         },
         openReports: {
           value: openReports,
           actionable: true,
-          severity: openReports > 10 ? "high" : "normal"
-        }
+          severity: openReports > 10 ? "high" : "normal",
+        },
       },
-      lastUpdatedAt: new Date()
+      lastUpdatedAt: new Date(),
     };
 
     return res.json({
       success: true,
-      data: response
+      data: response,
     });
-
   } catch (error) {
     console.error("Admin KPI error:", error);
     return res.status(500).json({
       success: false,
-      message: "Failed to load dashboard KPIs"
+      message: "Failed to load dashboard KPIs",
     });
   }
 };
@@ -174,9 +174,6 @@ accountStatus: "active"
 //     });
 //   }
 // };
-
-
-
 exports.verifyUserProfile = async (req, res) => {
   const adminId = req.user.id;
   const userId = req.params.userId;
@@ -185,14 +182,14 @@ exports.verifyUserProfile = async (req, res) => {
   if (!["approve", "reject"].includes(action)) {
     return res.status(400).json({
       success: false,
-      message: "Invalid action"
+      message: "Invalid action",
     });
   }
 
   if (action === "reject" && !reason) {
     return res.status(400).json({
       success: false,
-      message: "Rejection reason required"
+      message: "Rejection reason required",
     });
   }
 
@@ -200,14 +197,14 @@ exports.verifyUserProfile = async (req, res) => {
   if (!profile) {
     return res.status(404).json({
       success: false,
-      message: "Profile not found"
+      message: "Profile not found",
     });
   }
 
   if (profile.verification.status !== "pending") {
     return res.status(409).json({
       success: false,
-      message: `Profile already ${profile.verification.status}`
+      message: `Profile already ${profile.verification.status}`,
     });
   }
 
@@ -253,10 +250,9 @@ exports.verifyUserProfile = async (req, res) => {
     message:
       action === "approve"
         ? "User verified successfully"
-        : "User verification rejected"
+        : "User verification rejected",
   });
 };
-
 
 exports.banUser = async (req, res) => {
   try {
@@ -267,14 +263,14 @@ exports.banUser = async (req, res) => {
     if (!reason) {
       return res.status(400).json({
         success: false,
-        message: "Ban reason is required"
+        message: "Ban reason is required",
       });
     }
 
     if (adminId.equals(userId)) {
       return res.status(403).json({
         success: false,
-        message: "You cannot ban yourself"
+        message: "You cannot ban yourself",
       });
     }
 
@@ -282,14 +278,14 @@ exports.banUser = async (req, res) => {
     if (!user) {
       return res.status(404).json({
         success: false,
-        message: "User not found"
+        message: "User not found",
       });
     }
 
     if (user.banDetails?.isBanned) {
       return res.status(409).json({
         success: false,
-        message: "User already banned"
+        message: "User already banned",
       });
     }
 
@@ -299,7 +295,7 @@ exports.banUser = async (req, res) => {
       isBanned: true,
       reason,
       bannedBy: adminId,
-      bannedAt: new Date()
+      bannedAt: new Date(),
     };
 
     user.accountStatus = "banned";
@@ -325,14 +321,13 @@ exports.banUser = async (req, res) => {
 
     return res.json({
       success: true,
-      message: "User banned successfully"
+      message: "User banned successfully",
     });
-
   } catch (err) {
     console.error("Ban user error:", err);
     return res.status(500).json({
       success: false,
-      message: "Failed to ban user"
+      message: "Failed to ban user",
     });
   }
 };
@@ -346,7 +341,7 @@ exports.unbanUser = async (req, res) => {
     if (adminId.equals(userId)) {
       return res.status(403).json({
         success: false,
-        message: "You cannot unban yourself"
+        message: "You cannot unban yourself",
       });
     }
 
@@ -354,14 +349,14 @@ exports.unbanUser = async (req, res) => {
     if (!user) {
       return res.status(404).json({
         success: false,
-        message: "User not found"
+        message: "User not found",
       });
     }
 
     if (!user.banDetails?.isBanned) {
       return res.status(409).json({
         success: false,
-        message: "User is not banned"
+        message: "User is not banned",
       });
     }
 
@@ -399,18 +394,16 @@ exports.unbanUser = async (req, res) => {
 
     return res.json({
       success: true,
-      message: "User unbanned successfully"
+      message: "User unbanned successfully",
     });
-
   } catch (err) {
     console.error("Unban user error:", err);
     return res.status(500).json({
       success: false,
-      message: "Failed to unban user"
+      message: "Failed to unban user",
     });
   }
 };
-
 
 exports.suspendUser = async (req, res) => {
   try {
@@ -421,14 +414,14 @@ exports.suspendUser = async (req, res) => {
     if (!reason || !durationHours || durationHours <= 0) {
       return res.status(400).json({
         success: false,
-        message: "Reason and valid duration are required"
+        message: "Reason and valid duration are required",
       });
     }
 
     if (adminId.equals(userId)) {
       return res.status(403).json({
         success: false,
-        message: "You cannot suspend yourself"
+        message: "You cannot suspend yourself",
       });
     }
 
@@ -436,27 +429,25 @@ exports.suspendUser = async (req, res) => {
     if (!user) {
       return res.status(404).json({
         success: false,
-        message: "User not found"
+        message: "User not found",
       });
     }
 
     if (user.banDetails?.isBanned) {
       return res.status(409).json({
         success: false,
-        message: "User is banned. Cannot suspend."
+        message: "User is banned. Cannot suspend.",
       });
     }
 
     if (user.suspensionDetails?.isSuspended) {
       return res.status(409).json({
         success: false,
-        message: "User already suspended"
+        message: "User already suspended",
       });
     }
 
-    const suspendUntil = new Date(
-      Date.now() + durationHours * 60 * 60 * 1000
-    );
+    const suspendUntil = new Date(Date.now() + durationHours * 60 * 60 * 1000);
 
     // const before = { isSuspended: false };
 
@@ -465,7 +456,7 @@ exports.suspendUser = async (req, res) => {
       reason,
       suspendedBy: adminId,
       suspendedAt: new Date(),
-      suspendUntil
+      suspendUntil,
     };
 
     user.accountStatus = "suspended";
@@ -494,19 +485,17 @@ exports.suspendUser = async (req, res) => {
 
     return res.json({
       success: true,
-      message: `User suspended for ${durationHours} hours`
+      message: `User suspended for ${durationHours} hours`,
     });
-
   } catch (err) {
     console.error("Suspend user error:", err);
     return res.status(500).json({
       success: false,
-      message: "Failed to suspend user"
+      message: "Failed to suspend user",
     });
   }
 };
 
-const utils = require("../auth/auth.utils")
 exports.replyToReport = async (req, res) => {
   try {
     const adminId = req.user._id;
@@ -515,27 +504,27 @@ exports.replyToReport = async (req, res) => {
     if (!message) {
       return res.status(400).json({
         success: false,
-        message: "Reply message is required"
+        message: "Reply message is required",
       });
     }
 
-    const report = await Report.findById(req.params.reportId)
+    const report = await Report.findById(req.params.reportId);
     if (!report) {
       return res.status(404).json({
         success: false,
-        message: "Report not found"
+        message: "Report not found",
       });
     }
 
     if (!Array.isArray(report.replyHistory)) {
-  report.replyHistory = [];
-}
-   report.replyHistory.push({
-  message,
-  repliedBy: adminId,
-  repliedAt: new Date()
-});
-report.handledBy = adminId;
+      report.replyHistory = [];
+    }
+    report.replyHistory.push({
+      message,
+      repliedBy: adminId,
+      repliedAt: new Date(),
+    });
+    report.handledBy = adminId;
     // Move to in-progress automatically
     if (report.status === "new") {
       report.status = "in_progress";
@@ -549,36 +538,32 @@ report.handledBy = adminId;
     //   "We are reviewing your report",
     //   message
     // );
-    const reporter = await User.findById(report.reporterId)
-  .select("email");
+    const reporter = await User.findById(report.reporterId).select("email");
 
-if (reporter?.email) {
-  await utils.sendEmail(
-    reporter.email,
-    "We are reviewing your report",
-    `<p>${message}</p><p>— Support Team</p>`
-  );
-} else {
-  console.log(
-    `Report reply skipped email: reporter ${report.reporterId} has no email`
-  );
-}
-
+    if (reporter?.email) {
+      await utils.sendEmail(
+        reporter.email,
+        "We are reviewing your report",
+        `<p>${message}</p><p>— Support Team</p>`
+      );
+    } else {
+      console.log(
+        `Report reply skipped email: reporter ${report.reporterId} has no email`
+      );
+    }
 
     res.json({
       success: true,
-      message: "Reply sent successfully"
+      message: "Reply sent successfully",
     });
-
   } catch (err) {
     res.status(500).json({
       success: false,
       message: "Failed to send reply",
-      error : err.message
+      error: err.message,
     });
   }
 };
-
 
 exports.updateReportStatus = async (req, res) => {
   try {
@@ -588,16 +573,16 @@ exports.updateReportStatus = async (req, res) => {
     if (!["new", "in_progress", "resolved"].includes(status)) {
       return res.status(400).json({
         success: false,
-        message: "Invalid status"
+        message: "Invalid status",
       });
     }
 
     const report = await Report.findById(req.params.reportId);
-    
+
     if (!report) {
       return res.status(404).json({
         success: false,
-        message: "Report not found"
+        message: "Report not found",
       });
     }
 
@@ -609,11 +594,10 @@ exports.updateReportStatus = async (req, res) => {
 
       if (notifyUser && report.reporterId.email) {
         await utils.sendEmail(
-  report.reporterId.email,
-  "Your report has been resolved",
-  "Thanks for reporting. We have taken appropriate action."
-);
-
+          report.reporterId.email,
+          "Your report has been resolved",
+          "Thanks for reporting. We have taken appropriate action."
+        );
       }
     }
 
@@ -621,18 +605,15 @@ exports.updateReportStatus = async (req, res) => {
 
     res.json({
       success: true,
-      message: "Report status updated"
+      message: "Report status updated",
     });
-
   } catch (err) {
     res.status(500).json({
       success: false,
-      message: "Failed to update report status"
+      message: "Failed to update report status",
     });
   }
 };
-
-
 
 exports.getBlockedUsers = async (req, res) => {
   try {
@@ -660,16 +641,15 @@ exports.getBlockedUsers = async (req, res) => {
         pagination: {
           page: Number(page),
           limit: Number(limit),
-          total
-        }
-      }
+          total,
+        },
+      },
     });
-
   } catch (err) {
     console.error("Admin block list error:", err);
     return res.status(500).json({
       success: false,
-      message: "Failed to load block data"
+      message: "Failed to load block data",
     });
   }
-};    
+};

@@ -11,12 +11,15 @@ function initTwilio() {
     return null;
   }
   const twilio = require("twilio");
-  twilioClient = twilio(process.env.TWILIO_ACCOUNT_SID, process.env.TWILIO_AUTH_TOKEN);
+  twilioClient = twilio(
+    process.env.TWILIO_ACCOUNT_SID,
+    process.env.TWILIO_AUTH_TOKEN
+  );
   return twilioClient;
 }
 
 module.exports.generateOtp = () => {
-  return ("" + Math.floor(100000 + Math.random() * 900000)); // 6-digit string
+  return "" + Math.floor(100000 + Math.random() * 900000); // 6-digit string
 };
 
 module.exports.hashOtp = async (otp) => {
@@ -27,6 +30,15 @@ module.exports.hashOtp = async (otp) => {
 module.exports.verifyOtpHash = async (otp, hash) => {
   if (!hash) return false;
   return bcrypt.compare(otp, hash);
+};
+
+module.exports.passwordHashed = async (password) => {
+  const salt = await bcrypt.genSalt(10);
+  return bcrypt.hash(password, salt);
+};
+
+module.exports.passwordCompared = async (password, comparePwd) => {
+  return bcrypt.compare(password, comparePwd);
 };
 
 module.exports.hashToken = (token) => {
@@ -40,11 +52,12 @@ module.exports.generateRefreshToken = () => {
 module.exports.generateAccessToken = (user) => {
   const payload = { userId: user._id.toString(), role: user.role };
   // const expiresIn = user.role === "ADMIN" ? "30d" : "7d";
-  return jwt.sign(payload, process.env.JWT_SECRET, { expiresIn: process.env.ACCESS_TOKEN_TTL || "12000m" });
+  return jwt.sign(payload, process.env.JWT_SECRET, {
+    expiresIn: process.env.ACCESS_TOKEN_TTL || "12000m",
+  });
 };
 
 module.exports.REFRESH_TOKEN_TTL = 30 * 24 * 60 * 60 * 1000; // 30 days
-
 
 // exports.verifyRefreshToken = (token) => {
 //   try {
@@ -58,38 +71,29 @@ module.exports.REFRESH_TOKEN_TTL = 30 * 24 * 60 * 60 * 1000; // 30 days
 module.exports.verifyToken = (token) => {
   try {
     return jwt.verify(token, process.env.JWT_SECRET);
-  // eslint-disable-next-line no-unused-vars
+    // eslint-disable-next-line no-unused-vars
   } catch (err) {
     throw new Error("Invalid or expired token");
   }
 };
 
-
 exports.hashToken = (token) => {
-  return crypto
-    .createHash("sha256")
-    .update(token)
-    .digest("hex");
+  return crypto.createHash("sha256").update(token).digest("hex");
 };
 
 module.exports.sendSms = async (to, message) => {
   const client = initTwilio();
 
   if (!client) {
-
     // No Twilio configured — log and return
     console.warn("Twilio not configured. SMS not sent:", to, message);
-    
+
     return { ok: false, info: "twilio-not-configured" };
   }
   const from = process.env.TWILIO_FROM; // must be configured
 
   return client.messages.create({ body: message, from, to });
-
 };
-
-
-
 
 const transporter = nodemailer.createTransport({
   host: process.env.SMTP_HOST,
@@ -121,7 +125,6 @@ module.exports.sendEmail = async (to, subject, text) => {
   }
 };
 
-
 // exports.sendPrizeDeliveredEmail = async (toEmail, prizeTitle) => {
 //   await transporter.sendMail({
 //     from: '"Giveaway Team" <no-reply@app.com>',
@@ -134,11 +137,6 @@ module.exports.sendEmail = async (to, subject, text) => {
 //     `
 //   });
 // };
-
-
-
-
-
 
 // module.exports.sendEmail = async (to, subject, text) => {
 

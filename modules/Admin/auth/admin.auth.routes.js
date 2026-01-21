@@ -17,9 +17,9 @@ router.post("/register", adminController.adminRegister);
 /*
  * ============= POST API'S FORGET PASSWORD =====================
  */
-router.post("/send-email-otp", adminController.sendEmailOTP);
-router.post("/verify-email-otp", adminController.verifyEmailOTP);
-router.post("/forgot-password", adminController.adminForgotPassword);
+router.post("/request-otp", adminController.sendEmailOTP);
+router.post("/verify-otp", adminController.verifyEmailOTP);
+router.patch("/forgot-password", adminController.adminForgotPassword);
 
 /*
  * ============= ATUHORIZED OR ENSURE ROLE IS ADMIN or not =============

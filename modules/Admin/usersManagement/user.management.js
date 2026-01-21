@@ -413,7 +413,7 @@ module.exports.SampleGETallUser = async (req, res) => {
   try {
     const page = Math.max(parseInt(req.query.page) || 1, 1);
     const limit = Math.min(parseInt(req.query.limit) || 20, 100);
-    const skip = (page - 1) * limit;
+    const skip = (page - 1) * limit; // 1️⃣ Calculate skip
     const search = req.query.search?.trim();
 
     // 1️⃣ Initial Filter (Matches only on User Model)
@@ -446,7 +446,6 @@ module.exports.SampleGETallUser = async (req, res) => {
         },
       },
       { $unwind: { path: "$profile", preserveNullAndEmptyArrays: true } },
-
       {
         $lookup: {
           from: "accounts",
@@ -534,9 +533,10 @@ module.exports.SampleGETallUser = async (req, res) => {
                 },
               },
             },
-            { $sort: { searchScore: -1, createdAt: -1 } },
+            // { $sort: { searchScore: -1, createdAt: -1 } },
           ]
-        : [{ $sort: { createdAt: -1 } }]),
+        : // : [{ $sort: { createdAt: -1 } }]),
+          []),
 
       /* -----------------------------------------------------------
        * 5️⃣ FACET FOR PAGINATION & PROJECTION
@@ -544,7 +544,8 @@ module.exports.SampleGETallUser = async (req, res) => {
       {
         $facet: {
           data: [
-            { $skip: skip },
+            { $sort: searchRegex ? { searchScore: -1 } : { createdAt: -1 } },
+            { $skip: skip }, // 2️⃣ Enable Skip
             { $limit: limit },
             {
               $project: {
@@ -645,6 +646,7 @@ module.exports.SampleGETallUser = async (req, res) => {
  * For GET SINGLE USER DETAILS – ADMIN:-
  * API 2: GET api/v1/admin/user-management/:userId
  ============================================ */
+//  Pending This API/.
 module.exports.GETSingleUserDetails = async (req, res) => {
   try {
     /* -----------------------------
@@ -1133,5 +1135,312 @@ module.exports.GETExportAllUsers = async (req, res) => {
         .status(500)
         .json({ success: false, message: "Failed to export users" });
     }
+  }
+};
+
+// module.exports.streamUsersExport = async (req, res) => {
+//   try {
+//     const filters = req.query || {};
+//     const userMatch = { role: "USER" };
+//     // Add other filter logic here...
+
+//     const totalUsers = await User.countDocuments(userMatch);
+//     if (totalUsers === 0) return res.status(404).send("No users found");
+
+//     let processed = 0;
+
+//     res.setHeader(
+//       "Content-Disposition",
+//       `attachment; filename=users_export_${Date.now()}.csv`
+//     );
+//     res.setHeader("Content-Type", "text/csv");
+//     // Disable compression/buffering for real-time streaming progress
+//     res.setHeader("X-Content-Type-Options", "nosniff");
+
+//     const csvStream = stringify({
+//       header: true,
+//       columns: [
+//         "UserId",
+//         "Email",
+//         "Phone",
+//         "AccountStatus",
+//         "IsPremium",
+//         "CreatedAt",
+//       ],
+//     });
+
+//     // We don't pipe directly to 'res' because we need to inject progress markers
+//     csvStream.on("data", (chunk) => {
+//       res.write(chunk);
+//     });
+
+//     const cursor = User.find(userMatch).cursor({ batchSize: 1000 });
+
+//     for await (const user of cursor) {
+//       processed++;
+
+//       const row = {
+//         UserId: user._id.toString(),
+//         Email: user.email || "",
+//         Phone: user.phone || "",
+//         AccountStatus: user.accountStatus,
+//         IsPremium: user.isPremium ? "Yes" : "No",
+//         CreatedAt: user.createdAt ? user.createdAt.toISOString() : "",
+//       };
+
+//       csvStream.write(row);
+
+//       // Send progress every 100 records to avoid flooding the stream
+//       if (processed % 100 === 0 || processed === totalUsers) {
+//         const progress = Math.round((processed / totalUsers) * 100);
+//         // We use a unique separator that's unlikely to be in user data
+//         res.write(`\n---PROGRESS:${progress}---\n`);
+//       }
+//     }
+
+//     csvStream.end();
+//     csvStream.on("end", () => res.end());
+//   } catch (err) {
+//     console.error("EXPORT STREAM ERROR:", err);
+//     if (!res.headersSent) res.status(500).send("Export failed");
+//     else res.end();
+//   }
+// };
+
+// module.exports.streamUsersExport = async (req, res) => {
+//   try {
+//     const filters = req.query || {};
+
+//     // 1. Setup Matches (Same logic as your reference API)
+//     const userMatch = { role: "USER" };
+//     if (filters.accountStatus) userMatch.accountStatus = filters.accountStatus;
+//     if (filters.isPremium !== undefined)
+//       userMatch.isPremium = filters.isPremium === "true";
+
+//     const profileMatch = {};
+//     if (filters.gender) profileMatch["profile.gender"] = filters.gender;
+
+//     // 2. Get total count for Progress Bar
+//     const totalUsers = await User.countDocuments(userMatch);
+//     let processed = 0;
+
+//     // 3. Set CSV Headers
+//     res.setHeader(
+//       "Content-Disposition",
+//       `attachment; filename=users_export_${Date.now()}.csv`
+//     );
+//     res.setHeader("Content-Type", "text/csv");
+//     res.setHeader("X-Content-Type-Options", "nosniff");
+
+//     const csvStream = stringify({
+//       header: true,
+//       columns: [
+//         "UserId",
+//         "Email",
+//         "Phone",
+//         "AccountStatus",
+//         "IsPremium",
+//         "AuthMethod",
+//         "CreatedAt",
+//         "Nickname",
+//         "Gender",
+//         "Age",
+//         "JobTitle",
+//         "City",
+//         "ProfileCompletion",
+//         "KYCStatus",
+//       ],
+//     });
+
+//     // Write CSV data directly to the response stream
+//     csvStream.on("data", (chunk) => res.write(chunk));
+
+//     // 4. Aggregation Pipeline
+//     const cursor = User.aggregate([
+//       { $match: userMatch },
+//       {
+//         $lookup: {
+//           from: "profiles", // Ensure this matches your MongoDB collection name
+//           localField: "_id",
+//           foreignField: "userId",
+//           as: "profile",
+//         },
+//       },
+//       { $unwind: { path: "$profile", preserveNullAndEmptyArrays: true } },
+//       ...(Object.keys(profileMatch).length ? [{ $match: profileMatch }] : []),
+//       {
+//         $project: {
+//           _id: 1,
+//           email: 1,
+//           phone: 1,
+//           accountStatus: 1,
+//           isPremium: 1,
+//           authMethod: 1,
+//           createdAt: 1,
+//           nickname: "$profile.nickname",
+//           gender: "$profile.gender",
+//           age: "$profile.age",
+//           jobTitle: "$profile.jobTitle",
+//           city: "$profile.location.city",
+//           profileCompletion: "$profile.onboardingProgress.totalCompletion",
+//           kycStatus: "$profile.verification.status",
+//         },
+//       },
+//     ]).cursor({ batchSize: 1000 });
+
+//     for await (const doc of cursor) {
+//       processed++;
+
+//       // Safe Date Formatting
+//       const formattedDate = doc.createdAt
+//         ? new Date(doc.createdAt).toISOString().split("T")[0]
+//         : "";
+
+//       csvStream.write({
+//         UserId: doc._id.toString(),
+//         Email: doc.email || "",
+//         Phone: doc.phone || "",
+//         AccountStatus: doc.accountStatus,
+//         IsPremium: doc.isPremium ? "Yes" : "No",
+//         AuthMethod: doc.authMethod || "phone",
+//         CreatedAt: formattedDate,
+//         Nickname: doc.nickname || "",
+//         Gender: doc.gender || "",
+//         Age: doc.age || "",
+//         JobTitle: doc.jobTitle || "",
+//         City: doc.city || "",
+//         ProfileCompletion: `${doc.profileCompletion || 0}%`,
+//         KYCStatus: doc.kycStatus || "not_started",
+//       });
+
+//       // 🔄 Write progress marker safely (Using a unique separator)
+//       if (processed % 100 === 0 || processed === totalUsers) {
+//         const progress = Math.round((processed / totalUsers) * 100);
+//         res.write(`\n---PROG:${progress}---\n`);
+//       }
+//     }
+
+//     csvStream.end();
+//     csvStream.on("finish", () => res.end());
+//   } catch (error) {
+//     console.error("STREAM EXPORT ERROR:", error);
+//     if (!res.headersSent) res.status(500).send("Export failed");
+//     else res.end();
+//   }
+// };
+
+module.exports.streamUsersExport = async (req, res) => {
+  try {
+    const filters = req.query || {};
+
+    // 1. Matches for both collections
+    const userMatch = { role: "USER" };
+    if (filters.accountStatus) userMatch.accountStatus = filters.accountStatus;
+
+    const profileMatch = {};
+    if (filters.gender) profileMatch["profile.gender"] = filters.gender;
+
+    const totalUsers = await User.countDocuments(userMatch);
+    let processed = 0;
+
+    // 2. HTTP Headers for Direct Download
+    res.setHeader(
+      "Content-Disposition",
+      `attachment; filename=users_export_${Date.now()}.csv`
+    );
+    res.setHeader("Content-Type", "text/csv");
+    res.setHeader("X-Content-Type-Options", "nosniff");
+
+    const csvStream = stringify({
+      header: true,
+      columns: [
+        "UserId",
+        "Email",
+        "Phone",
+        "AccountStatus",
+        "IsPremium",
+        "AuthMethod",
+        "CreatedAt",
+        "Nickname",
+        "Gender",
+        "Age",
+        "JobTitle",
+        "City",
+        "ProfileCompletion",
+        "KYCStatus",
+      ],
+    });
+
+    // Pipe CSV chunks directly to the HTTP response
+    csvStream.on("data", (chunk) => res.write(chunk));
+
+    // 3. The Join (User + Profile)
+    const cursor = User.aggregate([
+      { $match: userMatch },
+      {
+        $lookup: {
+          from: "profiles", // Verify this is your actual collection name
+          localField: "_id",
+          foreignField: "userId",
+          as: "profile",
+        },
+      },
+      { $unwind: { path: "$profile", preserveNullAndEmptyArrays: true } },
+      ...(Object.keys(profileMatch).length ? [{ $match: profileMatch }] : []),
+      {
+        $project: {
+          _id: 1,
+          email: 1,
+          phone: 1,
+          accountStatus: 1,
+          isPremium: 1,
+          authMethod: 1,
+          createdAt: 1,
+          nickname: "$profile.nickname",
+          gender: "$profile.gender",
+          age: "$profile.age",
+          jobTitle: "$profile.jobTitle",
+          city: "$profile.location.city",
+          profileCompletion: "$profile.onboardingProgress.totalCompletion",
+          kycStatus: "$profile.verification.status",
+        },
+      },
+    ]).cursor({ batchSize: 1000 });
+
+    for await (const doc of cursor) {
+      processed++;
+
+      csvStream.write({
+        UserId: doc._id.toString(),
+        Email: doc.email || "",
+        Phone: doc.phone || "",
+        AccountStatus: doc.accountStatus,
+        IsPremium: doc.isPremium ? "Yes" : "No",
+        AuthMethod: doc.authMethod || "phone",
+        CreatedAt: doc.createdAt
+          ? new Date(doc.createdAt).toISOString().split("T")[0]
+          : "",
+        Nickname: doc.nickname || "",
+        Gender: doc.gender || "",
+        Age: doc.age || "",
+        JobTitle: doc.jobTitle || "",
+        City: doc.city || "",
+        ProfileCompletion: `${doc.profileCompletion || 0}%`,
+        KYCStatus: doc.kycStatus || "not_started",
+      });
+
+      // Send progress marker
+      if (processed % 50 === 0 || processed === totalUsers) {
+        const prog = Math.round((processed / totalUsers) * 100);
+        res.write(`\n---PROG:${prog}---\n`);
+      }
+    }
+
+    csvStream.end();
+    csvStream.on("finish", () => res.end());
+  } catch (error) {
+    console.error("STREAM EXPORT ERROR:", error);
+    if (!res.headersSent) res.status(500).send("Export failed");
+    else res.end();
   }
 };

@@ -8,9 +8,8 @@ const adminGiveawayController = require("../../../modules/giveaway/admin/giveawa
 
 router.post(
   "/kyc-approve",
-//   validate("adminCreatePrize"),
+  //   validate("adminCreatePrize"),
   adminGiveawayController.quickVerifyUser
 );
-
 
 module.exports = router;

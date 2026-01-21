@@ -374,6 +374,7 @@ module.exports.adminLogin = async (req, res) => {
     return res.status(200).json({
       success: true,
       message: "Login successful",
+      screen: "/admin/dashboard",
       data: {
         id: admin._id,
         profileId: profile?._id || null,
@@ -432,7 +433,7 @@ module.exports.sendEmailOTP = async (req, res) => {
     return res.status(200).json({
       success: true,
       message: "OTP sent successfully to your email",
-      screen: "verify-otp",
+      screen: "verify-email",
       data: {
         email: email,
         resendAfter: 60, // Seconds until frontend enables resend button
@@ -485,7 +486,7 @@ module.exports.verifyEmailOTP = async (req, res) => {
 
     return res.status(200).json({
       success: true,
-      screen: "forgot-password",
+      screen: "../new-password",
       message: "OTP verified successfully",
     });
   } catch (err) {
@@ -546,7 +547,7 @@ module.exports.adminForgotPassword = async (req, res) => {
 
     return res.status(200).json({
       success: true,
-      screen: "login",
+      screen: "/auth/login",
       message: "Password reset successfully. Please login again.",
     });
   } catch (err) {
