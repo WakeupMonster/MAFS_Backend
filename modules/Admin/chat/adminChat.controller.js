@@ -20,13 +20,18 @@ exports.getReportedChats = async (req, res) => {
           lastReportedAt: { $max: "$createdAt" }
         }
       },
+      {
+        $lookup: {
+          from: "matches",
+          localField: "_id",
+          foreignField: "_id",
+          as: "match"
+        }
+      },
       { $sort: { lastReportedAt: -1 } }
     ]);
 
-    return res.json({
-      success: true,
-      data: chats
-    });
+    return res.json({ success: true, data: chats });
   } catch (err) {
     console.error("Admin getReportedChats error:", err);
     return res.status(500).json({

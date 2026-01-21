@@ -8,6 +8,7 @@ const ReportSchema = new mongoose.Schema(
       required: true
     },
 
+
     reportedId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",
@@ -18,7 +19,28 @@ const ReportSchema = new mongoose.Schema(
       type: String,
       required: true
     },
-
+      type: {
+      type: String,
+      enum: ["chat", "profile"],
+      default: "profile",
+      index: true
+    },
+     evidence: [
+      {
+        text: String,
+        senderId: {
+          type: mongoose.Schema.Types.ObjectId,
+          ref: "User"
+        },
+        sentAt: Date
+      }
+    ],
+     matchId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Match",
+      default: null,
+      index: true
+    },
     description: {
       type: String,
       default: ""
