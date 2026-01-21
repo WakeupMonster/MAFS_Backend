@@ -40,11 +40,10 @@ module.exports.generateRefreshToken = () => {
 module.exports.generateAccessToken = (user) => {
   const payload = { userId: user._id.toString(), role: user.role };
   // const expiresIn = user.role === "ADMIN" ? "30d" : "7d";
-  return jwt.sign(payload, process.env.JWT_SECRET, { expiresIn: process.env.ACCESS_TOKEN_TTL || "15d" });
+  return jwt.sign(payload, process.env.JWT_SECRET, { expiresIn: "15d" });
 };
 
-module.exports.REFRESH_TOKEN_TTL = 30 * 24 * 60 * 60 * 1000; // 30 days
-
+module.exports.REFRESH_TOKEN_TTL = 30 * 24 * 60 * 60 * 1000;
 module.exports.verifyToken = (token) => {
   try {
     return jwt.verify(token, process.env.JWT_SECRET);

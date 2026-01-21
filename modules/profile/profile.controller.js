@@ -470,7 +470,7 @@ exports.getStatus = async (req, res) => {
 };
 
 const Swipe = require("../matches/swipe/swipe.model");
-const Match = require("../matches/swipe/swipe.model");
+const {Match} = require("../matches/swipe/swipe.model");
 
 exports.getUserProfile = async (req, res) => {
   try {
@@ -642,3 +642,46 @@ exports.updateVisibility = async (req, res) => {
 //     res.status(500).json({ success: false, message: err.message });
 //   }
 // };
+
+
+
+const mongoose = require('mongoose');
+
+exports.resetTestData = async (req, res) => {
+  try {
+    const adminId = req.user._id;
+     const userObjectId = mongoose.Types.ObjectId.isValid(adminId) 
+          ? new mongoose.Types.ObjectId(adminId) 
+          : adminId;
+
+    // ✅ DELETE MATCHES WHERE ADMIN IS PART OF MATCH
+    const matchResult = await Match.deleteMany({
+      users: userObjectId // array contains adminId
+    });
+
+    // ✅ DELETE SWIPES WHERE ADMIN IS INVOLVED
+    const swipeResult = await Swipe.deleteMany({
+      $or: [
+        { swiperId: adminId },
+        { targetId: adminId }
+      ]
+    });
+
+    res.json({
+      success: true,
+      message: "Test data reset successfully",
+      data: {
+        matchesDeleted: matchResult.deletedCount,
+        swipesDeleted: swipeResult.deletedCount
+      }
+    });
+
+  } catch (error) {
+    console.error("Error resetting test data:", error);
+    res.status(500).json({
+      success: false,
+      message: "Failed to reset test data",
+      error: error.message
+    });
+  }
+};

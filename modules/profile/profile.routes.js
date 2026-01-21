@@ -99,4 +99,6 @@ router.get("/block-list",  userAction.getBlockList);
 
 // Report
 router.post("/report/:id", userAction.reportUser);
+
+router.post("/resetData",controller.resetTestData)
 module.exports = router;
