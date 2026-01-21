@@ -1,99 +1,8 @@
 /* eslint-disable no-unused-vars */
-// routes/messages.js
-
-
-// GET /api/v1/messages/:matchId
-// exports.getChatMessages = async (req, res) => {
-//   try {
-//     const userId = req.user._id;
-//     const { matchId } = req.params;
-
-//     console.log("matchId: ", matchId);
-
-//     // 1. Check if match exists
-//     const match = await Match.findById(matchId).lean();
-//     if (!match) {
-//       return res.status(404).json({ success: false, message: "Match not found" });
-//     }
-
-//     // 2. Check if this user is part of the match
-//       if ( match.user1.toString() !== userId.toString() && match.user2.toString() !== userId.toString() ) {
-//       return res.status(403).json({ success: false, message: "Forbidden — You are not part of this match" });
-//     }
-
-//     // 3. Fetch ordered messages
-//     const messages = await ChatMessage.find({ matchId })
-//       .sort({ createdAt: 1 })
-//       .lean();
-
-//     return res.json({ success: true, message:"Fetch All message", data: messages });
-//   } catch (err) {
-//     console.error("GET CHAT MESSAGES ERROR:", err);
-
-//     return res.status(500).json({ success: false, message: "Server error" });
-//   }
-// };
-
-// GET /api/v1/messages/:matchId?limit=20&page=1
-
-// const ChatMessage = require("../chat/chat.message.model");
-// const { Match } = require("../swipe/swipe.model");
-// exports.getChatMessages = async (req, res) => {
-//   try {
-//     const userId = req.user._id;
-//     const { matchId } = req.body;
-//     const limit = Math.min(parseInt(req.query.limit) || 20, 100);
-//     const page = Math.max(parseInt(req.query.page) || 1, 1);
-
-//     console.log("matchId:", matchId);
-//     console.log("userId: ", userId.toString());
-
-//     // 1. Check match exist
-//     const match = await Match.findById(matchId).lean();
-
-//     if (!match) {
-//       return res
-//         .status(404)
-//         .json({ success: false, message: "Match not found" });
-//     }
-
-//     // 2. Check if user is part of the match
-//     if (!match.users.some((u) => u.toString() === userId.toString())) {
-//       return res.status(403).json({
-//         success: false,
-//         message: "Forbidden — You are not part of this match",
-//       });
-//     }
-
-//     const skip = (page - 1) * limit;
-//     // 3. Fetch messages
-//     const messages = await ChatMessage.find({
-//       matchId,
-//       deletedFor: { $ne: userId },
-//     })
-//       .sort({ createdAt: -1 })
-//       .skip(skip)
-//       .limit(limit)
-//       .lean();
-
-//     // return in ascending order to client (older -> newer) # check this reverse logic
-//     messages.reverse();
-
-//     return res.json({
-//       success: true,
-//       message: "Fetched all messages",
-//       data: messages,
-//     });
-//   } catch (err) {
-//     console.error("GET CHAT MESSAGES ERROR:", err);
-//     return res.status(500).json({ success: false, message: "Server error" });
-//   }
-// };
-
-
-
 const ChatMessage = require("./chat.message.model");
 const { Match } = require("../swipe/swipe.model");
+const { isBlocked } = require("../../profile/block.service");
+
 
 // 1. SEND MESSAGE (Sabse important jo missing tha)
 exports.sendMessage = async (req, res) => {
@@ -137,6 +46,34 @@ exports.getChatMessages = async (req, res) => {
     const { matchId } = req.params;
 
     const { page = 1, limit = 20 } = req.query;
+
+
+    const match = await Match.findById(matchId).lean();
+    if (!match) {
+      return res.status(404).json({
+        success: false,
+        message: "Match not found"
+      });
+    }
+
+    if (!match.users.some(u => u.toString() === userId.toString())) {
+      return res.status(403).json({
+        success: false,
+        message: "You are not part of this match"
+      });
+    }
+    const otherUserId = match.users.find(
+      u => u.toString() !== userId.toString()
+    );
+
+    const blocked = await isBlocked(userId, otherUserId);
+    if (blocked) {
+      return res.status(403).json({
+        success: false,
+        message: "You cannot view messages"
+      });
+    }
+
 
     const messages = await ChatMessage.find({
       matchId,
@@ -355,57 +292,6 @@ exports.getChatList = async (req, res) => {
     });
   }
 };
-
-
-// const { uploadStream } = require("../../upload/cloudinary.service");
-
-// exports.uploadChatMediaController = async (req, res) => {
-//   try {
-//     const userId = req.user._id;
-//     const files = req.files;
-
-//     if (!files || files.length === 0) {
-//       return res.status(400).json({
-//         success: false,
-//         message: "No media files uploaded"
-//       });
-//     }
-
-//     // 🔥 Parallel upload
-//     const uploadedMedia = await Promise.all(
-//       files.map(async (file) => {
-//         const result = await uploadStream(file.buffer, {
-//           folder: `mafs/chat/${userId}`,
-//           resource_type: "auto",
-//           transformation: [{ quality: "auto:good" }]
-//         });
-
-//         return {
-//           url: result.secure_url,
-//           publicId: result.public_id,
-//           type: result.resource_type, // image | video
-//           bytes: result.bytes,
-//           format: result.format,
-//           uploadedAt: new Date()
-//         };
-//       })
-//     );
-
-//     return res.json({
-//       success: true,
-//       message: "Chat media uploaded successfully",
-//       data: uploadedMedia
-//     });
-
-//   } catch (err) {
-//     console.error("❌ uploadChatMediaController error:", err);
-//     return res.status(500).json({
-//       success: false,
-//       message: err.message || "Failed to upload chat media"
-//     });
-//   }
-// };
-
 const { uploadStream } = require("../../upload/cloudinary.service");
 
 exports.uploadChatMediaController = async (req, res) => {

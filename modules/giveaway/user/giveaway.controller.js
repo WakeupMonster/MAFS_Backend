@@ -1,14 +1,7 @@
 const GiveawayCampaign = require("../giveawayCampaign.model");
 const Prize = require("../prize.model");
 
-/**
- * ==========================================
- *  SPIN WHEEL CONFIG API
- * ==========================================
- *  Sirf WINNER user ke liye spin dikhega
- *  Supportive items campaign se aayenge
- *  Prize label random position par hoga
- */
+
 exports.getSpinWheelConfig = async (req, res) => {
   try {
     const userId = req.user._id;

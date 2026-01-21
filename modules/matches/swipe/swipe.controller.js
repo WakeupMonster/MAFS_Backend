@@ -11,14 +11,24 @@ exports.getFeed = async (req, res) => {
   try {
     const userId = req.user._id;
     const limit = Number(req.query.limit) || 20;
+    const page = Number(req.query.page) || 1;
 
-    const feedResult = await service.getFeedService(userId, limit);
+    const feedResult = await service.getFeedService(userId, limit,page);
     
-
     return res.json({
       success: true,
+      message : "Feed fetched successfully",
       count: feedResult.data.length,  
        cached: feedResult.cached,
+  //       data: {
+  //   count: feedResult.data.length,
+  //    pagination: {
+  //   limit,
+  //   nextCursor: null,
+  //   hasNextPage: false
+  // },
+  // list: feedResult.data
+  // },
       data: feedResult.data,
       userQuota: feedResult.userQuota
     });
@@ -228,7 +238,7 @@ exports.getKeenData = async (req, res, actionType) => {
       };
     }).filter(Boolean);
 
-    // 🔥 META LOGIC WITH hasMore
+
     const pageNum = parseInt(page);
     const limitNum = parseInt(limit);
     const hasMore = total > pageNum * limitNum;

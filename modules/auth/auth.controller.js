@@ -1,56 +1,91 @@
 const authService = require("./auth.service");
-// const redis = require("../../common/redis");
-// const { smsQueue } = require("../../common/queues");
-// const User = require("../auth/auth.model");
-// const utils = require("../auth/auth.utils");
 const { rateLimit } = require("../../common/middlewares/rateLimit");
+const smsService = require("../../common/notification/sms.service");
+const User = require("../auth/auth.model");
+const otpService = require("../../common/otp/otp.service");
 const { normalizePhone, hashPhone } = require("../../common/utils/phone.util");
+const AppError = require("../../common/errors/ApiError");
 
-// const profileModel = require("../profile/profile.model");
-
-/*==================================================
-1. POST For Send OTP on Phone no.
-===================================================*/
 module.exports.sendOtp = async (req, res) => {
   try {
-    const { phone } = req.body;
+    let { phone } = req.body;
 
-    const ip = req.ip;
-    if (!phone)
-      return res
-        .status(400)
-        .json({ success: false, message: "Phone is required" });
+    // if (!phone) {
+    //   return res.status(400).json({
+    //     success: false,
+    //     message: "Phone is required"
+    //   });
+    // }
 
-    // RATE LIMIT (optional, same rehta hai)
-    const isLimited = await rateLimit(`otp:${ip}`, 3, 60);
-    if (isLimited) {
-      return res.status(429).json({
-        success: false,
-        message: "Too many requests. Try again later.",
-      });
+    if(!phone){
+      throw new AppError("PHONE_REQUIRED", "Phone number is required",
+        400)
     }
 
-    // ✅ Unified OTP send (login + register dono ke liye same service)
-    await authService.sendPhoneOtp(phone);
+    const normalizedPhone = normalizePhone(phone);
+    if (!normalizedPhone) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid phone number"
+      });
+    }
+    const phoneHash = hashPhone(normalizedPhone);
+
+    let user = await User.findOne({ phoneHash });
+
+    if (!user) {
+      user = await User.create({ phone: normalizedPhone, phoneHash, authMethod: "phone" });
+    }
+
+     if (!user.phone) {
+      user.phone = normalizedPhone;
+    }
+    if (!user.phoneHash) {
+      user.phoneHash = phoneHash;
+    }
+
+    await user.save();
+
+    await otpService.sendOtp({
+      scope: "user",
+      type: "sms",
+      target: normalizedPhone,
+      sendFn: smsService.sendSms,
+      messageFn: otp => `Your MAFS OTP is ${otp}`,
+      ttl: 300
+    });
 
     return res.json({
       success: true,
-      message: "If the number is valid, OTP has been sent.",
+      message: "OTP sent successfully"
     });
-  } catch (err) {
-    return res.status(500).json({ success: false, message: err.message });
+  }
+  // } catch (err) {
+  //   console.error("sendTestOtp error:", err);
+  //   return res.status(400).json({
+  //     success: false,
+  //     message: err.message
+  //   });
+  // }
+  catch(err){
+    // eslint-disable-next-line no-undef
+    next(err);
   }
 };
-
 module.exports.verifyOtp = async (req, res) => {
   try {
     const { phone, otp } = req.body;
-    if (!phone || !otp) {
-      return res
-        .status(400)
-        .json({ success: false, message: "Phone and OTP are required" });
-    }
+    // if (!phone || !otp) {
+    //   return res.status(400).json({ success: false, message: "Phone and OTP are required" });
+    // }
 
+    if (!otp || !phone) {
+      throw new AppError(
+        "OTP_REQUIRED",
+        "Phone and OTP is required",
+        400
+      );
+    }
     const result = await authService.verifyPhoneOtpUnified(phone, otp);
 
     return res.json({
@@ -61,8 +96,8 @@ module.exports.verifyOtp = async (req, res) => {
       data: {
         accessToken: result.accessToken,
         refreshToken: result.refreshToken,
-        user: result.user, // Poora format iske andar hai
-      },
+        user: result.user 
+      }
     });
   } catch (err) {
     return res.status(400).json({
@@ -72,18 +107,42 @@ module.exports.verifyOtp = async (req, res) => {
   }
 };
 
-/*==================================================
-3. POST For register Email Id with token
-===================================================*/
+module.exports.verifyTestOtp = async (req, res) => {
+  try {
+    const { phone, otp } = req.body;
+    if (!phone || !otp) {
+      return res.status(400).json({ success: false, message: "Phone and OTP are required" });
+    }
+
+    const result = await authService.verifyPhoneTestOtpUnified(phone, otp);
+
+    return res.json({
+      success: true,
+      message: result.isNewUser
+        ? "Welcome! Phone verified successfully"
+        : "Welcome back! Login successful",
+      data: {
+        accessToken: result.accessToken,
+        refreshToken: result.refreshToken,
+        user: result.user 
+      }
+    });
+  } catch (err) {
+    return res.status(400).json({
+      success: false,
+      message: err.message,
+    });
+  }
+};
 module.exports.registerEmail = async (req, res) => {
   try {
     const { email } = req.body;
-    const token = req.headers.authorization?.split(" ")[1];
+    const token = req.headers.authorization?.split(' ')[1];
 
     if (!token) {
       return res.status(401).json({
         success: false,
-        message: "Authentication token is required",
+        message: 'Authentication token is required'
       });
     }
 
@@ -91,28 +150,24 @@ module.exports.registerEmail = async (req, res) => {
 
     return res.json({
       success: true,
-      message: "Email OTP sent successfully",
+      message: "Email OTP sent successfully"
     });
   } catch (err) {
     return res.status(400).json({
       success: false,
-      message: err.message,
+      message: err.message
     });
   }
 };
-
-/*==================================================
-4. POST For Verify Email with OTP
-===================================================*/
 module.exports.verifyEmail = async (req, res) => {
   try {
     const { otp } = req.body;
-    const token = req.headers.authorization?.split(" ")[1];
+    const token = req.headers.authorization?.split(' ')[1];
 
     if (!token) {
       return res.status(401).json({
         success: false,
-        message: "Authentication token is required",
+        message: 'Authentication token is required'
       });
     }
 
@@ -139,14 +194,10 @@ module.exports.verifyEmail = async (req, res) => {
   } catch (err) {
     return res.status(400).json({
       success: false,
-      message: err.message,
+      message: err.message
     });
   }
 };
-
-/*==================================================
-5. POST Login For Send OTP on Phone no.
-===================================================*/
 module.exports.loginSendOtp = async (req, res) => {
   try {
     const { phone } = req.body;
@@ -165,10 +216,6 @@ module.exports.loginSendOtp = async (req, res) => {
     });
   }
 };
-
-/*==================================================
-6. POST Login For Verify OTP on through Phone no.
-===================================================*/
 module.exports.loginVerify = async (req, res) => {
   try {
     const { phone, otp } = req.body;
@@ -192,10 +239,6 @@ module.exports.loginVerify = async (req, res) => {
     });
   }
 };
-
-/*==================================================
-7. POST Referesh Token
-===================================================*/
 module.exports.refreshToken = async (req, res) => {
   try {
     const { refreshToken } = req.body;
@@ -212,10 +255,6 @@ module.exports.refreshToken = async (req, res) => {
     return res.status(401).json({ success: false, message: err.message });
   }
 };
-
-/*==================================================
-8. POST For Logout API -> auth.controller.js
-===================================================*/
 module.exports.logout = async (req, res) => {
   try {
     const { refreshToken } = req.body;
@@ -234,75 +273,27 @@ module.exports.logout = async (req, res) => {
   }
 };
 
-module.exports.sendTestOtp = async (req, res) => {
-  try {
-    let { phone } = req.body;
-    const ip = req.ip;
-
-    if (!phone) {
-      return res.status(400).json({
-        success: false,
-        message: "Phone is required",
-      });
-    }
-
-    // 🔹 Normalize phone (VERY IMPORTANT)
-    const normalizedPhone = normalizePhone(phone);
-    if (!normalizedPhone) {
-      return res.status(400).json({
-        success: false,
-        message: "Invalid phone number",
-      });
-    }
-
-    // 🔹 Hash phone (future consistency)
-    const phoneHash = hashPhone(normalizedPhone);
-
-    // Rate limiting
-    const isLimited = await rateLimit(`otp:test:${ip}`, 10, 60);
-    if (isLimited) {
-      return res.status(429).json({
-        success: false,
-        message: "Too many test requests. Try again later.",
-      });
-    }
-
-    // ✅ OTP send (NO DB WRITE HERE)
-    const result = await authService.sendPhoneOtpTest(normalizedPhone, true);
-
-    return res.json({
-      success: true,
-      message: `Test OTP: ${result.otp}`,
-      otp: result.otp,
-
-      // ⚠️ TESTING ONLY (REMOVE IN PROD RESPONSE)
-      debug: {
-        normalizedPhone,
-        phoneHash,
-      },
-    });
-  } catch (err) {
-    console.error("Error in sendTestOtp:", err);
-    return res.status(400).json({
-      success: false,
-      message: err.message,
-    });
-  }
-};
 
 module.exports.resendPhoneOtp = async (req, res) => {
   try {
     const { phone } = req.body;
     const ip = req.ip;
 
-    if (!phone) {
-      return res.status(400).json({
-        success: false,
-        message: "Phone number is required",
-      });
+    // if (!phone) {
+    //   return res.status(400).json({
+    //     success: false,
+    //     message: "Phone number is required"
+    //   });
+    // }
+
+     if (!phone) {
+      throw new AppError(
+        "PHONE_REQUIRED",
+        "Phone number is required",
+        400
+      );
     }
 
-    // Rate limiting
     const isLimited = await rateLimit(`resend:phone:${ip}`, 3, 60);
     if (isLimited) {
       return res.status(429).json({
@@ -311,17 +302,23 @@ module.exports.resendPhoneOtp = async (req, res) => {
       });
     }
 
-    // Check if user exists
-    const User = require("./auth.model");
     const user = await User.findOne({ phone });
-    if (!user) {
-      return res.status(404).json({
-        success: false,
-        message: "No account found with this phone number.",
-      });
+    // if (!user) {
+    //   return res.status(404).json({
+    //     success: false,
+    //     message: "No account found with this phone number.",
+    //   });
+    // }
+
+    if(!user){
+      throw new AppError(
+        "USER_NOT_FOUND",
+        "No account found with this phone number.",
+        404
+      )
     }
 
-    // Send OTP using the existing sendPhoneOtp function
+
     await authService.sendPhoneOtp(phone);
 
     return res.json({
@@ -331,24 +328,20 @@ module.exports.resendPhoneOtp = async (req, res) => {
   } catch (err) {
     return res.status(500).json({
       success: false,
-      message: err.message,
+      message: err.message
     });
   }
 };
-
-/*==================================================
-10. POST Resend OTP to Email
-===================================================*/
 module.exports.resendEmailOtp = async (req, res) => {
   try {
     const { email } = req.body;
     const authHeader = req.headers.authorization;
 
     // 1. Token Check
-    if (!authHeader || !authHeader.startsWith("Bearer ")) {
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
       return res.status(401).json({
         success: false,
-        message: "Authentication token is required",
+        message: 'Authentication token is required'
       });
     }
     const token = authHeader.split(" ")[1];
@@ -380,7 +373,62 @@ module.exports.resendEmailOtp = async (req, res) => {
     // Agar token invalid hoga toh yahan error throw hoga
     return res.status(400).json({
       success: false,
-      message: err.message,
+      message: err.message
+    });
+  }
+};
+
+module.exports.sendTestOtp = async (req, res) => {
+  try {
+    let { phone } = req.body;
+    // const ip = req.ip;
+
+    if (!phone) {
+      return res.status(400).json({
+        success: false,
+        message: "Phone is required"
+      });
+    }
+
+    // 🔹 Normalize phone (VERY IMPORTANT)
+    const normalizedPhone = normalizePhone(phone);
+    if (!normalizedPhone) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid phone number"
+      });
+    }
+
+    // 🔹 Hash phone (future consistency)
+    const phoneHash = hashPhone(normalizedPhone);
+
+    // Rate limiting
+    // const isLimited = await rateLimit(`otp:test:${ip}`, 10, 60);
+    // if (isLimited) {
+    //   return res.status(429).json({
+    //     success: false,
+    //     message: "Too many test requests. Try again later."
+    //   });
+    // }
+
+    // ✅ OTP send (NO DB WRITE HERE)
+    const result = await authService.sendPhoneOtpTest(normalizedPhone, true);
+
+    return res.json({
+      success: true,
+      message: `Test OTP: ${result.otp}`,
+      otp: result.otp,
+
+      debug: {
+        normalizedPhone,
+        phoneHash
+      }
+    });
+  } catch (err) {
+    console.error("Error in sendTestOtp:", err);
+    return res.status(400).json({
+      success: false,
+      message: err.message
     });
   }
 };

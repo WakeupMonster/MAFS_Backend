@@ -27,9 +27,10 @@ function calculateDistance(lat1, lon1, lat2, lon2) {
   return Math.round(R * c);
 }
 
-async function getFeedService(userId, limit = 20) {
+async function getFeedService(userId,limit ,page) {
   const CACHE_KEY = `feed:${userId.toString()}`;
   const CACHE_TTL = 30;
+  const skip = (page - 1) * limit;
 
   let sub = await UserSubscription.findOne({ userId });
   if (!sub) sub = await UserSubscription.create({ userId });
@@ -101,11 +102,9 @@ console.log("swipes",swipes)
   ...blockedMe,
   ...myReports, ...blockedByContactUserIds, userId])].map(id => id.toString());
 
-  // 4️⃣ Strict Query Building (Discovery Filters)
   const discovery = myProfile.discovery || {};
   const query = { userId: { $nin: excludeIds }, isMandatoryComplete: true, "discovery.globalVisibility": "everyone" };
 
-  // Gender & Age Filters
   if (discovery.showMeGender?.length) query.gender = { $in: discovery.showMeGender };
   if (discovery.ageRange) {
     const now = new Date();
@@ -115,7 +114,6 @@ console.log("swipes",swipes)
     };
   }
 
-  // HARD FILTER: Has a Bio (Figma Requirement)
   if (discovery.hasBio) {
     query.about = { $exists: true, $ne: "" };
   }
@@ -130,19 +128,20 @@ console.log("swipes",swipes)
     };
   }
 
-  //  DB Fetch
-  const profiles = await Profile.find(query).limit(50).lean();
+  // const profiles = await Profile.find(query).limit(50).lean();
+    const profiles = await Profile.find(query)
+    .sort({ createdAt: -1 })
+    .skip(skip)
+    .limit(limit)
+    .lean();
   const boostKeys = profiles.map(p => `boost:${p.userId.toString()}`);
 
-// 2. redis.mGet use karein (Jo ab humne cache.js mein define kiya hai)
 const boostResults = await redis.mGet(boostKeys);
 
 console.log("boostresult",boostResults)
 
-  // 6️⃣ Figma Scoring Engine
   const myPreferredInterests = discovery.preferredInterests || [];
   const myAdvancedFilters = discovery.advancedFilters || {};
-  // Overwrite protection: Agar filterRelationshipGoal hai toh wo lo, warna profile goal
   const activeSearchGoal = discovery.filterRelationshipGoal || discovery.relationshipGoal;
   const transformedProfiles = profiles.map((profile,index) => {
     const targetAttr = profile.attributes || {};
@@ -154,7 +153,6 @@ console.log("boostresult",boostResults)
   boostResults?.[index]
 );
 
-    // const isBoosted = boostResults && boostResults[index] !== null;
     const isBoosted = boostResults?.[index] === "1";
 
     // console.log(isSuperliked, "has in set")
@@ -238,7 +236,6 @@ console.log("boostresult",boostResults)
     }
     return {
       userId: profile.userId,
-
       profile: {
         nickname: profile.nickname || "User",
         age: calculateAge(profile.dob),
@@ -290,7 +287,7 @@ console.log("boostresult",boostResults)
     };
   });
   transformedProfiles.sort((a, b) => b.context.matchScore - a.context.matchScore);
-  const finalResult = transformedProfiles.slice(0, limit);
+  const finalResult = transformedProfiles.slice(0, limit,page);
   if (redis && finalResult.length) {
     // await redis.set(CACHE_KEY, JSON.stringify({ data: finalResult }), 'EX', CACHE_TTL);
     await redis.set(
@@ -299,7 +296,7 @@ console.log("boostresult",boostResults)
       { EX: CACHE_TTL }
     );
   }
-  return { success: true, count: finalResult.length, data: finalResult };
+  return { success: true,count: finalResult.length, data: finalResult };
 }
 function calculateAge(dob) {
   if (!dob) return 0;

@@ -1,4 +1,4 @@
-const redis = require("../redis");
+const redis = require("../../config/cache");
 
 async function rateLimit(key, limit, windowSeconds) {
   const results = await redis

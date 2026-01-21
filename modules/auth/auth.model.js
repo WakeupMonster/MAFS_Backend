@@ -199,20 +199,37 @@ const userSchema = new mongoose.Schema(
       default: null,
     },
 
-    lastLoginAt: {
-      type: Date,
-      default: null,
-      index: true,
-    },
+lastLoginAt: {
+  type: Date,
+  default: null,
+  index: true
+},
 
-    authMethod: {
-      type: String,
-      enum: ["phone", "email", "google", "facebook", "apple"],
-      default: "phone",
-    },
+// ============ PASSWORD (ADMIN ONLY) ============
+password: {
+  type: String,
+  select: false,        
+  minlength: 8
+},
+  passwordChangedAt: {
+    type: Date
   },
-  { timestamps: true }
-);
+
+  lastPasswordResetAt: {
+    type: Date
+  },
+
+authMethod: {
+    type: String,
+    enum: ["phone", "email", "google", "facebook", "apple","password"],
+    default: "phone"
+  }
+}, { timestamps: true });
+
+
+
+
+
 
 // ============ INDEXES ============
 // userSchema.index({ phone: 1 });

@@ -1,7 +1,6 @@
 const bcrypt = require("bcryptjs");
 const { transporter } = require("../../../config/nodemailer");
 
-/*----------Sends an email using the configured SMTP transporter----------*/
 module.exports.sendEmail = async (to, subject, html) => {
   try {
     // 1. Verify environment variables are present

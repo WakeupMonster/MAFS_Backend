@@ -64,9 +64,10 @@ tonight.setHours(24, 0, 0, 0);
     profile: {
     id: profile.userId,
       nickname: p.nickname || null,
-      dob: profile.dob
-  ? profile.dob.toISOString().split("T")[0]
-  : null,
+  //     dob: profile.dob
+  // ? profile.dob.toISOString().split("T")[0]
+  // : null,
+  dob : profile.dob || null,
       age: profile.age || calculateAge(profile.dob),
       gender: p.gender || null,
       height: p.height || null,

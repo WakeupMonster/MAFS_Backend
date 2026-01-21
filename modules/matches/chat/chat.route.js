@@ -15,7 +15,6 @@ const uploadMiddleware = require("../../upload/upload.middleware");
 
 const auth = require("../../auth/auth.middleware");
 
-
 router.use(auth);
 
 router.get("/messages/:matchId", getChatMessages);

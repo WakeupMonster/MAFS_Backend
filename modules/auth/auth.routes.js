@@ -40,17 +40,16 @@ const controller = require("./auth.controller");
 const validation = require("./auth.validation");
 const socialRoutes = require("./social/social.routes");
 
-// ============ PHONE AUTHENTICATION ============
-router.post("/phone",validation.validateSendPhoneOtp, controller.sendTestOtp);
+router.post("/phone",validation.validateSendPhoneOtp, controller.sendOtp);
 router.post("/verify", controller.verifyOtp);
 
-// router.post('/test/otp', controller.sendTestOtp);
+router.post("/phonetest",validation.validateSendPhoneOtp, controller.sendTestOtp);
+router.post("/verifytestotp", controller.verifyTestOtp);
 
-// ============ EMAIL AUTHENTICATION ============
+
 router.post("/register/email", validation.validateRegisterEmail, controller.registerEmail);
 router.post("/verify/email", controller.verifyEmail);
 
-// ============ TOKEN MANAGEMENT ============
 router.post("/refresh", validation.validateRefreshToken, controller.refreshToken);
 router.post("/logout", validation.validateLogout, controller.logout);
 

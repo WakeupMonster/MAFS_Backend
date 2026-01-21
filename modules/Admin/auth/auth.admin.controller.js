@@ -1,59 +1,78 @@
-const { rateLimit } = require("../../../common/middlewares/rateLimit");
-const authService = require("./auth.services");
-const User = require("../../auth/auth.model");
-const Profile = require("../../profile/profile.model");
-const utils = require("../../auth/auth.utils");
-const {
-  adminRegisterSchema,
-  adminLoginSchema,
-  adminResetPasswordSchema,
-} = require("./auth.validation");
-const redis = require("../../../common/redis");
-// const REFRESH_TOKEN_TTL_MS = Number(7 * 24 * 60 * 60 * 1000); // 7 days
-const REFRESH_TOKEN_TTL_MS = 30 * 24 * 60 * 60 * 1000; // 30 Days
-const MAX_REFRESH_TOKENS = 5; // per admin (multi-device safe)
+// const { rateLimit } = require("../../../common/middlewares/rateLimit");
+// const authService = require("./auth.services");
+// const User = require("../../auth/auth.model");
+// const Profile = require("../../profile/profile.model");
+// const utils = require("../../auth/auth.utils");
+// const {
+//   adminRegisterSchema,
+//   adminLoginSchema,
+//   adminResetPasswordSchema,
+// } = require("./auth.validation");
+// const redis = require("../../../config/cache");
+// // const REFRESH_TOKEN_TTL_MS = Number(7 * 24 * 60 * 60 * 1000); // 7 days
+// const REFRESH_TOKEN_TTL_MS = 30 * 24 * 60 * 60 * 1000; // 30 Days
+// const MAX_REFRESH_TOKENS = 5; // per admin (multi-device safe)
 
-// exports.adminRegister = async (req, res) => {
+// module.exports.adminRegister = async (req, res) => {
 //   try {
-//     const { fullName, phone, email, password } = req.body;
-
-//     // 1. Check if admin already exists
-//     const existingAdmin = await User.findOne({ $or: [{ email }, { phone }] });
-//     if (existingAdmin)
+//     // 1. Validate Request Body
+//     const { error, value } = adminRegisterSchema.validate(req.body);
+//     if (error) {
 //       return res
 //         .status(400)
-//         .json({ message: "Admin already exists with this email/phone" });
+//         .json({ success: false, message: error.details[0].message });
+//     }
 
-//     // 2. Hash Password
-//     const hashedPassword = utils.passwordHashed(password);
+//     const { fullName, phone, email, password } = value;
 
-//     // 3. Create Admin User (Auth Model)
+//     // 2. Normalize: If email exists, phone is null (and vice versa)
+//     const adminEmail = email || null;
+//     const adminPhone = phone || null;
+
+//     // 3. Check if admin already exists (only check fields that aren't null)
+//     const query = [];
+//     if (adminEmail) query.push({ email: adminEmail });
+//     if (adminPhone) query.push({ phone: adminPhone });
+
+//     const existingAdmin = await User.findOne({ $or: query });
+//     if (existingAdmin) {
+//       return res.status(400).json({
+//         success: false,
+//         message: "An account with this email or phone already exists",
+//       });
+//     }
+
+//     // 4. Hash Password (Assuming your utils.passwordHashed works correctly)
+//     const hashedPassword = await utils.passwordHashed(password);
+
+//     // 5. Create Admin User (Auth Model)
 //     const newAdmin = await User.create({
-//       email,
-//       phone,
+//       email: adminEmail,
+//       phone: adminPhone,
 //       password: hashedPassword,
 //       role: "ADMIN",
-//       isEmailVerified: true, // Internal admins are usually pre-verified
-//       isPhoneVerified: true,
-//       authMethod: email ? "email" : "phone",
+//       isEmailVerified: !!adminEmail, // Verify automatically if provided
+//       isPhoneVerified: !!adminPhone,
+//       authMethod: adminEmail ? "email" : "phone",
 //     });
 
-//     // 4. Create Admin Profile (Profile Model)
+//     // 6. Create Admin Profile (Profile Model)
 //     const profile = await Profile.create({
 //       userId: newAdmin._id,
 //       fullName: fullName,
-//       isMandatoryComplete: true, // Admins bypass onboarding
+//       //   isMandatoryComplete: true,
 //     });
 
+//     // 7. Structure Response Data
 //     const data = {
 //       id: newAdmin._id,
 //       profileId: profile._id,
 //       fullName: profile.fullName,
 //       email: newAdmin.email,
-//       phone: newAdmin.phone,
-//       role: newAdmin.role,
 //       isEmailVerified: newAdmin.isEmailVerified,
+//       phone: newAdmin.phone,
 //       isPhoneVerified: newAdmin.isPhoneVerified,
+//       role: newAdmin.role,
 //       authMethod: newAdmin.authMethod,
 //     };
 
@@ -142,9 +161,6 @@ module.exports.adminRegister = async (req, res) => {
   }
 };
 
-/*==================================================
-  POST API 1: ADMIN LOGIN API.
-===================================================*/
 // exports.adminLogin = async (req, res) => {
 //   try {
 //     // Step 1: identifier admin email or phone dono se login krskta hn
@@ -195,13 +211,16 @@ module.exports.adminRegister = async (req, res) => {
 //       },
 //     });
 //   } catch (error) {
-//     res.status(500).json({ error: error.message });
+//     console.error("Error in adminRegister:", error);
+//     return res
+//       .status(500)
+//       .json({ success: false, error: "Internal Server Error" });
 //   }
 // };
 
-// exports.adminLogin = async (req, res) => {
+// module.exports.adminLogin = async (req, res) => {
 //   try {
-//     // 1. Joi Validation
+ 
 //     const { error, value } = adminLoginSchema.validate(req.body);
 //     if (error) {
 //       return res.status(400).json({
@@ -212,9 +231,11 @@ module.exports.adminRegister = async (req, res) => {
 
 //     const { email, password } = value;
 
-//     // 2. Find User & Verify Role
-//     // We check for ADMIN role immediately to prevent regular users from hitting this logic
-//     const admin = await User.findOne({ email, role: "ADMIN" });
+  
+//     const admin = await User.findOne({
+//       email,
+//       role: "ADMIN",
+//     }).select("+password +refreshTokens");
 
 //     if (!admin) {
 //       return res
@@ -222,14 +243,19 @@ module.exports.adminRegister = async (req, res) => {
 //         .json({ success: false, message: "Invalid Admin Credentials" });
 //     }
 
-//     // 3. Verify Account Status
+//     /* ------------------------------------
+//      * 3️⃣ Account Status Check
+//      * ---------------------------------- */
 //     if (admin.accountStatus !== "active") {
-//       return res
-//         .status(403)
-//         .json({ success: false, message: "Account is restricted" });
+//       return res.status(403).json({
+//         success: false,
+//         message: "Account is restricted",
+//       });
 //     }
 
-//     // 4. Check Password
+//     /* ------------------------------------
+//      * 4️⃣ Verify Password
+//      * ---------------------------------- */
 //     const isMatch = await utils.passwordCompared(password, admin.password);
 //     if (!isMatch) {
 //       return res
@@ -237,14 +263,24 @@ module.exports.adminRegister = async (req, res) => {
 //         .json({ success: false, message: "Invalid Admin Credentials" });
 //     }
 
-//     // 5. Generate Session & Refresh Token
+//     /* ------------------------------------
+//      * 5️⃣ Token Generation
+//      * ---------------------------------- */
 //     const accessToken = utils.generateAccessToken(admin);
+
 //     const refreshTokenRaw = utils.generateRefreshToken();
 //     const refreshTokenHash = utils.hashToken(refreshTokenRaw);
 
-//     // Clean up expired tokens while pushing the new one
 //     const now = Date.now();
-//     admin.refreshTokens = admin.refreshTokens.filter((t) => t.expiresAt > now);
+
+//     /* ------------------------------------
+//      * 6️⃣ Refresh Token Rotation
+//      * ---------------------------------- */
+//     admin.refreshTokens = admin.refreshTokens
+//       // remove expired
+//       .filter((t) => t.expiresAt > now)
+//       // keep last N tokens only
+//       .slice(-MAX_REFRESH_TOKENS + 1);
 
 //     admin.refreshTokens.push({
 //       tokenHash: refreshTokenHash,
@@ -253,187 +289,462 @@ module.exports.adminRegister = async (req, res) => {
 
 //     await admin.save();
 
-//     // 6. Fetch Profile (Optimized: only get necessary fields)
-//     const profile = await Profile.findOne({ userId: admin._id }).select(
-//       "fullName photos"
-//     );
+//     /* ------------------------------------
+//      * 7️⃣ Fetch Profile (lean & minimal)
+//      * ---------------------------------- */
+//     const profile = await Profile.findOne({ userId: admin._id })
+//       .select("fullName photos")
+//       .lean();
 
-//     // 7. Success Response
+//     const avatar = profile?.photos?.find((p) => p.isPrimary)?.url || null;
+
+//     /* ------------------------------------
+//      * 8️⃣ Response
+//      * ---------------------------------- */
 //     return res.status(200).json({
 //       success: true,
 //       message: "Login successful",
 //       data: {
 //         id: admin._id,
-//         profileId: profile?._id,
-//         fullName: profile?.fullName,
+//         profileId: profile?._id || null,
+//         fullName: profile?.fullName || null,
 //         email: admin.email,
 //         phone: admin.phone,
-//         avatar: profile?.photos?.find((p) => p.isPrimary)?.url || null,
+//         role: admin.role,
+//         avatar,
 //         auth: {
 //           accessToken,
-//           refreshToken: refreshTokenRaw,
+//           refreshToken: refreshTokenRaw, // only sent once
 //           tokenType: "Bearer",
 //         },
 //       },
 //     });
 //   } catch (error) {
-//     console.error("Login Error:", error);
-//     return res
-//       .status(500)
-//       .json({ success: false, message: "Internal Server Error" });
+//     console.error("Admin Login Error:", error);
+//     return res.status(500).json({
+//       success: false,
+//       message: "Internal Server Error",
+//     });
 //   }
 // };
 
-module.exports.adminLogin = async (req, res) => {
+// /*==================================================
+//   POST API 1: REQUEST to Send OTP on Email Id
+// ===================================================*/
+// module.exports.sendEmailOTP = async (req, res) => {
+//   try {
+//     const { email } = req.body;
+
+//     /*======================= Validation =============================*/
+//     if (!email) {
+//       return res.status(400).json({
+//         success: false,
+//         message: "Email address is required",
+//       });
+//     }
+
+//     /*======================= Rate Limiting (IP + Email) =============================*/
+//     const ip = req.ip;
+//     const isIpLimited = await rateLimit(`otp-email-ip:${ip}`, 3, 60);
+//     const isEmailLimited = await rateLimit(`otp-email-addr:${email}`, 2, 60);
+
+//     if (isIpLimited || isEmailLimited) {
+//       return res.status(429).json({
+//         success: false,
+//         message: "Too many attempts. Please wait 60 seconds.",
+//       });
+//     }
+
+//     /*======================= Trigger Service =============================*/
+//     await authService.EmailOtpServices(email);
+
+//     /*======================= Proper Response =============================*/
+//     return res.status(200).json({
+//       success: true,
+//       message: "OTP sent successfully to your email",
+//       screen: "verify-otp",
+//       data: {
+//         email: email,
+//         resendAfter: 60, // Seconds until frontend enables resend button
+//         expiresIn: "5m", // Informative for the user UI
+//       },
+//     });
+//   } catch (err) {
+//     console.error("Email OTP Error:", err);
+//     return res.status(500).json({
+//       success: false,
+//       message: `Failed to send email OTP: ${err.message}`,
+//     });
+//   }
+// };
+
+// /*==================================================
+//   POST API 2: Verify Email OTP 
+// ===================================================*/
+// module.exports.verifyEmailOTP = async (req, res) => {
+//   try {
+//     const { email, otp } = req.body;
+
+//     if (!email || !otp) {
+//       return res.status(400).json({
+//         success: false,
+//         message: "Email and OTP are required",
+//       });
+//     }
+
+//     const redisKey = `login:${email.trim()}`;
+//     const savedOtp = await redis.get(redisKey);
+
+//     if (!savedOtp) {
+//       return res.status(400).json({
+//         success: false,
+//         message: "OTP expired or invalid",
+//       });
+//     }
+
+//     if (savedOtp !== otp) {
+//       return res.status(401).json({
+//         success: false,
+//         message: "Invalid OTP",
+//       });
+//     }
+
+//     // ✅ OTP verified → mark email verified
+//     await redis.setex(`otp:email:verified:${email}`, 600, "true"); // 10 min
+//     await redis.del(redisKey); // 🔥 One-time OTP
+
+//     return res.status(200).json({
+//       success: true,
+//       screen: "forgot-password",
+//       message: "OTP verified successfully",
+//     });
+//   } catch (err) {
+//     console.error("Verify Email OTP Error:", err);
+//     return res.status(500).json({
+//       success: false,
+//       message: "Failed to verify OTP",
+//     });
+//   }
+// };
+
+// /*==================================================
+//   POST API 3: ADMIN Forget Password
+// ===================================================*/
+// module.exports.adminForgotPassword = async (req, res) => {
+//   try {
+//     const { email, newPassword } = req.body;
+
+//     if (!email || !newPassword) {
+//       return res.status(400).json({
+//         success: false,
+//         message: "Email and new password are required",
+//       });
+//     }
+
+//     // 🔐 Check OTP verification
+//     const isVerified = await redis.get(`otp:email:verified:${email}`);
+
+//     if (!isVerified) {
+//       return res.status(403).json({
+//         success: false,
+//         message: "OTP verification required",
+//       });
+//     }
+
+//     const admin = await User.findOne({
+//       email,
+//       role: "ADMIN",
+//     }).select("+password");
+
+//     if (!admin) {
+//       return res.status(404).json({
+//         success: false,
+//         message: "Admin not found",
+//       });
+//     }
+
+//     // 🔒 Update password
+//     admin.password = await utils.passwordHashed(newPassword);
+
+//     // 🔁 Invalidate all sessions
+//     admin.refreshTokens = [];
+
+//     await admin.save();
+
+//     await redis.del(`otp:email:verified:${email}`);
+
+//     return res.status(200).json({
+//       success: true,
+//       screen: "login",
+//       message: "Password reset successfully. Please login again.",
+//     });
+//   } catch (err) {
+//     console.error("Admin Forgot Password Error:", err);
+//     return res.status(500).json({
+//       success: false,
+//       message: "Server error while resetting password",
+//     });
+//   }
+// };
+
+// /*==================================================
+//   POST API 4: Reset Password. When admin already authenticate
+// ===================================================*/
+// module.exports.adminResetPassword = async (req, res) => {
+//   try {
+//     const adminId = req.user.id; // from auth middleware
+
+//     const { error, value } = adminResetPasswordSchema.validate(req.body, {
+//       abortEarly: false,
+//     });
+
+//     if (error) {
+//       return res.status(400).json({
+//         success: false,
+//         errors: error.details.map((e) => e.message.replace(/"/g, "")),
+//       });
+//     }
+
+//     if (value.currentPassword === value.newPassword) {
+//       res.status(400).json({
+//         success: false,
+//         message: "New password must be different from current password",
+//       });
+//     }
+
+//     const admin = await User.findOne({
+//       _id: adminId,
+//       role: "ADMIN",
+//     }).select("+password +refreshTokens");
+
+//     if (!admin) {
+//       res.status(404).json({
+//         success: false,
+//         message: "Admin not found",
+//       });
+//     }
+
+//     //  Verify current password
+//     const isMatch = await utils.passwordCompared(
+//       value.currentPassword,
+//       admin.password
+//     );
+
+//     if (!isMatch) {
+//       res.status(401).json({
+//         success: false,
+//         message: "Current password is incorrect",
+//       });
+//     }
+
+//     // 🔒 Hash & update password
+//     admin.password = await utils.passwordHashed(value.newPassword);
+
+//     // 🔁 Invalidate all sessions
+//     admin.refreshTokens = [];
+
+//     await admin.save();
+
+//     return res.status(200).json({
+//       success: true,
+//       message: "Password updated successfully. Please login again.",
+//     });
+//   } catch (error) {
+//     console.error("Admin Reset Password Error:", error);
+
+//     return res.status(500).json({
+//       success: false,
+//       message: error.message || "Internal Server Error",
+//     });
+//   }
+// };
+
+
+
+const User = require("../../auth/auth.model");
+const Profile = require("../../profile/profile.model");
+const utils = require("../../auth/auth.utils");
+const redis = require("../../../config/cache");
+const AppError = require("../../../common/errors/ApiError");
+const {
+  adminRegisterSchema,
+  adminLoginSchema,
+  adminResetPasswordSchema
+} = require("./auth.validation");
+
+const REFRESH_TOKEN_TTL_MS = 30 * 24 * 60 * 60 * 1000;
+const MAX_REFRESH_TOKENS = 5;
+const ADMIN_EMAIL_OTP_TTL = 300; // 5 min
+
+
+exports.adminRegister = async (req, res, next) => {
   try {
-    /* ------------------------------------
-     * 1️⃣ Validate Input
-     * ---------------------------------- */
+    const { error, value } = adminRegisterSchema.validate(req.body);
+    if (error) {
+      throw new AppError(
+        "VALIDATION_ERROR",
+        error.details[0].message,
+        400
+      );
+    }
+
+    const { fullName, phone, email, password } = value;
+
+    const exists = await User.findOne({
+      $or: [{ email }, { phone }],
+      role: "ADMIN"
+    });
+
+    if (exists) {
+      throw new AppError(
+        "ADMIN_EXISTS",
+        "Admin with this email or phone already exists",
+        400
+      );
+    }
+
+    const hashedPassword = await utils.passwordHashed(password);
+
+    const admin = await User.create({
+      email: email || null,
+      phone: phone || null,
+      password: hashedPassword,
+      role: "ADMIN",
+      authMethod: email ? "email" : "phone",
+      isEmailVerified: !!email,
+      isPhoneVerified: !!phone
+    });
+
+    await Profile.create({
+      userId: admin._id,
+      fullName
+    });
+
+    res.status(201).json({
+      success: true,
+      message: "Admin registered successfully"
+    });
+  } catch (err) {
+    next(err);
+  }
+};
+
+
+exports.adminLogin = async (req, res, next) => {
+  try {
     const { error, value } = adminLoginSchema.validate(req.body);
     if (error) {
-      return res.status(400).json({
-        success: false,
-        message: error.details[0].message.replace(/"/g, ""),
-      });
+      throw new AppError(
+        "VALIDATION_ERROR",
+        error.details[0].message,
+        400
+      );
     }
 
     const { email, password } = value;
 
-    /* ------------------------------------
-     * 2️⃣ Find Admin (role locked)
-     * ---------------------------------- */
     const admin = await User.findOne({
       email,
-      role: "ADMIN",
+      role: "ADMIN"
     }).select("+password +refreshTokens");
 
     if (!admin) {
-      return res
-        .status(401)
-        .json({ success: false, message: "Invalid Admin Credentials" });
+      throw new AppError(
+        "INVALID_CREDENTIALS",
+        "Invalid admin credentials",
+        401
+      );
     }
 
-    /* ------------------------------------
-     * 3️⃣ Account Status Check
-     * ---------------------------------- */
     if (admin.accountStatus !== "active") {
-      return res.status(403).json({
-        success: false,
-        message: "Account is restricted",
-      });
+      throw new AppError(
+        "ACCOUNT_RESTRICTED",
+        "Account is restricted",
+        403
+      );
     }
 
-    /* ------------------------------------
-     * 4️⃣ Verify Password
-     * ---------------------------------- */
     const isMatch = await utils.passwordCompared(password, admin.password);
     if (!isMatch) {
-      return res
-        .status(401)
-        .json({ success: false, message: "Invalid Admin Credentials" });
+      throw new AppError(
+        "INVALID_CREDENTIALS",
+        "Invalid admin credentials",
+        401
+      );
     }
 
-    /* ------------------------------------
-     * 5️⃣ Token Generation
-     * ---------------------------------- */
     const accessToken = utils.generateAccessToken(admin);
-
     const refreshTokenRaw = utils.generateRefreshToken();
     const refreshTokenHash = utils.hashToken(refreshTokenRaw);
-
     const now = Date.now();
 
-    /* ------------------------------------
-     * 6️⃣ Refresh Token Rotation
-     * ---------------------------------- */
     admin.refreshTokens = admin.refreshTokens
-      // remove expired
-      .filter((t) => t.expiresAt > now)
-      // keep last N tokens only
+      .filter(t => t.expiresAt > now)
       .slice(-MAX_REFRESH_TOKENS + 1);
 
     admin.refreshTokens.push({
       tokenHash: refreshTokenHash,
-      expiresAt: now + REFRESH_TOKEN_TTL_MS,
+      expiresAt: now + REFRESH_TOKEN_TTL_MS
     });
 
     await admin.save();
 
-    /* ------------------------------------
-     * 7️⃣ Fetch Profile (lean & minimal)
-     * ---------------------------------- */
-    const profile = await Profile.findOne({ userId: admin._id })
-      .select("fullName photos")
-      .lean();
-
-    const avatar = profile?.photos?.find((p) => p.isPrimary)?.url || null;
-
-    /* ------------------------------------
-     * 8️⃣ Response
-     * ---------------------------------- */
-    return res.status(200).json({
+    res.json({
       success: true,
       message: "Login successful",
-      screen: "/admin/dashboard",
       data: {
-        id: admin._id,
-        profileId: profile?._id || null,
-        fullName: profile?.fullName || null,
-        email: admin.email,
-        phone: admin.phone,
-        role: admin.role,
-        avatar,
-        auth: {
-          accessToken,
-          refreshToken: refreshTokenRaw, // only sent once
-          tokenType: "Bearer",
-        },
-      },
+        accessToken,
+        refreshToken: refreshTokenRaw
+      }
     });
-  } catch (error) {
-    console.error("Admin Login Error:", error);
-    return res.status(500).json({
-      success: false,
-      message: "Internal Server Error",
-    });
+  } catch (err) {
+    next(err);
   }
 };
 
 /*==================================================
-  POST API 2: REQUEST to Send OTP on Email Id
+  POST API 1: REQUEST to Send OTP on Email Id
 ===================================================*/
 module.exports.sendEmailOTP = async (req, res) => {
   try {
     const { email } = req.body;
-
-    /*======================= Validation =============================*/
     if (!email) {
-      return res.status(400).json({
-        success: false,
-        message: "Email address is required",
-      });
+      throw new AppError(
+        "EMAIL_REQUIRED",
+        "Email is required",
+        400
+      );
     }
 
-    /*======================= Rate Limiting (IP + Email) =============================*/
-    const ip = req.ip;
-    const isIpLimited = await rateLimit(`otp-email-ip:${ip}`, 3, 60);
-    const isEmailLimited = await rateLimit(`otp-email-addr:${email}`, 2, 60);
+    const admin = await User.findOne({
+      email,
+      role: "ADMIN"
+    });
 
-    if (isIpLimited || isEmailLimited) {
-      return res.status(429).json({
-        success: false,
-        message: "Too many attempts. Please wait 60 seconds.",
-      });
+    if (!admin) {
+      throw new AppError(
+        "ADMIN_NOT_FOUND",
+        "Admin not found",
+        404
+      );
     }
 
-    /*======================= Trigger Service =============================*/
-    await authService.EmailOtpServices(email);
+    const otp = utils.generateOtp();
+    const otpHash = await utils.hashOtp(otp);
 
-    /*======================= Proper Response =============================*/
-    return res.status(200).json({
+    const redisKey = `admin:email:otp:${admin._id}`;
+    await redis.set(redisKey, otpHash, { EX: ADMIN_EMAIL_OTP_TTL });
+
+    await utils.sendEmail(
+      email,
+      "Admin Password Reset OTP",
+      `<b>Your OTP is ${otp}</b>`
+    );
+
+    res.json({
       success: true,
       message: "OTP sent successfully to your email",
-      screen: "verify-email",
+      screen: "verify-otp",
       data: {
         email: email,
         resendAfter: 60, // Seconds until frontend enables resend button
@@ -441,16 +752,12 @@ module.exports.sendEmailOTP = async (req, res) => {
       },
     });
   } catch (err) {
-    console.error("Email OTP Error:", err);
-    return res.status(500).json({
-      success: false,
-      message: `Failed to send email OTP: ${err.message}`,
-    });
+    next(err);
   }
 };
 
 /*==================================================
-  POST API 3: Verify Email OTP 
+  POST API 2: Verify Email OTP 
 ===================================================*/
 module.exports.verifyEmailOTP = async (req, res) => {
   try {
@@ -486,7 +793,7 @@ module.exports.verifyEmailOTP = async (req, res) => {
 
     return res.status(200).json({
       success: true,
-      screen: "../new-password",
+      screen: "forgot-password",
       message: "OTP verified successfully",
     });
   } catch (err) {
@@ -499,134 +806,105 @@ module.exports.verifyEmailOTP = async (req, res) => {
 };
 
 /*==================================================
-  POST API 4: ADMIN Forget Password
+  POST API 3: ADMIN Forget Password
 ===================================================*/
 module.exports.adminForgotPassword = async (req, res) => {
   try {
     const { email, newPassword } = req.body;
 
-    if (!email || !newPassword) {
-      return res.status(400).json({
-        success: false,
-        message: "Email and new password are required",
-      });
-    }
-
-    // 🔐 Check OTP verification
-    const isVerified = await redis.get(`otp:email:verified:${email}`);
-
-    if (!isVerified) {
-      return res.status(403).json({
-        success: false,
-        message: "OTP verification required",
-      });
+    if (!email || !otp || !newPassword) {
+      throw new AppError(
+        "INVALID_REQUEST",
+        "Email, OTP and new password are required",
+        400
+      );
     }
 
     const admin = await User.findOne({
       email,
-      role: "ADMIN",
-    }).select("+password");
+      role: "ADMIN"
+    }).select("+password +refreshTokens");
 
     if (!admin) {
-      return res.status(404).json({
-        success: false,
-        message: "Admin not found",
-      });
+      throw new AppError("ADMIN_NOT_FOUND", "Admin not found", 404);
     }
 
-    // 🔒 Update password
-    admin.password = await utils.passwordHashed(newPassword);
+    const redisKey = `admin:email:otp:${admin._id}`;
+    const storedHash = await redis.get(redisKey);
 
-    // 🔁 Invalidate all sessions
+    if (!storedHash) {
+      throw new AppError("OTP_EXPIRED", "OTP expired or invalid", 400);
+    }
+
+    const isValid = await utils.verifyOtpHash(otp, storedHash);
+    if (!isValid) {
+      throw new AppError("INVALID_OTP", "Invalid OTP", 401);
+    }
+
+    admin.password = await utils.passwordHashed(newPassword);
     admin.refreshTokens = [];
 
     await admin.save();
+    await redis.del(redisKey);
 
-    // 🧹 Cleanup Redis state
-    await redis.del(`otp:email:verified:${email}`);
-
-    return res.status(200).json({
+    res.json({
       success: true,
-      screen: "/auth/login",
+      screen: "login",
       message: "Password reset successfully. Please login again.",
     });
   } catch (err) {
-    console.error("Admin Forgot Password Error:", err);
-    return res.status(500).json({
-      success: false,
-      message: "Server error while resetting password",
-    });
+    next(err);
   }
 };
 
 /*==================================================
-  POST API 5: Reset Password. When admin already authenticate
+  POST API 4: Reset Password. When admin already authenticate
 ===================================================*/
 module.exports.adminResetPassword = async (req, res) => {
   try {
-    const adminId = req.user.id; // from auth middleware
+    const adminId = req.user.id;
 
-    const { error, value } = adminResetPasswordSchema.validate(req.body, {
-      abortEarly: false,
-    });
-
+    const { error, value } = adminResetPasswordSchema.validate(req.body);
     if (error) {
-      return res.status(400).json({
-        success: false,
-        errors: error.details.map((e) => e.message.replace(/"/g, "")),
-      });
-    }
-
-    if (value.currentPassword === value.newPassword) {
-      res.status(400).json({
-        success: false,
-        message: "New password must be different from current password",
-      });
+      throw new AppError(
+        "VALIDATION_ERROR",
+        error.details[0].message,
+        400
+      );
     }
 
     const admin = await User.findOne({
       _id: adminId,
-      role: "ADMIN",
+      role: "ADMIN"
     }).select("+password +refreshTokens");
 
     if (!admin) {
-      res.status(404).json({
-        success: false,
-        message: "Admin not found",
-      });
+      throw new AppError("ADMIN_NOT_FOUND", "Admin not found", 404);
     }
 
-    // 🔐 Verify current password
     const isMatch = await utils.passwordCompared(
       value.currentPassword,
       admin.password
     );
 
     if (!isMatch) {
-      res.status(401).json({
-        success: false,
-        message: "Current password is incorrect",
-      });
+      throw new AppError(
+        "INVALID_PASSWORD",
+        "Current password is incorrect",
+        401
+      );
     }
 
-    // 🔒 Hash & update password
     admin.password = await utils.passwordHashed(value.newPassword);
-
-    // 🔁 Invalidate all sessions
     admin.refreshTokens = [];
 
     await admin.save();
 
-    return res.status(200).json({
+    res.json({
       success: true,
-      message: "Password updated successfully. Please login again.",
+      message: "Password updated successfully"
     });
-  } catch (error) {
-    console.error("Admin Reset Password Error:", error);
-
-    return res.status(500).json({
-      success: false,
-      message: error.message || "Internal Server Error",
-    });
+  } catch (err) {
+    next(err);
   }
 };

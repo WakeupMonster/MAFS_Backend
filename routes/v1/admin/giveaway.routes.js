@@ -1,20 +1,18 @@
 const express = require("express");
 const router = express.Router();
-
-// const validate = require("../../../modules/giveaway/admin/giveaway.validation");
-
-// Controllers (baad me banenge)
+const validate = require("../../../modules/giveaway/admin/giveaway.validation");
 const adminGiveawayController = require("../../../modules/giveaway/admin/giveaway.controller");
-
-// missing api Monthly bulk create missing
 
 router.post(
   "/prizes",
-  //   validate("adminCreatePrize"),
+  validate("adminCreatePrize"),
   adminGiveawayController.createPrize
 );
 
-router.get("/prizes", adminGiveawayController.getAllPrizes);
+router.get(
+  "/prizes",
+  adminGiveawayController.getAllPrizes
+);
 
 router.patch(
   "/prizes/:id",
@@ -22,9 +20,8 @@ router.patch(
   adminGiveawayController.updatePrize
 );
 
-/**
- * 📅 GIVEAWAY CAMPAIGNS
- */
+router.delete("/prizes/:id",adminGiveawayController.deletePrize)
+router.delete("/campaigns/:id",adminGiveawayController.deleteCampaign)
 router.post(
   "/campaigns",
   //   validate("adminCreateCampaign"),
@@ -68,29 +65,17 @@ router.patch(
   adminGiveawayController.pauseCampaign
 );
 
-/**
- * ⚠️ TEMPORARY – CRON TEST ROUTE
- * REMOVE AFTER TESTING
- */
-const runGiveawayWorker = require("../../../jobs/giveaway/giveaway.worker");
-
-router.post("/run-cron", async (req, res) => {
-  await runGiveawayWorker();
-  return res.json({
-    success: true,
-    message: "Giveaway cron executed manually",
-  });
-});
-
 module.exports = router;
+// const runGiveawayWorker = require("../../../jobs/giveaway/giveaway.worker");
 
-// PATCH /admin/giveaway/:id/disable -- campaign.isActive = false;
-
-// PATCH /admin/giveaway/:campaignId/pause -- campaign.isActive = false;
-
-// POST /admin/giveaway/campaigns/bulk
-
-// GET  /admin/giveaway/config
-// PATCH /admin/giveaway/config
-
-// PATCH /admin/giveaway/settings for yealy limit
+// router.post(
+//   "/run-cron",
+//   async (req, res) => {
+//     await runGiveawayWorker();
+//     return res.json({
+//       success: true,
+//       message: "Giveaway cron executed manually"
+//     });
+//   }
+// );
+// module.exports = router;

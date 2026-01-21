@@ -1,3 +1,4 @@
+/* eslint-disable no-unused-vars */
 const redis = require("../../../config/cache");
 const { Faq, PrivacyPolicy, TermsConditions } = require("./content.model");
 const {

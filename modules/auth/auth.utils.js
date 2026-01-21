@@ -52,21 +52,10 @@ module.exports.generateRefreshToken = () => {
 module.exports.generateAccessToken = (user) => {
   const payload = { userId: user._id.toString(), role: user.role };
   // const expiresIn = user.role === "ADMIN" ? "30d" : "7d";
-  return jwt.sign(payload, process.env.JWT_SECRET, {
-    expiresIn: process.env.ACCESS_TOKEN_TTL || "12000m",
-  });
+  return jwt.sign(payload, process.env.JWT_SECRET, { expiresIn: process.env.ACCESS_TOKEN_TTL || "15d" });
 };
 
 module.exports.REFRESH_TOKEN_TTL = 30 * 24 * 60 * 60 * 1000; // 30 days
-
-// exports.verifyRefreshToken = (token) => {
-//   try {
-//     return jwt.verify(token, process.env.JWT_SECRET);
-//   // eslint-disable-next-line no-unused-vars
-//   } catch (err) {
-//     throw new Error("Invalid refresh token");
-//   }
-// };
 
 module.exports.verifyToken = (token) => {
   try {
@@ -125,18 +114,29 @@ module.exports.sendEmail = async (to, subject, text) => {
   }
 };
 
-// exports.sendPrizeDeliveredEmail = async (toEmail, prizeTitle) => {
-//   await transporter.sendMail({
-//     from: '"Giveaway Team" <no-reply@app.com>',
-//     to: toEmail,
-//     subject: "🎉 Your Giveaway Prize is Delivered!",
-//     html: `
-//       <h2>Congratulations 🎉</h2>
-//       <p>Your prize <b>${prizeTitle}</b> has been successfully delivered.</p>
-//       <p>Thank you for participating!</p>
-//     `
-//   });
-// };
+module.exports.passwordCompared = async (plainPassword, hashedPassword) => {
+  return bcrypt.compare(plainPassword, hashedPassword);
+};
+module.exports.passwordHashed = async (plainPassword) => {
+  return bcrypt.hash(plainPassword, 10);
+};
+exports.sendPrizeDeliveredEmail = async (toEmail, prizeTitle) => {
+  await transporter.sendMail({
+    from: '"Giveaway Team" <no-reply@app.com>',
+    to: toEmail,
+    subject: "🎉 Your Giveaway Prize is Delivered!",
+    html: `
+      <h2>Congratulations 🎉</h2>
+      <p>Your prize <b>${prizeTitle}</b> has been successfully delivered.</p>
+      <p>Thank you for participating!</p>
+    `
+  });
+};
+
+
+
+
+
 
 // module.exports.sendEmail = async (to, subject, text) => {
 

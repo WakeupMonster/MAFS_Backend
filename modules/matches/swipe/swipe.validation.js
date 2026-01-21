@@ -3,7 +3,7 @@ const Joi = require("joi");
 exports.feed = (req, res, next) => {
   const schema = Joi.object({
     limit: Joi.number().min(1).max(50).optional(),
-    cursor: Joi.string().optional() // optional cursor for paging
+    page: Joi.string().optional() // optional cursor for paging
   });
   const { error } = schema.validate(req.query);
   if (error) return res.status(400).json({ success: false, message: error.details[0].message });
