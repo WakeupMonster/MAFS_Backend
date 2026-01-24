@@ -92,7 +92,14 @@ const userSchema = new mongoose.Schema(
     },
     accountStatus: {
       type: String,
-      enum: ["active", "deactivated", "married", "deleted", "banned"],
+      enum: [
+        "active",
+        "deactivated",
+        "married",
+        "deleted",
+        "banned",
+        "suspended",
+      ],
       default: "active",
       index: true,
     },
@@ -113,6 +120,16 @@ const userSchema = new mongoose.Schema(
         default: null,
       },
       bannedAt: {
+        type: Date,
+        default: null,
+      },
+
+      unbannedBy: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "User",
+        default: null,
+      },
+      unbannedAt: {
         type: Date,
         default: null,
       },
@@ -199,37 +216,34 @@ const userSchema = new mongoose.Schema(
       default: null,
     },
 
-lastLoginAt: {
-  type: Date,
-  default: null,
-  index: true
-},
+    lastLoginAt: {
+      type: Date,
+      default: null,
+      index: true,
+    },
 
-// ============ PASSWORD (ADMIN ONLY) ============
-password: {
-  type: String,
-  select: false,        
-  minlength: 8
-},
-  passwordChangedAt: {
-    type: Date
+    // ============ PASSWORD (ADMIN ONLY) ============
+    password: {
+      type: String,
+      select: false,
+      minlength: 8,
+    },
+    passwordChangedAt: {
+      type: Date,
+    },
+
+    lastPasswordResetAt: {
+      type: Date,
+    },
+
+    authMethod: {
+      type: String,
+      enum: ["phone", "email", "google", "facebook", "apple", "password"],
+      default: "phone",
+    },
   },
-
-  lastPasswordResetAt: {
-    type: Date
-  },
-
-authMethod: {
-    type: String,
-    enum: ["phone", "email", "google", "facebook", "apple","password"],
-    default: "phone"
-  }
-}, { timestamps: true });
-
-
-
-
-
+  { timestamps: true }
+);
 
 // ============ INDEXES ============
 // userSchema.index({ phone: 1 });

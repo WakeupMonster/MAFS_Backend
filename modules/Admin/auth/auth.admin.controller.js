@@ -85,81 +85,81 @@
 //   }
 // };
 
-module.exports.adminRegister = async (req, res) => {
-  try {
-    // 1. Validate Request Body
-    const { error, value } = adminRegisterSchema.validate(req.body);
-    if (error) {
-      return res
-        .status(400)
-        .json({ success: false, message: error.details[0].message });
-    }
+// module.exports.adminRegister = async (req, res) => {
+//   try {
+//     // 1. Validate Request Body
+//     const { error, value } = adminRegisterSchema.validate(req.body);
+//     if (error) {
+//       return res
+//         .status(400)
+//         .json({ success: false, message: error.details[0].message });
+//     }
 
-    const { fullName, phone, email, password } = value;
+//     const { fullName, phone, email, password } = value;
 
-    // 2. Normalize: If email exists, phone is null (and vice versa)
-    const adminEmail = email || null;
-    const adminPhone = phone || null;
+//     // 2. Normalize: If email exists, phone is null (and vice versa)
+//     const adminEmail = email || null;
+//     const adminPhone = phone || null;
 
-    // 3. Check if admin already exists (only check fields that aren't null)
-    const query = [];
-    if (adminEmail) query.push({ email: adminEmail });
-    if (adminPhone) query.push({ phone: adminPhone });
+//     // 3. Check if admin already exists (only check fields that aren't null)
+//     const query = [];
+//     if (adminEmail) query.push({ email: adminEmail });
+//     if (adminPhone) query.push({ phone: adminPhone });
 
-    const existingAdmin = await User.findOne({ $or: query });
-    if (existingAdmin) {
-      return res.status(400).json({
-        success: false,
-        message: "An account with this email or phone already exists",
-      });
-    }
+//     const existingAdmin = await User.findOne({ $or: query });
+//     if (existingAdmin) {
+//       return res.status(400).json({
+//         success: false,
+//         message: "An account with this email or phone already exists",
+//       });
+//     }
 
-    // 4. Hash Password (Assuming your utils.passwordHashed works correctly)
-    const hashedPassword = await utils.passwordHashed(password);
+//     // 4. Hash Password (Assuming your utils.passwordHashed works correctly)
+//     const hashedPassword = await utils.passwordHashed(password);
 
-    // 5. Create Admin User (Auth Model)
-    const newAdmin = await User.create({
-      email: adminEmail,
-      phone: adminPhone,
-      password: hashedPassword,
-      role: "ADMIN",
-      isEmailVerified: !!adminEmail, // Verify automatically if provided
-      isPhoneVerified: !!adminPhone,
-      authMethod: adminEmail ? "email" : "phone",
-    });
+//     // 5. Create Admin User (Auth Model)
+//     const newAdmin = await User.create({
+//       email: adminEmail,
+//       phone: adminPhone,
+//       password: hashedPassword,
+//       role: "ADMIN",
+//       isEmailVerified: !!adminEmail, // Verify automatically if provided
+//       isPhoneVerified: !!adminPhone,
+//       authMethod: adminEmail ? "email" : "phone",
+//     });
 
-    // 6. Create Admin Profile (Profile Model)
-    const profile = await Profile.create({
-      userId: newAdmin._id,
-      fullName: fullName,
-      //   isMandatoryComplete: true,
-    });
+//     // 6. Create Admin Profile (Profile Model)
+//     const profile = await Profile.create({
+//       userId: newAdmin._id,
+//       fullName: fullName,
+//       //   isMandatoryComplete: true,
+//     });
 
-    // 7. Structure Response Data
-    const data = {
-      id: newAdmin._id,
-      profileId: profile._id,
-      fullName: profile.fullName,
-      email: newAdmin.email,
-      isEmailVerified: newAdmin.isEmailVerified,
-      phone: newAdmin.phone,
-      isPhoneVerified: newAdmin.isPhoneVerified,
-      role: newAdmin.role,
-      authMethod: newAdmin.authMethod,
-    };
+//     // 7. Structure Response Data
+//     const data = {
+//       id: newAdmin._id,
+//       profileId: profile._id,
+//       fullName: profile.fullName,
+//       email: newAdmin.email,
+//       isEmailVerified: newAdmin.isEmailVerified,
+//       phone: newAdmin.phone,
+//       isPhoneVerified: newAdmin.isPhoneVerified,
+//       role: newAdmin.role,
+//       authMethod: newAdmin.authMethod,
+//     };
 
-    return res.status(201).json({
-      success: true,
-      message: "Admin registered successfully",
-      data,
-    });
-  } catch (error) {
-    console.error("Error in adminRegister:", error);
-    return res
-      .status(500)
-      .json({ success: false, error: "Internal Server Error" });
-  }
-};
+//     return res.status(201).json({
+//       success: true,
+//       message: "Admin registered successfully",
+//       data,
+//     });
+//   } catch (error) {
+//     console.error("Error in adminRegister:", error);
+//     return res
+//       .status(500)
+//       .json({ success: false, error: "Internal Server Error" });
+//   }
+// };
 
 // exports.adminLogin = async (req, res) => {
 //   try {
@@ -220,7 +220,7 @@ module.exports.adminRegister = async (req, res) => {
 
 // module.exports.adminLogin = async (req, res) => {
 //   try {
- 
+
 //     const { error, value } = adminLoginSchema.validate(req.body);
 //     if (error) {
 //       return res.status(400).json({
@@ -231,7 +231,6 @@ module.exports.adminRegister = async (req, res) => {
 
 //     const { email, password } = value;
 
-  
 //     const admin = await User.findOne({
 //       email,
 //       role: "ADMIN",
@@ -379,7 +378,7 @@ module.exports.adminRegister = async (req, res) => {
 // };
 
 // /*==================================================
-//   POST API 2: Verify Email OTP 
+//   POST API 2: Verify Email OTP
 // ===================================================*/
 // module.exports.verifyEmailOTP = async (req, res) => {
 //   try {
@@ -559,8 +558,6 @@ module.exports.adminRegister = async (req, res) => {
 //   }
 // };
 
-
-
 const User = require("../../auth/auth.model");
 const Profile = require("../../profile/profile.model");
 const utils = require("../../auth/auth.utils");
@@ -569,30 +566,25 @@ const AppError = require("../../../common/errors/ApiError");
 const {
   adminRegisterSchema,
   adminLoginSchema,
-  adminResetPasswordSchema
+  adminResetPasswordSchema,
 } = require("./auth.validation");
 
 const REFRESH_TOKEN_TTL_MS = 30 * 24 * 60 * 60 * 1000;
 const MAX_REFRESH_TOKENS = 5;
 const ADMIN_EMAIL_OTP_TTL = 300; // 5 min
 
-
-exports.adminRegister = async (req, res, next) => {
+module.exports.adminRegister = async (req, res, next) => {
   try {
     const { error, value } = adminRegisterSchema.validate(req.body);
     if (error) {
-      throw new AppError(
-        "VALIDATION_ERROR",
-        error.details[0].message,
-        400
-      );
+      throw new AppError("VALIDATION_ERROR", error.details[0].message, 400);
     }
 
-    const { fullName, phone, email, password } = value;
+    const { nickname, phone, email, password } = value;
 
     const exists = await User.findOne({
       $or: [{ email }, { phone }],
-      role: "ADMIN"
+      role: "ADMIN",
     });
 
     if (exists) {
@@ -612,40 +604,35 @@ exports.adminRegister = async (req, res, next) => {
       role: "ADMIN",
       authMethod: email ? "email" : "phone",
       isEmailVerified: !!email,
-      isPhoneVerified: !!phone
+      isPhoneVerified: !!phone,
     });
 
     await Profile.create({
       userId: admin._id,
-      fullName
+      nickname,
     });
 
     res.status(201).json({
       success: true,
-      message: "Admin registered successfully"
+      message: "Admin registered successfully",
     });
   } catch (err) {
     next(err);
   }
 };
 
-
-exports.adminLogin = async (req, res, next) => {
+module.exports.adminLogin = async (req, res, next) => {
   try {
     const { error, value } = adminLoginSchema.validate(req.body);
     if (error) {
-      throw new AppError(
-        "VALIDATION_ERROR",
-        error.details[0].message,
-        400
-      );
+      throw new AppError("VALIDATION_ERROR", error.details[0].message, 400);
     }
 
     const { email, password } = value;
 
     const admin = await User.findOne({
       email,
-      role: "ADMIN"
+      role: "ADMIN",
     }).select("+password +refreshTokens");
 
     if (!admin) {
@@ -657,11 +644,7 @@ exports.adminLogin = async (req, res, next) => {
     }
 
     if (admin.accountStatus !== "active") {
-      throw new AppError(
-        "ACCOUNT_RESTRICTED",
-        "Account is restricted",
-        403
-      );
+      throw new AppError("ACCOUNT_RESTRICTED", "Account is restricted", 403);
     }
 
     const isMatch = await utils.passwordCompared(password, admin.password);
@@ -679,23 +662,44 @@ exports.adminLogin = async (req, res, next) => {
     const now = Date.now();
 
     admin.refreshTokens = admin.refreshTokens
-      .filter(t => t.expiresAt > now)
+      .filter((t) => t.expiresAt > now)
       .slice(-MAX_REFRESH_TOKENS + 1);
 
     admin.refreshTokens.push({
       tokenHash: refreshTokenHash,
-      expiresAt: now + REFRESH_TOKEN_TTL_MS
+      expiresAt: now + REFRESH_TOKEN_TTL_MS,
     });
 
     await admin.save();
 
+    /* ------------------------------------
+     * 7️⃣ Fetch Profile (lean & minimal)
+     * ---------------------------------- */
+    const profile = await Profile.findOne({ userId: admin._id })
+      .select("nickname photos")
+      .lean();
+
     res.json({
       success: true,
       message: "Login successful",
+      screen: "/admin/dashboard",
+      // data: {
+      //   accessToken,
+      //   refreshToken: refreshTokenRaw
+      // }
       data: {
-        accessToken,
-        refreshToken: refreshTokenRaw
-      }
+        id: admin._id,
+        profileId: profile?._id || null,
+        nickname: profile?.nickname || null,
+        email: admin.email,
+        phone: admin.phone,
+        role: admin.role,
+        auth: {
+          accessToken,
+          refreshToken: refreshTokenRaw, // only sent once
+          tokenType: "Bearer",
+        },
+      },
     });
   } catch (err) {
     next(err);
@@ -709,24 +713,16 @@ module.exports.sendEmailOTP = async (req, res) => {
   try {
     const { email } = req.body;
     if (!email) {
-      throw new AppError(
-        "EMAIL_REQUIRED",
-        "Email is required",
-        400
-      );
+      throw new AppError("EMAIL_REQUIRED", "Email is required", 400);
     }
 
     const admin = await User.findOne({
       email,
-      role: "ADMIN"
+      role: "ADMIN",
     });
 
     if (!admin) {
-      throw new AppError(
-        "ADMIN_NOT_FOUND",
-        "Admin not found",
-        404
-      );
+      throw new AppError("ADMIN_NOT_FOUND", "Admin not found", 404);
     }
 
     const otp = utils.generateOtp();
@@ -822,7 +818,7 @@ module.exports.adminForgotPassword = async (req, res) => {
 
     const admin = await User.findOne({
       email,
-      role: "ADMIN"
+      role: "ADMIN",
     }).select("+password +refreshTokens");
 
     if (!admin) {
@@ -866,16 +862,12 @@ module.exports.adminResetPassword = async (req, res) => {
 
     const { error, value } = adminResetPasswordSchema.validate(req.body);
     if (error) {
-      throw new AppError(
-        "VALIDATION_ERROR",
-        error.details[0].message,
-        400
-      );
+      throw new AppError("VALIDATION_ERROR", error.details[0].message, 400);
     }
 
     const admin = await User.findOne({
       _id: adminId,
-      role: "ADMIN"
+      role: "ADMIN",
     }).select("+password +refreshTokens");
 
     if (!admin) {
@@ -902,7 +894,7 @@ module.exports.adminResetPassword = async (req, res) => {
 
     res.json({
       success: true,
-      message: "Password updated successfully"
+      message: "Password updated successfully",
     });
   } catch (err) {
     next(err);

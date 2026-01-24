@@ -6,6 +6,7 @@ const {
   updateFaq,
   addSectionSchema,
   updateSectionSchema,
+  updatePrivacySchema,
 } = require("./content.validation");
 const mongoose = require("mongoose");
 
@@ -63,17 +64,18 @@ module.exports.createFAQ = async (req, res) => {
       });
     }
 
-    // 🔒 Prevent duplicate order PER CATEGORY
-    const exists = await Faq.findOne({
-      category: value.category,
-      order: value.order,
-    });
-
-    if (exists) {
-      return res.status(409).json({
-        success: false,
-        message: `FAQ with order ${value.order} already exists in ${value.category}`,
-      });
+    // 🪄 Auto-assign 'order' correctly
+    if (value.order === undefined || value.order === null) {
+      const lastFaq = await Faq.findOne().sort({ order: -1 });
+      value.order = lastFaq ? lastFaq.order + 1 : 1;
+    } else {
+      const exists = await Faq.findOne({ order: value.order });
+      if (exists) {
+        return res.status(409).json({
+          success: false,
+          message: `FAQ with order ${value.order} already exists.`,
+        });
+      }
     }
 
     const faq = await Faq.create(value);
@@ -152,7 +154,7 @@ module.exports.createFAQ = async (req, res) => {
 
 module.exports.updateFAQ = async (req, res) => {
   try {
-    const { id } = req.query;
+    const { id } = req.params;
 
     const { error, value } = updateFaq.validate(req.body);
     if (error) {
@@ -220,7 +222,7 @@ module.exports.updateFAQ = async (req, res) => {
 
 module.exports.deleteFAQ = async (req, res) => {
   try {
-    const { id } = req.query;
+    const { id } = req.params;
 
     const faq = await Faq.findByIdAndDelete(id);
     if (!faq) {
@@ -246,6 +248,51 @@ module.exports.deleteFAQ = async (req, res) => {
  * Privacy Policy
  * =========================================
  */
+
+module.exports.updatePrivacyPolicy = async (req, res) => {
+  try {
+    // 1. Validate the new structure (title, status, description)
+    const { error, value } = updatePrivacySchema.validate(req.body);
+    if (error) {
+      return res.status(400).json({
+        success: false,
+        message: error.details[0].message.replace(/"/g, ""),
+      });
+    }
+
+    // 2. Update the single document (upsert: true creates it if it doesn't exist)
+    const privacy = await PrivacyPolicy.findOneAndUpdate(
+      {},
+      {
+        title: value.title,
+        status: value.status,
+        description: value.description,
+      },
+      {
+        new: true,
+        upsert: true,
+        runValidators: true,
+      }
+    );
+
+    // 3. Clear the specific Redis cache key
+    if (typeof redis !== "undefined" && redis) {
+      await redis.del("privacy_policy:content");
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: "Privacy policy updated successfully",
+      data: privacy,
+    });
+  } catch (error) {
+    console.error("Update policy error:", error);
+    res.status(500).json({
+      success: false,
+      message: "Failed to update privacy policy",
+    });
+  }
+};
 
 module.exports.addPrivacySection = async (req, res) => {
   try {

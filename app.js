@@ -1,7 +1,7 @@
 const express = require("express");
 const app = express();
 const cors = require("cors");
-const errorHandling = require("./common/middlewares/error.middleware")
+const errorHandling = require("./common/middlewares/error.middleware");
 
 require("./jobs/giveaway/giveaway.cron"); // <-- cron auto starts
 
@@ -16,7 +16,7 @@ app.use(express.urlencoded({ extended: true }));
 
 app.use(
   cors({
-    origin: ["http://localhost:5173"], // Ya specific frontend URL
+    origin: "http://localhost:5173", // Ya specific frontend URL
     credentials: true,
     methods: ["GET", "POST", "PUT", "DELETE", "PATCH"],
   })

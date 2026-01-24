@@ -23,7 +23,7 @@ exports.createFaq = Joi.object({
       "other"
     )
     .required(),
-  order: Joi.number().integer().min(0).required(),
+  order: Joi.number().integer().min(0).optional(),
 });
 
 exports.updateFaq = Joi.object({
@@ -41,7 +41,7 @@ exports.updateFaq = Joi.object({
       "other"
     )
     .required(),
-  order: Joi.number().integer().min(0).required(),
+  order: Joi.number().integer().min(0).optional(),
 });
 
 /*===================================
@@ -83,4 +83,10 @@ exports.updateSectionSchema = Joi.object({
 exports.upsertPrivacySchema = Joi.object({
   title: Joi.string().trim().min(3).max(100).optional(),
   sections: Joi.array().items(sectionSchema).min(1).required(),
+});
+
+exports.updatePrivacySchema = Joi.object({
+  title: Joi.string().required(),
+  status: Joi.string().valid("Publish", "Draft", "Unpublish").required(),
+  description: Joi.string().required(), // Validates the HTML string from Quill
 });

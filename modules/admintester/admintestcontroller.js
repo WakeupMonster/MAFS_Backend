@@ -258,7 +258,7 @@ exports.banUser = async (req, res) => {
   try {
     const adminId = req.user._id;
     const userId = req.params.id;
-    const { reason } = req.body;
+    const { category, reason } = req.body;
 
     if (!reason) {
       return res.status(400).json({
@@ -338,38 +338,41 @@ exports.unbanUser = async (req, res) => {
     const userId = req.params.id;
     // const { reason } = req.body;
 
-    if (adminId.equals(userId)) {
-      return res.status(403).json({
-        success: false,
-        message: "You cannot unban yourself",
-      });
+    if (!adminId)
+      return res.status(401).json({ success: false, message: "Unauthorized" });
+
+    // Safe Comparison
+    if (adminId.toString() === userId.toString()) {
+      return res
+        .status(403)
+        .json({ success: false, message: "You cannot unban yourself" });
     }
 
     const user = await User.findById(userId);
-    if (!user) {
-      return res.status(404).json({
-        success: false,
-        message: "User not found",
-      });
-    }
+    if (!user)
+      return res
+        .status(404)
+        .json({ success: false, message: "User not found" });
 
+    // Safe check for ban status
     if (!user.banDetails?.isBanned) {
-      return res.status(409).json({
-        success: false,
-        message: "User is not banned",
-      });
+      return res
+        .status(409)
+        .json({ success: false, message: "User is not banned" });
     }
 
     // const before = { isBanned: true };
 
-    user.banDetails.isBanned = false;
-    user.banDetails.unbannedBy = adminId;
-    user.banDetails.unbannedAt = new Date();
-
-    // Optional cleanup
-    user.banDetails.reason = null;
-    user.banDetails.bannedBy = null;
-    user.banDetails.bannedAt = null;
+    // Update with safety for undefined banDetails
+    user.banDetails = {
+      ...user.banDetails,
+      isBanned: false,
+      unbannedBy: adminId,
+      unbannedAt: new Date(),
+      reason: null,
+      bannedBy: null,
+      bannedAt: null,
+    };
 
     user.accountStatus = "active";
     await user.save();
@@ -652,8 +655,7 @@ exports.getBlockedUsers = async (req, res) => {
       message: "Failed to load block data",
     });
   }
-};    
-
+};
 
 exports.getPendingVerifications = async (req, res, next) => {
   try {
@@ -661,41 +663,41 @@ exports.getPendingVerifications = async (req, res, next) => {
     const pendingProfiles = await Profile.aggregate([
       {
         $match: {
-          'verification.status': 'pending'
-        }
+          "verification.status": "pending",
+        },
       },
       {
         $lookup: {
-          from: 'users',
-          localField: 'userId',
-          foreignField: '_id',
-          as: 'user'
-        }
+          from: "users",
+          localField: "userId",
+          foreignField: "_id",
+          as: "user",
+        },
       },
-      { $unwind: '$user' },
+      { $unwind: "$user" },
       {
         $project: {
           _id: 1,
           userId: 1,
           verification: 1,
-          'user.email': 1,
-          'user.phone': 1,
-          'user.createdAt': 1,
-          'profilePhoto': 1,
-          'fullName': 1
-        }
+          "user.email": 1,
+          "user.phone": 1,
+          "user.createdAt": 1,
+          profilePhoto: 1,
+          fullName: 1,
+        },
       },
-      { $sort: { createdAt: -1 } }
+      { $sort: { createdAt: -1 } },
     ]);
     res.json({
       success: true,
       count: pendingProfiles.length,
-      data: pendingProfiles
+      data: pendingProfiles,
     });
   } catch (error) {
     res.status(500).json({
-      success:false,
-      message : "Failed to fetch pending verifications"
-    })
+      success: false,
+      message: "Failed to fetch pending verifications",
+    });
   }
 };

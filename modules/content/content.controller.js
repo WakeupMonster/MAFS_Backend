@@ -1,4 +1,4 @@
-const redis = require("../../common/redis");
+const redis = require("../../config/cache");
 const {
   Faq,
   PrivacyPolicy,
@@ -140,65 +140,95 @@ exports.getFAQ = async (req, res) => {
  * PRIVACY POLICY
  * =========================================
  */
-exports.getPrivacyPolicy = async (req, res) => {
+// exports.getPrivacyPolicy = async (req, res) => {
+//   try {
+//     const cacheKey = "privacy_policy:list";
+
+//     // 1️⃣ Try cache first
+//     const cached = await redis.get(cacheKey);
+//     if (cached) {
+//       return res.status(200).json({
+//         success: true,
+//         cached: true,
+//         title: "Privacy And Policy",
+//         data: JSON.parse(cached),
+//       });
+//     }
+
+//     // 2️⃣ Fetch SINGLE document
+//     const privacy = await PrivacyPolicy.findOne({}).select("-__v").lean();
+
+//     if (!privacy) {
+//       return res.status(404).json({
+//         success: false,
+//         message: "Privacy Policy not found",
+//       });
+//     }
+
+//     // 3️⃣ PROJECT SECTIONS & Sort
+//     const projectedSections = privacy.sections
+//       .sort((a, b) => a.order - b.order)
+//       .map((section) => ({
+//         _id: section._id,
+//         order: section.order,
+//         heading: section.heading,
+//         paragraph: section.paragraph,
+//         list: section.list || [],
+//       }));
+
+//     const response = {
+//       id: privacy._id,
+//       title: privacy.title,
+//       sections: projectedSections,
+//       createdAt: privacy.createdAt,
+//       updatedAt: privacy.updatedAt,
+//     };
+
+//     // 4️⃣ Cache for 24 hours
+//     await redis.set(cacheKey, JSON.stringify(response), "EX", 60 * 60 * 24);
+
+//     return res.status(200).json({
+//       success: true,
+//       title: "Privacy And Policy",
+//       data: response,
+//     });
+//   } catch (err) {
+//     console.error("Get Privacy Policy error", err);
+
+//     return res.status(500).json({
+//       success: false,
+//       message: "Failed to load Privacy Policy",
+//     });
+//   }
+// };
+
+module.exports.getPrivacyPolicy = async (req, res) => {
   try {
-    const cacheKey = "privacy_policy:list";
-
-    // 1️⃣ Try cache first
-    const cached = await redis.get(cacheKey);
-    if (cached) {
-      return res.status(200).json({
-        success: true,
-        cached: true,
-        title: "Privacy And Policy",
-        data: JSON.parse(cached),
-      });
+    // Try to get from Redis first
+    const cachedPolicy = await redis.get("privacy_policy:content");
+    if (cachedPolicy) {
+      return res
+        .status(200)
+        .json({ success: true, data: JSON.parse(cachedPolicy) });
     }
 
-    // 2️⃣ Fetch SINGLE document
-    const privacy = await PrivacyPolicy.findOne({}).select("-__v").lean();
+    const privacy = await PrivacyPolicy.findOne({});
 
-    if (!privacy) {
-      return res.status(404).json({
-        success: false,
-        message: "Privacy Policy not found",
-      });
+    if (privacy && typeof redis !== "undefined") {
+      await redis.set(
+        "privacy_policy:content",
+        JSON.stringify(privacy),
+        "EX",
+        86400
+      ); // 24h cache
     }
 
-    // 3️⃣ PROJECT SECTIONS & Sort
-    const projectedSections = privacy.sections
-      .sort((a, b) => a.order - b.order)
-      .map((section) => ({
-        _id: section._id,
-        order: section.order,
-        heading: section.heading,
-        paragraph: section.paragraph,
-        list: section.list || [],
-      }));
-
-    const response = {
-      id: privacy._id,
-      title: privacy.title,
-      sections: projectedSections,
-      createdAt: privacy.createdAt,
-      updatedAt: privacy.updatedAt,
-    };
-
-    // 4️⃣ Cache for 24 hours
-    await redis.set(cacheKey, JSON.stringify(response), "EX", 60 * 60 * 24);
-
-    return res.status(200).json({
+    res.status(200).json({
       success: true,
-      title: "Privacy And Policy",
-      data: response,
+      data: privacy || { title: "Privacy Policy", description: "" },
     });
-  } catch (err) {
-    console.error("Get Privacy Policy error", err);
-
-    return res.status(500).json({
-      success: false,
-      message: "Failed to load Privacy Policy",
-    });
+  } catch (error) {
+    res.status(500).json({ success: false, message: "Failed to fetch policy" });
   }
 };
 
