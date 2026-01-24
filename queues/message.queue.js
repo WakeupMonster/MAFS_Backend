@@ -9,5 +9,4 @@ const messageQueue = new Queue("message-delivery", {
     removeOnFail: false,
   },
 });
-
 module.exports = messageQueue;

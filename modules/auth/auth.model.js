@@ -18,10 +18,10 @@ const socialProviderSchema = new mongoose.Schema({
 const userSchema = new mongoose.Schema({
   // ============ PHONE AUTHENTICATION ============
   phone: { type: String, unique: true, sparse: true },
-   phoneHash: {
+  phoneHash: {
     type: String,
     index: true
-  },     
+  },
   isPhoneVerified: { type: Boolean, default: false },
   phoneOtp: { type: String },
   phoneOtpExpires: { type: Date },
@@ -55,12 +55,12 @@ const userSchema = new mongoose.Schema({
   //   matches: { type: Boolean, default: true }
   // },
 
-//   notificationSettings: {
-//   push: { type: Boolean, default: true },
-//   email: { type: Boolean, default: false },
-//   matches: { type: Boolean, default: true },
-//   messages: { type: Boolean, default: true }
-// },
+  //   notificationSettings: {
+  //   push: { type: Boolean, default: true },
+  //   email: { type: Boolean, default: false },
+  //   matches: { type: Boolean, default: true },
+  //   messages: { type: Boolean, default: true }
+  // },
 
 
   // ============ STATUS FLAGS ============
@@ -69,133 +69,133 @@ const userSchema = new mongoose.Schema({
   isProfileCompleted: { type: Boolean, default: false },
 
   role: {
-  type: String,
-  enum: ["USER", "ADMIN"],
-  default: "USER",
-  index: true
-},
+    type: String,
+    enum: ["USER", "ADMIN"],
+    default: "USER",
+    index: true
+  },
   accountStatus: {
-  type: String,
-  enum: ["active", "deactivated", "married", "deleted","banned"],
-  default: "active",
-  index: true
-},
-
-  banDetails: {
-  isBanned: {
-    type: Boolean,
-    default: false,
-    index : true
-  },
-  reason: {
     type: String,
-    default: null
-  },
-  bannedBy: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: "User",
-    default: null
-  },
-  bannedAt: {
-    type: Date,
-    default: null
-  }
-},
-
-deactivationDetails: {
-  isDeactivated: {
-    type: Boolean,
-    default: false
-  },
-  reason: {
-    type: String,
-    default: null
-  },
-  deactivatedAt: {
-    type: Date,
-    default: null
-  }
-},
-
-deletionDetails: {
-  isScheduledForDeletion: {
-    type: Boolean,
-    default: false
-  },
-  scheduledAt: {
-    type: Date,
-    default: null
-  }
-},
-
-suspensionDetails: {
-  isSuspended: {
-    type: Boolean,
-    default: false,
+    enum: ["active", "deactivated", "married", "deleted", "banned","suspended"],
+    default: "active",
     index: true
   },
 
-  reason: {
-    type: String,
-    default: null
+  banDetails: {
+    isBanned: {
+      type: Boolean,
+      default: false,
+      index: true
+    },
+    reason: {
+      type: String,
+      default: null
+    },
+    bannedBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+      default: null
+    },
+    bannedAt: {
+      type: Date,
+      default: null
+    }
   },
 
-  suspendedBy: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: "User", // admin
-    default: null
+  deactivationDetails: {
+    isDeactivated: {
+      type: Boolean,
+      default: false
+    },
+    reason: {
+      type: String,
+      default: null
+    },
+    deactivatedAt: {
+      type: Date,
+      default: null
+    }
   },
 
-  suspendedAt: {
+  deletionDetails: {
+    isScheduledForDeletion: {
+      type: Boolean,
+      default: false
+    },
+    scheduledAt: {
+      type: Date,
+      default: null
+    }
+  },
+  //temporary suspension
+  suspensionDetails: {
+    isSuspended: {
+      type: Boolean,
+      default: false,
+      index: true
+    },
+
+    reason: {
+      type: String,
+      default: null
+    },
+
+    suspendedBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User", // admin
+      default: null
+    },
+
+    suspendedAt: {
+      type: Date,
+      default: null
+    },
+
+    suspendUntil: {
+      type: Date,
+      default: null,
+      index: true
+    }
+  },
+
+  onboarding: {
+    isComplete: {
+      type: Boolean,
+      default: false
+    },
+    // nextstep: {
+    //   type: Number,
+    //   default: 7
+    // },
+    currentScreenSlug: {
+      type: String,
+      default: ""
+    }
+  },
+
+
+  isPremium: {
+    type: Boolean,
+    default: false
+  },
+
+  premiumExpiresAt: {
     type: Date,
     default: null
   },
 
-  suspendUntil: {
+  lastLoginAt: {
     type: Date,
     default: null,
     index: true
-  }
-},  
-
-onboarding: {
-  isComplete: {
-    type: Boolean,
-    default: false
   },
-  // nextstep: {
-  //   type: Number,
-  //   default: 7
-  // },
-  currentScreenSlug: {
+
+  // ============ PASSWORD (ADMIN ONLY) ============
+  password: {
     type: String,
-    default: ""
-  }
-},
-
-
-isPremium: {
-  type: Boolean,
-  default: false
-},
-
-premiumExpiresAt: {
-  type: Date,
-  default: null
-},
-
-lastLoginAt: {
-  type: Date,
-  default: null,
-  index: true
-},
-
-// ============ PASSWORD (ADMIN ONLY) ============
-password: {
-  type: String,
-  select: false,        
-  minlength: 8
-},
+    select: false,
+    minlength: 8
+  },
   passwordChangedAt: {
     type: Date
   },
@@ -204,9 +204,9 @@ password: {
     type: Date
   },
 
-authMethod: {
+  authMethod: {
     type: String,
-    enum: ["phone", "email", "google", "facebook", "apple","password"],
+    enum: ["phone", "email", "google", "facebook", "apple", "password"],
     default: "phone"
   }
 }, { timestamps: true });

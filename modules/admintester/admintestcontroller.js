@@ -5,38 +5,49 @@ const User = require("../auth/auth.model");
 const Profile = require("../profile/profile.model");
 const Report = require("../profile/user.report");
 const UserSubscription = require("../auth/UserSubscription.model");
-const redis = require("../../config/cache"); 
+const redis = require("../../config/cache");
 const Block = require("../profile/user.block")
-
+const SupportTicket = require("../AppConfiguration/contactSupport/supportTicket.model")
+const GiveawayWinHistory = require("../../modules/giveaway/giveawayWinHistory.model");
 exports.getKpiOverview = async (req, res) => {
   try {
-    // ---------- 1. Time calculations ----------
     const now = new Date();
     const last24Hours = new Date(now.getTime() - 24 * 60 * 60 * 1000);
 
-    // ---------- 2. Parallel DB queries ----------
     const [
       totalUsers,
       activeUsers24h,
       paidUsers,
+      TotalBanUsers,
+      TotalTickets,
+      ClaimedPrize,
       pendingVerifications,
       openReports
     ] = await Promise.all([
       User.countDocuments({
-  accountStatus: "active",
-  role: "USER"
-}),
+        accountStatus: "active",
+        role: "USER"
+      }),
 
       User.countDocuments({
         lastLoginAt: { $gte: last24Hours },
         role: "USER",
-accountStatus: "active"
+        accountStatus: "active"
       }),
 
       UserSubscription.countDocuments({
         isActive: true
       }),
-
+      User.countDocuments({
+        accountStatus: "banned",
+      }),
+      SupportTicket.countDocuments({
+        status: { $in: ["open"] }
+      }),
+      GiveawayWinHistory.countDocuments({
+        deliveryStatus: "PENDING",
+        claimedAt : { $ne : null }
+      }),
       Profile.countDocuments({
         "verification.status": "pending"
       }),
@@ -57,6 +68,15 @@ accountStatus: "active"
         },
         paidUsers: {
           value: paidUsers
+        },
+        TotalBanUsers: {
+          value: TotalBanUsers
+        },
+        TotalTickets: {
+          value: TotalTickets
+        },
+        ClaimedPrize : {
+          value : ClaimedPrize
         },
         pendingVerifications: {
           value: pendingVerifications,
@@ -332,7 +352,8 @@ exports.banUser = async (req, res) => {
     console.error("Ban user error:", err);
     return res.status(500).json({
       success: false,
-      message: "Failed to ban user"
+      message: "Failed to ban user",
+      error : err.message
     });
   }
 };
@@ -528,14 +549,14 @@ exports.replyToReport = async (req, res) => {
     }
 
     if (!Array.isArray(report.replyHistory)) {
-  report.replyHistory = [];
-}
-   report.replyHistory.push({
-  message,
-  repliedBy: adminId,
-  repliedAt: new Date()
-});
-report.handledBy = adminId;
+      report.replyHistory = [];
+    }
+    report.replyHistory.push({
+      message,
+      repliedBy: adminId,
+      repliedAt: new Date()
+    });
+    report.handledBy = adminId;
     // Move to in-progress automatically
     if (report.status === "new") {
       report.status = "in_progress";
@@ -550,19 +571,19 @@ report.handledBy = adminId;
     //   message
     // );
     const reporter = await User.findById(report.reporterId)
-  .select("email");
+      .select("email");
 
-if (reporter?.email) {
-  await utils.sendEmail(
-    reporter.email,
-    "We are reviewing your report",
-    `<p>${message}</p><p>— Support Team</p>`
-  );
-} else {
-  console.log(
-    `Report reply skipped email: reporter ${report.reporterId} has no email`
-  );
-}
+    if (reporter?.email) {
+      await utils.sendEmail(
+        reporter.email,
+        "We are reviewing your report",
+        `<p>${message}</p><p>— Support Team</p>`
+      );
+    } else {
+      console.log(
+        `Report reply skipped email: reporter ${report.reporterId} has no email`
+      );
+    }
 
 
     res.json({
@@ -574,7 +595,7 @@ if (reporter?.email) {
     res.status(500).json({
       success: false,
       message: "Failed to send reply",
-      error : err.message
+      error: err.message
     });
   }
 };
@@ -593,7 +614,7 @@ exports.updateReportStatus = async (req, res) => {
     }
 
     const report = await Report.findById(req.params.reportId);
-    
+
     if (!report) {
       return res.status(404).json({
         success: false,
@@ -609,10 +630,10 @@ exports.updateReportStatus = async (req, res) => {
 
       if (notifyUser && report.reporterId.email) {
         await utils.sendEmail(
-  report.reporterId.email,
-  "Your report has been resolved",
-  "Thanks for reporting. We have taken appropriate action."
-);
+          report.reporterId.email,
+          "Your report has been resolved",
+          "Thanks for reporting. We have taken appropriate action."
+        );
 
       }
     }
@@ -672,7 +693,7 @@ exports.getBlockedUsers = async (req, res) => {
       message: "Failed to load block data"
     });
   }
-};    
+};
 
 
 exports.getPendingVerifications = async (req, res, next) => {
@@ -714,8 +735,8 @@ exports.getPendingVerifications = async (req, res, next) => {
     });
   } catch (error) {
     res.status(500).json({
-      success:false,
-      message : "Failed to fetch pending verifications"
+      success: false,
+      message: "Failed to fetch pending verifications"
     })
   }
 };

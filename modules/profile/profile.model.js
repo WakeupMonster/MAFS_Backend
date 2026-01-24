@@ -213,7 +213,6 @@ ProfileSchema.pre('save', function(next) {
   
   profile.onboardingProgress.totalCompletion = score;
 
-
   const isProfileReady = hasNickname && hasDob && hasGender && hasMinPhotos && hasLocation;
 
   profile.isMandatoryComplete = isProfileReady;

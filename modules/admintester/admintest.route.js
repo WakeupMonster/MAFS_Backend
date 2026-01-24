@@ -16,6 +16,5 @@ router.post("/reports/:reportId/status",updateReportStatus)
 router.post("/reports/:reportId/reply",replyToReport)
 
 //chat admin apis
-
 // Auto-unsuspend job (cron / worker)
-module.exports = router;    
+module.exports = router;        

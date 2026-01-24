@@ -108,21 +108,13 @@ exports.getSpinWheelConfig = async (req, res) => {
 
 const GiveawayWinHistory = require("../giveawayWinHistory.model");
 
-/**
- * ==========================================
- * 🎁 CLAIM GIVEAWAY PRIZE API
- * ==========================================
- * 👉 Sirf winner ke liye
- * 👉 Sirf ek baar
- * 👉 Fully production safe
- */
+
+
 exports.claimPrize = async (req, res) => {
   try {
     const userId = req.user._id;
 
-    /**
-     * 1️⃣ Aaj ka completed campaign nikaalo
-     */
+  
     const today = new Date();
     today.setHours(0, 0, 0, 0);
 
@@ -138,9 +130,7 @@ exports.claimPrize = async (req, res) => {
       });
     }
 
-    /**
-     * 2️⃣ Check karo user winner hai ya nahi
-     */
+  
     if (campaign.winnerUserId.toString() !== userId.toString()) {
       return res.status(403).json({
         success: false,
@@ -149,7 +139,7 @@ exports.claimPrize = async (req, res) => {
     }
 
     /**
-     * 3️⃣ Win history nikaalo
+     * Win history nikaalo
      */
     const winHistory = await GiveawayWinHistory.findOne({
       userId,
@@ -164,7 +154,7 @@ exports.claimPrize = async (req, res) => {
     }
 
     /**
-     * 4️⃣ Double claim protection
+     * 4Double claim protection
      */
     if (winHistory.claimedAt) {
       return res.status(400).json({
@@ -174,15 +164,12 @@ exports.claimPrize = async (req, res) => {
     }
 
     /**
-     * 5️⃣ Claim prize (LOCK)
+     * Claim prize (LOCK)
      */
     winHistory.claimedAt = new Date();
     winHistory.deliveryStatus = "PENDING";
     await winHistory.save();
 
-    /**
-     * 6️⃣ Success response
-     */
     return res.json({
       success: true,
       message: "Prize claimed successfully",

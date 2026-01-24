@@ -63,7 +63,7 @@ module.exports.createFAQ = async (req, res) => {
       });
     }
 
-    // 🔒 Prevent duplicate order PER CATEGORY
+    //  Prevent duplicate order PER CATEGORY
     const exists = await Faq.findOne({
       category: value.category,
       order: value.order,

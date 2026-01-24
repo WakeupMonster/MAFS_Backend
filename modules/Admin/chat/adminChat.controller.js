@@ -85,11 +85,112 @@ exports.getChatMessagesForReview = async (req, res) => {
   }
 };
 
+// exports.takeChatAction = async (req, res) => {
+//   try {
+//     const adminId = req.user._id;
+//     const { matchId } = req.params;
+//     const { action, messageIds = [], userId, reason } = req.body;
+
+//     if (!action || !reason) {
+//       return res.status(400).json({
+//         success: false,
+//         message: "Action and reason are required"
+//       });
+//     }
+
+//     if (action === "delete_message") {
+//       await ChatMessage.updateMany(
+//         { _id: { $in: messageIds } },
+//         {
+//           isDeletedForEveryone: true,
+//           text: "",
+//           media: []
+//         }
+//       );
+//     }
+
+//     if (action === "warn_user") {
+//       await User.findByIdAndUpdate(userId, {
+//         $push: {
+//           warnings: {
+//             reason,
+//             warnedBy: adminId,
+//             warnedAt: new Date()
+//           }
+//         }
+//       });
+//     }
+
+//     if (action === "block_user") {
+//       await User.findByIdAndUpdate(userId, {
+//         accountStatus: "suspended"
+//       });
+//     }
+
+//     if (action === "freeze_chat") {
+//       await Match.findByIdAndUpdate(matchId, {
+//         isFrozen: true
+//       });
+//     }
+
+//     await Report.updateMany(
+//       { matchId, status: { $ne: "resolved" } },
+//       {
+//         status: "resolved",
+//         resolvedBy: adminId,
+//         resolvedAt: new Date(),
+//         resolution: reason
+//       }
+//     );
+
+//     return res.json({
+//       success: true,
+//       message: "Action applied successfully"
+//     });
+//   } catch (err) {
+//     console.error("Admin takeChatAction error:", err);
+//     return res.status(500).json({
+//       success: false,
+//       message: "Failed to apply chat action"
+//     });
+//   }
+// };
+
+// exports.getChatActionHistory = async (req, res) => {
+//   try {
+//     const { matchId } = req.params;
+
+//     const history = await Report.find({
+//       matchId,
+//       status: "resolved"
+//     })
+//       .select("resolvedBy resolvedAt")
+//       .lean();
+
+//     return res.json({
+//       success: true,
+//       data: history
+//     });
+//   } catch (err) {
+//     console.error("Admin getChatActionHistory error:", err);
+//     return res.status(500).json({
+//       success: false,
+//       message: "Failed to fetch chat history"
+//     });
+//   }
+// };
+
 exports.takeChatAction = async (req, res) => {
   try {
     const adminId = req.user._id;
-    const { matchId } = req.params;
-    const { action, messageIds = [], userId, reason } = req.body;
+    const { reportId } = req.params;
+
+    const {
+      action,
+      reason,
+      messageIds = [],
+      targetUser
+    } = req.body;
 
     if (!action || !reason) {
       return res.status(400).json({
@@ -98,7 +199,15 @@ exports.takeChatAction = async (req, res) => {
       });
     }
 
-    if (action === "delete_message") {
+    const report = await Report.findById(reportId);
+    if (!report) {
+      return res.status(404).json({
+        success: false,
+        message: "Report not found"
+      });
+    }
+
+    if (action === "delete_message" && messageIds.length > 0) {
       await ChatMessage.updateMany(
         { _id: { $in: messageIds } },
         {
@@ -109,8 +218,8 @@ exports.takeChatAction = async (req, res) => {
       );
     }
 
-    if (action === "warn_user") {
-      await User.findByIdAndUpdate(userId, {
+    if (action === "warn_user" && targetUser) {
+      await User.findByIdAndUpdate(targetUser, {
         $push: {
           warnings: {
             reason,
@@ -121,61 +230,84 @@ exports.takeChatAction = async (req, res) => {
       });
     }
 
-    if (action === "block_user") {
-      await User.findByIdAndUpdate(userId, {
+    if (action === "block_user" && targetUser) {
+      await User.findByIdAndUpdate(targetUser, {
         accountStatus: "suspended"
       });
     }
 
-    if (action === "freeze_chat") {
-      await Match.findByIdAndUpdate(matchId, {
+    if (action === "freeze_chat" && report.matchId) {
+      await Match.findByIdAndUpdate(report.matchId, {
         isFrozen: true
       });
     }
 
-    await Report.updateMany(
-      { matchId, status: { $ne: "resolved" } },
-      {
-        status: "resolved",
-        resolvedBy: adminId,
-        resolvedAt: new Date(),
-        resolution: reason
-      }
-    );
+
+    report.actionAudit.push({
+      action,
+      reason,
+      matchId: report.matchId || null,
+      messageIds,
+      targetUser: targetUser || null,
+      actedBy: adminId
+    });
+
+    report.status = "resolved";
+    report.resolvedBy = adminId;
+    report.resolvedAt = new Date();
+
+    await report.save();
 
     return res.json({
       success: true,
-      message: "Action applied successfully"
+      message: "Action applied and report resolved successfully"
     });
+
   } catch (err) {
     console.error("Admin takeChatAction error:", err);
     return res.status(500).json({
       success: false,
-      message: "Failed to apply chat action"
+      message: "Failed to apply action"
     });
   }
 };
 
+
+
 exports.getChatActionHistory = async (req, res) => {
   try {
-    const { matchId } = req.params;
+    const { reportId } = req.params;
 
-    const history = await Report.find({
-      matchId,
-      status: "resolved"
-    })
-      .select("resolution resolvedBy resolvedAt")
+    const report = await Report.findById(reportId)
+      .populate("actionAudit.actedBy", "email")
+      .populate("actionAudit.targetUser", "email")
       .lean();
+
+    if (!report) {
+      return res.status(404).json({
+        success: false,
+        message: "Report not found"
+      });
+    }
 
     return res.json({
       success: true,
-      data: history
+      data: report.actionAudit.map(a => ({
+        action: a.action,
+        reason: a.reason,
+        matchId: a.matchId,
+        messageIds: a.messageIds,
+        targetUser: a.targetUser?.email || null,
+        actedBy: a.actedBy?.email || "System",
+        actedAt: a.actedAt
+      }))
     });
+
   } catch (err) {
     console.error("Admin getChatActionHistory error:", err);
     return res.status(500).json({
       success: false,
-      message: "Failed to fetch chat history"
+      message: "Failed to fetch action history"
     });
   }
 };

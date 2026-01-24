@@ -18,6 +18,7 @@ const giveawayWinHistorySchema = new mongoose.Schema(
     },
 
     // Kaunsa prize jeeta
+    
     prizeId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "GiveawayPrize",

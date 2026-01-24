@@ -19,13 +19,13 @@ const ReportSchema = new mongoose.Schema(
       type: String,
       required: true
     },
-      type: {
+    type: {
       type: String,
       enum: ["chat", "profile"],
       default: "profile",
       index: true
     },
-     evidence: [
+    evidence: [
       {
         text: String,
         senderId: {
@@ -35,7 +35,7 @@ const ReportSchema = new mongoose.Schema(
         sentAt: Date
       }
     ],
-     matchId: {
+    matchId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "Match",
       default: null,
@@ -87,9 +87,25 @@ const ReportSchema = new mongoose.Schema(
     resolvedAt: {
       type: Date,
       default: null
-    }
+    },
+    actionAudit: [
+      {
+        action: {
+          type: String, 
+          enum: ["delete_message", "warn_user", "block_user", "freeze_chat", "note"],
+          required: true
+        },
+        reason: { type: String, required: true },
+        matchId: { type: mongoose.Schema.Types.ObjectId, ref: "Match", index: true }, messageIds: [{ type: mongoose.Schema.Types.ObjectId, ref: "ChatMessage" }], targetUser: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
+        actedBy: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true }, actedAt: { type: Date, default: Date.now }
+      }]
   },
   { timestamps: true }
 );
 
 module.exports = mongoose.model("Report", ReportSchema);
+
+
+
+// resolution: { type: String, default: null }
+// actionAudit: [ { action: { type: String, enum: ["delete_message","warn_user","block_user","freeze_chat","note"], required: true }, reason: { type: String, required: true }, matchId: { type: mongoose.Schema.Types.ObjectId, ref: "Match", index: true }, messageIds: [{ type: mongoose.Schema.Types.ObjectId, ref: "ChatMessage" }], targetUser: { type: mongoose.Schema.Types.ObjectId, ref: "User" }, actedBy: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true }, // admin as User actedAt: { type: Date, default: Date.now } } ]

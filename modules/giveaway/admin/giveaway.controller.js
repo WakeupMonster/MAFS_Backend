@@ -367,10 +367,12 @@ await utils.sendEmail(
     console.error("Delivery API error:", error);
     return res.status(500).json({
       success: false,
-      message: "Failed to mark prize as delivered"
+      message: "Failed to mark prize as delivered",
+      error : error.message
     });
   }
 };
+
 
 
 exports.getPendingDeliveries = async (req, res) => {
