@@ -4,6 +4,8 @@ const cors = require("cors");
 const errorHandling = require("./common/middlewares/error.middleware");
 
 require("./jobs/giveaway/giveaway.cron"); // <-- cron auto starts
+require("./jobs/adminNotification/premiumExpiryReminder.cron")
+require("./workers/emailnotification.worker")
 
 app.use(express.json({ limit: "10mb" }));
 app.use(express.urlencoded({ extended: true }));

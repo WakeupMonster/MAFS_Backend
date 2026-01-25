@@ -241,7 +241,17 @@ module.exports.loginVerify = async (req, res) => {
 };
 module.exports.refreshToken = async (req, res) => {
   try {
-    const { refreshToken } = req.body;
+    // const { refreshToken } = req.body;
+     const authHeader = req.headers.authorization;
+
+    if (!authHeader || !authHeader.startsWith("Bearer ")) {
+      return res.status(401).json({
+        success: false,
+        message: "Refresh token missing in header"
+      });
+    }
+
+    const refreshToken = authHeader.split(" ")[1];
     const result = await authService.refreshAccessToken(refreshToken);
 
     return res.json({

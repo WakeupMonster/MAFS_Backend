@@ -47,13 +47,55 @@ exports.blockUser = async (req, res) => {
 //   } catch (e) { res.status(500).json({ success: false, message: e.message }); }
 // };
 
+// exports.reportUser = async (req, res) => {
+//   const reporterId = req.user._id;
+
+//   try {
+//     const { reason, description } = req.body;
+
+//     // 🔥 Simple severity mapping (can improve later)
+//     let severity = "medium";
+//     if (["abuse", "harassment", "threat"].includes(reason)) {
+//       severity = "high";
+//     } else if (["spam", "fake"].includes(reason)) {
+//       severity = "low";
+//     }
+
+//     await Report.create({
+//       reporterId,
+//       reportedId: req.params.id,
+//       reason,
+//       description,
+//       status: "new",      // 🔥 explicit
+//       severity            // 🔥 admin dashboard use karega
+//     });
+
+//     // Redis clear (as-is)
+//     if (redis) {
+//       const CACHE_KEY = `feed:${reporterId.toString()}`;
+//       await redis.del(CACHE_KEY);
+//     }
+
+//     return res.status(201).json({
+//       success: true,
+//       message: "Report submitted successfully"
+//     });
+
+//   } catch (e) {
+//     return res.status(500).json({
+//       success: false,
+//       message: e.message
+//     });
+//   }
+// };
 exports.reportUser = async (req, res) => {
   const reporterId = req.user._id;
 
   try {
-    const { reason, description } = req.body;
+    const { reason, description, context } = req.body;
+    const { matchId, lastMessages } = context || {};
 
-    // 🔥 Simple severity mapping (can improve later)
+    // 🔥 Severity logic (same as before)
     let severity = "medium";
     if (["abuse", "harassment", "threat"].includes(reason)) {
       severity = "high";
@@ -62,15 +104,20 @@ exports.reportUser = async (req, res) => {
     }
 
     await Report.create({
+      type: matchId ? "chat" : "profile",   // KEY LINE
       reporterId,
       reportedId: req.params.id,
+
+      matchId: matchId || null,              // chat ke liye
+      evidence: lastMessages || [],           //last 5 msgs
+
       reason,
       description,
-      status: "new",      // 🔥 explicit
-      severity            // 🔥 admin dashboard use karega
+      status: "new",
+      severity
     });
 
-    // Redis clear (as-is)
+    // Redis clear (same as before)
     if (redis) {
       const CACHE_KEY = `feed:${reporterId.toString()}`;
       await redis.del(CACHE_KEY);
@@ -82,6 +129,7 @@ exports.reportUser = async (req, res) => {
     });
 
   } catch (e) {
+    console.error("Report error:", e);
     return res.status(500).json({
       success: false,
       message: e.message
@@ -152,3 +200,5 @@ exports.unblockUser = async (req, res) => {
     res.status(200).json({ success: true, message: "User unblocked" });
   } catch (e) { res.status(500).json({ success: false, message: e.message }); }
 };
+
+

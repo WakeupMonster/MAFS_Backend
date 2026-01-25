@@ -496,6 +496,15 @@ async function loginVerifyOtp(phone, otp) {
 
 async function refreshAccessToken(refreshTokenRaw) {
   // 1. Hash incoming token to compare with DB
+
+    if (!refreshTokenRaw) {
+    throw new Error("Refresh token missing");
+  }
+
+  // 🧹 Safety: Agar galti se "Bearer " aa gaya ho
+  if (refreshTokenRaw.startsWith("Bearer ")) {
+    refreshTokenRaw = refreshTokenRaw.split(" ")[1];
+  }
   const incomingHash = utils.hashToken(refreshTokenRaw);
 
   // 2. Find user who has this specific hash

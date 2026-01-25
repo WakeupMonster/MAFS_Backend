@@ -1,7 +1,7 @@
-const  Profile  = require("../../../modules/profile/profile.model");
-const  User  = require("../../../modules/auth/auth.model");
+const Profile = require("../../../modules/profile/profile.model");
+const User = require("../../../modules/auth/auth.model");
 const { formatProfileResponse } = require("../../../modules/profile/profile.formatter");
-const Report  = require("../../../modules/profile/user.report");
+const Report = require("../../../modules/profile/user.report");
 
 const getProfileForReview = async (req, res) => {
   try {
@@ -15,7 +15,7 @@ const getProfileForReview = async (req, res) => {
         // .populate('reportedBy', 'name email phone')
         .lean()
     ]);
-console.log(reports)
+    console.log(reports)
     if (!user || !profile) {
       return res.status(404).json({
         success: false,
@@ -33,7 +33,7 @@ console.log(reports)
       isBanned: user.banDetails?.isBanned || false,
       banReason: user.banDetails?.reason || null,
       banDetails: user.banDetails || {},
-      
+
       profile: {
         nickname: profile.nickname,
         photos: profile?.photos || [],
@@ -48,7 +48,7 @@ console.log(reports)
         lastActive: user.lastActive || null,
         deviceInfo: user.deviceInfo || {}
       },
-      
+
       reports: reports.map(report => ({
         _id: report._id,
         reason: report.reason,
@@ -56,7 +56,7 @@ console.log(reports)
         reportedBy: report.reportedBy,
         createdAt: report.createdAt
       })),
-      
+
       reportCount: reports.length
     };
 
@@ -78,7 +78,7 @@ const updateProfileStatus = async (req, res) => {
   try {
     const { userId } = req.params;
     const { action, reason, banDuration } = req.body;
-    const adminId = req.user?._id; 
+    const adminId = req.user?._id;
 
     if (!['approve', 'reject', 'ban'].includes(action)) {
       return res.status(400).json({
@@ -110,8 +110,8 @@ const updateProfileStatus = async (req, res) => {
         // Mark all reports as reviewed
         await Report.updateMany(
           { reportedId: userId, status: 'new' },
-          { 
-            $set: { 
+          {
+            $set: {
               status: 'resolved',
               resolvedAt: new Date(),
               resolvedBy: adminId,
@@ -119,15 +119,24 @@ const updateProfileStatus = async (req, res) => {
             }
           }
         );
+        await User.updateMany({ accountStatus: "banned",  "banDetails.isBanned": true }, {
+          $set: {
+            accountStatus: "active",
+            "banDetails.isBanned": false,
+            "banDetails.reason": "",
+            "banDetails.bannedAt": null
+          }
+        })
         message = 'Profile approved successfully';
         break;
+
 
       case 'reject':
         // Mark all reports as reviewed
         await Report.updateMany(
           { reportedId: userId, status: 'new' },
-          { 
-            $set: { 
+          {
+            $set: {
               status: 'resolved',
               resolvedAt: new Date(),
               resolvedBy: adminId,
@@ -139,38 +148,40 @@ const updateProfileStatus = async (req, res) => {
         break;
 
       case 'ban':
-        { const banDetails = {
-          isBanned: true,
-          reason,
-          bannedBy: adminId,
-          bannedAt: new Date(),
-          banExpiresAt: banDuration ? 
-            new Date(Date.now() + banDuration * 24 * 60 * 60 * 1000) : 
-            null // Permanent ban if no duration
-        };
-        
-        await User.findByIdAndUpdate(userId, { 
-          $set: { 
-            'banDetails': banDetails,
-            'accountStatus': 'banned'
-          } 
-        });
+        {
+          const banDetails = {
+            isBanned: true,
+            reason,
+            bannedBy: adminId,
+            bannedAt: new Date(),
+            banExpiresAt: banDuration ?
+              new Date(Date.now() + banDuration * 24 * 60 * 60 * 1000) :
+              null // Permanent ban if no duration
+          };
 
-        // Mark all reports as reviewed
-        await Report.updateMany(
-          { reportedId: userId, status: 'new' },
-          { 
-            $set: { 
-              status: 'resolved',
-              resolvedAt: new Date(),
-              resolvedBy: adminId,
-              resolution: 'User banned: ' + reason
+          await User.findByIdAndUpdate(userId, {
+            $set: {
+              'banDetails': banDetails,
+              'accountStatus': 'banned'
             }
-          }
-        );
-        
-        message = 'User banned successfully';
-        break; }
+          });
+
+          // Mark all reports as reviewed
+          await Report.updateMany(
+            { reportedId: userId, status: 'new' },
+            {
+              $set: {
+                status: 'resolved',
+                resolvedAt: new Date(),
+                resolvedBy: adminId,
+                resolution: 'User banned: ' + reason
+              }
+            }
+          );
+
+          message = 'User banned successfully';
+          break;
+        }
     }
 
     res.json({
@@ -199,7 +210,6 @@ const getReportedProfiles = async (req, res) => {
     };
 
     const total = await Report.countDocuments(countQuery);
-console.log("total",total)
     // Get reported profiles with pagination
     const reports = await Report.aggregate([
       {
@@ -269,7 +279,7 @@ console.log("total",total)
       }
 
       const formattedProfile = formatProfileResponse(item.user, item.profile);
-      
+
       return {
         userId: item.user._id,
         nickname: item.profile.nickname || item.user.name || 'No Nickname',

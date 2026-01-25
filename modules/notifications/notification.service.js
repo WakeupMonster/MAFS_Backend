@@ -1,19 +1,17 @@
 // modules/notifications/notification.service.js
 // eslint-disable-next-line no-unused-vars
-const { sendNotification, sendNotificationToMultiple } = require('./firebase-admin');
+const { sendNotificationToMultiple } = require('./firebase-admin');
 const User = require('../../modules/auth/auth.model'); 
+const NotificationLog = require("../../modules/Admin/adminNotificationCampaigns/notificationLog.model");
 
 class NotificationService {
-  // Send a new match notification to both users
-
   async _executePush(userId, tokens, notification, data) {
         if (!tokens || tokens.length === 0) return;
 
         const result = await sendNotificationToMultiple(tokens, notification, data);
 
-        // DEAD TOKEN CLEANUP
         if (result.failedTokens && result.failedTokens.length > 0) {
-            console.log(`🧹 Removing ${result.failedTokens.length} dead tokens for user ${userId}`);
+            console.log(`Removing ${result.failedTokens.length} dead tokens for user ${userId}`);
             await User.updateOne(
                 { _id: userId },
                 { $pull: { fcmTokens: { $in: result.failedTokens } } }
@@ -90,8 +88,6 @@ class NotificationService {
 ) {
   return;
 }
-
-
       if (!receiver?.fcmTokens?.length) return;
 
       await sendNotificationToMultiple(
@@ -150,8 +146,6 @@ class NotificationService {
     }
   }
 
-  // Add more notification types as needed...
-
   async sendGiveawayWinnerNotification(userId, prizeTitle) {
   try {
     const user = await User.findById(userId).select("fcmTokens notificationSettings");
@@ -167,9 +161,6 @@ class NotificationService {
 ) {
   return;
 }
-
-
-
     await sendNotificationToMultiple(
       user.fcmTokens,
       {
@@ -187,13 +178,6 @@ class NotificationService {
   }
 }
 
-
-/**
- * ==========================================
- * 🎁 PRIZE DELIVERED NOTIFICATION
- * ==========================================
- * 👉 Jab admin prize deliver mark kare
- */
 async sendPrizeDeliveredNotification(userId) {
   try {
     const user = await User.findById(userId).select("fcmTokens notificationSettings");
@@ -205,7 +189,6 @@ async sendPrizeDeliveredNotification(userId) {
     if (user.notificationSettings?.push === false) {
   return;
 }
-
 
     await sendNotificationToMultiple(
       user.fcmTokens,
@@ -226,10 +209,72 @@ async sendPrizeDeliveredNotification(userId) {
   }
 }
 
+async sendAdminNotification({
+  userId,
+  title,
+  message,
+  data = {},
+  respectUserSettings = true
+}) {
+  console.log("Start sending push")
+  try {
+    const user = await User.findById(userId).select(
+      "fcmTokens notificationSettings"
+     
+    );
+ console.log(userId,"userId in sendAdminNotification")
+    if (!user) return;
+
+    if (
+      respectUserSettings &&
+      user.notificationSettings?.push === false
+    ) {
+      return;
+    }
+
+    if (!user.fcmTokens || user.fcmTokens.length === 0) {
+      return;
+    }
+    console.log("Sending admin notification",user)
+
+    await sendNotificationToMultiple(
+      user.fcmTokens,
+      {
+        title,
+        body: message
+      },
+       {
+        type: data.type || "ADMIN_NOTIFICATION",
+        campaignId: data.campaignId?.toString(),
+        cta: data.cta || null,
+        ...data.extra      
+      }
+    );
+
+      await NotificationLog.create({
+      userId,
+      campaignId: data.campaignId || null,
+      title,
+      message,
+      type: data.type,
+      status: "sent"
+    });
+
+
+    return { success: true };
+  } catch (error) {
+        await NotificationLog.create({
+      userId,
+      campaignId: data.campaignId || null,
+      title,
+      message,
+      type: data.type,
+      status: "failed",
+      error: error.message
+    });
+    throw error;
+  }
 }
 
-
-// 🎁 Giveaway winner notification
-
-
+}
 module.exports = new NotificationService();

@@ -6,6 +6,7 @@ const { rateLimit } = require("./rateLimit.middleware");
 
 router.use(auth);
 
+
 // Deactivate account
 router.post("/deactivate",rateLimit("deactivate", 2, 60 * 60 * 24), controller.deactivateAccount);
 

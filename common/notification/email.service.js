@@ -8,3 +8,12 @@ exports.sendEmail = async (to, subject, html) => {
     html
   });
 };
+
+module.exports = async ({ to, subject, html }) => {
+  await transporter.sendMail({
+    from: `"App Team" <${process.env.SMTP_MAIL}>`,
+    to,
+    subject,
+    html
+  });
+};

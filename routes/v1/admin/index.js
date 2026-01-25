@@ -15,6 +15,10 @@ const userManagement = require("../../../modules/Admin/usersManagement/user.mana
 const profileReviewRoutes = require("../../../modules/Admin/profileReview/profileReview.routes");
 // router.use(auth);
 // router.use(allowAdminMiddleware);
+const chatManagementRoutes = require("../../../modules/Admin/chat/adminChat.routes")
+const notificationManagementRoutes = require("../../../modules/Admin/adminNotificationCampaigns/adminNotification.routes")
+const {getKpiOverview} = require("../../../modules/admintester/admintestcontroller")
+
 
 router.use("/giveaway", giveawayAdminRoutes);
 router.use("/auth", adminCredential);
@@ -22,4 +26,8 @@ router.use("/cms", cmsManagement);
 router.use("/user-management", userManagement);
 // router.use("/kyc", kycAdminRoutes);
 router.use("/profile-review", profileReviewRoutes);
+router.use("/chat-management",chatManagementRoutes)
+router.use("/notification-management",notificationManagementRoutes)
+router.get("/getkpi",getKpiOverview)
+// router.get("/pending-verifications",getPendingVerifications)
 module.exports = router;

@@ -153,6 +153,9 @@ console.log("boostresult",boostResults)
   boostResults?.[index]
 );
 
+
+
+
     const isBoosted = boostResults?.[index] === "1";
 
     // console.log(isSuperliked, "has in set")
@@ -286,7 +289,28 @@ console.log("boostresult",boostResults)
       dynamicHighlights: dynamicHighlights.slice(0, 6)
     };
   });
-  transformedProfiles.sort((a, b) => b.context.matchScore - a.context.matchScore);
+  // transformedProfiles.sort((a, b) => b.context.matchScore - a.context.matchScore);
+  transformedProfiles.sort((a, b) => {
+  // 1️ Boosted always first
+  if (a.context.isBoosted && !b.context.isBoosted) return -1;
+  if (!a.context.isBoosted && b.context.isBoosted) return 1;
+
+  // 2️ Then by matchScore
+  return b.context.matchScore - a.context.matchScore;
+});
+// transformedProfiles.sort((a, b) => {
+//   // 1️ SuperLike always top
+//   if (a.context.isSuperLikeSender && !b.context.isSuperLikeSender) return -1;
+//   if (!a.context.isSuperLikeSender && b.context.isSuperLikeSender) return 1;
+
+//   // 2️ Boosted comes next
+//   if (a.context.isBoosted && !b.context.isBoosted) return -1;
+//   if (!a.context.isBoosted && b.context.isBoosted) return 1;
+
+//   // 3️ Then match score
+//   return b.context.matchScore - a.context.matchScore;
+// });
+
   const finalResult = transformedProfiles.slice(0, limit,page);
   if (redis && finalResult.length) {
     // await redis.set(CACHE_KEY, JSON.stringify({ data: finalResult }), 'EX', CACHE_TTL);
