@@ -1,21 +1,20 @@
-const GiveawayCampaign = require("../../modules/giveaway/giveawayCampaign.model");
-const GiveawayWinHistory = require("../../modules/giveaway/giveawayWinHistory.model");
+const GiveawayCampaign = require("../../modules/Admin/giveaways/giveawayCampaign.model");
+const GiveawayWinHistory = require("../../modules/Admin/giveaways/giveawayWinHistory.model");
 const User = require("../../modules/auth/auth.model");
 const notificationService = require("../../modules/notifications/notification.service");
-const Prize = require("../../modules/giveaway/prize.model");
+const Prize = require("../../modules/Admin/giveaways/prize.model");
 
 module.exports = async function runGiveawayWorker() {
   const today = new Date();
   today.setHours(0, 0, 0, 0);
 
-//   const settings = await GiveawaySettings.findOne();
-// const yearlyLimit = settings?.yearlyWinLimitPerUser || 2;
-
+  //   const settings = await GiveawaySettings.findOne();
+  // const yearlyLimit = settings?.yearlyWinLimitPerUser || 2;
 
   const campaign = await GiveawayCampaign.findOne({
     date: today,
     isActive: true,
-    drawStatus: "PENDING"
+    drawStatus: "PENDING",
   });
 
   if (!campaign) {
@@ -38,8 +37,8 @@ module.exports = async function runGiveawayWorker() {
       {
         $match: {
           isPremium: true,
-          accountStatus: "active"
-        }
+          accountStatus: "active",
+        },
       },
       {
         $lookup: {
@@ -51,28 +50,28 @@ module.exports = async function runGiveawayWorker() {
                 $expr: {
                   $and: [
                     { $eq: ["$userId", "$$userId"] },
-                    { $eq: ["$year", currentYear] }
-                  ]
-                }
-              }
-            }
+                    { $eq: ["$year", currentYear] },
+                  ],
+                },
+              },
+            },
           ],
-          as: "winsThisYear"
-        }
+          as: "winsThisYear",
+        },
       },
       {
         $match: {
           $expr: {
-            $lt: [{ $size: "$winsThisYear" }, 2]
-          }
-        }
+            $lt: [{ $size: "$winsThisYear" }, 2],
+          },
+        },
       },
       {
-        $sample: { size: 1 }
+        $sample: { size: 1 },
       },
       {
-        $project: { _id: 1 }
-      }
+        $project: { _id: 1 },
+      },
     ]);
 
     if (!winner) {
@@ -85,26 +84,23 @@ module.exports = async function runGiveawayWorker() {
       userId: winner._id,
       campaignId: campaign._id,
       prizeId: campaign.prizeId,
-      year: currentYear
+      year: currentYear,
     });
 
     const prize = await Prize.findById(campaign.prizeId).select("title");
     const winnerUserId = winner._id;
 
-    
     campaign.winnerUserId = winner._id;
     campaign.drawStatus = "COMPLETED";
     campaign.drawAt = new Date();
     await campaign.save();
 
-
     await notificationService.sendGiveawayWinnerNotification(
-  winnerUserId,
-  prize.title
-);
+      winnerUserId,
+      prize.title
+    );
 
     console.log("✅ Giveaway completed successfully");
-
   } catch (error) {
     console.error("❌ Giveaway worker failed:", error);
 

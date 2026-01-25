@@ -91,7 +91,7 @@ function computeCompletion(progress) {
 **Controller Implementation:**
 ```javascript
 // profile.controller.js
-exports.getStatus = async (req, res) => {
+module.exports.getStatus = async (req, res) => {
   try {
     const userId = req.user._id.toString();
     const cacheKey = `profile:status:${userId}`;

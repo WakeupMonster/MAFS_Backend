@@ -10,7 +10,7 @@ const { getFaqSchema } = require("../Admin/cms/content.validation");
  * GET ALL FAQ
  * ================================
  */
-// exports.getFAQ = async (req, res) => {
+// module.exports.getFAQ = async (req, res) => {
 //   try {
 //     const cacheKey = "faq:list";
 
@@ -63,7 +63,7 @@ const { getFaqSchema } = require("../Admin/cms/content.validation");
 //   }
 // };
 
-exports.getFAQ = async (req, res) => {
+module.exports.getFAQ = async (req, res) => {
   try {
     // ✅ Validate query
     const { error, value } = getFaqSchema.validate(req.query);
@@ -140,7 +140,7 @@ exports.getFAQ = async (req, res) => {
  * PRIVACY POLICY
  * =========================================
  */
-// exports.getPrivacyPolicy = async (req, res) => {
+// module.exports.getPrivacyPolicy = async (req, res) => {
 //   try {
 //     const cacheKey = "privacy_policy:list";
 
@@ -237,7 +237,7 @@ module.exports.getPrivacyPolicy = async (req, res) => {
  * TERMS & CONDITIONS
  * =========================================
  */
-exports.getTermsConditions = async (req, res) => {
+module.exports.getTermsConditions = async (req, res) => {
   try {
     const cacheKey = "terms_conditions:list";
 

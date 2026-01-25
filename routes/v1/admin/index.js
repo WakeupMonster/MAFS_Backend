@@ -1,33 +1,40 @@
+// routes/v1/admin/index.js
 const express = require("express");
 const router = express.Router();
 
-// Common middlewares
-// const auth = require("../../../modules/auth/auth.middleware");
-// const asyncHandler = require("../../common/middlewares/asyncHandler");
-// Role middleware (admin only)
-// const { allowAdmin } = require("../../../common/middlewares/allowAdmin.middleware");
+// Middlewares
+const auth = require("../../../modules/auth/auth.middleware");
+const {
+  allowAdmin,
+} = require("../../../common/middlewares/allowAdmin.middleware");
 
-const giveawayAdminRoutes = require("./giveaway.routes");
-// const allowAdminMiddleware = require("../../../common/middlewares/allowAdmin.middleware");
-const adminCredential = require("../../../modules/Admin/auth/admin.auth.routes");
-const cmsManagement = require("../../../modules/Admin/cms/content.routes");
-const userManagement = require("../../../modules/Admin/usersManagement/user.management.route");
+// Sub-Route Imports
+const authRoutes = require("../../../modules/Admin/auth/admin.auth.routes");
+const userRoutes = require("../../../modules/Admin/usersManagement/user.management.route");
+const cmsRoutes = require("../../../modules/Admin/cms/content.routes");
+const dashboardRoutes = require("../../../modules/Admin/dashboard/dashboard.stats.routes");
+const moderationRoutes = require("../../../modules/Admin/moderation/moderation.routes");
+const giveawayRoutes = require("../../../modules/Admin/giveaways/giveaways.routes");
 const profileReviewRoutes = require("../../../modules/Admin/profileReview/profileReview.routes");
-// router.use(auth);
-// router.use(allowAdminMiddleware);
-const chatManagementRoutes = require("../../../modules/Admin/chat/adminChat.routes")
-const notificationManagementRoutes = require("../../../modules/Admin/adminNotificationCampaigns/adminNotification.routes")
-const {getKpiOverview} = require("../../../modules/admintester/admintestcontroller")
+const chatRoutes = require("../../../modules/Admin/chat/adminChat.routes");
+const notificationRoutes = require("../../../modules/Admin/adminNotificationCampaigns/adminNotification.routes");
 
+// --- Public Admin Routes ---
+// Login and Forget Password shouldn't require an Auth token
+router.use("/auth", authRoutes);
 
-router.use("/giveaway", giveawayAdminRoutes);
-router.use("/auth", adminCredential);
-router.use("/cms", cmsManagement);
-router.use("/user-management", userManagement);
-// router.use("/kyc", kycAdminRoutes);
+// --- Protected Admin Routes ---
+// Apply security to EVERYTHING below this line automatically
+router.use(auth);
+router.use(allowAdmin);
+
+router.use("/users", userRoutes); // Cleaned name from "user-management"
+router.use("/cms", cmsRoutes);
+router.use("/giveaway", giveawayRoutes);
+router.use("/dashboard", dashboardRoutes);
+router.use("/moderation", moderationRoutes);
 router.use("/profile-review", profileReviewRoutes);
-router.use("/chat-management",chatManagementRoutes)
-router.use("/notification-management",notificationManagementRoutes)
-router.get("/getkpi",getKpiOverview)
-// router.get("/pending-verifications",getPendingVerifications)
+router.use("/chat", chatRoutes); // Cleaned name from "chat-management"
+router.use("/notification", notificationRoutes);
+
 module.exports = router;

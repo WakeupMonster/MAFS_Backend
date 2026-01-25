@@ -3,7 +3,7 @@ const User = require("../../modules/auth/auth.model");
 
 const BOOST_TTL_SECONDS = 30 * 60; // 30 minutes
 
-exports.activateBoost = async (req, res) => {
+module.exports.activateBoost = async (req, res) => {
   const userId = req.user._id.toString();
 
   // 1️⃣ User fetch
@@ -54,8 +54,8 @@ await redis.set(`boost:${userId}`, "1", { EX: BOOST_TTL_SECONDS });
   });
 };
 
-// exports.unboostUser API
-exports.unboostUser = async (req, res) => {
+// module.exports.unboostUser API
+module.exports.unboostUser = async (req, res) => {
   try {
     const userId = req.user._id.toString();
 

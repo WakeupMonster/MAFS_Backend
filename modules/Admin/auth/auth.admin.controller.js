@@ -161,7 +161,7 @@
 //   }
 // };
 
-// exports.adminLogin = async (req, res) => {
+// module.exports.adminLogin = async (req, res) => {
 //   try {
 //     // Step 1: identifier admin email or phone dono se login krskta hn
 //     const { identifier, password } = req.body;
@@ -568,6 +568,7 @@ const {
   adminLoginSchema,
   adminResetPasswordSchema,
 } = require("./auth.validation");
+const authService = require("./auth.services");
 
 const REFRESH_TOKEN_TTL_MS = 30 * 24 * 60 * 60 * 1000;
 const MAX_REFRESH_TOKENS = 5;
@@ -709,42 +710,42 @@ module.exports.adminLogin = async (req, res, next) => {
 /*==================================================
   POST API 1: REQUEST to Send OTP on Email Id
 ===================================================*/
-module.exports.sendEmailOTP = async (req, res) => {
+module.exports.sendEmailOTP = async (req, res, next) => {
   try {
     const { email } = req.body;
-    if (!email) {
-      throw new AppError("EMAIL_REQUIRED", "Email is required", 400);
+    if (!email) throw new AppError("EMAIL_REQUIRED", "Email is required", 400);
+
+    // Call service to handle DB and Redis logic
+    const otp = await authService.initiateAdminPasswordReset(email);
+
+    console.log("otp: ", otp);
+
+    if (!otp) {
+      // We use a generic message to prevent "Email Harvesting" (Security Best Practice)
+      throw new AppError(
+        "ADMIN_NOT_FOUND",
+        "If an account exists, an OTP has been sent.",
+        404
+      );
     }
 
-    const admin = await User.findOne({
-      email,
-      role: "ADMIN",
-    });
+    /**
+     * OPTIMIZATION: Do NOT 'await' the email.
+     * Let it run in the background. The user gets their response immediately,
+     * while the server handles the SMTP handshake in parallel.
+     */
+    utils
+      .sendEmail(email, "Admin Password Reset OTP", `Your OTP is ${otp}`)
+      .catch((err) => console.error("Background Email Error:", err));
 
-    if (!admin) {
-      throw new AppError("ADMIN_NOT_FOUND", "Admin not found", 404);
-    }
-
-    const otp = utils.generateOtp();
-    const otpHash = await utils.hashOtp(otp);
-
-    const redisKey = `admin:email:otp:${admin._id}`;
-    await redis.set(redisKey, otpHash, { EX: ADMIN_EMAIL_OTP_TTL });
-
-    await utils.sendEmail(
-      email,
-      "Admin Password Reset OTP",
-      `<b>Your OTP is ${otp}</b>`
-    );
-
-    res.json({
+    // Instant Response
+    return res.status(200).json({
       success: true,
-      message: "OTP sent successfully to your email",
+      message: "OTP sent successfully",
       screen: "verify-otp",
       data: {
         email: email,
-        resendAfter: 60, // Seconds until frontend enables resend button
-        expiresIn: "5m", // Informative for the user UI
+        resendAfter: 60,
       },
     });
   } catch (err) {
@@ -755,98 +756,76 @@ module.exports.sendEmailOTP = async (req, res) => {
 /*==================================================
   POST API 2: Verify Email OTP 
 ===================================================*/
-module.exports.verifyEmailOTP = async (req, res) => {
+module.exports.verifyEmailOTP = async (req, res, next) => {
   try {
     const { email, otp } = req.body;
 
     if (!email || !otp) {
-      return res.status(400).json({
-        success: false,
-        message: "Email and OTP are required",
-      });
+      throw new AppError("VALIDATION_ERROR", "Email and OTP are required", 400);
     }
 
-    const redisKey = `login:${email.trim()}`;
-    const savedOtp = await redis.get(redisKey);
+    // Delegate to service
+    const result = await authService.verifyAdminOTP(email.trim(), otp);
 
-    if (!savedOtp) {
-      return res.status(400).json({
-        success: false,
-        message: "OTP expired or invalid",
-      });
+    if (!result.valid) {
+      const errorMap = {
+        ADMIN_NOT_FOUND: { msg: "Admin not found", code: 404 },
+        OTP_EXPIRED: { msg: "OTP expired or invalid", code: 400 },
+        INVALID_OTP: { msg: "The OTP entered is incorrect", code: 401 },
+      };
+      const error = errorMap[result.message];
+      throw new AppError(result.message, error.msg, error.code);
     }
-
-    if (savedOtp !== otp) {
-      return res.status(401).json({
-        success: false,
-        message: "Invalid OTP",
-      });
-    }
-
-    // ✅ OTP verified → mark email verified
-    await redis.setex(`otp:email:verified:${email}`, 600, "true"); // 10 min
-    await redis.del(redisKey); // 🔥 One-time OTP
 
     return res.status(200).json({
       success: true,
-      screen: "forgot-password",
       message: "OTP verified successfully",
+      screen: "forgot-password",
+      data: {
+        // Pass the adminId or a temporary reset token if needed
+        resetId: result.adminId,
+      },
     });
   } catch (err) {
-    console.error("Verify Email OTP Error:", err);
-    return res.status(500).json({
-      success: false,
-      message: "Failed to verify OTP",
-    });
+    next(err); // Centralized error handler handles the rest
   }
 };
 
 /*==================================================
   POST API 3: ADMIN Forget Password
 ===================================================*/
-module.exports.adminForgotPassword = async (req, res) => {
+module.exports.adminForgotPassword = async (req, res, next) => {
   try {
     const { email, newPassword } = req.body;
 
-    if (!email || !otp || !newPassword) {
+    // We no longer need 'otp' here if it was verified in the previous step
+    if (!email || !newPassword) {
       throw new AppError(
         "INVALID_REQUEST",
-        "Email, OTP and new password are required",
+        "Email and new password are required",
         400
       );
     }
 
-    const admin = await User.findOne({
-      email,
-      role: "ADMIN",
-    }).select("+password +refreshTokens");
+    const result = await authService.resetAdminPassword(email, newPassword);
 
-    if (!admin) {
-      throw new AppError("ADMIN_NOT_FOUND", "Admin not found", 404);
+    if (!result.success) {
+      const errorMap = {
+        ADMIN_NOT_FOUND: { msg: "Admin not found", code: 404 },
+        VERIFICATION_REQUIRED: {
+          msg: "Please verify your OTP first",
+          code: 403,
+        },
+      };
+      const error = errorMap[result.message];
+      throw new AppError(result.message, error.msg, error.code);
     }
 
-    const redisKey = `admin:email:otp:${admin._id}`;
-    const storedHash = await redis.get(redisKey);
-
-    if (!storedHash) {
-      throw new AppError("OTP_EXPIRED", "OTP expired or invalid", 400);
-    }
-
-    const isValid = await utils.verifyOtpHash(otp, storedHash);
-    if (!isValid) {
-      throw new AppError("INVALID_OTP", "Invalid OTP", 401);
-    }
-
-    admin.password = await utils.passwordHashed(newPassword);
-    admin.refreshTokens = [];
-
-    await admin.save();
-    await redis.del(redisKey);
-
-    res.json({
+    return res.status(200).json({
       success: true,
       screen: "login",
-      message: "Password reset successfully. Please login again.",
+      message:
+        "Password reset successfully. Please login with your new password.",
     });
   } catch (err) {
     next(err);
@@ -856,45 +835,86 @@ module.exports.adminForgotPassword = async (req, res) => {
 /*==================================================
   POST API 4: Reset Password. When admin already authenticate
 ===================================================*/
-module.exports.adminResetPassword = async (req, res) => {
-  try {
-    const adminId = req.user.id;
+// module.exports.adminResetPassword = async (req, res, next) => {
+//   try {
+//     const adminId = req.user.id;
 
+//     const { error, value } = adminResetPasswordSchema.validate(req.body);
+//     if (error) {
+//       throw new AppError("VALIDATION_ERROR", error.details[0].message, 400);
+//     }
+
+//     const admin = await User.findOne({
+//       _id: adminId,
+//       role: "ADMIN",
+//     }).select("+password +refreshTokens");
+
+//     if (!admin) {
+//       throw new AppError("ADMIN_NOT_FOUND", "Admin not found", 404);
+//     }
+
+//     const isMatch = await utils.passwordCompared(
+//       value.currentPassword,
+//       admin.password
+//     );
+
+//     if (!isMatch) {
+//       throw new AppError(
+//         "INVALID_PASSWORD",
+//         "Current password is incorrect",
+//         401
+//       );
+//     }
+
+//     admin.password = await utils.passwordHashed(value.newPassword);
+//     admin.refreshTokens = [];
+
+//     await admin.save();
+
+//     res.json({
+//       success: true,
+//       message: "Password updated successfully",
+//     });
+//   } catch (err) {
+//     next(err);
+//   }
+// };
+
+module.exports.adminResetPassword = async (req, res, next) => {
+  try {
+    const adminId = req.user.id; // From auth middleware
+
+    // 1. Validate Input (Keep Joi/Validation in controller)
     const { error, value } = adminResetPasswordSchema.validate(req.body);
     if (error) {
       throw new AppError("VALIDATION_ERROR", error.details[0].message, 400);
     }
 
-    const admin = await User.findOne({
-      _id: adminId,
-      role: "ADMIN",
-    }).select("+password +refreshTokens");
-
-    if (!admin) {
-      throw new AppError("ADMIN_NOT_FOUND", "Admin not found", 404);
-    }
-
-    const isMatch = await utils.passwordCompared(
+    // 2. Call Service
+    const result = await authService.updateAuthenticatedAdminPassword(
+      adminId,
       value.currentPassword,
-      admin.password
+      value.newPassword
     );
 
-    if (!isMatch) {
-      throw new AppError(
-        "INVALID_PASSWORD",
-        "Current password is incorrect",
-        401
-      );
+    // 3. Handle specific service errors
+    if (!result.success) {
+      const errorMap = {
+        ADMIN_NOT_FOUND: { msg: "Admin account no longer exists", code: 404 },
+        INVALID_PASSWORD: {
+          msg: "The current password you entered is incorrect",
+          code: 401,
+        },
+      };
+      const error = errorMap[result.message];
+      throw new AppError(result.message, error.msg, error.code);
     }
 
-    admin.password = await utils.passwordHashed(value.newPassword);
-    admin.refreshTokens = [];
-
-    await admin.save();
-
-    res.json({
+    // 4. Success Response
+    return res.status(200).json({
       success: true,
-      message: "Password updated successfully",
+      message: "Your password has been updated successfully.",
+      description: "Other sessions have been signed out.",
     });
   } catch (err) {
     next(err);

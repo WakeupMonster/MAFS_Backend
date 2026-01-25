@@ -6,7 +6,7 @@ const redis = require("../../config/cache");
 // --- Actions ---
 
 // 1. Block User (URL Param se ID lega - Easy for Frontend)
-exports.blockUser = async (req, res) => {
+module.exports.blockUser = async (req, res) => {
   try {
     const targetId = req.params.id;
     const userId = req.user._id;
@@ -28,7 +28,7 @@ exports.blockUser = async (req, res) => {
 };
 
 // 2. Report User (URL Param se ID + Body se Reason)
-// exports.reportUser = async (req, res) => {
+// module.exports.reportUser = async (req, res) => {
 //    const userId = req.user._id;
 //   try {
 //     const { reason, description } = req.body;
@@ -47,7 +47,7 @@ exports.blockUser = async (req, res) => {
 //   } catch (e) { res.status(500).json({ success: false, message: e.message }); }
 // };
 
-// exports.reportUser = async (req, res) => {
+// module.exports.reportUser = async (req, res) => {
 //   const reporterId = req.user._id;
 
 //   try {
@@ -88,7 +88,7 @@ exports.blockUser = async (req, res) => {
 //     });
 //   }
 // };
-exports.reportUser = async (req, res) => {
+module.exports.reportUser = async (req, res) => {
   const reporterId = req.user._id;
 
   try {
@@ -140,7 +140,7 @@ exports.reportUser = async (req, res) => {
 
 // 3. Get Blocked Users (Figma Design Format)
 
-exports.getBlockList = async (req, res) => {
+module.exports.getBlockList = async (req, res) => {
   console.log("enter")
   try {
     const myId = req.user._id; // Anubhav ki ID (6953b15de877bc37d35435e3)
@@ -188,7 +188,7 @@ exports.getBlockList = async (req, res) => {
 };
 
 // 4. Unblock User (URL Param)
-exports.unblockUser = async (req, res) => {
+module.exports.unblockUser = async (req, res) => {
    const userId = req.user._id;
   try {
     await Block.findOneAndDelete({ blockerId: req.user._id, blockedId: req.params.id });

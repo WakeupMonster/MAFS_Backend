@@ -16,7 +16,7 @@ function attemptKey(scope, type, target) {
   return `${scope}:otp:attempts:${type}:${normalize(target)}`;
 }
 
-exports.sendOtp = async ({
+module.exports.sendOtp = async ({
   scope,        // "user" | "admin"
   type,         // "email" | "sms"
   target,       // email or phone
@@ -39,7 +39,7 @@ exports.sendOtp = async ({
   }
 };
 
-exports.verifyOtp = async ({ scope, type, target, otp }) => {
+module.exports.verifyOtp = async ({ scope, type, target, otp }) => {
   const key = otpKey(scope, type, target);
   const attempts = attemptKey(scope, type, target);
 

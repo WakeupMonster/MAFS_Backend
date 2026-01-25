@@ -10,7 +10,7 @@
 
 // const redis = require("../../config/cache");
 
-// exports.invalidateUserFeedCache = async (userId) => {
+// module.exports.invalidateUserFeedCache = async (userId) => {
 //   if (!redis || !redis.isOpen) return;
 
 //   const key = `feed:${userId.toString()}`;
@@ -27,7 +27,7 @@ const redis = require("../../config/cache");
  * Invalidate ALL feed caches
  * Used for deactivate/reactivate
  */
-exports.invalidateUserFeedCache = async () => {
+module.exports.invalidateUserFeedCache = async () => {
   if (!redis || !redis.isOpen) return;
 
   let cursor = "0";

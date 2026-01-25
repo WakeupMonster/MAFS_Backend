@@ -5,7 +5,7 @@ const { isBlocked } = require("../../profile/block.service");
 
 
 // 1. SEND MESSAGE (Sabse important jo missing tha)
-exports.sendMessage = async (req, res) => {
+module.exports.sendMessage = async (req, res) => {
   try {
     const sender = req.user._id;
     const { matchId, text, receiverId, media } = req.body;
@@ -38,7 +38,7 @@ exports.sendMessage = async (req, res) => {
 };
 
 // 2. GET MESSAGES (Optimized)
-exports.getChatMessages = async (req, res) => {
+module.exports.getChatMessages = async (req, res) => {
   try {
     const userId = req.user._id;
     // const { matchId } = req.body; 
@@ -115,7 +115,7 @@ exports.getChatMessages = async (req, res) => {
 };
 
 // PATCH /api/v1/messages/:matchId/read   // mark messages read or seen
-exports.updateChatMsgRead = async (req, res) => {
+module.exports.updateChatMsgRead = async (req, res) => {
   try {
     const userId = req.user._id;
     const { matchId } = req.params;
@@ -150,7 +150,7 @@ exports.updateChatMsgRead = async (req, res) => {
 };
 
 // DELETE /api/v1/messages/:matchId/:messageId
-exports.deleteChatMessage = async (req, res) => {
+module.exports.deleteChatMessage = async (req, res) => {
   try {
     const userId = req.user._id;
     const { matchId, messageId } = req.params;
@@ -215,7 +215,7 @@ const redis = require("../../../config/cache");
 const Profile = require("../../../modules/profile/profile.model");
 
 
-exports.getChatList = async (req, res) => {
+module.exports.getChatList = async (req, res) => {
   try {
     const userId = req.user._id;
 
@@ -294,7 +294,7 @@ exports.getChatList = async (req, res) => {
 };
 const { uploadStream } = require("../../upload/cloudinary.service");
 
-exports.uploadChatMediaController = async (req, res) => {
+module.exports.uploadChatMediaController = async (req, res) => {
   try {
     const userId = req.user._id;
     const { matchId, receiverId } = req.body;
@@ -379,7 +379,7 @@ exports.uploadChatMediaController = async (req, res) => {
 
 const { destroy } = require("../../upload/cloudinary.service");
 
-exports.deleteChatMessageWithMedia = async (req, res) => {
+module.exports.deleteChatMessageWithMedia = async (req, res) => {
   try {
     const userId = req.user._id;
     const { messageId } = req.params;

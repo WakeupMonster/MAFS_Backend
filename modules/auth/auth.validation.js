@@ -576,11 +576,11 @@ req[property] = value;
 /* ===============================
    EXPORT VALIDATORS
 ================================ */
-exports.validateSendPhoneOtp = validate(sendPhoneOtpSchema);
-exports.validateVerifyOtp = validate(verifyOtpSchema);
-exports.validateRegisterEmail = validate(registerEmailSchema);
-exports.validateRefreshToken = validate(refreshTokenSchema);
-exports.validateLogout = validate(logoutSchema);
+module.exports.validateSendPhoneOtp = validate(sendPhoneOtpSchema);
+module.exports.validateVerifyOtp = validate(verifyOtpSchema);
+module.exports.validateRegisterEmail = validate(registerEmailSchema);
+module.exports.validateRefreshToken = validate(refreshTokenSchema);
+module.exports.validateLogout = validate(logoutSchema);
 
 
 

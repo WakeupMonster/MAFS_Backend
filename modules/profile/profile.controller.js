@@ -53,7 +53,7 @@ async function clearProfileCache(userId) {
   }
 }
 
-exports.updateProfile = async (req, res) => {
+module.exports.updateProfile = async (req, res) => {
   try {
     const userId = req.user._id;
     const updateData = req.body;
@@ -114,7 +114,7 @@ exports.updateProfile = async (req, res) => {
   }
 };
 
-exports.getMyProfile = async (req, res) => {
+module.exports.getMyProfile = async (req, res) => {
   try {
     const data = await getFullUserData(req.user._id);
     if (!data.profile) return res.status(404).json({ success: false, message: "Profile not found" });
@@ -128,7 +128,7 @@ exports.getMyProfile = async (req, res) => {
   }
 };
 
-exports.uploadPhotos = async (req, res) => {
+module.exports.uploadPhotos = async (req, res) => {
   try {
     const userId = req.user._id;
     const files = req.files;
@@ -173,7 +173,7 @@ exports.uploadPhotos = async (req, res) => {
   }
 };
 
-exports.deletePhoto = async (req, res) => {
+module.exports.deletePhoto = async (req, res) => {
   try {
     const userId = req.user._id;
     const { publicId } = req.body;
@@ -202,7 +202,7 @@ exports.deletePhoto = async (req, res) => {
   }
 };
 
-exports.reorderPhotos = async (req, res) => {
+module.exports.reorderPhotos = async (req, res) => {
   try {
     const userId = req.user._id;
     const { photoIds } = req.body;
@@ -370,7 +370,7 @@ module.exports.uploadIDDocument = async (req, res) => {
     }
   }
 };
-// exports.uploadIDDocument = async (req, res) => {
+// module.exports.uploadIDDocument = async (req, res) => {
 //   try {
 //     const userId = req.user._id;
 //     const frontFile = req.files?.front?.[0];
@@ -404,7 +404,7 @@ module.exports.uploadIDDocument = async (req, res) => {
 //   }
 // };
 
-exports.getVerificationStatus = async (req, res) => {
+module.exports.getVerificationStatus = async (req, res) => {
   try {
     const profile = await Profile.findOne({ userId: req.user._id }).select("verification").lean();
     if (!profile?.verification) {
@@ -425,7 +425,7 @@ exports.getVerificationStatus = async (req, res) => {
   }
 };
 
-exports.updateLocation = async (req, res) => {
+module.exports.updateLocation = async (req, res) => {
   try {
     const userId = req.user._id;
     const { latitude, longitude, city, state, country, full_address } = req.body;
@@ -451,7 +451,7 @@ exports.updateLocation = async (req, res) => {
   }
 };
 
-exports.getStatus = async (req, res) => {
+module.exports.getStatus = async (req, res) => {
   try {
     const userId = req.user._id;
     const cacheKey = `profile:status:${userId}`;
@@ -472,7 +472,7 @@ exports.getStatus = async (req, res) => {
 const Swipe = require("../matches/swipe/swipe.model");
 const {Match} = require("../matches/swipe/swipe.model");
 
-exports.getUserProfile = async (req, res) => {
+module.exports.getUserProfile = async (req, res) => {
   try {
     const { userId: targetUserId } = req.params;
     const viewerId = req.user;
@@ -519,7 +519,7 @@ exports.getUserProfile = async (req, res) => {
   }
 };
 
-// exports.getUserProfile = async (req, res) => {
+// module.exports.getUserProfile = async (req, res) => {
 //   try {
 //     const { userId: targetUserId } = req.params;
 //     const viewer = req.user;
@@ -540,7 +540,7 @@ exports.getUserProfile = async (req, res) => {
 //   }
 // };
 
-exports.updateDiscoveryFilters = async (req, res) => {
+module.exports.updateDiscoveryFilters = async (req, res) => {
   try {
     const userId = req.user._id;
     const { discoveryFilters } = req.body;
@@ -564,7 +564,7 @@ exports.updateDiscoveryFilters = async (req, res) => {
   }
 };
 
-exports.getDiscoveryPreference = async (req, res) => {
+module.exports.getDiscoveryPreference = async (req, res) => {
   try {
     const profile = await Profile.findOne({ userId: req.user._id }).select('preferences discoveryFilters').lean();
     if (!profile) return res.status(404).json({ success: false, message: "Profile not found" });
@@ -574,7 +574,7 @@ exports.getDiscoveryPreference = async (req, res) => {
   }
 };
 
-exports.updateVisibility = async (req, res) => {
+module.exports.updateVisibility = async (req, res) => {
   try {
     const userId = req.user._id;
     const { globalVisibility } = req.body;
@@ -604,7 +604,7 @@ exports.updateVisibility = async (req, res) => {
 // const cloudinary = require('cloudinary').v2;
 // const mongoose = require('mongoose');
 
-// exports.getUploadSignature = async (req, res) => {
+// module.exports.getUploadSignature = async (req, res) => {
 //   try {
 //     // 1. Check karein ki user authenticated hai aur ID valid hai
 //     if (!req.user || !req.user._id) {
@@ -647,7 +647,7 @@ exports.updateVisibility = async (req, res) => {
 
 const mongoose = require('mongoose');
 
-exports.resetTestData = async (req, res) => {
+module.exports.resetTestData = async (req, res) => {
   try {
     const adminId = req.user._id;
      const userObjectId = mongoose.Types.ObjectId.isValid(adminId) 

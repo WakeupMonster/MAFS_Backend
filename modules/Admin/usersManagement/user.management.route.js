@@ -1,29 +1,26 @@
 const express = require("express");
 const router = express.Router();
 const adminController = require("./user.management");
-const auth = require("../../auth/auth.middleware");
-const allowAdminMiddleware = require("../../../common/middlewares/allowAdmin.middleware");
 
-router.use(auth);
-router.use(allowAdminMiddleware);
-
-router.get("/user-list", adminController.SampleGETallUser);
+// List all users
+router.get("/", adminController.SampleGETallUser);
 
 /*
  * ============= GET API FOR EXPORT USERS DATA IN CSV FILE =====================
  */
-// ✅ MOVE EXPORT HERE (Above the :userId routes)
-// router.get("/export", adminController.GETExportAllUsers);
-
-// Add this near your other middleware (like express.json())
-// router.use("/download", express.static(path.join(__dirname, "exports")));
-
+// Export users (Streamed for performance with large datasets)
+// Note: Placed above /:userId to prevent "export" being treated as an ID
 router.get("/export/stream", adminController.streamUsersExport);
 
+/* @section Individual User Operations */
+
+// Get specific user details
 router.get("/:userId", adminController.GETSingleUserDetails);
 
+// Update user profile/details
 router.patch("/:userId", adminController.UPDATESingleUserDetail);
 
+// Update user status (Ban, Deactivate, Activate)
 router.patch("/:userId/status", adminController.UPDATEUserStatus);
 
 module.exports = router;

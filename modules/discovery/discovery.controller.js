@@ -1,6 +1,6 @@
 const service = require("./discovery.service");
 
-exports.updatePreference = async (req, res) => {
+module.exports.updatePreference = async (req, res) => {
   try {
     const pref = await service.upsertPreference(req.user._id, req.body);
     res.json({ success: true, data: pref });
@@ -9,7 +9,7 @@ exports.updatePreference = async (req, res) => {
   }
 };
 
-exports.getPreference = async (req, res) => {
+module.exports.getPreference = async (req, res) => {
   try {
     const pref = await service.getPreference(req.user._id);
     res.json({ success: true, data: pref });

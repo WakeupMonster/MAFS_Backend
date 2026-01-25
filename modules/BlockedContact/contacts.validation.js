@@ -1,6 +1,6 @@
 // const Joi = require("joi");
 
-// exports.importContactsSchema = {
+// module.exports.importContactsSchema = {
 //   body: Joi.object({
 //     contacts: Joi.array()
 //       .items(Joi.string().min(12))
@@ -9,7 +9,7 @@
 //   })
 // };
 
-// exports.blockContactsSchema = {
+// module.exports.blockContactsSchema = {
 //   body: Joi.object({
 //     phones: Joi.array()
 //       .items(Joi.string().min(6))
@@ -45,7 +45,7 @@ const contactSchema = Joi.object({
     })
 });
 
-exports.importContactsSchema = {
+module.exports.importContactsSchema = {
   body: Joi.object({
     contacts: Joi.array()
       .items(contactSchema)

@@ -3,7 +3,7 @@ const { fwbValidation, fwbUpdateValidation } = require("./fwb.validation");
 const { uploadStream, destroy } = require("../upload/cloudinary.service");
 
 /*=========1. GET ALL FWB Offer (active + expired both)=================*/
-exports.getAllFWB = async (req, res) => {
+module.exports.getAllFWB = async (req, res) => {
   try {
     const now = new Date();
 
@@ -66,7 +66,7 @@ exports.getAllFWB = async (req, res) => {
   }
 };
 
-// exports.getAllFWB = async (req, res) => {
+// module.exports.getAllFWB = async (req, res) => {
 //   try {
 //     const list = await FWB.find().select("-code").sort({ createdAt: -1 });
 
@@ -81,7 +81,7 @@ exports.getAllFWB = async (req, res) => {
 //   }
 // };
 
-// exports.getAllFWB = async (req, res) => {
+// module.exports.getAllFWB = async (req, res) => {
 //   try {
 //     const now = new Date();
 
@@ -113,7 +113,7 @@ exports.getAllFWB = async (req, res) => {
 // GET SINGLE BY ID
 
 /*=========2. GET Single FWB Offer=================*/
-exports.getSingleFWB = async (req, res) => {
+module.exports.getSingleFWB = async (req, res) => {
   try {
     const { id } = req.query;
 
@@ -134,7 +134,7 @@ exports.getSingleFWB = async (req, res) => {
 };
 
 /*=========3. CREATE or ADD FWB Offer=================*/
-// exports.createFWB = async (req, res) => {
+// module.exports.createFWB = async (req, res) => {
 //   try {
 //     // Validate body
 //     const { error } = fwbValidation.validate(req.body);
@@ -156,7 +156,7 @@ exports.getSingleFWB = async (req, res) => {
 //     res.status(500).json({ success: false, message: "Server error" });
 //   }
 // };
-// exports.createFWB = async (req, res) => {
+// module.exports.createFWB = async (req, res) => {
 //   try {
 //     // Convert JSON strings from form-data
 //     if (req.body.off_details && typeof req.body.off_details === "string") {
@@ -224,7 +224,7 @@ exports.getSingleFWB = async (req, res) => {
 //   }
 // };
 
-exports.createFWB = async (req, res) => {
+module.exports.createFWB = async (req, res) => {
   try {
     // Parse off_details if string
     if (typeof req.body.off_details === "string") {
@@ -296,7 +296,7 @@ exports.createFWB = async (req, res) => {
 };
 
 /*=========4. UPDATE or PATCH FWB Offer=================*/
-// exports.updateFWB = async (req, res) => {
+// module.exports.updateFWB = async (req, res) => {
 //   try {
 //     // Validate body
 //     const { error } = fwbUpdateValidation.validate(req.body);
@@ -337,7 +337,7 @@ exports.createFWB = async (req, res) => {
 //   }
 // };
 
-exports.updateFWB = async (req, res) => {
+module.exports.updateFWB = async (req, res) => {
   try {
     const { error } = fwbUpdateValidation.validate(req.body);
     if (error) {
@@ -430,7 +430,7 @@ exports.updateFWB = async (req, res) => {
 };
 
 /*=========5. DELETE FWB Offer=================*/
-exports.deleteFWB = async (req, res) => {
+module.exports.deleteFWB = async (req, res) => {
   try {
     const { id } = req.query;
 
@@ -476,7 +476,7 @@ exports.deleteFWB = async (req, res) => {
 };
 
 /*=========6. DELETE FWB Offer Image=================*/
-exports.deleteFWBImage = async (req, res) => {
+module.exports.deleteFWBImage = async (req, res) => {
   try {
     const { id, type } = req.query; // type = com_logo OR prod_img
 

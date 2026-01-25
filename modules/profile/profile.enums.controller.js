@@ -151,7 +151,7 @@ module.exports.getAllEnums = async (req, res) => {
 ===================================================*/
 
 
-exports.getDetails = async (req, res) => {
+module.exports.getDetails = async (req, res) => {
   try {
     const { intQry, lanQry } = req.query;
 
@@ -213,7 +213,7 @@ exports.getDetails = async (req, res) => {
 /*==================================================
 3. ADD or UPDATE Details for Interests Enums data 
 ===================================================*/
-exports.addOrUpdateInterest = async (req, res) => {
+module.exports.addOrUpdateInterest = async (req, res) => {
   try {
     const { id, label, value } = req.body;
 
@@ -281,7 +281,7 @@ exports.addOrUpdateInterest = async (req, res) => {
 /*==================================================
 4. ADD or UPDATE Details for Language Enums data 
 ===================================================*/
-exports.addOrUpdateLanguage = async (req, res) => {
+module.exports.addOrUpdateLanguage = async (req, res) => {
   try {
     const { id, label, value } = req.body;
 
@@ -346,7 +346,7 @@ exports.addOrUpdateLanguage = async (req, res) => {
 /*==================================================
 5. ADD or UPDATE Details for Religion Enums data 
 ===================================================*/
-exports.addOrUpdateReligion = async (req, res) => {
+module.exports.addOrUpdateReligion = async (req, res) => {
   try {
     const { id, label, value } = req.body;
 

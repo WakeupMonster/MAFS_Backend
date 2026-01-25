@@ -5,7 +5,7 @@ const redis = require("../../config/cache");
 
 
 
-// exports.importContacts = async (req, res) => {
+// module.exports.importContacts = async (req, res) => {
 //   try {
 //     const userId = req.user._id;
 //     const { contacts } = req.body;
@@ -73,7 +73,7 @@ const redis = require("../../config/cache");
 
 
 
-exports.importContacts = async (req, res) => {
+module.exports.importContacts = async (req, res) => {
   const userId = req.user._id;
   const { contacts } = req.body;
 
@@ -142,7 +142,7 @@ const usersOnApp = await User.find({
 };
 
 
-exports.blockContacts = async (req, res) => {
+module.exports.blockContacts = async (req, res) => {
   const userId = req.user._id;
   const { phones } = req.body;
 
@@ -168,7 +168,7 @@ exports.blockContacts = async (req, res) => {
 };
 
 
-exports.getBlockedContacts = async (req, res) => {
+module.exports.getBlockedContacts = async (req, res) => {
   const list = await BlockedContact.find({
     userId: req.user._id
   }).sort({ createdAt: -1 });
@@ -177,7 +177,7 @@ exports.getBlockedContacts = async (req, res) => {
 };
 
 
-// exports.unblockContact = async (req, res) => {
+// module.exports.unblockContact = async (req, res) => {
 //   const userId = req.user._id;
 //   const blockId = req.params.id;
 
@@ -204,7 +204,7 @@ exports.getBlockedContacts = async (req, res) => {
 // };
 
 
-exports.unblockByPhone = async (req, res) => {
+module.exports.unblockByPhone = async (req, res) => {
   const userId = req.user._id;
   const { phone } = req.body;
 

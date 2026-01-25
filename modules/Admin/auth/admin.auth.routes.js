@@ -1,15 +1,17 @@
 const express = require("express");
 const router = express.Router();
 const adminController = require("./auth.admin.controller");
-const auth = require("../../auth/auth.middleware");
-const allowAdminMiddleware = require("../../../common/middlewares/allowAdmin.middleware");
+// Middlewares
+const auth = require("../../../modules/auth/auth.middleware");
+const {
+  allowAdmin,
+} = require("../../../common/middlewares/allowAdmin.middleware");
 
+/** @section Public Auth Routes These are accessible without a token */
 router.post("/login", adminController.adminLogin);
 router.post("/register", adminController.adminRegister);
 
-/*
- * ============= POST API'S FORGET PASSWORD =====================
- */
+/*============= POST API'S FORGET PASSWORD =====================*/
 router.post("/request-otp", adminController.sendEmailOTP);
 router.post("/verify-otp", adminController.verifyEmailOTP);
 router.patch("/forgot-password", adminController.adminForgotPassword);
@@ -17,10 +19,14 @@ router.patch("/forgot-password", adminController.adminForgotPassword);
 /*
  * ============= ATUHORIZED OR ENSURE ROLE IS ADMIN or not =============
  */
+// --- Protected Admin Routes ---
 router.use(auth);
-router.post(
-  "/reset-password",
-  allowAdminMiddleware,
-  adminController.adminResetPassword
-);
+router.use(allowAdmin);
+
+/**
+ * @section Protected Auth Routes
+ * Note: 'auth' and 'allowAdmin' are already applied in the Master Index
+ */
+router.post("/reset-password", adminController.adminResetPassword);
+
 module.exports = router;

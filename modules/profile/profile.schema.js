@@ -108,7 +108,7 @@ const discoverySchema = Joi.object({
   .label("Discovery Preferences")
   .min(1);
 
-exports.profileUpdateSchema = Joi.object({
+module.exports.profileUpdateSchema = Joi.object({
   profile: Joi.object({
     nickname: Joi.string().min(2).max(30).label("Nickname"),
     dob: Joi.date().iso().label("Date of Birth"),
@@ -125,7 +125,7 @@ exports.profileUpdateSchema = Joi.object({
    discovery: discoverySchema
 });
 
-// exports.locationSchema = Joi.object({
+// module.exports.locationSchema = Joi.object({
 //   latitude: Joi.number().min(-90).max(90).required() .label("Latitude")
 //     .messages({
 //       "any.required": "Latitude is required",
@@ -147,7 +147,7 @@ exports.profileUpdateSchema = Joi.object({
 //   full_address: Joi.string().allow("", null).label("Full Address")
 // });
 
-exports.userIdParamSchema = Joi.object({
+module.exports.userIdParamSchema = Joi.object({
   userId: objectId.required()
 });
 

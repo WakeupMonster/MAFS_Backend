@@ -184,7 +184,7 @@ module.exports.markProfileCompleted = async (userId) => {
 
 
 
-// exports.formatProfileResponse = (profile) => {
+// module.exports.formatProfileResponse = (profile) => {
 //   // Ensure all nested objects exist
 //   profile.basics = profile.basics || {};
 //   profile.attributes = profile.attributes || {};
@@ -285,7 +285,7 @@ module.exports.markProfileCompleted = async (userId) => {
 
 
 
-// exports.formatProfileResponse = (profile) => {
+// module.exports.formatProfileResponse = (profile) => {
 //   // Initialize all required objects
 //   profile.basics = profile.basics || {
 //     PersonalityType: [],
@@ -390,7 +390,7 @@ module.exports.markProfileCompleted = async (userId) => {
 
 
 
-exports.formatProfileResponse = (profile,user = {},blockedContacts = []) => {
+module.exports.formatProfileResponse = (profile,user = {},blockedContacts = []) => {
   // Transform the new structure into the old format
   return {
     _id: profile._id,

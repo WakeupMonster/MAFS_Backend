@@ -2,7 +2,7 @@ const Joi = require("joi");
 
 const phoneE164Regex = /^\+[1-9]\d{9,14}$/;
 
-exports.sendPhoneOtpSchema = Joi.object({
+module.exports.sendPhoneOtpSchema = Joi.object({
   phone: Joi.string()
     .trim()
     .pattern(phoneE164Regex)
@@ -15,7 +15,7 @@ exports.sendPhoneOtpSchema = Joi.object({
 });
 
 
-exports.verifyOtpSchema = Joi.object({
+module.exports.verifyOtpSchema = Joi.object({
   phone: Joi.string().required(),
   otp: Joi.string().length(6).required().messages({
     "string.length": "OTP must be 6 digits"
@@ -25,7 +25,7 @@ exports.verifyOtpSchema = Joi.object({
 const emailRegex =
   /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
 
-exports.registerEmailSchema = Joi.object({
+module.exports.registerEmailSchema = Joi.object({
   email: Joi.string()
     .trim()
     .lowercase()
@@ -38,14 +38,14 @@ exports.registerEmailSchema = Joi.object({
     })
 });
 
-exports.refreshTokenSchema = Joi.object({
+module.exports.refreshTokenSchema = Joi.object({
   refreshToken: Joi.string().required().messages({
     "any.required": "Refresh token is required"
   })
 });
 
 
-exports.logoutSchema = Joi.object({
+module.exports.logoutSchema = Joi.object({
   refreshToken: Joi.string().required()
 });
 
@@ -76,7 +76,7 @@ exports.logoutSchema = Joi.object({
 //   });
 
 
-// exports.sendPhoneOtpSchema = Joi.object({
+// module.exports.sendPhoneOtpSchema = Joi.object({
 //   phone: Joi.string()
 //     .trim()
 //     .pattern(australiaMobileRegex)
@@ -90,7 +90,7 @@ exports.logoutSchema = Joi.object({
 // });
 
 
-// exports.verifyOtpSchema = Joi.object({
+// module.exports.verifyOtpSchema = Joi.object({
 //   phone: Joi.string()
 //     .trim()
 //     .pattern(australiaMobileRegex)
@@ -110,7 +110,7 @@ exports.logoutSchema = Joi.object({
 // });
 
 
-// exports.registerEmailSchema = Joi.object({
+// module.exports.registerEmailSchema = Joi.object({
 //   email: Joi.string()
 //     .trim()
 //     .lowercase()
@@ -124,11 +124,11 @@ exports.logoutSchema = Joi.object({
 // });
 
 
-// exports.refreshTokenSchema = Joi.object({
+// module.exports.refreshTokenSchema = Joi.object({
 //   refreshToken: refreshTokenSchema
 // });
 
 
-// exports.logoutSchema = Joi.object({
+// module.exports.logoutSchema = Joi.object({
 //   refreshToken: refreshTokenSchema
 // });

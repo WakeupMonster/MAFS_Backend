@@ -3,7 +3,7 @@
 // const MasterData = require("./master.model");
 
 // // 1. Get All Enums for Frontend (The Master API)
-// exports.getAppMetadata = async (req, res) => {
+// module.exports.getAppMetadata = async (req, res) => {
 //   try {
 //     // Lean use karne se query 5x fast ho jati hai
 //     const allData = await MasterData.find().select("category label value").lean();
@@ -25,7 +25,7 @@
 // };
 
 // // 2. Admin: Bulk Add (Figma ki saari list ek sath daalne ke liye)
-// exports.adminBulkAdd = async (req, res) => {
+// module.exports.adminBulkAdd = async (req, res) => {
 //   try {
 //     const { items } = req.body; 
 //     // items example: [{category: 'music', label: 'Pop 🎵', value: 'pop'}, ...]
@@ -39,7 +39,7 @@
 
 const MasterData = require("./master.model");
 
-exports.getAppConfig = async (req, res) => {
+module.exports.getAppConfig = async (req, res) => {
   try {
     const allItems = await MasterData.find().lean();
 
@@ -79,7 +79,7 @@ exports.getAppConfig = async (req, res) => {
 
 
 
-exports.bulkAddMasterData = async (req, res) => {
+module.exports.bulkAddMasterData = async (req, res) => {
   try {
     const { items } = req.body;
 

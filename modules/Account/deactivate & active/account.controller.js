@@ -7,7 +7,7 @@ const { invalidateUserFeedCache } = require("../../../common/utils/feedCache.uti
  * DEACTIVATE ACCOUNT
  * ================================
  */
-exports.deactivateAccount = async (req, res) => {
+module.exports.deactivateAccount = async (req, res) => {
   try {
     const userId = req.user._id;
 
@@ -71,7 +71,7 @@ exports.deactivateAccount = async (req, res) => {
  * ================================
  */
 
-exports.reactivateAccount = async (req, res) => {
+module.exports.reactivateAccount = async (req, res) => {
   try {
     const userId = req.user._id;
 
@@ -128,7 +128,7 @@ const redis = require("../../../config/cache");
 // const { invalidateAllFeedCaches } = require("../../../common/utils/feedCache.util");
 
 
-// exports.deleteAccount = async (req, res) => {
+// module.exports.deleteAccount = async (req, res) => {
 //   const userId = req.user._id;
 //   const session = await mongoose.startSession();
 //   session.startTransaction();
@@ -258,7 +258,7 @@ const redis = require("../../../config/cache");
 
 
 
-// exports.deleteAccount = async (req, res) => {
+// module.exports.deleteAccount = async (req, res) => {
 //   const userId = req.user._id;
 
 //   try {
@@ -356,7 +356,7 @@ const redis = require("../../../config/cache");
 // };
 
 
-// exports.deleteAccount = async (req, res) => {
+// module.exports.deleteAccount = async (req, res) => {
 //   const userId = req.user._id;
 //   const session = await mongoose.startSession();
 //   session.startTransaction();
@@ -453,7 +453,7 @@ const redis = require("../../../config/cache");
 
 
 
-// exports.deleteAccount = async (req, res) => {
+// module.exports.deleteAccount = async (req, res) => {
 //   const userId = req.user._id;
 
 //   try {
@@ -504,7 +504,7 @@ const redis = require("../../../config/cache");
 // Controller file ke top pe import ko fix karo:
 // const { Swipe, Match } = require('../models/swipe.model');
 
-exports.deleteAccount = async (req, res) => {
+module.exports.deleteAccount = async (req, res) => {
   const userId = req.user._id;
 
   try {
@@ -597,7 +597,7 @@ exports.deleteAccount = async (req, res) => {
 
 
 
-exports.markAsMarried = async (req, res) => {
+module.exports.markAsMarried = async (req, res) => {
   const userId = req.user._id;
     // const profile = await Profile.findOne({ userId });
 

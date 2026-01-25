@@ -65,7 +65,7 @@ module.exports.verifyToken = (token) => {
   }
 };
 
-exports.hashToken = (token) => {
+module.exports.hashToken = (token) => {
   return crypto.createHash("sha256").update(token).digest("hex");
 };
 
@@ -119,7 +119,7 @@ module.exports.passwordCompared = async (plainPassword, hashedPassword) => {
 module.exports.passwordHashed = async (plainPassword) => {
   return bcrypt.hash(plainPassword, 10);
 };
-exports.sendPrizeDeliveredEmail = async (toEmail, prizeTitle) => {
+module.exports.sendPrizeDeliveredEmail = async (toEmail, prizeTitle) => {
   await transporter.sendMail({
     from: '"Giveaway Team" <no-reply@app.com>',
     to: toEmail,

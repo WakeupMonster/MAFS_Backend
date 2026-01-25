@@ -7,7 +7,7 @@ const Swipe = require("./swipe.model");
 const redis = require("../../../config/cache");
 const Profile = require("../../profile/profile.model");
 
-exports.getFeed = async (req, res) => {
+module.exports.getFeed = async (req, res) => {
   try {
     const userId = req.user._id;
     const limit = Number(req.query.limit) || 20;
@@ -40,7 +40,7 @@ exports.getFeed = async (req, res) => {
     });
   }
 };
-exports.action = async (req, res) => {
+module.exports.action = async (req, res) => {
   try {
     const userId = req.user._id;
     const { targetId, action } = req.body;
@@ -57,7 +57,7 @@ exports.action = async (req, res) => {
     });
   }
 };
-exports.unmatchUser = async (req, res) => {
+module.exports.unmatchUser = async (req, res) => {
   const session = await mongoose.startSession();
   try {
     const { matchId } = req.body;
@@ -100,7 +100,7 @@ exports.unmatchUser = async (req, res) => {
     return res.status(400).json({ success: false, message: err.message });
   }
 };
-exports.getMatches = async (req, res) => {
+module.exports.getMatches = async (req, res) => {
   try {
     const userId = req.user._id;
 
@@ -178,7 +178,7 @@ function calculateAge(dob) {
     return Math.floor(diff / 31557600000); // Years in ms
 }
 
-exports.getKeenData = async (req, res, actionType) => {
+module.exports.getKeenData = async (req, res, actionType) => {
   try {
     const userId = req.user._id;
     const { page = 1, limit = 20 } = req.query;
@@ -260,5 +260,5 @@ exports.getKeenData = async (req, res, actionType) => {
   }
 };
 
-exports.getKeen = (req, res) => exports.getKeenData(req, res, "like");
-exports.getSuperKeen = (req, res) => exports.getKeenData(req, res, "superlike");
+module.exports.getKeen = (req, res) => module.exports.getKeenData(req, res, "like");
+module.exports.getSuperKeen = (req, res) => module.exports.getKeenData(req, res, "superlike");

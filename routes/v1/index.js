@@ -20,7 +20,6 @@ router.use(
   "/contacts",
   require("../../modules/BlockedContact/contacts.routes")
 );
-router.use("/admintest", require("../../modules/admintester/admintest.route"));
 router.use(
   "/app-settings",
   require("../../modules/AppConfiguration/appSettings.route")
@@ -40,7 +39,6 @@ router.use("/boost", require("../../modules/Boost/boost.route"));
 
 // ADMIN routes
 // BOOST MANAGEMENT CAN BE ADDED IN THE ADMIN PANEL LATER
-
 router.use("/admin", require("../v1/admin/index"));
 
 module.exports = router;

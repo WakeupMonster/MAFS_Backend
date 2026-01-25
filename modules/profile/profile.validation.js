@@ -26,6 +26,6 @@ const validate = (schema, property = "body") => {
   };
 };
 
-exports.validateProfileUpdate = validate(profileUpdateSchema);
-// exports.validateLocation = validate(locationSchema);
-exports.validateUserIdParam = validate(userIdParamSchema, "params");
+module.exports.validateProfileUpdate = validate(profileUpdateSchema);
+// module.exports.validateLocation = validate(locationSchema);
+module.exports.validateUserIdParam = validate(userIdParamSchema, "params");

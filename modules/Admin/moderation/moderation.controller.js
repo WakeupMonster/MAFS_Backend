@@ -1,198 +1,13 @@
 /* eslint-disable no-unused-vars */
 // controllers/admin/admin.kpi.controller.js
 
-const User = require("../auth/auth.model");
-const Profile = require("../profile/profile.model");
-const Report = require("../profile/user.report");
-const UserSubscription = require("../auth/UserSubscription.model");
-const redis = require("../../config/cache"); 
-const Block = require("../profile/user.block")
+const User = require("../../auth/auth.model");
+const Profile = require("../../profile/profile.model");
+const Report = require("../../profile/user.report");
+const redis = require("../../../config/cache");
+const Block = require("../../profile/user.block");
 
-exports.getKpiOverview = async (req, res) => {
-  try {
-    const now = new Date();
-    const last24Hours = new Date(now.getTime() - 24 * 60 * 60 * 1000);
-
-    const [
-      totalUsers,
-      activeUsers24h,
-      paidUsers,
-      TotalBanUsers,
-      TotalTickets,
-      ClaimedPrize,
-      pendingVerifications,
-      openReports,
-    ] = await Promise.all([
-      User.countDocuments({
-  accountStatus: "active",
-  role: "USER"
-}),
-
-      User.countDocuments({
-        lastLoginAt: { $gte: last24Hours },
-        role: "USER",
-accountStatus: "active"
-      }),
-
-      UserSubscription.countDocuments({
-        isActive: true,
-      }),
-      User.countDocuments({
-        accountStatus: "banned",
-      }),
-      SupportTicket.countDocuments({
-        status: { $in: ["open"] }
-      }),
-      GiveawayWinHistory.countDocuments({
-        deliveryStatus: "PENDING",
-        claimedAt : { $ne : null }
-      }),
-      Profile.countDocuments({
-        "verification.status": "pending",
-      }),
-
-      Report.countDocuments({
-        status: { $in: ["new", "in_progress"] },
-      }),
-    ]);
-
-    // ---------- 3. Response formatting for UI ----------
-    const response = {
-      kpis: {
-        totalUsers: {
-          value: totalUsers,
-        },
-        activeUsers24h: {
-          value: activeUsers24h,
-        },
-        paidUsers: {
-          value: paidUsers,
-        },
-        TotalBanUsers: {
-          value: TotalBanUsers
-        },
-        TotalTickets: {
-          value: TotalTickets
-        },
-        ClaimedPrize : {
-          value : ClaimedPrize
-        },
-        pendingVerifications: {
-          value: pendingVerifications,
-          actionable: true,
-        },
-        openReports: {
-          value: openReports,
-          actionable: true,
-          severity: openReports > 10 ? "high" : "normal",
-        },
-      },
-      lastUpdatedAt: new Date(),
-    };
-
-    return res.json({
-      success: true,
-      data: response,
-    });
-  } catch (error) {
-    console.error("Admin KPI error:", error);
-    return res.status(500).json({
-      success: false,
-      message: "Failed to load dashboard KPIs",
-    });
-  }
-};
-
-// exports.getKpiOverview = async (req, res) => {
-//   const CACHE_KEY = "admin:kpi:overview";
-//   const CACHE_TTL = 60; // seconds
-
-//   try {
-//     // 1️⃣ Try Redis first
-//     if (redis) {
-//       const cachedData = await redis.get(CACHE_KEY);
-//       if (cachedData) {
-//         return res.json({
-//           success: true,
-//           data: JSON.parse(cachedData),
-//           source: "cache"
-//         });
-//       }
-//     }
-
-//     // 2️⃣ Cache miss → calculate from DB
-//     const now = new Date();
-//     const last24Hours = new Date(now.getTime() - 24 * 60 * 60 * 1000);
-
-//     const [
-//       totalUsers,
-//       activeUsers24h,
-//       paidUsers,
-//       pendingVerifications,
-//       openReports
-//     ] = await Promise.all([
-//       User.countDocuments({ role: "USER", accountStatus: "active" }),
-//       User.countDocuments({
-//         role: "USER",
-//         accountStatus: "active",
-//         lastLoginAt: { $gte: last24Hours }
-//       }),
-//       User.countDocuments({ role: "USER", isPremium: true }),
-//       Profile.countDocuments({ "verification.status": "pending" }),
-//       Report.countDocuments({
-//         status: { $in: ["new", "in_progress"] }
-//       })
-//     ]);
-
-//     // 3️⃣ KPI severity logic
-//     let openReportsSeverity = "normal";
-//     if (openReports >= 20) openReportsSeverity = "critical";
-//     else if (openReports >= 5) openReportsSeverity = "warning";
-
-//     const responseData = {
-//       kpis: {
-//         totalUsers: { value: totalUsers },
-//         activeUsers24h: { value: activeUsers24h },
-//         paidUsers: { value: paidUsers },
-//         pendingVerifications: {
-//           value: pendingVerifications,
-//           actionable: true
-//         },
-//         openReports: {
-//           value: openReports,
-//           actionable: true,
-//           severity: openReportsSeverity
-//         }
-//       },
-//       lastUpdatedAt: new Date()
-//     };
-
-//     // 4️⃣ Save to Redis
-//     if (redis) {
-//       await redis.set(
-//         CACHE_KEY,
-//         JSON.stringify(responseData),
-//         "EX",
-//         CACHE_TTL
-//       );
-//     }
-
-//     // 5️⃣ Return response
-//     return res.json({
-//       success: true,
-//       data: responseData,
-//       source: "db"
-//     });
-
-//   } catch (error) {
-//     console.error("Admin KPI error:", error);
-//     return res.status(500).json({
-//       success: false,
-//       message: "Failed to load dashboard KPIs"
-//     });
-//   }
-// };
-exports.verifyUserProfile = async (req, res) => {
+module.exports.verifyUserProfile = async (req, res) => {
   const adminId = req.user.id;
   const userId = req.params.userId;
   const { action, reason } = req.body;
@@ -272,7 +87,7 @@ exports.verifyUserProfile = async (req, res) => {
   });
 };
 
-exports.banUser = async (req, res) => {
+module.exports.banUser = async (req, res) => {
   try {
     const adminId = req.user._id;
     const userId = req.params.id;
@@ -345,12 +160,12 @@ exports.banUser = async (req, res) => {
     console.error("Ban user error:", err);
     return res.status(500).json({
       success: false,
-      message: "Failed to ban user"
+      message: "Failed to ban user",
     });
   }
 };
 
-exports.unbanUser = async (req, res) => {
+module.exports.unbanUser = async (req, res) => {
   try {
     const adminId = req.user._id;
     const userId = req.params.id;
@@ -426,7 +241,7 @@ exports.unbanUser = async (req, res) => {
   }
 };
 
-exports.suspendUser = async (req, res) => {
+module.exports.suspendUser = async (req, res) => {
   try {
     const adminId = req.user._id;
     const userId = req.params.id;
@@ -517,7 +332,7 @@ exports.suspendUser = async (req, res) => {
   }
 };
 
-exports.replyToReport = async (req, res) => {
+module.exports.replyToReport = async (req, res) => {
   try {
     const adminId = req.user._id;
     const { message } = req.body;
@@ -538,14 +353,14 @@ exports.replyToReport = async (req, res) => {
     }
 
     if (!Array.isArray(report.replyHistory)) {
-  report.replyHistory = [];
-}
-   report.replyHistory.push({
-  message,
-  repliedBy: adminId,
-  repliedAt: new Date()
-});
-report.handledBy = adminId;
+      report.replyHistory = [];
+    }
+    report.replyHistory.push({
+      message,
+      repliedBy: adminId,
+      repliedAt: new Date(),
+    });
+    report.handledBy = adminId;
     // Move to in-progress automatically
     if (report.status === "new") {
       report.status = "in_progress";
@@ -559,21 +374,19 @@ report.handledBy = adminId;
     //   "We are reviewing your report",
     //   message
     // );
-    const reporter = await User.findById(report.reporterId)
-  .select("email");
+    const reporter = await User.findById(report.reporterId).select("email");
 
-if (reporter?.email) {
-  await utils.sendEmail(
-    reporter.email,
-    "We are reviewing your report",
-    `<p>${message}</p><p>— Support Team</p>`
-  );
-} else {
-  console.log(
-    `Report reply skipped email: reporter ${report.reporterId} has no email`
-  );
-}
-
+    if (reporter?.email) {
+      await utils.sendEmail(
+        reporter.email,
+        "We are reviewing your report",
+        `<p>${message}</p><p>— Support Team</p>`
+      );
+    } else {
+      console.log(
+        `Report reply skipped email: reporter ${report.reporterId} has no email`
+      );
+    }
 
     res.json({
       success: true,
@@ -583,12 +396,12 @@ if (reporter?.email) {
     res.status(500).json({
       success: false,
       message: "Failed to send reply",
-      error : err.message
+      error: err.message,
     });
   }
 };
 
-exports.updateReportStatus = async (req, res) => {
+module.exports.updateReportStatus = async (req, res) => {
   try {
     const adminId = req.user._id;
     const { status, notifyUser } = req.body;
@@ -617,11 +430,10 @@ exports.updateReportStatus = async (req, res) => {
 
       if (notifyUser && report.reporterId.email) {
         await utils.sendEmail(
-  report.reporterId.email,
-  "Your report has been resolved",
-  "Thanks for reporting. We have taken appropriate action."
-);
-
+          report.reporterId.email,
+          "Your report has been resolved",
+          "Thanks for reporting. We have taken appropriate action."
+        );
       }
     }
 
@@ -639,7 +451,7 @@ exports.updateReportStatus = async (req, res) => {
   }
 };
 
-exports.getBlockedUsers = async (req, res) => {
+module.exports.getBlockedUsers = async (req, res) => {
   try {
     const { blockerId, blockedId, page = 1, limit = 20 } = req.query;
 
@@ -676,10 +488,9 @@ exports.getBlockedUsers = async (req, res) => {
       message: "Failed to load block data",
     });
   }
-};    
+};
 
-
-exports.getPendingVerifications = async (req, res, next) => {
+module.exports.getPendingVerifications = async (req, res, next) => {
   try {
     // Find all profiles with pending verification
     const pendingProfiles = await Profile.aggregate([
@@ -718,8 +529,8 @@ exports.getPendingVerifications = async (req, res, next) => {
     });
   } catch (error) {
     res.status(500).json({
-      success:false,
-      message : "Failed to fetch pending verifications"
-    })
+      success: false,
+      message: "Failed to fetch pending verifications",
+    });
   }
 };
