@@ -27,7 +27,7 @@ router.use("/moderation", kycAdminRoutes);
 router.use("/dashboard",dashboardRoutes)
 router.use("/profile-review", profileReviewRoutes);
 router.use("/chat-management",chatManagementRoutes)
-router.use("/notification-management",notificationManagementRoutes)
+router.use("/notification",notificationManagementRoutes)
 router.use("/",require("../../../modules/admintester/admintest.route"))
      
 module.exports = router;

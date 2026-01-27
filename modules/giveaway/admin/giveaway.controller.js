@@ -680,14 +680,6 @@ exports.pauseCampaign = async (req, res) => {
   }
 };
 
-
-
-
-/**
- * @desc    Delete a prize by ID
- * @route   DELETE /api/v1/admin/giveaway/prizes/:id
- * @access  Private/Admin
- */
 exports.deletePrize = async (req, res, next) => {
   try {
     const { id } = req.params;
@@ -730,11 +722,6 @@ exports.deletePrize = async (req, res, next) => {
 };
 
 
-/**
- * @desc    Delete a campaign by ID
- * @route   DELETE /api/v1/admin/giveaway/campaigns/:id
- * @access  Private/Admin
- */
 exports.deleteCampaign = async (req, res, next) => {
   try {
     const { id } = req.params;
