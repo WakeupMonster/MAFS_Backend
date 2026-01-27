@@ -14,7 +14,7 @@ router.use('/socket', socketRoutes);
 router.use("/fwb", require("../../modules/fwb/fwb.routes"));
 router.use("/chat", require("../../modules/matches/chat/chat.route"));
 router.use("/contacts",require("../../modules/BlockedContact/contacts.routes"))
-router.use("/admintest",require("../../modules/admintester/admintest.route"))
+// router.use("/admintest",require("../../modules/admintester/admintest.route"))
 router.use("/app-settings",require("../../modules/AppConfiguration/appSettings.route"))
 
 

@@ -9,7 +9,7 @@ const Block = require("../profile/user.block");
 const { formatProfileResponse } = require("./profile.formatter");
 const UserSubscription = require("../auth/UserSubscription.model");
 const { formatPublictargetProfile } = require("./profile.userFormatter");
-const swipeModel = require("../matches/swipe/swipe.model");
+const { buildOnboardingResponse } = require("../../common/utils/onBoardingSteps");
 
 async function getFullUserData(userId, existingProfile = null) {
   const [user, profile, blockedContacts, blockedUser, subData] = await Promise.all([
@@ -106,7 +106,10 @@ exports.updateProfile = async (req, res) => {
     res.json({
       success: true,
       message: "Profile updated successfully",
-      data: { user: formatProfileResponse(data.user, profile, data.blockedContacts, data.blockedUser, data.subData) }
+      data: {
+        user: formatProfileResponse(data.user, profile, data.blockedContacts, data.blockedUser, data.subData),
+        onboarding: buildOnboardingResponse(req)
+      }
     });
   } catch (error) {
     console.error("Update Error:", error);
@@ -166,7 +169,11 @@ exports.uploadPhotos = async (req, res) => {
     res.json({
       success: true,
       message: `${newPhotosResults.length} photo uploaded successfully`,
-      data: { user: formatProfileResponse(data.user, profile, data.blockedContacts, data.blockedUser, data.subData) }
+      data: {
+        user: formatProfileResponse(data.user, profile, data.blockedContacts, data.blockedUser, data.subData),
+        onboarding: buildOnboardingResponse(req)
+
+      }
     });
   } catch (err) {
     res.status(500).json({ success: false, message: "Failed to upload photos" });
@@ -277,13 +284,16 @@ module.exports.uploadSelfie = async (req, res) => {
 
     // Step 1: Pehle hi baki data fetch karlo parallel mein
     const data = await getFullUserData(userId);
-    
+
     // Step 2: IMMEDIATE RESPONSE (Milli-seconds)
     // Hum user ko response bhej rahe hain, upload background mein chalta rahega
     res.json({
       success: true,
       message: "Selfie upload started...",
-      data: { user: formatProfileResponse(data.user, data.profile, data.blockedContacts, data.blockedUser, data.subData) }
+      data: {
+        user: formatProfileResponse(data.user, data.profile, data.blockedContacts, data.blockedUser, data.subData),
+        onboarding: buildOnboardingResponse(req)
+      }
     });
 
     // Step 3: BACKGROUND PROCESSING (No 'await' for the response)
@@ -294,11 +304,11 @@ module.exports.uploadSelfie = async (req, res) => {
     }).then(async (result) => {
       await Profile.updateOne(
         { userId },
-        { 
-          $set: { 
-            "verification.selfieUrl": result.secure_url, 
-            "verification.status": "pending" 
-          } 
+        {
+          $set: {
+            "verification.selfieUrl": result.secure_url,
+            "verification.status": "pending"
+          }
         }
       );
       await cache.del(`profile:status:${userId}`);
@@ -329,8 +339,9 @@ module.exports.uploadIDDocument = async (req, res) => {
     res.json({
       success: true,
       message: "ID upload started. We will notify you once verified.",
-      data: { 
-        user: formatProfileResponse(data.user, data.profile, data.blockedContacts, data.blockedUser, data.subData) 
+      data: {
+        user: formatProfileResponse(data.user, data.profile, data.blockedContacts, data.blockedUser, data.subData),
+        onboarding: buildOnboardingResponse(req)
       }
     });
 
@@ -356,7 +367,7 @@ module.exports.uploadIDDocument = async (req, res) => {
 
         await Profile.updateOne({ userId }, { $set: updateFields });
         await cache.del(`profile:status:${userId}`);
-        
+
         console.log(`ID Document processed in background for: ${userId}`);
       } catch (bgError) {
         console.error("ID Upload Background Error:", bgError);
@@ -470,7 +481,7 @@ exports.getStatus = async (req, res) => {
 };
 
 const Swipe = require("../matches/swipe/swipe.model");
-const {Match} = require("../matches/swipe/swipe.model");
+const { Match } = require("../matches/swipe/swipe.model");
 
 exports.getUserProfile = async (req, res) => {
   try {
@@ -489,26 +500,26 @@ exports.getUserProfile = async (req, res) => {
       Profile.findOne({ userId: viewerId }).select("location").lean(),
       Profile.findOne({ userId: targetUserId }).lean(),
       Swipe.findOne({ swiperId: viewerId, targetId: targetUserId }).lean(),
-      Block.findOne({ 
+      Block.findOne({
         $or: [
-          { blockerId: viewerId, blockedId: targetUserId }, 
+          { blockerId: viewerId, blockedId: targetUserId },
           { blockerId: targetUserId, blockedId: viewerId }
-        ] 
+        ]
       }).lean(),
       Match.findOne({ users: { $all: [viewerId, targetUserId] } }).lean(),
-      redis.get(`boost:${targetUserId}`) 
+      redis.get(`boost:${targetUserId}`)
     ]);
 
     // 2️⃣ Edge Case Handlers
     if (!targetProfile) return res.status(404).json({ success: false, message: "Profile not found" });
     if (blockStatus) return res.status(403).json({ success: false, message: "Profile unavailable" });
 
-    
+
     const formattedData = await formatPublictargetProfile(
-      viewerProfile, 
-      targetProfile, 
-      swipeAction, 
-      matchRecord, 
+      viewerProfile,
+      targetProfile,
+      swipeAction,
+      matchRecord,
       isBoosted
     );
 
@@ -650,9 +661,9 @@ const mongoose = require('mongoose');
 exports.resetTestData = async (req, res) => {
   try {
     const adminId = req.user._id;
-     const userObjectId = mongoose.Types.ObjectId.isValid(adminId) 
-          ? new mongoose.Types.ObjectId(adminId) 
-          : adminId;
+    const userObjectId = mongoose.Types.ObjectId.isValid(adminId)
+      ? new mongoose.Types.ObjectId(adminId)
+      : adminId;
 
     // ✅ DELETE MATCHES WHERE ADMIN IS PART OF MATCH
     const matchResult = await Match.deleteMany({
