@@ -8,7 +8,7 @@ const {
   createPremiumExpiryCampaign,
   getNotificationHistory
 } = require("./adminNotification.controller");
-
+  
 const {createEmailCampaign} = require("./adminEmail.controller")
 
 router.use(adminAuth);

@@ -501,22 +501,91 @@ exports.adminRegister = async (req, res, next) => {
 };
 
 
-exports.adminLogin = async (req, res, next) => {
+// exports.adminLogin = async (req, res, next) => {
+//   try {
+//     const { error, value } = adminLoginSchema.validate(req.body);
+//     if (error) {
+//       throw new AppError(
+//         "VALIDATION_ERROR",
+//         error.details[0].message,
+//         400
+//       );
+//     }
+
+//     const { email, password } = value;
+
+//     const admin = await User.findOne({
+//       email,
+//       role: "ADMIN"
+//     }).select("+password +refreshTokens");
+
+//     if (!admin) {
+//       throw new AppError(
+//         "INVALID_CREDENTIALS",
+//         "Invalid admin credentials",
+//         401
+//       );
+//     }
+
+//     if (admin.accountStatus !== "active") {
+//       throw new AppError(
+//         "ACCOUNT_RESTRICTED",
+//         "Account is restricted",
+//         403
+//       );
+//     }
+
+//     const isMatch = await utils.passwordCompared(password, admin.password);
+//     if (!isMatch) {
+//       throw new AppError(
+//         "INVALID_CREDENTIALS",
+//         "Invalid admin credentials",
+//         401
+//       );
+//     }
+
+//     const accessToken = utils.generateAccessToken(admin);
+//     const refreshTokenRaw = utils.generateRefreshToken();
+//     const refreshTokenHash = utils.hashToken(refreshTokenRaw);
+//     const now = Date.now();
+
+//     admin.refreshTokens = admin.refreshTokens
+//       .filter(t => t.expiresAt > now)
+//       .slice(-MAX_REFRESH_TOKENS + 1);
+
+//     admin.refreshTokens.push({
+//       tokenHash: refreshTokenHash,
+//       expiresAt: now + REFRESH_TOKEN_TTL_MS
+//     });
+
+//     await admin.save();
+
+//     res.json({
+//       success: true,
+//       data: {
+//         accessToken,
+//         refreshToken: refreshTokenRaw
+//       }
+//     });
+//   } catch (err) {
+//     next(err);
+//   }
+// };
+
+
+
+module.exports.adminLogin = async (req, res, next) => {
   try {
     const { error, value } = adminLoginSchema.validate(req.body);
     if (error) {
-      throw new AppError(
-        "VALIDATION_ERROR",
-        error.details[0].message,
-        400
-      );
+      throw new AppError("VALIDATION_ERROR", error.details[0].message, 400);
     }
 
     const { email, password } = value;
 
     const admin = await User.findOne({
       email,
-      role: "ADMIN"
+      role: "ADMIN",
     }).select("+password +refreshTokens");
 
     if (!admin) {
@@ -528,11 +597,7 @@ exports.adminLogin = async (req, res, next) => {
     }
 
     if (admin.accountStatus !== "active") {
-      throw new AppError(
-        "ACCOUNT_RESTRICTED",
-        "Account is restricted",
-        403
-      );
+      throw new AppError("ACCOUNT_RESTRICTED", "Account is restricted", 403);
     }
 
     const isMatch = await utils.passwordCompared(password, admin.password);
@@ -550,28 +615,49 @@ exports.adminLogin = async (req, res, next) => {
     const now = Date.now();
 
     admin.refreshTokens = admin.refreshTokens
-      .filter(t => t.expiresAt > now)
+      .filter((t) => t.expiresAt > now)
       .slice(-MAX_REFRESH_TOKENS + 1);
 
     admin.refreshTokens.push({
       tokenHash: refreshTokenHash,
-      expiresAt: now + REFRESH_TOKEN_TTL_MS
+      expiresAt: now + REFRESH_TOKEN_TTL_MS,
     });
 
     await admin.save();
 
+    /* ------------------------------------
+     * 7️⃣ Fetch Profile (lean & minimal)
+     * ---------------------------------- */
+    const profile = await Profile.findOne({ userId: admin._id })
+      .select("nickname photos")
+      .lean();
+
     res.json({
       success: true,
+      message: "Login successful",
+      screen: "/admin/dashboard",
+      // data: {
+      //   accessToken,
+      //   refreshToken: refreshTokenRaw
+      // }
       data: {
-        accessToken,
-        refreshToken: refreshTokenRaw
-      }
+        id: admin._id,
+        profileId: profile?._id || null,
+        nickname: profile?.nickname || null,
+        email: admin.email,
+        phone: admin.phone,
+        role: admin.role,
+        auth: {
+          accessToken,
+          refreshToken: refreshTokenRaw, // only sent once
+          tokenType: "Bearer",
+        },
+      },
     });
   } catch (err) {
     next(err);
   }
 };
-
 
 exports.sendEmailOTP = async (req, res, next) => {
   try {
