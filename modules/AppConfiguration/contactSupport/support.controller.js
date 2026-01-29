@@ -34,12 +34,10 @@ module.exports.contactSupport = async (req, res) => {
   }
 };
 
-module.exports.getMyTickets = async (req, res) => {
+module.exports.getAllTickets = async (req, res) => {
   try {
-    const userId = req.user._id;
-
-    const tickets = await SupportTicket.find({ userId })
-      .select("category subject status adminReply createdAt updatedAt")
+    const tickets = await SupportTicket.find({})
+      .select("userId category subject status adminReply createdAt updatedAt")
       .sort({ createdAt: -1 })
       .lean();
 
@@ -55,6 +53,32 @@ module.exports.getMyTickets = async (req, res) => {
     });
   }
 };
+
+
+// module.exports.getMyTickets = async (req, res) => {
+//   try {
+//     const userId = req.user._id;
+
+//     // const tickets = await SupportTicket.find({ userId })
+//     //   .select("category subject status adminReply createdAt updatedAt")
+//     //   .sort({ createdAt: -1 })
+//     //   .lean();
+
+      
+//     const tickets = await SupportTicket.find({ userId })
+//       .select("status")
+//     return res.json({
+//       success: true,
+//       data: tickets
+//     });
+
+//   } catch (err) {
+//     return res.status(500).json({
+//       success: false,
+//       message: "Failed to fetch tickets"
+//     });
+//   }
+// };
 
 
 module.exports.getMyTicketById = async (req, res) => {

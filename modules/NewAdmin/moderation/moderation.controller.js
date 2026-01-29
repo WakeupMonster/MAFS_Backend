@@ -6,6 +6,7 @@ const Profile = require("../../profile/profile.model");
 const Report = require("../../profile/user.report");
 const redis = require("../../../config/cache");
 const Block = require("../../profile/user.block");
+const utils = require("../../auth/auth.utils")
 
 module.exports.verifyUserProfile = async (req, res) => {
   const adminId = req.user.id;

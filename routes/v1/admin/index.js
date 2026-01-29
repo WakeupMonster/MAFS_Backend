@@ -17,8 +17,10 @@ const userRoutes = require("../../../modules/NewAdmin/usersManagement/user.manag
 const dashboardRoutes = require("../../../modules/NewAdmin/dashboard/dashboard.stats.routes")
 const kycAdminRoutes = require("../../../modules/NewAdmin/moderation/moderation.routes")
 router.use("/auth",adminCredential)
+
 // router.use(auth);        
 // router.use(allowAdminMiddleware);
+
 router.use("/giveaway", giveawayAdminRoutes);
 router.use("/users", userRoutes); 
 router.use("/cms",cmsManagement)

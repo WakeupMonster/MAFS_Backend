@@ -35,8 +35,8 @@ exports.getKpiOverview = async (req, res) => {
         accountStatus: "active"
       }),
 
-      UserSubscription.countDocuments({
-        isActive: true
+      User.countDocuments({
+        isPremium : true
       }),
       User.countDocuments({
         accountStatus: "banned",
