@@ -150,7 +150,6 @@ module.exports.getAllEnums = async (req, res) => {
 2. GET Details for Enums data and GET details based search query intQry , lanQry
 ===================================================*/
 
-
 module.exports.getDetails = async (req, res) => {
   try {
     const { intQry, lanQry } = req.query;

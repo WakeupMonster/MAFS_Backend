@@ -150,11 +150,18 @@ module.exports.banUser = async (req, res) => {
     if (redis) {
       await redis.del("admin:kpi:overview");
       await redis.del(`user:${userId}`);
+      await redis.del("users:list");
     }
 
     return res.json({
       success: true,
       message: "User banned successfully",
+      // Returning data helps Redux update the state without a full refresh
+      data: {
+        userId,
+        accountStatus: "banned",
+        banDetails: user.banDetails,
+      },
     });
   } catch (err) {
     console.error("Ban user error:", err);

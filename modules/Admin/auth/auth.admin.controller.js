@@ -740,7 +740,7 @@ module.exports.sendEmailOTP = async (req, res, next) => {
     return res.status(200).json({
       success: true,
       message: "OTP sent successfully",
-      screen: "verify-otp",
+      screen: "verify-email",
       data: {
         email: email,
         resendAfter: 60,
@@ -778,7 +778,7 @@ module.exports.verifyEmailOTP = async (req, res, next) => {
     return res.status(200).json({
       success: true,
       message: "OTP verified successfully",
-      screen: "forgot-password",
+      screen: "new-password",
       data: {
         // Pass the adminId or a temporary reset token if needed
         resetId: result.adminId,
@@ -821,7 +821,7 @@ module.exports.adminForgotPassword = async (req, res, next) => {
 
     return res.status(200).json({
       success: true,
-      screen: "login",
+      screen: "/auth/login",
       message:
         "Password reset successfully. Please login with your new password.",
     });
