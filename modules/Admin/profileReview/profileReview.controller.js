@@ -1,6 +1,6 @@
 const Profile = require("../../../modules/profile/profile.model");
 const User = require("../../../modules/auth/auth.model");
-const { formatProfileResponse } = require("../../../modules/profile/profile.formatter");
+// const { formatProfileResponse } = require("../../../modules/profile/profile.formatter");
 const Report = require("../../../modules/profile/user.report");
 
 const getProfileForReview = async (req, res) => {
@@ -197,112 +197,259 @@ const updateProfileStatus = async (req, res) => {
     });
   }
 };
+// const getReportedProfiles = async (req, res) => {
+//   try {
+//     const page = parseInt(req.query.page) || 1;
+//     const limit = parseInt(req.query.limit) || 20;
+//     const skip = (page - 1) * limit;
+
+//     // First, get the base query without pagination to get total count
+//     // const countQuery = {
+//     //   status: { $in: ["new"] }, // Changed to match your status values
+//     //   reportedId: { $exists: true, $ne: null }
+//     // };
+    
+
+//     const total = await Report.countDocuments(countQuery);
+//     // Get reported profiles with pagination
+//     const reports = await Report.aggregate([
+//       {
+//         $match: {
+//           status: { $in: ["new", "in_progress"] },
+//           reportedId: { $exists: true, $ne: null }
+//         }
+//       },
+//       {
+//         $lookup: {
+//           from: 'users',
+//           localField: 'reportedId', // Changed from reportedUser to reportedId
+//           foreignField: '_id',
+//           as: 'reportedUser'
+//         }
+//       },
+//       { $unwind: '$reportedUser' },
+//       {
+//         $lookup: {
+//           from: 'profiles',
+//           localField: 'reportedUser._id',
+//           foreignField: 'userId',
+//           as: 'profile'
+//         }
+//       },
+//       { $unwind: { path: '$profile', preserveNullAndEmptyArrays: true } },
+//       {
+//         $group: {
+//           _id: '$reportedUser._id',
+//           user: { $first: '$reportedUser' },
+//           profile: { $first: '$profile' },
+//           reportCount: { $sum: 1 },
+//           reasons: { $addToSet: '$reason' },
+//           latestReport: { $max: '$createdAt' },
+//           reports: {
+//             $push: {
+//               _id: '$_id',
+//               reason: '$reason',
+//               description: '$description',
+//               status: '$status',
+//               severity: '$severity',
+//               reportedById: '$reporterId', // Changed from reportedBy to reporterId
+//               reportedAt: '$createdAt'
+//             }
+//           }
+//         }
+//       },
+//       { $sort: { latestReport: -1 } },
+//       { $skip: skip },
+//       { $limit: limit }
+//     ]);
+
+//     // Format the response
+//     const result = await Promise.all(reports.map(async (item) => {
+//       // If profile doesn't exist, create a minimal profile from user data
+//       if (!item.profile) {
+//         item.profile = {
+//           nickname: item.user.name || 'No Profile',
+//           photos: [],
+//           about: 'No profile information available',
+//           interests: [],
+//           gender: item.user.gender || 'Not specified',
+//           age: item.user.age || null,
+//           location: {},
+//           verification: {}
+//         };
+//       }
+
+//       const formattedProfile = formatProfileResponse(item.user, item.profile);
+
+//       return {
+//         userId: item.user._id,
+//         nickname: item.profile.nickname || item.user.name || 'No Nickname',
+//         profilePhoto: item.profile.photos?.[0]?.url || null,
+//         reportCount: item.reportCount,
+//         lastReportedAt: item.latestReport,
+//         status: item.reports[0]?.status || 'new', // Get status from the most recent report
+//         severity: item.reports[0]?.severity || 'medium', // Get severity from the most recent report
+//         reasons: item.reasons,
+//         profile: {
+//           photos: formattedProfile?.profile?.photos || [],
+//           bio: formattedProfile?.profile?.about || '',
+//           interests: formattedProfile?.profile?.interests || [],
+//           gender: formattedProfile?.profile?.gender || '',
+//           age: formattedProfile?.profile?.age || null,
+//           location: formattedProfile?.profile?.location || {},
+//           verification: formattedProfile?.profile?.verification || {}
+//         },
+//         reports: item.reports
+//       };
+//     }));
+
+//     res.json({
+//       success: true,
+//       data: result,
+//       pagination: {
+//         total,
+//         page,
+//         limit,
+//         totalPages: Math.ceil(total / limit)
+//       }
+//     });
+//   } catch (error) {
+//     console.error('Error in getReportedProfiles:', error);
+//     res.status(500).json({
+//       success: false,
+//       message: 'Failed to fetch reported profiles',
+//       error: error.message
+//     });
+//   }
+// };
+
+
 const getReportedProfiles = async (req, res) => {
   try {
     const page = parseInt(req.query.page) || 1;
     const limit = parseInt(req.query.limit) || 20;
     const skip = (page - 1) * limit;
 
-    // First, get the base query without pagination to get total count
-    const countQuery = {
-      status: { $in: ["new", "in_progress"] }, // Changed to match your status values
+    const matchStage = {
+      status: { $in: ["new", "in_progress", "resolved"] },
       reportedId: { $exists: true, $ne: null }
     };
 
-    const total = await Report.countDocuments(countQuery);
-    // Get reported profiles with pagination
+    // Total count (simple query – correct)
+    const total = await Report.countDocuments(matchStage);
+
     const reports = await Report.aggregate([
-      {
-        $match: {
-          status: { $in: ["new", "in_progress"] },
-          reportedId: { $exists: true, $ne: null }
-        }
-      },
-      {
-        $lookup: {
-          from: 'users',
-          localField: 'reportedId', // Changed from reportedUser to reportedId
-          foreignField: '_id',
-          as: 'reportedUser'
-        }
-      },
-      { $unwind: '$reportedUser' },
+      { $match: matchStage },
+
+      // 🔥 ensure latest report comes first
+      { $sort: { createdAt: -1 } },
+
+      // ===== USER LOOKUP (SAFE) =====
       {
         $lookup: {
-          from: 'profiles',
-          localField: 'reportedUser._id',
-          foreignField: 'userId',
-          as: 'profile'
+          from: "users",
+          localField: "reportedId",
+          foreignField: "_id",
+          as: "reportedUser"
         }
       },
-      { $unwind: { path: '$profile', preserveNullAndEmptyArrays: true } },
+      {
+        $unwind: {
+          path: "$reportedUser",
+          preserveNullAndEmptyArrays: true // 🔥 DO NOT DROP DOCS
+        }
+      },
+
+      // ===== PROFILE LOOKUP (SAFE) =====
+      {
+        $lookup: {
+          from: "profiles",
+          localField: "reportedUser._id",
+          foreignField: "userId",
+          as: "profile"
+        }
+      },
+      {
+        $unwind: {
+          path: "$profile",
+          preserveNullAndEmptyArrays: true
+        }
+      },
+
+      // ===== GROUP BY REPORTED USER =====
       {
         $group: {
-          _id: '$reportedUser._id',
-          user: { $first: '$reportedUser' },
-          profile: { $first: '$profile' },
+          _id: "$reportedId",
+          user: { $first: "$reportedUser" },
+          profile: { $first: "$profile" },
+
           reportCount: { $sum: 1 },
-          reasons: { $addToSet: '$reason' },
-          latestReport: { $max: '$createdAt' },
+          reasons: { $addToSet: "$reason" },
+
+          latestReport: { $first: "$createdAt" },
+          latestStatus: { $first: "$status" },
+          latestSeverity: { $first: "$severity" },
+
           reports: {
             $push: {
-              _id: '$_id',
-              reason: '$reason',
-              description: '$description',
-              status: '$status',
-              severity: '$severity',
-              reportedById: '$reporterId', // Changed from reportedBy to reporterId
-              reportedAt: '$createdAt'
+              _id: "$_id",
+              reason: "$reason",
+              description: "$description",
+              status: "$status",
+              severity: "$severity",
+              reportedById: "$reporterId",
+              reportedAt: "$createdAt"
             }
           }
         }
       },
+
       { $sort: { latestReport: -1 } },
       { $skip: skip },
       { $limit: limit }
     ]);
 
-    // Format the response
-    const result = await Promise.all(reports.map(async (item) => {
-      // If profile doesn't exist, create a minimal profile from user data
-      if (!item.profile) {
-        item.profile = {
-          nickname: item.user.name || 'No Profile',
-          photos: [],
-          about: 'No profile information available',
-          interests: [],
-          gender: item.user.gender || 'Not specified',
-          age: item.user.age || null,
-          location: {},
-          verification: {}
-        };
-      }
+    // ===== FORMAT RESPONSE =====
+    const result = reports.map((item) => {
+      const user = item.user || {};
 
-      const formattedProfile = formatProfileResponse(item.user, item.profile);
+      const profile = item.profile || {
+        nickname: user.name || "No Profile",
+        photos: [],
+        about: "No profile information available",
+        interests: [],
+        gender: user.gender || "Not specified",
+        age: user.age || null,
+        location: {},
+        verification: {}
+      };
 
       return {
-        userId: item.user._id,
-        nickname: item.profile.nickname || item.user.name || 'No Nickname',
-        profilePhoto: item.profile.photos?.[0]?.url || null,
+        userId: item._id,
+        nickname: profile.nickname || user.name || "No Nickname",
+        profilePhoto: profile.photos?.[0]?.url || null,
+
         reportCount: item.reportCount,
         lastReportedAt: item.latestReport,
-        status: item.reports[0]?.status || 'new', // Get status from the most recent report
-        severity: item.reports[0]?.severity || 'medium', // Get severity from the most recent report
+        status: item.latestStatus,
+        severity: item.latestSeverity,
         reasons: item.reasons,
+
         profile: {
-          photos: formattedProfile?.profile?.photos || [],
-          bio: formattedProfile?.profile?.about || '',
-          interests: formattedProfile?.profile?.interests || [],
-          gender: formattedProfile?.profile?.gender || '',
-          age: formattedProfile?.profile?.age || null,
-          location: formattedProfile?.profile?.location || {},
-          verification: formattedProfile?.profile?.verification || {}
+          photos: profile.photos || [],
+          bio: profile.about || "",
+          interests: profile.interests || [],
+          gender: profile.gender || "",
+          age: profile.age || null,
+          location: profile.location || {},
+          verification: profile.verification || {}
         },
+
         reports: item.reports
       };
-    }));
+    });
 
-    res.json({
+    return res.json({
       success: true,
       data: result,
       pagination: {
@@ -312,15 +459,18 @@ const getReportedProfiles = async (req, res) => {
         totalPages: Math.ceil(total / limit)
       }
     });
+
   } catch (error) {
-    console.error('Error in getReportedProfiles:', error);
-    res.status(500).json({
+    console.error("Error in getReportedProfiles:", error);
+    return res.status(500).json({
       success: false,
-      message: 'Failed to fetch reported profiles',
+      message: "Failed to fetch reported profiles",
       error: error.message
     });
   }
 };
+
+
 module.exports = {
   getReportedProfiles,
   getProfileForReview,
