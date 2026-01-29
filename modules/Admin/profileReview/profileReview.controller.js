@@ -2,6 +2,7 @@ const Profile = require("../../../modules/profile/profile.model");
 const User = require("../../../modules/auth/auth.model");
 // const { formatProfileResponse } = require("../../../modules/profile/profile.formatter");
 const Report = require("../../../modules/profile/user.report");
+const { sendReplyToReporterEmail } = require("../../auth/auth.utils");
 
 const getProfileForReview = async (req, res) => {
   try {
@@ -74,129 +75,129 @@ const getProfileForReview = async (req, res) => {
   }
 };
 
-const updateProfileStatus = async (req, res) => {
-  try {
-    const { userId } = req.params;
-    const { action, reason, banDuration } = req.body;
-    const adminId = req.user?._id;
+// const updateProfileStatus = async (req, res) => {
+//   try {
+//     const { userId } = req.params;
+//     const { action, reason, banDuration } = req.body;
+//     const adminId = req.user?._id;
 
-    if (!['approve', 'reject', 'ban'].includes(action)) {
-      return res.status(400).json({
-        success: false,
-        message: 'Invalid action. Must be one of: approve, reject, ban'
-      });
-    }
+//     if (!['approve', 'reject', 'ban'].includes(action)) {
+//       return res.status(400).json({
+//         success: false,
+//         message: 'Invalid action. Must be one of: approve, reject, ban'
+//       });
+//     }
 
-    if ((action === 'reject' || action === 'ban') && !reason) {
-      return res.status(400).json({
-        success: false,
-        message: 'Reason is required for this action'
-      });
-    }
+//     if ((action === 'reject' || action === 'ban') && !reason) {
+//       return res.status(400).json({
+//         success: false,
+//         message: 'Reason is required for this action'
+//       });
+//     }
 
-    const user = await User.findById(userId);
-    if (!user) {
-      return res.status(404).json({
-        success: false,
-        message: 'User not found'
-      });
-    }
+//     const user = await User.findById(userId);
+//     if (!user) {
+//       return res.status(404).json({
+//         success: false,
+//         message: 'User not found'
+//       });
+//     }
 
-    // let update = {};
-    let message = '';
+//     // let update = {};
+//     let message = '';
 
-    switch (action) {
-      case 'approve':
-        // Mark all reports as reviewed
-        await Report.updateMany(
-          { reportedId: userId, status: 'new' },
-          {
-            $set: {
-              status: 'resolved',
-              resolvedAt: new Date(),
-              resolvedBy: adminId,
-              resolution: 'Profile approved after review'
-            }
-          }
-        );
-        await User.updateMany({ accountStatus: "banned",  "banDetails.isBanned": true }, {
-          $set: {
-            accountStatus: "active",
-            "banDetails.isBanned": false,
-            "banDetails.reason": "",
-            "banDetails.bannedAt": null
-          }
-        })
-        message = 'Profile approved successfully';
-        break;
+//     switch (action) {
+//       case 'approve':
+//         // Mark all reports as reviewed
+//         await Report.updateMany(
+//           { reportedId: userId, status: 'new' },
+//           {
+//             $set: {
+//               status: 'resolved',
+//               resolvedAt: new Date(),
+//               resolvedBy: adminId,
+//               resolution: 'Profile approved after review'
+//             }
+//           }
+//         );
+//         await User.updateMany({ accountStatus: "banned",  "banDetails.isBanned": true }, {
+//           $set: {
+//             accountStatus: "active",
+//             "banDetails.isBanned": false,
+//             "banDetails.reason": "",
+//             "banDetails.bannedAt": null
+//           }
+//         })
+//         message = 'Profile approved successfully';
+//         break;
 
 
-      case 'reject':
-        // Mark all reports as reviewed
-        await Report.updateMany(
-          { reportedId: userId, status: 'new' },
-          {
-            $set: {
-              status: 'resolved',
-              resolvedAt: new Date(),
-              resolvedBy: adminId,
-              resolution: 'Profile rejected: ' + reason
-            }
-          }
-        );
-        message = 'Profile rejected successfully';
-        break;
+//       case 'reject':
+//         // Mark all reports as reviewed
+//         await Report.updateMany(
+//           { reportedId: userId, status: 'new' },
+//           {
+//             $set: {
+//               status: 'resolved',
+//               resolvedAt: new Date(),
+//               resolvedBy: adminId,
+//               resolution: 'Profile rejected: ' + reason
+//             }
+//           }
+//         );
+//         message = 'Profile rejected successfully';
+//         break;
 
-      case 'ban':
-        {
-          const banDetails = {
-            isBanned: true,
-            reason,
-            bannedBy: adminId,
-            bannedAt: new Date(),
-            banExpiresAt: banDuration ?
-              new Date(Date.now() + banDuration * 24 * 60 * 60 * 1000) :
-              null // Permanent ban if no duration
-          };
+//       case 'ban':
+//         {
+//           const banDetails = {
+//             isBanned: true,
+//             reason,
+//             bannedBy: adminId,
+//             bannedAt: new Date(),
+//             banExpiresAt: banDuration ?
+//               new Date(Date.now() + banDuration * 24 * 60 * 60 * 1000) :
+//               null // Permanent ban if no duration
+//           };
 
-          await User.findByIdAndUpdate(userId, {
-            $set: {
-              'banDetails': banDetails,
-              'accountStatus': 'banned'
-            }
-          });
+//           await User.findByIdAndUpdate(userId, {
+//             $set: {
+//               'banDetails': banDetails,
+//               'accountStatus': 'banned'
+//             }
+//           });
 
-          // Mark all reports as reviewed
-          await Report.updateMany(
-            { reportedId: userId, status: 'new' },
-            {
-              $set: {
-                status: 'resolved',
-                resolvedAt: new Date(),
-                resolvedBy: adminId,
-                resolution: 'User banned: ' + reason
-              }
-            }
-          );
+//           // Mark all reports as reviewed
+//           await Report.updateMany(
+//             { reportedId: userId, status: 'new' },
+//             {
+//               $set: {
+//                 status: 'resolved',
+//                 resolvedAt: new Date(),
+//                 resolvedBy: adminId,
+//                 resolution: 'User banned: ' + reason
+//               }
+//             }
+//           );
 
-          message = 'User banned successfully';
-          break;
-        }
-    }
+//           message = 'User banned successfully';
+//           break;
+//         }
+//     }
 
-    res.json({
-      success: true,
-      message
-    });
-  } catch (error) {
-    console.error('Error updating profile status:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Failed to update profile status',
-      error: error.message
-    });
-  }
-};
+//     res.json({
+//       success: true,
+//       message
+//     });
+//   } catch (error) {
+//     console.error('Error updating profile status:', error);
+//     res.status(500).json({
+//       success: false,
+//       message: 'Failed to update profile status',
+//       error: error.message
+//     });
+//   }
+// };
 // const getReportedProfiles = async (req, res) => {
 //   try {
 //     const page = parseInt(req.query.page) || 1;
@@ -322,6 +323,387 @@ const updateProfileStatus = async (req, res) => {
 //     });
 //   }
 // };
+
+
+
+
+
+// new wala
+
+// const updateProfileStatus = async (req, res) => {
+//   try {
+//     const { userId } = req.params;
+//     const { action, reason, banDuration } = req.body;
+//     const adminId = req.user?._id;
+
+//     if (!['approve', 'suspend', 'ban'].includes(action)) {
+//       return res.status(400).json({
+//         success: false,
+//         message: 'Invalid action. Must be one of: approve, suspend, ban'
+//       });
+//     }
+
+//     if ((action === 'suspend' || action === 'ban') && !reason) {
+//       return res.status(400).json({
+//         success: false,
+//         message: 'Reason is required for this action'
+//       });
+//     }
+
+//     const user = await User.findById(userId);
+//     if (!user) {
+//       return res.status(404).json({
+//         success: false,
+//         message: 'User not found'
+//       });
+//     }
+
+//     // let update = {};
+//     let message = '';
+
+//     switch (action) {
+//       case 'approve':
+//         // Mark all reports as reviewed
+//         await Report.updateMany(
+//           { reportedId: userId, status: 'new' },
+//           {
+//             $set: {
+//               status: 'resolved',
+//               resolvedAt: new Date(),
+//               resolvedBy: adminId,
+//               resolution: 'Profile approved after review'
+//             }
+//           }
+//         );
+//         await User.updateMany({ accountStatus: "banned",  "banDetails.isBanned": true }, {
+//           $set: {
+//             accountStatus: "active",
+//             "banDetails.isBanned": false,
+//             "banDetails.reason": "",
+//             "banDetails.bannedAt": null
+//           }
+//         })
+//         message = 'Profile approved successfully';
+//         break;
+
+
+
+//           case 'suspend':
+//         {
+//           const suspensionDetails = {
+//             isSuspended: true,
+//             reason,
+//             suspendedBy: adminId,
+//             suspendedAt: new Date(),
+//             suspendUntil : banDuration ?
+//               new Date(Date.now() + banDuration * 24 * 60 * 60 * 1000) :
+//               null // Permanent ban if no duration
+//           };
+
+//           await User.findByIdAndUpdate(userId, {
+//             $set: {
+//               'suspensionDetails': suspensionDetails,
+//               'accountStatus': 'suspended'
+//             }
+//           });
+
+//           // Mark all reports as reviewed
+//           await Report.updateMany(
+//             { reportedId: userId, status: 'new' },
+//             {
+//               $set: {
+//                 status: 'resolved',
+//                 resolvedAt: new Date(),
+//                 resolvedBy: adminId,
+//                 resolution: 'User Suspended: ' + reason
+//               }
+//             }
+//           );
+
+//           message = 'User Suspended successfully';
+//           break;
+//         }
+      
+//       case 'ban':
+//         {
+//           const banDetails = {
+//             isBanned: true,
+//             reason,
+//             bannedBy: adminId,
+//             bannedAt: new Date(),
+//             banExpiresAt: banDuration ?
+//               new Date(Date.now() + banDuration * 24 * 60 * 60 * 1000) :
+//               null // Permanent ban if no duration
+//           };
+
+//           await User.findByIdAndUpdate(userId, {
+//             $set: {
+//               'banDetails': banDetails,
+//               'accountStatus': 'banned'
+//             }
+//           });
+
+//           // Mark all reports as reviewed
+//           await Report.updateMany(
+//             { reportedId: userId, status: 'new' },
+//             {
+//               $set: {
+//                 status: 'resolved',
+//                 resolvedAt: new Date(),
+//                 resolvedBy: adminId,
+//                 resolution: 'User banned: ' + reason
+//               }
+//             }
+//           );
+
+//           message = 'User banned successfully';
+//           break;
+//         }
+//     }
+
+//     res.json({
+//       success: true,
+//       message
+//     });
+//   } catch (error) {
+//     console.error('Error updating profile status:', error);
+//     res.status(500).json({
+//       success: false,
+//       message: 'Failed to update profile status',
+//       error: error.message
+//     });
+//   }
+// };
+
+
+
+
+
+
+// Updated controller with reply to reporter functionality
+
+const updateProfileStatus = async (req, res) => {
+  try {
+    const { userId } = req.params;
+    const { action, reason, banDuration, replyMessage, reportId } = req.body;
+    const adminId = req.user?._id;
+
+    // Updated valid actions to include 'reply' and 'reject'
+    if (!['approve', 'suspend', 'ban', 'reply', 'reject'].includes(action)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid action. Must be one of: approve, suspend, ban, reply, reject'
+      });
+    }
+
+    if ((action === 'suspend' || action === 'ban' || action === 'reject') && !reason) {
+      return res.status(400).json({
+        success: false,
+        message: 'Reason is required for this action'
+      });
+    }
+
+    // For reply action, validate required fields
+    if (action === 'reply' && (!replyMessage || !reportId)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Reply message and report ID are required for reply action'
+      });
+    }
+
+    const user = await User.findById(userId);
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: 'User not found'
+      });
+    }
+
+    let message = '';
+
+    switch (action) {
+      case 'approve':
+        // Mark all reports as reviewed
+        await Report.updateMany(
+          { reportedId: userId, status: 'new' },
+          {
+            $set: {
+              status: 'resolved',
+              resolvedAt: new Date(),
+              resolvedBy: adminId,
+              resolution: 'Profile approved after review'
+            }
+          }
+        );
+        
+        // If user was banned, unban them
+        await User.findByIdAndUpdate(userId, {
+          $set: {
+            accountStatus: "active",
+            "banDetails.isBanned": false,
+            "banDetails.reason": "",
+            "banDetails.bannedAt": null,
+            "banDetails.banExpiresAt": null
+          }
+        });
+        
+        message = 'Profile approved successfully';
+        break;
+
+      case 'reject':
+        // Mark reports as rejected
+        await Report.updateMany(
+          { reportedId: userId, status: 'new' },
+          {
+            $set: {
+              status: 'rejected',
+              resolvedAt: new Date(),
+              resolvedBy: adminId,
+              resolution: reason || 'Report rejected after review'
+            }
+          }
+        );
+        
+        message = 'Reports rejected successfully';
+        break;
+
+      case 'suspend':
+        {
+          const suspensionDetails = {
+            isSuspended: true,
+            reason,
+            suspendedBy: adminId,
+            suspendedAt: new Date(),
+            suspendUntil: banDuration ?
+              new Date(Date.now() + banDuration * 24 * 60 * 60 * 1000) :
+              null
+          };
+
+          await User.findByIdAndUpdate(userId, {
+            $set: {
+              'suspensionDetails': suspensionDetails,
+              'accountStatus': 'suspended'
+            }
+          });
+
+          await Report.updateMany(
+            { reportedId: userId, status: 'new' },
+            {
+              $set: {
+                status: 'resolved',
+                resolvedAt: new Date(),
+                resolvedBy: adminId,
+                resolution: 'User Suspended: ' + reason
+              }
+            }
+          );
+
+          message = 'User suspended successfully';
+          break;
+        }
+      
+      case 'ban':
+        {
+          const banDetails = {
+            isBanned: true,
+            reason,
+            bannedBy: adminId,
+            bannedAt: new Date(),
+            banExpiresAt: banDuration ?
+              new Date(Date.now() + banDuration * 24 * 60 * 60 * 1000) :
+              null
+          };
+
+          await User.findByIdAndUpdate(userId, {
+            $set: {
+              'banDetails': banDetails,
+              'accountStatus': 'banned'
+            }
+          });
+
+          await Report.updateMany(
+            { reportedId: userId, status: 'new' },
+            {
+              $set: {
+                status: 'resolved',
+                resolvedAt: new Date(),
+                resolvedBy: adminId,
+                resolution: 'User banned: ' + reason
+              }
+            }
+          );
+
+          message = 'User banned successfully';
+          break;
+        }
+
+      case 'reply':
+        {
+          // Find the specific report
+          const report = await Report.findById(reportId).populate('reportedBy');
+          
+          if (!report) {
+            return res.status(404).json({
+              success: false,
+              message: 'Report not found'
+            });
+          }
+
+          // Get reporter's email
+          const reporterEmail = report.reportedBy?.email;
+          
+          if (!reporterEmail) {
+            return res.status(400).json({
+              success: false,
+              message: 'Reporter email not found'
+            });
+          }
+
+          // Send email to reporter using your email utility
+          // Import: const { sendReplyToReporterEmail } = require('../modules/email/auth/auth.utils');
+          await sendReplyToReporterEmail({
+            to: reporterEmail,
+            reporterName: report.reportedBy?.name || 'User',
+            reportedUserName: user.name || user.email,
+            reportReason: report.reason,
+            adminReply: replyMessage,
+            reportDate: report.createdAt
+          });
+
+          //  await utils.sendEmail(
+          //       email,
+          //       "Admin Password Reset OTP",
+          //       `<b>Your OTP is ${otp}</b>`
+          //     );
+
+          // Update report with admin reply
+          await Report.findByIdAndUpdate(reportId, {
+            $set: {
+              adminReply: replyMessage,
+              repliedAt: new Date(),
+              repliedBy: adminId,
+              status: 'replied'
+            }
+          });
+
+          message = 'Reply sent to reporter successfully';
+          break;
+        }
+    }
+
+    res.json({
+      success: true,
+      message
+    });
+  } catch (error) {
+    console.error('Error updating profile status:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to update profile status',
+      error: error.message
+    });
+  }
+};
 
 
 const getReportedProfiles = async (req, res) => {

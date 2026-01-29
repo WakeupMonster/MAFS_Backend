@@ -126,6 +126,52 @@ exports.sendPrizeDeliveredEmail = async (toEmail, prizeTitle) => {
 };
 
 
+module.exports.sendReplyToReporterEmail = async ({
+  to,
+  reporterName,
+  reportedUserName,
+  reportReason,
+  adminReply,
+  reportDate
+}) => {
+  try {
+    const subject = "Update on your reported profile";
+
+    const html = `
+      <p>Hi ${reporterName},</p>
+
+      <p>Thank you for reporting the profile <b>${reportedUserName}</b>.</p>
+
+      <p><b>Report Reason:</b> ${reportReason}</p>
+      <p><b>Report Date:</b> ${new Date(reportDate).toDateString()}</p>
+
+      <hr />
+
+      <p><b>Admin Reply:</b></p>
+      <p>${adminReply}</p>
+
+      <br />
+      <p>Regards,<br/>Admin Team</p>
+    `;
+
+    const mailOptions = {
+      from: process.env.SMTP_MAIL,
+      to,
+      subject,
+      html
+    };
+
+    const info = await transporter.sendMail(mailOptions);
+
+    console.log("Mail sent:", info.messageId);
+    console.log("Sent to:", to);
+
+    return { ok: true, info };
+  } catch (error) {
+    console.log("SMTP Error:", error.message);
+    throw new Error("Email sending failed");
+  }
+};
 
 
 

@@ -88,6 +88,28 @@ const ReportSchema = new mongoose.Schema(
       type: Date,
       default: null
     },
+
+
+     // NEW: Admin reply fields
+  adminReply: {
+    type: String,
+    default: null
+  },
+  repliedAt: {
+    type: Date,
+    default: null
+  },
+  repliedBy: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User',
+    default: null
+  },
+  
+  createdAt: {
+    type: Date,
+    default: Date.now
+  },
+
     actionAudit: [
       {
         action: {
