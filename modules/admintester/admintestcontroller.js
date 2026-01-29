@@ -198,7 +198,9 @@ exports.getKpiOverview = async (req, res) => {
 
 
 exports.verifyUserProfile = async (req, res) => {
+    console.log("REQ USER 👉", req.user);
   const adminId = req.user.id;
+
   const userId = req.params.userId;
   const { action, reason } = req.body;
 

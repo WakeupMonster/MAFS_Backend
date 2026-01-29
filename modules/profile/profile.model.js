@@ -98,6 +98,7 @@ const ProfileSchema = new mongoose.Schema({
     type: { type: String, default: "Point" },
     coordinates: { type: [Number], default: [0, 0] }, // [Longitude, Latitude]
     city: String,
+    state: String, 
     country: String,
     full_address: String
   },
@@ -119,6 +120,10 @@ const ProfileSchema = new mongoose.Schema({
     type: Date,
     default: null
   },
+   submittedAt: {
+        type: Date,
+        default: null
+    },
     selfieUrl: String,
     docUrl: String,
     rejectionReason: {

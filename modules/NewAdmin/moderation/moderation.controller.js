@@ -491,9 +491,55 @@ module.exports.getBlockedUsers = async (req, res) => {
   }
 };
 
+// module.exports.getPendingVerifications = async (req, res, next) => {
+//   try {
+//     // Find all profiles with pending verification
+//     const pendingProfiles = await Profile.aggregate([
+//       {
+//         $match: {
+//           "verification.status": "pending",
+//         },
+//       },
+//       {
+//         $lookup: {
+//           from: "users",
+//           localField: "userId",
+//           foreignField: "_id",
+//           as: "user",
+//         },
+//       },
+//       { $unwind: "$user" },
+//       {
+//         $project: {
+//           _id: 1,
+//           userId: 1,
+//           verification: 1,
+//           "user.email": 1,
+//           "user.phone": 1,
+//           "user.createdAt": 1,
+//           profilePhoto: 1,
+//           fullName: 1,
+//         },
+//       },
+//       { $sort: { createdAt: -1 } },
+//     ]);
+//     res.json({
+//       success: true,
+//       count: pendingProfiles.length,
+//       data: pendingProfiles,
+//     });
+//   } catch (error) {
+//     res.status(500).json({
+//       success: false,
+//       message: "Failed to fetch pending verifications",
+//     });
+//   }
+// };
+
+
+
 module.exports.getPendingVerifications = async (req, res, next) => {
   try {
-    // Find all profiles with pending verification
     const pendingProfiles = await Profile.aggregate([
       {
         $match: {
@@ -513,25 +559,50 @@ module.exports.getPendingVerifications = async (req, res, next) => {
         $project: {
           _id: 1,
           userId: 1,
-          verification: 1,
+          nickname: 1,                    // ⭐ ADDED
+          age: 1,                         // ⭐ ADDED
+          gender: 1,                      // ⭐ ADDED
+          about: 1,                       // ⭐ ADDED
+          jobTitle: 1,                    // ⭐ ADDED
+          company: 1,                     // ⭐ ADDED
+          school: 1,                      // ⭐ ADDED
+          "location.city": 1,             // ⭐ ADDED
+          "location.state": 1,            // ⭐ ADDED
+          "location.country": 1,          // ⭐ ADDED
+          "verification.status": 1,
+          "verification.selfieUrl": 1,
+          "verification.docUrl": 1,
+          "verification.submittedAt": 1,  // ⭐ ADDED
+          "verification.rejectionReason": 1,
+          "user._id": 1,
           "user.email": 1,
           "user.phone": 1,
           "user.createdAt": 1,
-          profilePhoto: 1,
-          fullName: 1,
+          "user.isPhoneVerified": 1,      // ⭐ ADDED
+          "user.isEmailVerified": 1,      // ⭐ ADDED
+          createdAt: 1,
+          updatedAt: 1,
         },
       },
-      { $sort: { createdAt: -1 } },
+      { 
+        $sort: { 
+          "verification.submittedAt": -1,
+          createdAt: -1 
+        } 
+      },
     ]);
+
     res.json({
       success: true,
       count: pendingProfiles.length,
       data: pendingProfiles,
     });
   } catch (error) {
+    console.error("Error fetching pending verifications:", error);
     res.status(500).json({
       success: false,
       message: "Failed to fetch pending verifications",
+      error: error.message,
     });
   }
 };

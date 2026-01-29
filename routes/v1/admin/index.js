@@ -1,7 +1,7 @@
 const express = require("express");
 const router = express.Router();
 
-// const auth = require("../../../modules/auth/auth.middleware");
+const auth = require("../../../modules/auth/auth.middleware");
 // const asyncHandler = require("../../common/middlewares/asyncHandler");
 // Role middleware (admin only)
 // const { allowAdmin } = require("../../../common/middlewares/allowAdmin.middleware");
@@ -18,7 +18,7 @@ const dashboardRoutes = require("../../../modules/NewAdmin/dashboard/dashboard.s
 const kycAdminRoutes = require("../../../modules/NewAdmin/moderation/moderation.routes")
 router.use("/auth",adminCredential)
 
-// router.use(auth);        
+router.use(auth);        
 // router.use(allowAdminMiddleware);
 
 router.use("/giveaway", giveawayAdminRoutes);
