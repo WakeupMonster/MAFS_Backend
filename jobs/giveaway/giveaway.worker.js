@@ -90,7 +90,6 @@ module.exports = async function runGiveawayWorker() {
 
     const prize = await Prize.findById(campaign.prizeId).select("title");
     const winnerUserId = winner._id;
-
     
     campaign.winnerUserId = winner._id;
     campaign.drawStatus = "COMPLETED";

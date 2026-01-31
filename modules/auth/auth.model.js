@@ -211,12 +211,6 @@ const userSchema = new mongoose.Schema({
   }
 }, { timestamps: true });
 
-
-
-
-
-
-// ============ INDEXES ============
 userSchema.index({ phone: 1 });
 userSchema.index({ email: 1 });
 userSchema.index({ "social.google.id": 1 });

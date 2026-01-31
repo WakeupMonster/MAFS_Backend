@@ -640,7 +640,7 @@ const updateProfileStatus = async (req, res) => {
       case 'reply':
         {
           // Find the specific report
-          const report = await Report.findById(reportId).populate('reportedBy');
+          const report = await Report.findById(reportId).populate('reporterId');
           
           if (!report) {
             return res.status(404).json({
@@ -650,7 +650,7 @@ const updateProfileStatus = async (req, res) => {
           }
 
           // Get reporter's email
-          const reporterEmail = report.reportedBy?.email;
+          const reporterEmail = report.reporterId?.email;
           
           if (!reporterEmail) {
             return res.status(400).json({
@@ -663,7 +663,7 @@ const updateProfileStatus = async (req, res) => {
           // Import: const { sendReplyToReporterEmail } = require('../modules/email/auth/auth.utils');
           await sendReplyToReporterEmail({
             to: reporterEmail,
-            reporterName: report.reportedBy?.name || 'User',
+            reporterName: report.reporterId?.name || 'User',
             reportedUserName: user.name || user.email,
             reportReason: report.reason,
             adminReply: replyMessage,

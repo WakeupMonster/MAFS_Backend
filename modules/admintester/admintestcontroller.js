@@ -226,12 +226,12 @@ exports.verifyUserProfile = async (req, res) => {
     });
   }
 
-  if (profile.verification.status !== "pending") {
-    return res.status(409).json({
-      success: false,
-      message: `Profile already ${profile.verification.status}`
-    });
-  }
+  // if (profile.verification.status !== "pending") {
+  //   return res.status(409).json({
+  //     success: false,
+  //     message: `Profile already ${profile.verification.status}`
+  //   });
+  // }
 
   // const before = {
   //   status: profile.verification.status

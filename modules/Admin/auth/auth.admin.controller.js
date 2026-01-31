@@ -659,7 +659,7 @@ module.exports.adminLogin = async (req, res, next) => {
   }
 };
 
-exports.sendEmailOTP = async (req, res, next) => {
+exports.sendEmailPassOTP = async (req, res, next) => {
   try {
     const { email } = req.body;
     if (!email) {
@@ -797,6 +797,330 @@ exports.adminResetPassword = async (req, res, next) => {
     res.json({
       success: true,
       message: "Password updated successfully"
+    });
+  } catch (err) {
+    next(err);
+  }
+};
+
+
+
+
+const PROFILE_EMAIL_OTP_TTL = 300; // 5 minutes
+
+/**
+ * Get Admin Profile
+ */
+exports.getProfile = async (req, res, next) => {
+  try {
+    const adminId = req.user.id;
+
+    const admin = await User.findOne({
+      _id: adminId,
+      role: "ADMIN"
+    }).select("email phone role accountStatus isEmailVerified isPhoneVerified createdAt lastLoginAt");
+
+    if (!admin) {
+      throw new AppError("ADMIN_NOT_FOUND", "Admin not found", 404);
+    }
+
+    const profile = await Profile.findOne({ userId: adminId })
+      .select("fullName nickname photos")
+      .lean();
+
+    return res.json({
+      success: true,
+      data: {
+        id: admin._id,
+        profileId: profile?._id || null,
+        fullName: profile?.fullName || "",
+        nickname: profile?.nickname || "",
+        email: admin.email || "",
+        phone: admin.phone || "",
+        role: admin.role,
+        accountStatus: admin.accountStatus,
+        isEmailVerified: admin.isEmailVerified,
+        isPhoneVerified: admin.isPhoneVerified,
+        photos: profile?.photos || [],
+        createdAt: admin.createdAt,
+        lastLoginAt: admin.lastLoginAt
+      }
+    });
+  } catch (err) {
+    next(err);
+  }
+};
+
+/**
+ * Update Admin Name
+ */
+exports.updateName = async (req, res, next) => {
+  try {
+    const adminId = req.user.id;
+    console.log(adminId,"adminId")
+    const { fullName } = req.body;
+
+    // Validation
+    if (!fullName || !fullName.trim()) {
+      throw new AppError(
+        "NAME_REQUIRED",
+        "Full name is required",
+        400
+      );
+    }
+
+    if (fullName.trim().length < 2) {
+      throw new AppError(
+        "NAME_TOO_SHORT",
+        "Name must be at least 2 characters long",
+        400
+      );
+    }
+
+    if (fullName.trim().length > 100) {
+      throw new AppError(
+        "NAME_TOO_LONG",
+        "Name must not exceed 100 characters",
+        400
+      );
+    }
+
+    // Name pattern validation (letters, spaces, hyphens, apostrophes only)
+    const namePattern = /^[a-zA-Z\s'-]+$/;
+    if (!namePattern.test(fullName.trim())) {
+      throw new AppError(
+        "INVALID_NAME_FORMAT",
+        "Name can only contain letters, spaces, hyphens, and apostrophes",
+        400
+      );
+    }
+
+    // Check if admin exists
+    const admin = await User.findOne({
+      _id: adminId,
+      role: "ADMIN"
+    });
+
+    if (!admin) {
+      throw new AppError("ADMIN_NOT_FOUND", "Admin not found", 404);
+    }
+
+    // Update or create profile
+    let profile = await Profile.findOne({ userId: adminId });
+
+    if (!profile) {
+      profile = await Profile.create({
+        userId: adminId,
+        fullName: fullName.trim()
+      });
+    } else {
+      profile.fullName = fullName.trim();
+      await profile.save();
+    }
+
+    return res.json({
+      success: true,
+      message: "Name updated successfully",
+      data: {
+        fullName: profile.fullName,
+        nickname: profile.nickname,
+        email: admin.email
+      }
+    });
+  } catch (err) {
+    next(err);
+  }
+};
+
+/**
+ * Send OTP to New Email for Verification
+ */
+exports.sendEmailOTP = async (req, res, next) => {
+  try {
+    const adminId = req.user.id;
+    const { email } = req.body;
+
+    // Validation
+    if (!email || !email.trim()) {
+      throw new AppError(
+        "EMAIL_REQUIRED",
+        "Email is required",
+        400
+      );
+    }
+
+    // Email format validation
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email.trim())) {
+      throw new AppError(
+        "INVALID_EMAIL",
+        "Please enter a valid email address",
+        400
+      );
+    }
+
+    // Check if admin exists
+    const admin = await User.findOne({
+      _id: adminId,
+      role: "ADMIN"
+    });
+
+    if (!admin) {
+      throw new AppError("ADMIN_NOT_FOUND", "Admin not found", 404);
+    }
+
+    // Check if email already exists (for another user)
+    const emailExists = await User.findOne({
+      email: email.trim(),
+      _id: { $ne: adminId }
+    });
+
+    if (emailExists) {
+      throw new AppError(
+        "EMAIL_EXISTS",
+        "This email is already registered with another account",
+        400
+      );
+    }
+
+    // Generate OTP
+    const otp = utils.generateOtp();
+    const otpHash = await utils.hashOtp(otp);
+
+    // Store OTP in Redis with email
+    const redisKey = `admin:profile:email:otp:${adminId}`;
+    const otpData = JSON.stringify({
+      otpHash,
+      email: email.trim()
+    });
+    
+    await redis.set(redisKey, otpData, { EX: PROFILE_EMAIL_OTP_TTL });
+
+    // Send OTP via email
+    await utils.sendEmail(
+      email.trim(),
+      "Verify Your New Email Address",
+      `<div style="font-family: Arial, sans-serif; padding: 20px;">
+        <h2 style="color: #4F46E5;">Email Verification</h2>
+        <p>Hello Admin,</p>
+        <p>You have requested to update your email address. Please use the following OTP to verify your new email:</p>
+        <div style="background-color: #F3F4F6; padding: 15px; border-radius: 5px; margin: 20px 0;">
+          <h1 style="color: #4F46E5; text-align: center; margin: 0; font-size: 32px; letter-spacing: 5px;">${otp}</h1>
+        </div>
+        <p style="color: #6B7280;">This OTP will expire in 5 minutes.</p>
+        <p style="color: #6B7280; font-size: 12px;">If you didn't request this, please ignore this email.</p>
+      </div>`
+    );
+
+    return res.json({
+      success: true,
+      message: "OTP sent to your new email address",
+      data: {
+        email: email.trim(),
+        expiresIn: PROFILE_EMAIL_OTP_TTL
+      }
+    });
+  } catch (err) {
+    next(err);
+  }
+};
+
+/**
+ * Verify OTP and Update Email
+ */
+exports.verifyEmailOTP = async (req, res, next) => {
+  try {
+    const adminId = req.user.id;
+    const { otp } = req.body;
+
+    // Validation
+    if (!otp || !otp.trim()) {
+      throw new AppError(
+        "OTP_REQUIRED",
+        "OTP is required",
+        400
+      );
+    }
+
+    if (otp.trim().length !== 6) {
+      throw new AppError(
+        "INVALID_OTP_FORMAT",
+        "OTP must be 6 digits",
+        400
+      );
+    }
+
+    // Get OTP data from Redis
+    const redisKey = `admin:profile:email:otp:${adminId}`;
+    const otpDataString = await redis.get(redisKey);
+
+    if (!otpDataString) {
+      throw new AppError(
+        "OTP_EXPIRED",
+        "OTP has expired or is invalid. Please request a new one.",
+        400
+      );
+    }
+
+    const otpData = JSON.parse(otpDataString);
+
+    // Verify OTP
+    const isValid = await utils.verifyOtpHash(otp.trim(), otpData.otpHash);
+
+    if (!isValid) {
+      throw new AppError(
+        "INVALID_OTP",
+        "Invalid OTP. Please try again.",
+        401
+      );
+    }
+
+    // Check if admin exists
+    const admin = await User.findOne({
+      _id: adminId,
+      role: "ADMIN"
+    });
+
+    if (!admin) {
+      throw new AppError("ADMIN_NOT_FOUND", "Admin not found", 404);
+    }
+
+    // Double-check email doesn't exist for another user
+    const emailExists = await User.findOne({
+      email: otpData.email,
+      _id: { $ne: adminId }
+    });
+
+    if (emailExists) {
+      throw new AppError(
+        "EMAIL_EXISTS",
+        "This email is already registered with another account",
+        400
+      );
+    }
+
+    // Update email
+    admin.email = otpData.email;
+    admin.isEmailVerified = true;
+    await admin.save();
+
+    // Delete OTP from Redis
+    await redis.del(redisKey);
+
+    // Get updated profile
+    const profile = await Profile.findOne({ userId: adminId })
+      .select("fullName nickname")
+      .lean();
+
+    return res.json({
+      success: true,
+      message: "Email updated successfully",
+      data: {
+        email: admin.email,
+        fullName: profile?.fullName || "",
+        nickname: profile?.nickname || "",
+        isEmailVerified: admin.isEmailVerified
+      }
     });
   } catch (err) {
     next(err);

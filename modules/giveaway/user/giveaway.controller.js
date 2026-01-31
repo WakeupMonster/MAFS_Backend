@@ -34,6 +34,7 @@ exports.getSpinWheelConfig = async (req, res) => {
     /**
      * 3️⃣ Check karo: ye user winner hai ya nahi
      */
+    
     if (
       !campaign.winnerUserId ||
       campaign.winnerUserId.toString() !== userId.toString()

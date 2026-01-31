@@ -14,8 +14,16 @@ exports.createPrize = async (req, res) => {
       type,
       value,
       description,
-      spinWheelLabel
+      spinWheelLabel,
+      supportiveItems
     } = req.body;
+
+     if (!supportiveItems || supportiveItems.length < 2) {
+      return res.status(400).json({
+        success: false,
+        message: "At least 2 supportive items are required"
+      });
+    }
 
 
     if (!title || !type || !value || !spinWheelLabel) {
@@ -30,7 +38,8 @@ exports.createPrize = async (req, res) => {
       type,
       value,
       description,
-      spinWheelLabel
+      spinWheelLabel,
+      supportiveItems
     });
 
     return res.status(201).json({
@@ -246,7 +255,8 @@ exports.getWinner = async (req, res) => {
         date: campaign.date,
         prize: campaign.prizeId,
         winner: campaign.winnerUserId,
-        drawStatus: campaign.drawStatus
+        drawStatus: campaign.drawStatus,
+         drawAt: campaign.drawAt || null
       }
     });
   } catch (err) {
@@ -260,7 +270,6 @@ exports.getWinner = async (req, res) => {
 exports.resendPrize = async (req, res) => {
   try {
     const { id } = req.params;
-
     const campaign = await GiveawayCampaign.findById(id);
     if (!campaign || !campaign.winnerUserId) {
       return res.status(400).json({
@@ -268,7 +277,7 @@ exports.resendPrize = async (req, res) => {
         message: "Winner not found for this campaign"
       });
     }
-
+    
     return res.json({
       success: true,
       message: "Prize resend triggered successfully"

@@ -448,7 +448,7 @@ async function doSwipe(swiperId, targetId, action) {
               // 🔥 Wallet Section (Calculated from updated 'sub')
               wallet: {
                 likesRemaining: Math.max(0, 30 - sub.dailyLikesUsed),
-                superLikesRemaining: Math.max(0, 2 - sub.dailySuperlikesUsed) + (sub.superlikeBalance || 0),
+                superLikesRemaining: Math.max(0, 3 - sub.dailySuperlikesUsed) + (sub.superlikeBalance || 0),
                 rewindsRemaining: sub.planId !== 'free' ? 999 : 0
               }
             }

@@ -20,7 +20,6 @@ router.use("/auth",adminCredential)
 
 router.use(auth);        
 // router.use(allowAdminMiddleware);
-
 router.use("/giveaway", giveawayAdminRoutes);
 router.use("/users", userRoutes); 
 router.use("/cms",cmsManagement)

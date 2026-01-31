@@ -9,6 +9,10 @@ const ProfileSchema = new mongoose.Schema({
     index: true 
   },
 
+  //admin name
+  fullName : {
+    type: String
+  },
   nickname: { type: String, trim: true, index: true },
   dob: { type: Date },
   age: { type: Number }, 
