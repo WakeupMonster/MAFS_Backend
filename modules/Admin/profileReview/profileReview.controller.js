@@ -485,8 +485,11 @@ const getProfileForReview = async (req, res) => {
 const updateProfileStatus = async (req, res) => {
   try {
     const { userId } = req.params;
-    const { action, reason, banDuration, replyMessage, reportId } = req.body;
+    const { action, reason, banDuration,suspendDuration, replyMessage, reportId } = req.body;
     const adminId = req.user?._id;
+
+    console.log("👉 REQ BODY:", req.body);
+
 
     // Updated valid actions to include 'reply' and 'reject'
     if (!['approve', 'suspend', 'ban', 'reply', 'reject'].includes(action)) {
@@ -569,13 +572,14 @@ const updateProfileStatus = async (req, res) => {
 
       case 'suspend':
         {
+           
           const suspensionDetails = {
             isSuspended: true,
             reason,
             suspendedBy: adminId,
             suspendedAt: new Date(),
-            suspendUntil: banDuration ?
-              new Date(Date.now() + banDuration * 24 * 60 * 60 * 1000) :
+            suspendUntil: suspendDuration ?
+              new Date(Date.now() + suspendDuration * 24 * 60 * 60 * 1000) :
               null
           };
 

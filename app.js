@@ -4,6 +4,7 @@ const cors = require("cors");
 const errorHandling = require("./common/middlewares/error.middleware")
 
 require("./jobs/giveaway/giveaway.cron"); // <-- cron auto starts
+require("./jobs/unsuspendUsers.job")
 require("./jobs/adminNotification/premiumExpiryReminder.cron")
 require("./workers/emailnotification.worker")
 
