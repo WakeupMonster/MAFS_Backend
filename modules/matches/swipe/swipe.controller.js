@@ -187,11 +187,23 @@ exports.getKeenData = async (req, res, actionType) => {
     // 1. Un IDs ko nikalna jinhe user ne already swipe kiya hai
     const mySwipedIds = await Swipe.find({ swiperId: userId }).distinct("targetId");
 
+    const matchedUserIds = await Match.find({ users: userId })
+  .lean()
+  .then(matches =>
+    matches.map(m =>
+      m.users.find(u => u.toString() !== userId.toString())
+    )
+  );
+
+
     // 2. Swipes dhundna (Populate ko Profile collection par point kar rahe hain)
     const keens = await Swipe.find({
       targetId: userId,
       action: actionType,
       // swiperId: { $nin: mySwipedIds }
+       swiperId: {
+    $nin: [...mySwipedIds, ...matchedUserIds]
+  }
     })
     .sort({ createdAt: -1 })
     .skip(skip)
@@ -207,7 +219,10 @@ exports.getKeenData = async (req, res, actionType) => {
     const total = await Swipe.countDocuments({
       targetId: userId,
       action: actionType,
-      swiperId: { $nin: mySwipedIds }
+      // swiperId: { $nin: mySwipedIds }
+       swiperId: {
+    $nin: [...mySwipedIds, ...matchedUserIds]
+  }
     });
 
 
@@ -262,3 +277,75 @@ exports.getKeenData = async (req, res, actionType) => {
 
 exports.getKeen = (req, res) => exports.getKeenData(req, res, "like");
 exports.getSuperKeen = (req, res) => exports.getKeenData(req, res, "superlike");
+
+
+
+exports.undo = async (req, res) => {
+  const session = await mongoose.startSession();
+
+  try {
+    const userId = req.user._id;
+    let undone = null;
+
+    await session.withTransaction(async () => {
+      // 1️⃣ Last swipe by user
+      const lastSwipe = await Swipe.findOne({ swiperId: userId })
+        .sort({ createdAt: -1 })
+        .session(session);
+
+      if (!lastSwipe) {
+        throw new Error("No swipe found to undo");
+      }
+
+      const { targetId, action } = lastSwipe;
+      undone = { targetId, action };
+
+      // 2️⃣ Agar LIKE / SUPERLIKE tha → match check karo
+      if (action === "like" || action === "superlike") {
+        const match = await Match.findOne({
+          users: { $all: [userId, targetId] }
+        }).session(session);
+
+        if (match) {
+          // match delete
+          await Match.deleteOne({ _id: match._id }).session(session);
+
+          // dono taraf ke swipes delete (clean rollback)
+          await Swipe.deleteMany({
+            $or: [
+              { swiperId: userId, targetId },
+              { swiperId: targetId, targetId: userId }
+            ]
+          }).session(session);
+
+          return; // yahin exit
+        }
+      }
+
+      // 3️⃣ Normal case → sirf swipe delete
+      await Swipe.deleteOne({ _id: lastSwipe._id }).session(session);
+    });
+
+    session.endSession();
+
+    // 4️⃣ Feed cache clear
+    if (redis) {
+      await redis.del(`feed:${userId.toString()}`);
+    }
+
+    return res.json({
+      success: true,
+      message: "Swipe undone successfully",
+      undoneAction: undone
+    });
+
+  } catch (err) {
+    await session.abortTransaction();
+    session.endSession();
+
+    return res.status(400).json({
+      success: false,
+      message: err.message
+    });
+  }
+};

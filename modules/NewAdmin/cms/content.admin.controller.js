@@ -223,7 +223,6 @@ module.exports.updateFAQ = async (req, res) => {
 module.exports.deleteFAQ = async (req, res) => {
   try {
     const { id } = req.params;
-
     const faq = await Faq.findByIdAndDelete(id);
     if (!faq) {
       return res.status(404).json({

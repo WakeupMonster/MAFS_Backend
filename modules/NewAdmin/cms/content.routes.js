@@ -17,4 +17,4 @@ router.post("/privacy-policy", cmsController.updatePrivacyPolicy); // ADD & Upda
 /** @section Terms & Conditions*/
 router.post("/terms-conditions", cmsController.updatePrivacyPolicy); // ADD & Update terms conditions
  
-module.exports = router;
+module.exports = router;        
