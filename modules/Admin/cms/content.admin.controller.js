@@ -7,6 +7,7 @@ const {
   addSectionSchema,
   updateSectionSchema,
   updatePrivacySchema,
+  updateTermsConditionSchema,
 } = require("./content.validation");
 const mongoose = require("mongoose");
 
@@ -248,7 +249,6 @@ module.exports.deleteFAQ = async (req, res) => {
  * Privacy Policy
  * =========================================
  */
-
 module.exports.updatePrivacyPolicy = async (req, res) => {
   try {
     // 1. Validate the new structure (title, status, description)
@@ -265,7 +265,7 @@ module.exports.updatePrivacyPolicy = async (req, res) => {
       {},
       {
         title: value.title,
-        status: value.status,
+        // status: value.status,
         description: value.description,
       },
       {
@@ -489,6 +489,52 @@ module.exports.deletePrivacySection = async (req, res) => {
  * TERMS & CONDITIONS
  * =========================================
  */
+
+module.exports.updateTermsCondition = async (req, res) => {
+  try {
+    // 1. Validate the new structure (title, status, description)
+    const { error, value } = updateTermsConditionSchema.validate(req.body);
+    if (error) {
+      return res.status(400).json({
+        success: false,
+        message: error.details[0].message.replace(/"/g, ""),
+      });
+    }
+
+    // 2. Update the single document (upsert: true creates it if it doesn't exist)
+    const terms_condition = await TermsConditions.findOneAndUpdate(
+      {},
+      {
+        title: value.title,
+        // status: value.status,
+        description: value.description,
+      },
+      {
+        new: true,
+        upsert: true,
+        runValidators: true,
+      }
+    );
+
+    // 3. Clear the specific Redis cache key
+    if (typeof redis !== "undefined" && redis) {
+      await redis.del("terms_conditions:list");
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: "Terms and Condition updated successfully",
+      data: terms_condition,
+    });
+  } catch (error) {
+    console.error("Update terms condition error:", error);
+    res.status(500).json({
+      success: false,
+      message: "Failed to update terms and condition",
+    });
+  }
+};
+
 module.exports.addTermCondtion = async (req, res) => {
   try {
     const { error, value } = addSectionSchema.validate(req.body);

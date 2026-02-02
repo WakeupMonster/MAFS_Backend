@@ -76,11 +76,11 @@ const sectionSchema = new mongoose.Schema({
 const privacyPolicySchema = new mongoose.Schema(
   {
     title: { type: String, required: true },
-    status: {
-      type: String,
-      enum: ["Publish", "Draft", "Unpublish"],
-      default: "Publish",
-    },
+    // status: {
+    //   type: String,
+    //   enum: ["Publish", "Draft", "Unpublish"],
+    //   default: "Publish",
+    // },
     description: { type: String, required: true }, // Stores the full HTML string
   },
   { timestamps: true }
@@ -89,7 +89,8 @@ const privacyPolicySchema = new mongoose.Schema(
 const termsSchema = new mongoose.Schema(
   {
     title: { type: String, default: "Terms And Conditions" },
-    sections: { type: [sectionSchema], default: [] },
+    // sections: { type: [sectionSchema], default: [] },
+    description: { type: String, required: true }, // Stores the full HTML string
   },
   { timestamps: true }
 );

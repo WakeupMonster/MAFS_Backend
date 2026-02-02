@@ -87,6 +87,12 @@ module.exports.upsertPrivacySchema = Joi.object({
 
 module.exports.updatePrivacySchema = Joi.object({
   title: Joi.string().required(),
-  status: Joi.string().valid("Publish", "Draft", "Unpublish").required(),
+  // status: Joi.string().valid("Publish", "Draft", "Unpublish").required(),
+  description: Joi.string().required(), // Validates the HTML string from Quill
+});
+
+module.exports.updateTermsConditionSchema = Joi.object({
+  title: Joi.string().required(),
+  // status: Joi.string().valid("Publish", "Draft", "Unpublish").required(),
   description: Joi.string().required(), // Validates the HTML string from Quill
 });

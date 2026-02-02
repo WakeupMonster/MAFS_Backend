@@ -15,6 +15,6 @@ router.post("/privacy-policy", cmsController.updatePrivacyPolicy); // ADD & Upda
 // router.delete("/delete-privacy-policy", cmsController.deletePrivacySection);
 
 /** @section Terms & Conditions*/
-router.post("/terms-conditions", cmsController.updatePrivacyPolicy); // ADD & Update terms conditions
+router.post("/terms-conditions", cmsController.updateTermsCondition); // ADD & Update terms conditions
 
 module.exports = router;

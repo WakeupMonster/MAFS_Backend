@@ -37,8 +37,8 @@ module.exports.updateUserSchema = Joi.object({
   }),
 
   profile: Joi.object({
-    nickname: Joi.string().trim().max(50),
-    gender: Joi.string().trim(),
+    nickname: Joi.string().trim().max(50).allow(""),
+    gender: Joi.string().trim().allow(""),
     dob: Joi.date(),
     age: Joi.number().integer().min(18).max(100),
     height: Joi.number().allow(null),

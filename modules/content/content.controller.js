@@ -237,64 +237,96 @@ module.exports.getPrivacyPolicy = async (req, res) => {
  * TERMS & CONDITIONS
  * =========================================
  */
+// module.exports.getTermsConditions = async (req, res) => {
+//   try {
+//     const cacheKey = "terms_conditions:list";
+
+//     // 1️⃣ Try cache first
+//     const cached = await redis.get(cacheKey);
+//     if (cached) {
+//       return res.status(200).json({
+//         success: true,
+//         cached: true,
+//         title: "Terms And Conditions",
+//         data: JSON.parse(cached),
+//       });
+//     }
+
+//     // 2️⃣ DB query
+//     const terms = await TermsConditions.findOne({}).select("-__v").lean();
+
+//     if (!terms) {
+//       return res.status(404).json({
+//         success: false,
+//         message: "Terms and condition not found",
+//       });
+//     }
+
+//     // 3️⃣ PROJECT SECTIONS & Sort
+//     const projectedSections = terms.sections
+//       .sort((a, b) => a.order - b.order)
+//       .map((section) => ({
+//         _id: section._id,
+//         order: section.order,
+//         heading: section.heading,
+//         paragraph: section.paragraph,
+//         list: section.list || [],
+//       }));
+
+//     const response = {
+//       id: terms._id,
+//       title: terms.title,
+//       sections: projectedSections,
+//       createdAt: terms.createdAt,
+//       updatedAt: terms.updatedAt,
+//     };
+
+//     // 3️⃣ Save to cache (24 hours)
+//     await redis.set(cacheKey, JSON.stringify(response), "EX", 60 * 60 * 24);
+
+//     return res.status(200).json({
+//       success: true,
+//       title: "Terms And Conditions",
+//       data: response,
+//     });
+//   } catch (err) {
+//     console.error("Get Terms Conditions error", err);
+
+//     return res.status(500).json({
+//       success: false,
+//       message: "Failed to load Terms Conditions",
+//     });
+//   }
+// };
+
 module.exports.getTermsConditions = async (req, res) => {
   try {
-    const cacheKey = "terms_conditions:list";
-
-    // 1️⃣ Try cache first
-    const cached = await redis.get(cacheKey);
-    if (cached) {
-      return res.status(200).json({
-        success: true,
-        cached: true,
-        title: "Terms And Conditions",
-        data: JSON.parse(cached),
-      });
+    // Try to get from Redis first
+    const cachedTerms = await redis.get("terms_conditions:list");
+    if (cachedTerms) {
+      return res
+        .status(200)
+        .json({ success: true, data: JSON.parse(cachedTerms) });
     }
 
-    // 2️⃣ DB query
-    const terms = await TermsConditions.findOne({}).select("-__v").lean();
+    const terms_conditions = await TermsConditions.findOne({});
 
-    if (!terms) {
-      return res.status(404).json({
-        success: false,
-        message: "Terms and condition not found",
-      });
+    if (terms_conditions && typeof redis !== "undefined") {
+      await redis.set(
+        "terms_conditions:list",
+        JSON.stringify(terms_conditions),
+        "EX",
+        86400
+      ); // 24h cache
     }
 
-    // 3️⃣ PROJECT SECTIONS & Sort
-    const projectedSections = terms.sections
-      .sort((a, b) => a.order - b.order)
-      .map((section) => ({
-        _id: section._id,
-        order: section.order,
-        heading: section.heading,
-        paragraph: section.paragraph,
-        list: section.list || [],
-      }));
-
-    const response = {
-      id: terms._id,
-      title: terms.title,
-      sections: projectedSections,
-      createdAt: terms.createdAt,
-      updatedAt: terms.updatedAt,
-    };
-
-    // 3️⃣ Save to cache (24 hours)
-    await redis.set(cacheKey, JSON.stringify(response), "EX", 60 * 60 * 24);
-
-    return res.status(200).json({
+    res.status(200).json({
       success: true,
-      title: "Terms And Conditions",
-      data: response,
+      data: terms_conditions || { title: "Terms Conditions", description: "" },
     });
-  } catch (err) {
-    console.error("Get Terms Conditions error", err);
-
-    return res.status(500).json({
-      success: false,
-      message: "Failed to load Terms Conditions",
-    });
+  } catch (error) {
+    res
+      .status(500)
+      .json({ success: false, message: "Failed to fetch Terms Conditions" });
   }
 };

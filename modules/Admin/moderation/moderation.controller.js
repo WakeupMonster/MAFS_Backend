@@ -34,12 +34,12 @@ module.exports.verifyUserProfile = async (req, res) => {
     });
   }
 
-  if (profile.verification.status !== "pending") {
-    return res.status(409).json({
-      success: false,
-      message: `Profile already ${profile.verification.status}`,
-    });
-  }
+  // if (profile.verification.status !== "pending") {
+  //   return res.status(409).json({
+  //     success: false,
+  //     message: `Profile already ${profile.verification.status}`,
+  //   });
+  // }
 
   // const before = {
   //   status: profile.verification.status
@@ -172,20 +172,96 @@ module.exports.banUser = async (req, res) => {
   }
 };
 
+// module.exports.unbanUser = async (req, res) => {
+//   try {
+//     const adminId = req.user._id;
+//     const userId = req.params.id;
+//     // const { reason } = req.body;
+
+//     if (!adminId)
+//       return res.status(401).json({ success: false, message: "Unauthorized" });
+
+//     // Safe Comparison
+//     if (adminId.toString() === userId.toString()) {
+//       return res
+//         .status(403)
+//         .json({ success: false, message: "You cannot unban yourself" });
+//     }
+
+//     const user = await User.findById(userId);
+//     if (!user)
+//       return res
+//         .status(404)
+//         .json({ success: false, message: "User not found" });
+
+//     // Safe check for ban status
+//     if (!user.banDetails?.isBanned || !user.accountStatus === "suspended") {
+//       return res
+//         .status(409)
+//         .json({ success: false, message: "User is not banned and suspended" });
+//     }
+
+//     // const before = { isBanned: true };
+
+//     // Update with safety for undefined banDetails
+//     user.banDetails = {
+//       ...user.banDetails,
+//       isBanned: false,
+//       unbannedBy: adminId,
+//       unbannedAt: new Date(),
+//       reason: null,
+//       bannedBy: null,
+//       bannedAt: null,
+//     };
+
+//     user.accountStatus = "active";
+//     await user.save();
+
+//     // Audit log
+//     // await AuditLog.create({
+//     //   actorId: adminId,
+//     //   actorRole: "ADMIN",
+//     //   action: "USER_UNBAN",
+//     //   entityType: "USER",
+//     //   entityId: userId,
+//     //   before,
+//     //   after: { isBanned: false },
+//     //   reason
+//     // });
+
+//     // Invalidate caches
+//     if (redis) {
+//       await redis.del("admin:kpi:overview");
+//       await redis.del(`user:${userId}`);
+//     }
+
+//     return res.json({
+//       success: true,
+//       message: "User unbanned successfully",
+//     });
+//   } catch (err) {
+//     console.error("Unban user error:", err);
+//     return res.status(500).json({
+//       success: false,
+//       message: "Failed to unban user",
+//     });
+//   }
+// };
+
 module.exports.unbanUser = async (req, res) => {
   try {
     const adminId = req.user._id;
     const userId = req.params.id;
-    // const { reason } = req.body;
+    const { reason } = req.body; // Good to capture why the admin is activating them
 
     if (!adminId)
       return res.status(401).json({ success: false, message: "Unauthorized" });
 
-    // Safe Comparison
     if (adminId.toString() === userId.toString()) {
-      return res
-        .status(403)
-        .json({ success: false, message: "You cannot unban yourself" });
+      return res.status(403).json({
+        success: false,
+        message: "Action not permitted on own account",
+      });
     }
 
     const user = await User.findById(userId);
@@ -194,57 +270,76 @@ module.exports.unbanUser = async (req, res) => {
         .status(404)
         .json({ success: false, message: "User not found" });
 
-    // Safe check for ban status
-    if (!user.banDetails?.isBanned) {
-      return res
-        .status(409)
-        .json({ success: false, message: "User is not banned" });
+    // 🔥 IMPROVED LOGIC: Check if user actually needs activating
+    const isBanned = user.banDetails?.isBanned;
+    const isSuspended = user.accountStatus === "suspended";
+
+    if (!isBanned && !isSuspended) {
+      return res.status(409).json({
+        success: false,
+        message: "User account is already active",
+      });
     }
 
-    // const before = { isBanned: true };
+    // Prepare Audit Data
+    const before = {
+      accountStatus: user.accountStatus,
+      isBanned: user.banDetails?.isBanned,
+    };
 
-    // Update with safety for undefined banDetails
+    // 🔥 RESET BAN DETAILS
     user.banDetails = {
-      ...user.banDetails,
       isBanned: false,
       unbannedBy: adminId,
       unbannedAt: new Date(),
       reason: null,
-      bannedBy: null,
-      bannedAt: null,
+      category: null,
     };
 
+    // 🔥 RESET SUSPENSION DETAILS (If you have a suspensionDetails object)
+    if (user.suspensionDetails) {
+      user.suspensionDetails.isSuspended = false;
+      user.suspensionDetails.restoredAt = new Date();
+    }
+
+    // 🔥 SET STATUS TO ACTIVE
     user.accountStatus = "active";
+
     await user.save();
 
-    // Audit log
-    // await AuditLog.create({
-    //   actorId: adminId,
-    //   actorRole: "ADMIN",
-    //   action: "USER_UNBAN",
-    //   entityType: "USER",
-    //   entityId: userId,
-    //   before,
-    //   after: { isBanned: false },
-    //   reason
-    // });
+    // Audit log (Recommended to uncomment this for tracking)
+    /*
+    await AuditLog.create({
+      actorId: adminId,
+      action: isBanned ? "USER_UNBAN" : "USER_UNSUSPEND",
+      entityId: userId,
+      before,
+      after: { accountStatus: "active", isBanned: false },
+      reason
+    });
+    */
 
-    // Invalidate caches
     if (redis) {
       await redis.del("admin:kpi:overview");
+      // Use a pattern or specific key to clear user lists
       await redis.del(`user:${userId}`);
     }
 
     return res.json({
       success: true,
-      message: "User unbanned successfully",
+      message: isBanned
+        ? "User unbanned successfully"
+        : "User suspension lifted",
+      data: {
+        userId: user._id,
+        accountStatus: user.accountStatus,
+      },
     });
   } catch (err) {
-    console.error("Unban user error:", err);
-    return res.status(500).json({
-      success: false,
-      message: "Failed to unban user",
-    });
+    console.error("Activation error:", err);
+    return res
+      .status(500)
+      .json({ success: false, message: "Failed to activate user" });
   }
 };
 

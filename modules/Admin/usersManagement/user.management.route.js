@@ -20,6 +20,8 @@ router.get("/:userId", adminController.GETSingleUserDetails);
 // Update user profile/details
 router.patch("/:userId", adminController.UPDATESingleUserDetail);
 
+router.delete("/:userId/photos/delete", adminController.DELETEPhoto);
+
 // Update user status (Ban, Deactivate, Activate)
 router.patch("/:userId/status", adminController.UPDATEUserStatus);
 
