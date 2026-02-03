@@ -27,22 +27,22 @@ function calculateDistance(lat1, lon1, lat2, lon2) {
   return Math.round(R * c);
 }
 
-async function getFeedService(userId,limit ,page) {
+async function getFeedService(userId, limit, page) {
   const CACHE_KEY = `feed:${userId.toString()}`;
+  const SEEN_KEY = `feed:seen:${userId.toString()}`;
   const CACHE_TTL = 30;
+  const SEEN_TTL = 60 * 60 * 24; // 24 hours
   const skip = (page - 1) * limit;
 
   let sub = await UserSubscription.findOne({ userId });
   if (!sub) sub = await UserSubscription.create({ userId });
 
-  // 2. Reset daily counters if needed
   sub.resetIfNeeded();
 
-  // 1️⃣ User Profile & Filters Fetch
   const myProfile = await Profile.findOne({ userId }).lean();
   if (!myProfile) throw new Error("Profile not found");
-  const canAccess = canUserAccessFeed({ profile: myProfile });
 
+  const canAccess = canUserAccessFeed({ profile: myProfile });
   if (!canAccess || !myProfile.location?.coordinates) {
     return {
       success: false,
@@ -51,61 +51,85 @@ async function getFeedService(userId,limit ,page) {
       onboardingRequired: true
     };
   }
+
+  // 🔹 SEEN PROFILES FETCH (NEW)
+  let seenProfiles = [];
+  if (redis) {
+    try {
+      const seenCached = await redis.get(SEEN_KEY);
+      if (seenCached) seenProfiles = JSON.parse(seenCached);
+    } catch (e) {
+      console.error("Seen Redis Parse Error", e);
+      seenProfiles = [];
+    }
+  }
+
   if (redis) {
     try {
       const cached = await redis.get(CACHE_KEY);
-      if (cached)
-        console.log("Feed from redis")
-      return { success: true, count: JSON.parse(cached).data?.length, cached: true, data: JSON.parse(cached).data };
-    } catch (err) { console.error("Redis Error:", err); }
+      if (cached) {
+        console.log("Feed from redis");
+        return {
+          success: true,
+          count: JSON.parse(cached).data?.length,
+          cached: true,
+          data: JSON.parse(cached).data
+        };
+      }
+    } catch (err) {
+      console.error("Redis Error:", err);
+    }
   }
 
-  // 3️⃣ Exclusion Lists (Swipes, Blocks, etc.)
-  const [swipes,          // 1. Maine kise like/pass kiya
-    matches,         // 2. Mere matches
-    myBlocked,       // 3. Maine kise block kiya
-    blockedMe,       // 4. Mujhe kisne block kiya
-    myReports,       // 5. Maine kise report kiya
-    superlikes] = await Promise.all([
-      Swipe.find({ swiperId: userId, action: { $in: ["like", "pass"] } }).distinct("targetId"),
-      Match.find({ users: userId }).distinct("users"),
-      // userActionsModel.find({ $or: [{ actorId: userId }, { targetId: userId }] }).distinct("targetId"),
-      Block.find({ blockerId: userId }).distinct("blockedId"),
-      // Jinhone mujhe block kiya
-      Block.find({ blockedId: userId }).distinct("blockerId"),
-      // Maine jinhe report kiya (unhe bhi feed se hata dena chahiye)
-      Report.find({ reporterId: userId }).distinct("reportedId"),
-      Swipe.find({ targetId: userId, action: "superlike" }).distinct("swiperId")
-    ]);
+  const [
+    swipes,
+    matches,
+    myBlocked,
+    blockedMe,
+    myReports,
+    superlikes
+  ] = await Promise.all([
+    Swipe.find({ swiperId: userId, action: { $in: ["like", "pass"] } }).distinct("targetId"),
+    Match.find({ users: userId }).distinct("users"),
+    Block.find({ blockerId: userId }).distinct("blockedId"),
+    Block.find({ blockedId: userId }).distinct("blockerId"),
+    Report.find({ reporterId: userId }).distinct("reportedId"),
+    Swipe.find({ targetId: userId, action: "superlike" }).distinct("swiperId")
+  ]);
 
-
-  const blockedPhoneHashes = await BlockedContact.find({
-    userId
-  }).distinct("blockedPhoneHash");
-
+  const blockedPhoneHashes = await BlockedContact.find({ userId }).distinct("blockedPhoneHash");
   let blockedByContactUserIds = [];
 
   if (blockedPhoneHashes.length) {
-    const users = await User.find({
-      phoneHash: { $in: blockedPhoneHashes }
-    }).distinct("_id");
-
+    const users = await User.find({ phoneHash: { $in: blockedPhoneHashes } }).distinct("_id");
     blockedByContactUserIds = users.map(id => id.toString());
   }
 
-console.log("swipes",swipes)
   const superlikeSet = new Set(superlikes.map(id => id.toString()));
-  console.log(superlikeSet, "superlikeSet")
-  const excludeIds = [...new Set([...swipes,
-  ...matches,
-  ...myBlocked,
-  ...blockedMe,
-  ...myReports, ...blockedByContactUserIds, userId])].map(id => id.toString());
+
+  // 🔹 MERGE SEEN INTO EXCLUDE (NEW)
+  const excludeIds = [
+    ...new Set([
+      ...swipes,
+      ...matches,
+      ...myBlocked,
+      ...blockedMe,
+      ...myReports,
+      ...blockedByContactUserIds,
+      ...seenProfiles,
+      userId
+    ])
+  ].map(id => id.toString());
 
   const discovery = myProfile.discovery || {};
-  const query = { userId: { $nin: excludeIds }, isMandatoryComplete: true, "discovery.globalVisibility": "everyone" };
+  const query = {
+    userId: { $nin: excludeIds },
+    isMandatoryComplete: true,
+    "discovery.globalVisibility": "everyone"
+  };
 
   if (discovery.showMeGender?.length) query.gender = { $in: discovery.showMeGender };
+
   if (discovery.ageRange) {
     const now = new Date();
     query.dob = {
@@ -114,11 +138,8 @@ console.log("swipes",swipes)
     };
   }
 
-  if (discovery.hasBio) {
-    query.about = { $exists: true, $ne: "" };
-  }
+  if (discovery.hasBio) query.about = { $exists: true, $ne: "" };
 
-  // Location Radius
   if (myProfile.location?.coordinates) {
     query.location = {
       $near: {
@@ -128,81 +149,54 @@ console.log("swipes",swipes)
     };
   }
 
-  // const profiles = await Profile.find(query).limit(50).lean();
-    const profiles = await Profile.find(query)
+  const profiles = await Profile.find(query)
     .sort({ createdAt: -1 })
     .skip(skip)
     .limit(limit)
     .lean();
+
   const boostKeys = profiles.map(p => `boost:${p.userId.toString()}`);
-
-const boostResults = await redis.mGet(boostKeys);
-
-console.log("boostresult",boostResults)
+  const boostResults = await redis.mGet(boostKeys);
 
   const myPreferredInterests = discovery.preferredInterests || [];
   const myAdvancedFilters = discovery.advancedFilters || {};
   const activeSearchGoal = discovery.filterRelationshipGoal || discovery.relationshipGoal;
-  const transformedProfiles = profiles.map((profile,index) => {
+
+  const transformedProfiles = profiles.map((profile, index) => {
     const targetAttr = profile.attributes || {};
     const targetInterests = targetAttr.interests || profile.interests || [];
     const isSuperliked = superlikeSet.has(profile.userId.toString());
-    console.log(
-  "BOOST CHECK →",
-  profile.userId.toString(),
-  boostResults?.[index]
-);
-
-
-
-
     const isBoosted = boostResults?.[index] === "1";
 
-    // console.log(isSuperliked, "has in set")
-    // 1️⃣ Match Score Calculation (Score Logic Same Rakhenge)
     let score = isSuperliked ? 1000 : 0;
-    if (isBoosted) {
-        score += 500; 
-    }
-    const common = targetInterests.filter(i => myPreferredInterests.includes(i));
+    if (isBoosted) score += 500;
 
-    score += (common.length * 25);
+    const common = targetInterests.filter(i => myPreferredInterests.includes(i));
+    score += common.length * 25;
 
     const targetGoal = profile.discovery?.relationshipGoal;
     if (targetGoal === activeSearchGoal) score += 40;
 
     const matchedTraits = [];
-    // Advanced Traits Match (+15 points each)
-    const traits = ['smoking', 'drinking', 'zodiac', 'pets', 'workout'];
-    traits.forEach(trait => {
+    ['smoking', 'drinking', 'zodiac', 'pets', 'workout'].forEach(trait => {
       if (myAdvancedFilters[trait] && targetAttr[trait] === myAdvancedFilters[trait]) {
         score += 15;
         matchedTraits.push(targetAttr[trait]);
       }
     });
 
-
-    // 2️⃣ Distance calculation
     let distanceKm = 0;
     if (myProfile.location?.coordinates && profile.location?.coordinates) {
       distanceKm = calculateDistance(
-        myProfile.location.coordinates[1], myProfile.location.coordinates[0],
-        profile.location.coordinates[1], profile.location.coordinates[0]
+        myProfile.location.coordinates[1],
+        myProfile.location.coordinates[0],
+        profile.location.coordinates[1],
+        profile.location.coordinates[0]
       );
     }
 
-    // 3️⃣ Frontend "Hand-holding" logic (Card Highlights)
-    // Ye array frontend ko batayega ki pehle card par kya dikhana hai aur dusre par kya
-    const cardHighlights = [];
-    if (common.length > 0) cardHighlights.push(`You both love ${common[0]}`);
-    if (targetGoal) cardHighlights.push(`Looking for: ${targetGoal}`);
-    if (distanceKm <= 5) cardHighlights.push(`Very close to you!`);
-    if (score > 75) cardHighlights.push(`${score}% Compatible`);
-
-
     const dynamicHighlights = [];
 
-    // --- 1. Priority Matches (Real Data) ---
     if (common.length > 0) {
       dynamicHighlights.push({ type: "INTEREST_MATCH", icon: "🔥", title: "Common Vibe", description: `You both love ${common[0]}` });
     }
@@ -213,30 +207,27 @@ console.log("boostresult",boostResults)
       dynamicHighlights.push({ type: "TRAIT_MATCH", icon: "✅", title: "Lifestyle", description: `Matches on ${matchedTraits[0]} habits` });
     }
 
-    // --- 2. Essential Info (Hamesha hoti hai) ---
-    dynamicHighlights.push({ type: "LOCATION", icon: "📍", title: "Nearby", description: distanceKm <= 1 ? "In your neighborhood" : `${distanceKm} km away` });
+    dynamicHighlights.push({
+      type: "LOCATION",
+      icon: "📍",
+      title: "Nearby",
+      description: distanceKm <= 1 ? "In your neighborhood" : `${distanceKm} km away`
+    });
 
     if (profile.verification?.status === "approved") {
       dynamicHighlights.push({ type: "VERIFIED", icon: "🛡️", title: "Verified", description: "Authenticity checked by MAFS" });
     }
 
-    // --- 3. Fallbacks (Jab 6 cards pure karne ho) ---
     if (dynamicHighlights.length < 6) {
-      // Fallback: Bio Card
       if (profile.about && profile.about.length > 20) {
         dynamicHighlights.push({ type: "BIO_PREVIEW", icon: "✍️", title: "About Me", description: profile.about.substring(0, 40) + "..." });
       }
-
-      // Fallback: Freshness Card
       dynamicHighlights.push({ type: "ACTIVITY", icon: "⚡", title: "Active Now", description: "This user is looking for a match!" });
-
-      // Fallback: Quality Card
       if (profile.photos.length > 3) {
         dynamicHighlights.push({ type: "PHOTO_QUALITY", icon: "📸", title: "Photo Gallery", description: "Check out more moments" });
       }
-
-
     }
+
     return {
       userId: profile.userId,
       profile: {
@@ -247,81 +238,352 @@ console.log("boostresult",boostResults)
         distanceText: distanceKm <= 1 ? "1 km away" : `${distanceKm} km away`,
         isVerified: profile.verification?.status === "approved"
       },
-
-      // --- 2. IMAGES (Formatted as Objects) ---
-      images: (profile.photos || [])
-        .sort((a, b) => a.order - b.order)
-        .map(p => ({ url: p.url })),
-
-      // --- 3. GOALS ---
+      images: (profile.photos || []).sort((a, b) => a.order - b.order).map(p => ({ url: p.url })),
       relationshipGoal: targetGoal || "Not specified",
-
-
-      attributes: {
-        interests: targetAttr.interests || null,
-        zodiac: targetAttr.zodiac || null,
-        education: targetAttr.education || null,
-        vaccineStatus: targetAttr.vaccineStatus || null,
-        familyPlans: targetAttr.familyPlans || null,
-        personalityType: targetAttr.personalityType || null,
-        communicationStyle: targetAttr.communicationStyle || null,
-        loveStyle: targetAttr.loveStyle || null,
-        bloodType: targetAttr.bloodType || null,
-        pets: targetAttr.pets || null,
-        drinking: targetAttr.drinking || null,
-        smoking: targetAttr.smoking || null,
-        workout: targetAttr.workout || null,
-        dietary: targetAttr.dietary || null,
-        socialMedia: targetAttr.socialMedia || null,
-        sleeping: targetAttr.sleeping || null
-      },
-
-      // --- 5. CONTEXT (Match Details) ---
+      attributes: targetAttr,
       context: {
         matchScore: Math.min(score, 100),
-        compatibilityLabel: score > 75 ? "Excellent Match" : (score > 40 ? "Great Match" : "Good Match"),
-        isSuperLikeSender: isSuperliked, // Blue border logic for UI
+        compatibilityLabel: score > 75 ? "Excellent Match" : score > 40 ? "Great Match" : "Good Match",
+        isSuperLikeSender: isSuperliked,
         isBoosted: !!isBoosted,
         commonInterests: common
       },
-
-      // --- 6. DYNAMIC HIGHLIGHTS (UI Cards) ---
       dynamicHighlights: dynamicHighlights.slice(0, 6)
     };
   });
-  // transformedProfiles.sort((a, b) => b.context.matchScore - a.context.matchScore);
+
+  // transformedProfiles.sort((a, b) => {
+  //   if (a.context.isBoosted && !b.context.isBoosted) return -1;
+  //   if (!a.context.isBoosted && b.context.isBoosted) return 1;
+  //   return b.context.matchScore - a.context.matchScore;
+  // });
+
   transformedProfiles.sort((a, b) => {
-  // 1️ Boosted always first
+  // 1️ SuperLike always top
+  if (a.context.isSuperLikeSender && !b.context.isSuperLikeSender) return -1;
+  if (!a.context.isSuperLikeSender && b.context.isSuperLikeSender) return 1;
+
+  // 2️ Boosted comes next
   if (a.context.isBoosted && !b.context.isBoosted) return -1;
   if (!a.context.isBoosted && b.context.isBoosted) return 1;
 
-  // 2️ Then by matchScore
+  // 3️ Then match score
   return b.context.matchScore - a.context.matchScore;
 });
-// transformedProfiles.sort((a, b) => {
-//   // 1️ SuperLike always top
-//   if (a.context.isSuperLikeSender && !b.context.isSuperLikeSender) return -1;
-//   if (!a.context.isSuperLikeSender && b.context.isSuperLikeSender) return 1;
 
-//   // 2️ Boosted comes next
+  const finalResult = transformedProfiles.slice(0, limit);
+
+  // 🔹 UPDATE SEEN PROFILES (NEW)
+  if (redis && finalResult.length) {
+    const newSeen = [
+      ...new Set([
+        ...seenProfiles,
+        ...finalResult.map(p => p.userId.toString())
+      ])
+    ];
+    await redis.set(SEEN_KEY, newSeen, { EX: SEEN_TTL });
+    await redis.set(CACHE_KEY, { data: finalResult }, { EX: CACHE_TTL });
+  }
+
+  return { success: true, count: finalResult.length, data: finalResult };
+}
+
+
+// async function getFeedService(userId,limit ,page) {
+//   const CACHE_KEY = `feed:${userId.toString()}`;
+//   const CACHE_TTL = 30;
+//   const skip = (page - 1) * limit;
+
+//   let sub = await UserSubscription.findOne({ userId });
+//   if (!sub) sub = await UserSubscription.create({ userId });
+
+//   // 2. Reset daily counters if needed
+//   sub.resetIfNeeded();
+
+//   // 1️⃣ User Profile & Filters Fetch
+//   const myProfile = await Profile.findOne({ userId }).lean();
+//   if (!myProfile) throw new Error("Profile not found");
+//   const canAccess = canUserAccessFeed({ profile: myProfile });
+
+//   if (!canAccess || !myProfile.location?.coordinates) {
+//     return {
+//       success: false,
+//       message: "Profile not eligible for discovery",
+//       data: [],
+//       onboardingRequired: true
+//     };
+//   }
+//   if (redis) {
+//     try {
+//       const cached = await redis.get(CACHE_KEY);
+//       if (cached)
+//         console.log("Feed from redis")
+//       return { success: true, count: JSON.parse(cached).data?.length, cached: true, data: JSON.parse(cached).data };
+//     } catch (err) { console.error("Redis Error:", err); }
+//   }
+
+//   // 3️⃣ Exclusion Lists (Swipes, Blocks, etc.)
+//   const [swipes,          // 1. Maine kise like/pass kiya
+//     matches,         // 2. Mere matches
+//     myBlocked,       // 3. Maine kise block kiya
+//     blockedMe,       // 4. Mujhe kisne block kiya
+//     myReports,       // 5. Maine kise report kiya
+//     superlikes] = await Promise.all([
+//       Swipe.find({ swiperId: userId, action: { $in: ["like", "pass"] } }).distinct("targetId"),
+//       Match.find({ users: userId }).distinct("users"),
+//       // userActionsModel.find({ $or: [{ actorId: userId }, { targetId: userId }] }).distinct("targetId"),
+//       Block.find({ blockerId: userId }).distinct("blockedId"),
+//       // Jinhone mujhe block kiya
+//       Block.find({ blockedId: userId }).distinct("blockerId"),
+//       // Maine jinhe report kiya (unhe bhi feed se hata dena chahiye)
+//       Report.find({ reporterId: userId }).distinct("reportedId"),
+//       Swipe.find({ targetId: userId, action: "superlike" }).distinct("swiperId")
+//     ]);
+
+
+//   const blockedPhoneHashes = await BlockedContact.find({
+//     userId
+//   }).distinct("blockedPhoneHash");
+
+//   let blockedByContactUserIds = [];
+
+//   if (blockedPhoneHashes.length) {
+//     const users = await User.find({
+//       phoneHash: { $in: blockedPhoneHashes }
+//     }).distinct("_id");
+
+//     blockedByContactUserIds = users.map(id => id.toString());
+//   }
+
+// console.log("swipes",swipes)
+//   const superlikeSet = new Set(superlikes.map(id => id.toString()));
+//   console.log(superlikeSet, "superlikeSet")
+//   const excludeIds = [...new Set([...swipes,
+//   ...matches,
+//   ...myBlocked,
+//   ...blockedMe,
+//   ...myReports, ...blockedByContactUserIds, userId])].map(id => id.toString());
+
+//   const discovery = myProfile.discovery || {};
+//   const query = { userId: { $nin: excludeIds }, isMandatoryComplete: true, "discovery.globalVisibility": "everyone" };
+
+//   if (discovery.showMeGender?.length) query.gender = { $in: discovery.showMeGender };
+//   if (discovery.ageRange) {
+//     const now = new Date();
+//     query.dob = {
+//       $gte: new Date(now.getFullYear() - (discovery.ageRange.max || 50), 0, 1),
+//       $lte: new Date(now.getFullYear() - (discovery.ageRange.min || 18), 11, 31)
+//     };
+//   }
+
+//   if (discovery.hasBio) {
+//     query.about = { $exists: true, $ne: "" };
+//   }
+
+//   // Location Radius
+//   if (myProfile.location?.coordinates) {
+//     query.location = {
+//       $near: {
+//         $geometry: { type: "Point", coordinates: myProfile.location.coordinates },
+//         $maxDistance: (discovery.distanceRange || 50) * 1000
+//       }
+//     };
+//   }
+
+//   // const profiles = await Profile.find(query).limit(50).lean();
+//     const profiles = await Profile.find(query)
+//     .sort({ createdAt: -1 })
+//     .skip(skip)
+//     .limit(limit)
+//     .lean();
+//   const boostKeys = profiles.map(p => `boost:${p.userId.toString()}`);
+
+// const boostResults = await redis.mGet(boostKeys);
+
+// console.log("boostresult",boostResults)
+
+//   const myPreferredInterests = discovery.preferredInterests || [];
+//   const myAdvancedFilters = discovery.advancedFilters || {};
+//   const activeSearchGoal = discovery.filterRelationshipGoal || discovery.relationshipGoal;
+//   const transformedProfiles = profiles.map((profile,index) => {
+//     const targetAttr = profile.attributes || {};
+//     const targetInterests = targetAttr.interests || profile.interests || [];
+//     const isSuperliked = superlikeSet.has(profile.userId.toString());
+//     console.log(
+//   "BOOST CHECK →",
+//   profile.userId.toString(),
+//   boostResults?.[index]
+// );
+
+
+
+
+//     const isBoosted = boostResults?.[index] === "1";
+
+//     // console.log(isSuperliked, "has in set")
+//     // 1️⃣ Match Score Calculation (Score Logic Same Rakhenge)
+//     let score = isSuperliked ? 1000 : 0;
+//     if (isBoosted) {
+//         score += 500; 
+//     }
+//     const common = targetInterests.filter(i => myPreferredInterests.includes(i));
+
+//     score += (common.length * 25);
+
+//     const targetGoal = profile.discovery?.relationshipGoal;
+//     if (targetGoal === activeSearchGoal) score += 40;
+
+//     const matchedTraits = [];
+//     // Advanced Traits Match (+15 points each)
+//     const traits = ['smoking', 'drinking', 'zodiac', 'pets', 'workout'];
+//     traits.forEach(trait => {
+//       if (myAdvancedFilters[trait] && targetAttr[trait] === myAdvancedFilters[trait]) {
+//         score += 15;
+//         matchedTraits.push(targetAttr[trait]);
+//       }
+//     });
+
+
+//     // 2️⃣ Distance calculation
+//     let distanceKm = 0;
+//     if (myProfile.location?.coordinates && profile.location?.coordinates) {
+//       distanceKm = calculateDistance(
+//         myProfile.location.coordinates[1], myProfile.location.coordinates[0],
+//         profile.location.coordinates[1], profile.location.coordinates[0]
+//       );
+//     }
+
+//     // 3️⃣ Frontend "Hand-holding" logic (Card Highlights)
+//     // Ye array frontend ko batayega ki pehle card par kya dikhana hai aur dusre par kya
+//     const cardHighlights = [];
+//     if (common.length > 0) cardHighlights.push(`You both love ${common[0]}`);
+//     if (targetGoal) cardHighlights.push(`Looking for: ${targetGoal}`);
+//     if (distanceKm <= 5) cardHighlights.push(`Very close to you!`);
+//     if (score > 75) cardHighlights.push(`${score}% Compatible`);
+
+
+//     const dynamicHighlights = [];
+
+//     // --- 1. Priority Matches (Real Data) ---
+//     if (common.length > 0) {
+//       dynamicHighlights.push({ type: "INTEREST_MATCH", icon: "🔥", title: "Common Vibe", description: `You both love ${common[0]}` });
+//     }
+//     if (targetGoal === activeSearchGoal) {
+//       dynamicHighlights.push({ type: "GOAL_MATCH", icon: "🎯", title: "Same Intent", description: `Both looking for ${targetGoal}` });
+//     }
+//     if (matchedTraits.length > 0) {
+//       dynamicHighlights.push({ type: "TRAIT_MATCH", icon: "✅", title: "Lifestyle", description: `Matches on ${matchedTraits[0]} habits` });
+//     }
+
+//     // --- 2. Essential Info (Hamesha hoti hai) ---
+//     dynamicHighlights.push({ type: "LOCATION", icon: "📍", title: "Nearby", description: distanceKm <= 1 ? "In your neighborhood" : `${distanceKm} km away` });
+
+//     if (profile.verification?.status === "approved") {
+//       dynamicHighlights.push({ type: "VERIFIED", icon: "🛡️", title: "Verified", description: "Authenticity checked by MAFS" });
+//     }
+
+//     // --- 3. Fallbacks (Jab 6 cards pure karne ho) ---
+//     if (dynamicHighlights.length < 6) {
+//       // Fallback: Bio Card
+//       if (profile.about && profile.about.length > 20) {
+//         dynamicHighlights.push({ type: "BIO_PREVIEW", icon: "✍️", title: "About Me", description: profile.about.substring(0, 40) + "..." });
+//       }
+
+//       // Fallback: Freshness Card
+//       dynamicHighlights.push({ type: "ACTIVITY", icon: "⚡", title: "Active Now", description: "This user is looking for a match!" });
+
+//       // Fallback: Quality Card
+//       if (profile.photos.length > 3) {
+//         dynamicHighlights.push({ type: "PHOTO_QUALITY", icon: "📸", title: "Photo Gallery", description: "Check out more moments" });
+//       }
+
+
+//     }
+//     return {
+//       userId: profile.userId,
+//       profile: {
+//         nickname: profile.nickname || "User",
+//         age: calculateAge(profile.dob),
+//         bio: profile.about || null,
+//         city: profile.location?.city || null,
+//         distanceText: distanceKm <= 1 ? "1 km away" : `${distanceKm} km away`,
+//         isVerified: profile.verification?.status === "approved"
+//       },
+
+//       // --- 2. IMAGES (Formatted as Objects) ---
+//       images: (profile.photos || [])
+//         .sort((a, b) => a.order - b.order)
+//         .map(p => ({ url: p.url })),
+
+//       // --- 3. GOALS ---
+//       relationshipGoal: targetGoal || "Not specified",
+
+
+//       attributes: {
+//         interests: targetAttr.interests || null,
+//         zodiac: targetAttr.zodiac || null,
+//         education: targetAttr.education || null,
+//         vaccineStatus: targetAttr.vaccineStatus || null,
+//         familyPlans: targetAttr.familyPlans || null,
+//         personalityType: targetAttr.personalityType || null,
+//         communicationStyle: targetAttr.communicationStyle || null,
+//         loveStyle: targetAttr.loveStyle || null,
+//         bloodType: targetAttr.bloodType || null,
+//         pets: targetAttr.pets || null,
+//         drinking: targetAttr.drinking || null,
+//         smoking: targetAttr.smoking || null,
+//         workout: targetAttr.workout || null,
+//         dietary: targetAttr.dietary || null,
+//         socialMedia: targetAttr.socialMedia || null,
+//         sleeping: targetAttr.sleeping || null
+//       },
+
+//       // --- 5. CONTEXT (Match Details) ---
+//       context: {
+//         matchScore: Math.min(score, 100),
+//         compatibilityLabel: score > 75 ? "Excellent Match" : (score > 40 ? "Great Match" : "Good Match"),
+//         isSuperLikeSender: isSuperliked, // Blue border logic for UI
+//         isBoosted: !!isBoosted,
+//         commonInterests: common
+//       },
+
+//       // --- 6. DYNAMIC HIGHLIGHTS (UI Cards) ---
+//       dynamicHighlights: dynamicHighlights.slice(0, 6)
+//     };
+//   });
+//   // transformedProfiles.sort((a, b) => b.context.matchScore - a.context.matchScore);
+//   transformedProfiles.sort((a, b) => {
+//   // 1️ Boosted always first
 //   if (a.context.isBoosted && !b.context.isBoosted) return -1;
 //   if (!a.context.isBoosted && b.context.isBoosted) return 1;
 
-//   // 3️ Then match score
+//   // 2️ Then by matchScore
 //   return b.context.matchScore - a.context.matchScore;
 // });
+// // transformedProfiles.sort((a, b) => {
+// //   // 1️ SuperLike always top
+// //   if (a.context.isSuperLikeSender && !b.context.isSuperLikeSender) return -1;
+// //   if (!a.context.isSuperLikeSender && b.context.isSuperLikeSender) return 1;
 
-  const finalResult = transformedProfiles.slice(0, limit,page);
-  if (redis && finalResult.length) {
-    // await redis.set(CACHE_KEY, JSON.stringify({ data: finalResult }), 'EX', CACHE_TTL);
-    await redis.set(
-      CACHE_KEY,
-      { data: finalResult },
-      { EX: CACHE_TTL }
-    );
-  }
-  return { success: true,count: finalResult.length, data: finalResult };
-}
+// //   // 2️ Boosted comes next
+// //   if (a.context.isBoosted && !b.context.isBoosted) return -1;
+// //   if (!a.context.isBoosted && b.context.isBoosted) return 1;
+
+// //   // 3️ Then match score
+// //   return b.context.matchScore - a.context.matchScore;
+// // });
+
+//   const finalResult = transformedProfiles.slice(0, limit,page);
+//   if (redis && finalResult.length) {
+//     // await redis.set(CACHE_KEY, JSON.stringify({ data: finalResult }), 'EX', CACHE_TTL);
+//     await redis.set(
+//       CACHE_KEY,
+//       { data: finalResult },
+//       { EX: CACHE_TTL }
+//     );
+//   }
+//   return { success: true,count: finalResult.length, data: finalResult };
+// }
 function calculateAge(dob) {
   if (!dob) return 0;
   const diff = Date.now() - new Date(dob).getTime();
