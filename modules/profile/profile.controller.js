@@ -138,9 +138,9 @@ exports.uploadPhotos = async (req, res) => {
     if (!files || files.length === 0) return res.status(400).json({ success: false, message: "No files uploaded" });
 
     let profile = await getOrCreateProfile(userId);
-    // if (profile.photos.length + files.length > 6) {
-    //   return res.status(400).json({ success: false, message: `Maximum 6 photos allowed.` });
-    // }
+    if (profile.photos.length + files.length > 6) {
+      return res.status(400).json({ success: false, message: `Maximum 6 photos allowed.` });
+    }
 
     const uploadPromises = files.map(file => uploadStream(file.buffer, {
       folder: `mafs/users/${userId}/photos`,
