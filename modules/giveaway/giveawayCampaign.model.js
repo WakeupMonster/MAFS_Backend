@@ -43,10 +43,10 @@ const giveawayCampaignSchema = new mongoose.Schema(
       type: String,
       default: null
     },
-    supportiveItems: {
-      type: [String],
-      default: []
-    },
+    // supportiveItems: {
+    //   type: [String],
+    //   default: []
+    // },
 
     // Admin control: feature enable / disable
     isActive: {

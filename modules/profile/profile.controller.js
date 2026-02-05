@@ -217,7 +217,7 @@ exports.reorderPhotos = async (req, res) => {
 
     const profile = await Profile.findOne({ userId });
     if (!profile) return res.status(404).json({ success: false, message: "Profile not found" });
-    if (photoIds.length !== profile.photos.length) return res.status(400).json({ success: false, message: "Photo count mismatch" });
+    // if (photoIds.length !== profile.photos.length) return res.status(400).json({ success: false, message: "Photo count mismatch" });
 
     const photoMap = new Map();
     profile.photos.forEach(photo => photoMap.set(photo.publicId.toString(), photo));

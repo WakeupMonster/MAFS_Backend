@@ -106,14 +106,14 @@ exports.updatePrize = async (req, res) => {
 
 exports.createCampaign = async (req, res) => {
   try {
-    const { date, prizeId, supportiveItems } = req.body;
+    const { date, prizeId } = req.body;
 
-     if (!supportiveItems || supportiveItems.length < 2) {
-      return res.status(400).json({
-        success: false,
-        message: "At least 2 supportive items are required"
-      });
-    }
+    //  if (!supportiveItems || supportiveItems.length < 2) {
+    //   return res.status(400).json({
+    //     success: false,
+    //     message: "At least 2 supportive items are required"
+    //   });
+    // }
 
   
     const campaignDate = new Date(date);
@@ -147,7 +147,7 @@ exports.createCampaign = async (req, res) => {
     const campaign = await GiveawayCampaign.create({
       date: campaignDate,
       prizeId: prize._id,
-      supportiveItems
+      // supportiveItems
     });
 
     return res.status(201).json({
@@ -1099,3 +1099,90 @@ exports.deleteCampaign = async (req, res, next) => {
 //     });
 //   }
 // };
+
+
+
+
+
+
+const dayjs = require("dayjs");
+const utc = require("dayjs/plugin/utc");
+const timezone = require("dayjs/plugin/timezone");
+
+const Match = require("../../matches/swipe/swipe.model");
+
+dayjs.extend(utc);
+dayjs.extend(timezone);
+
+const AEST_TZ = "Australia/Sydney";
+
+exports.getGiveawayParticipants = async (req, res) => {
+  try {
+    /**
+     * 1️⃣ Giveaway window = AEST day (today)
+     * Same logic as worker
+     */
+    const giveawayStart = dayjs()
+      .tz(AEST_TZ)
+      .startOf("day")
+      .toDate();
+
+    const giveawayEnd = dayjs()
+      .tz(AEST_TZ)
+      .endOf("day")
+      .toDate();
+
+    /**
+     * 2️⃣ Users who got ≥1 match in this window
+     */
+    const matchedUsers = await Match.aggregate([
+      {
+        $match: {
+          matchedAt: {
+            $gte: giveawayStart,
+            $lte: giveawayEnd
+          }
+        }
+      },
+      { $unwind: "$users" },
+      { $group: { _id: "$users" } }
+    ]);
+
+    if (!matchedUsers.length) {
+      return res.json({
+        success: true,
+        data: []
+      });
+    }
+
+    const matchedUserIds = matchedUsers.map(u => u._id);
+
+    /**
+     * 3️⃣ Filter active premium users
+     * (exact same rule as draw)
+     */
+    const participants = await User.find({
+      _id: { $in: matchedUserIds },
+      isPremium: true,
+      premiumExpiresAt: { $gt: new Date() },
+      accountStatus: "active"
+    }).select("_id phone email premiumExpiresAt");
+
+    /**
+     * 4️⃣ Response
+     */
+    return res.json({
+      success: true,
+      count: participants.length,
+      data: participants
+    });
+
+  } catch (error) {
+    console.error("❌ getGiveawayParticipants failed:", error);
+
+    return res.status(500).json({
+      success: false,
+      message: "Failed to fetch giveaway participants"
+    });
+  }
+};

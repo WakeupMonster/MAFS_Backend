@@ -147,13 +147,30 @@ async function getFeedService(userId, limit, page) {
         $maxDistance: (discovery.distanceRange || 50) * 1000
       }
     };
-  }
 
-  const profiles = await Profile.find(query)
+  }
+    const profiles = await Profile.find(query)
     .sort({ createdAt: -1 })
     .skip(skip)
     .limit(limit)
     .lean();
+
+  if (redis && profiles.length === 0 && seenProfiles.length) {
+  await redis.del(SEEN_KEY);
+
+  // refetch without seenProfiles
+  const retryExcludeIds = excludeIds.filter(
+    id => !seenProfiles.includes(id)
+  );
+
+  query.userId = { $nin: retryExcludeIds };
+
+
+  }
+//     if (profiles.length < limit) {
+//   await redis.del(SEEN_KEY); // reset seen early
+// }
+
 
   const boostKeys = profiles.map(p => `boost:${p.userId.toString()}`);
   const boostResults = await redis.mGet(boostKeys);

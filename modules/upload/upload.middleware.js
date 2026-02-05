@@ -103,6 +103,7 @@
 // };
 
 // modules/upload/upload.middleware.js
+
 const multer = require("multer");
 // eslint-disable-next-line no-unused-vars
 const path = require("path");
@@ -153,12 +154,18 @@ const handleMulterError = (err, req, res, next) => {
         message: "File too large. Max size is 5MB.",
       });
     }
-    if (err.code === "LIMIT_FILE_COUNT") {
-      return res.status(400).json({
-        success: false,
-        message: "Maximum 6 photos allowed.",
-      });
+      if (err.code === "LIMIT_FILE_COUNT") {
+        return res.status(400).json({
+          success: false,
+          message: "Maximum 6 photos allowed.",
+        });
     }
+      if (err.code === "LIMIT_UNEXPECTED_FILE") {
+    return res.status(400).json({
+      success: false,
+      message: "Unexpected field. Use 'photos' & max 6 files."
+    });
+  }
     if (
       err.message === "Invalid file type. Only JPEG, PNG, and WebP are allowed."
     ) {

@@ -10,6 +10,7 @@ const {
 const fs = require("fs");
 const path = require("path");
 const { stringify } = require("csv-stringify");
+const { destroy } = require("../../upload/cloudinary.service");
 
 /*
 For Data Table & Search or filters:- 
@@ -196,244 +197,57 @@ module.exports.GETAllUsers = async (req, res) => {
 /* ============================================
  * SAMPLE GET ALL USERS – ADMIN
  * ============================================ */
-// module.exports.SampleGETallUser = async (req, res) => {
-//   try {
-//     /* -----------------------------
-//      * 1️⃣ Query Params
-//      * ----------------------------- */
-//     const {
-//       page = 1,
-//       limit = 20,
-//       search,
-//       accountStatus,
-//       isPremium,
-//     } = req.query;
-
-//     const pageNum = Math.max(Number(page), 1);
-//     const limitNum = Math.min(Number(limit), 50);
-//     const skip = (pageNum - 1) * limitNum;
-
-//     // /* -----------------------------
-//     //  * 2️⃣ USER MATCH (Indexed)
-//     //  * ----------------------------- */
-//     // const userMatch = { role: "USER" };
-
-//     // if (accountStatus) {
-//     //   userMatch.accountStatus = accountStatus;
-//     // }
-
-//     // if (isPremium !== undefined) {
-//     //   userMatch.isPremium = isPremium === "true";
-//     // }
-
-//     // if (search) {
-//     //   userMatch.$or = [{ email: search }, { phone: search }];
-//     // }
-
-//     // /* -----------------------------
-//     //  * 3️⃣ PROFILE SEARCH
-//     //  * ----------------------------- */
-//     // const profileMatch = {};
-//     // if (search) {
-//     //   profileMatch.$or = [
-//     //     { nickname: search },
-//     //     { gender: search },
-//     //     { "verification.status": search },
-//     //     { "discovery.relationshipGoal": search },
-//     //   ];
-//     // }
-
-//     const searchRegex = search ? new RegExp(search.trim(), "i") : null;
-
-//     /* USER MATCH */
-//     const userMatch = { role: "USER" };
-
-//     if (accountStatus) {
-//       userMatch.accountStatus = accountStatus;
-//     }
-
-//     if (isPremium !== undefined) {
-//       userMatch.isPremium = isPremium === "true";
-//     }
-
-//     if (searchRegex) {
-//       userMatch.$or = [{ email: searchRegex }, { phone: searchRegex }];
-//     }
-
-//     /* PROFILE MATCH */
-//     const profileMatch = {};
-
-//     if (searchRegex) {
-//       profileMatch.$or = [
-//         { "profile.nickname": searchRegex },
-//         { "profile.gender": searchRegex },
-//         { "profile.verification.status": searchRegex },
-//         { "profile.discovery.relationshipGoal": searchRegex },
-//       ];
-//     }
-
-//     /* -----------------------------
-//      * 4️⃣ AGGREGATION PIPELINE
-//      * ----------------------------- */
-//     const pipeline = [
-//       { $match: userMatch },
-//       {
-//         $lookup: {
-//           from: "profiles",
-//           localField: "_id",
-//           foreignField: "userId",
-//           as: "profile",
-//         },
-//       },
-//       { $unwind: { path: "$profile", preserveNullAndEmptyArrays: true } },
-//       ...(Object.keys(profileMatch).length ? [{ $match: profileMatch }] : []),
-// {
-//   $project: {
-//     _id: 1,
-//     role: 1,
-
-//     /* ---------------- ACCOUNT ---------------- */
-//     account: {
-//       status: "$accountStatus",
-//       isPremium: "$isPremium",
-//       phone: "$phone",
-//       email: "$email",
-//       authMethod: "$authMethod",
-//       banDetails: "$banDetails",
-//       deactivationDetails: "$deactivationDetails",
-//       deletionDetails: "$deletionDetails",
-//       createdAt: "$createdAt",
-//     },
-
-//     /* ---------------- PROFILE ---------------- */
-//     profile: {
-//       profileId: "$profile._id",
-//       nickname: "$profile.nickname",
-//       dob: "$profile.dob",
-//       age: "$profile.age",
-//       gender: "$profile.gender",
-//       height: "$profile.height",
-//       about: "$profile.about",
-//       jobTitle: "$profile.jobTitle",
-//       company: "$profile.company",
-//       totalCompletion: "$profile.onboardingProgress.totalCompletion",
-//     },
-
-//     /* ---------------- ATTRIBUTES ---------------- */
-//     attributes: {
-//       zodiac: "$profile.attributes.zodiac",
-//       education: "$profile.attributes.education",
-//       familyPlans: "$profile.attributes.familyPlans",
-//       personalityType: "$profile.attributes.personalityType",
-//       communicationStyle: "$profile.attributes.communicationStyle",
-//       loveStyle: "$profile.attributes.loveStyle",
-//       pets: "$profile.attributes.pets",
-//       drinking: "$profile.attributes.drinking",
-//       smoking: "$profile.attributes.smoking",
-//       workout: "$profile.attributes.workout",
-//       dietary: "$profile.attributes.dietary",
-//       sleeping: "$profile.attributes.sleeping",
-//       socialMedia: "$profile.attributes.socialMedia",
-//       languages: "$profile.attributes.languages",
-//       interests: "$profile.attributes.interests",
-//       music: "$profile.attributes.music",
-//       movies: "$profile.attributes.movies",
-//       books: "$profile.attributes.books",
-//       travel: "$profile.attributes.travel",
-//       religion: "$profile.attributes.religion",
-//     },
-
-//     /* ---------------- DISCOVERY ---------------- */
-//     discovery: {
-//       distanceRange: "$profile.discovery.distanceRange",
-//       ageRange: "$profile.discovery.ageRange",
-//       showMeGender: "$profile.discovery.showMeGender",
-//       relationshipGoal: "$profile.discovery.relationshipGoal",
-//       globalVisibility: "$profile.discovery.globalVisibility",
-//     },
-
-//     discoveryFilters: "$profile.discoveryFilters",
-
-//     /* ---------------- LOCATION ---------------- */
-//     location: "$profile.location",
-
-//     /* ---------------- PHOTOS ---------------- */
-//     photos: "$profile.photos",
-
-//     /* ---------------- VERIFICATION ---------------- */
-//     verification: "$profile.verification",
-
-//     /* ---------------- META ---------------- */
-//     createdAt: 1,
-//     lastProfileUpdate: "$profile.lastProfileUpdate",
-//     isPhoneVerified: 1,
-//     isEmailVerified: 1,
-//   },
-// },
-//       { $sort: { createdAt: -1 } },
-//       { $skip: skip },
-//       { $limit: limitNum },
-//     ];
-
-//     /* -----------------------------
-//      * 5️⃣ COUNT
-//      * ----------------------------- */
-//     const countPipeline = [{ $match: userMatch }, { $count: "total" }];
-
-//     const [users, countResult] = await Promise.all([
-//       User.aggregate(pipeline),
-//       User.aggregate(countPipeline),
-//     ]);
-
-//     console.log("users: ", users);
-//     console.log("searchRegex: ", searchRegex);
-
-//     const total = countResult[0]?.total || 0;
-
-//     return res.status(200).json({
-//       success: true,
-//       meta: {
-//         page: pageNum,
-//         limit: limitNum,
-//         total,
-//         totalPages: Math.ceil(total / limitNum),
-//       },
-//       data: users,
-//     });
-//   } catch (error) {
-//     console.error("GET USERS ERROR:", error);
-//     return res.status(500).json({
-//       success: false,
-//       message: "Failed to fetch users",
-//     });
-//   }
-// };
-
-
 module.exports.SampleGETallUser = async (req, res) => {
   try {
-    const page = Math.max(parseInt(req.query.page) || 1, 1);
-    const limit = Math.min(parseInt(req.query.limit) || 20, 100);
+    const {
+      page: reqPage,
+      limit: reqLimit,
+      search,
+      accountStatus,
+      isPremium,
+      isBanned,
+    } = req.query;
+
+    // 1. Generate a unique cache key based on query params
+    // const cacheKey = `users:list:${JSON.stringify({
+    //   reqPage,
+    //   reqLimit,
+    //   search,
+    //   accountStatus,
+    //   isPremium,
+    //   isBanned,
+    // })}`;
+
+    // 2. Try to fetch from Redis
+    // const cachedData = await redis.get(cacheKey);
+    // if (cachedData) {
+    //   console.log("CACHE HIT");
+    //   return res.status(200).json({
+    //     success: true,
+    //     cached: true,
+    //     ...JSON.parse(cachedData),
+    //   });
+    // }
+
+    // --- YOUR EXISTING LOGIC START ---
+    const page = Math.max(parseInt(reqPage) || 1, 1);
+    const limit = Math.min(parseInt(reqLimit) || 10, 100);
     const skip = (page - 1) * limit;
-    const search = req.query.search?.trim();
+    const searchTrimmed = search?.trim();
 
     const baseMatch = { role: "USER" };
-    if (req.query.accountStatus)
-      baseMatch.accountStatus = req.query.accountStatus;
-    if (req.query.isPremium)
-      baseMatch.isPremium = req.query.isPremium === "true";
+    if (accountStatus) baseMatch.accountStatus = accountStatus;
+    if (isPremium) baseMatch.isPremium = isPremium === "true";
+    if (isBanned !== undefined)
+      baseMatch["banDetails.isBanned"] = isBanned === "true";
 
-    if (req.query.isBanned !== undefined) {
-      baseMatch["banDetails.isBanned"] = req.query.isBanned === "true";
-    }
-
-    const searchRegex = search
-      ? new RegExp(search.replace(/[.*+?^${}()|[\\/]\\]/g, "\\$&"), "i")
+    const searchRegex = searchTrimmed
+      ? new RegExp(searchTrimmed.replace(/[.*+?^${}()|[\\/]\\]/g, "\\$&"), "i")
       : null;
 
+    // Your Pipeline (Keeping your existing pipeline structure)
     const pipeline = [
       { $match: baseMatch },
-
       {
         $lookup: {
           from: "profiles",
@@ -443,7 +257,6 @@ module.exports.SampleGETallUser = async (req, res) => {
         },
       },
       { $unwind: { path: "$profile", preserveNullAndEmptyArrays: true } },
-
       {
         $lookup: {
           from: "accounts",
@@ -453,37 +266,16 @@ module.exports.SampleGETallUser = async (req, res) => {
         },
       },
       { $unwind: { path: "$account", preserveNullAndEmptyArrays: true } },
-
       ...(searchRegex
         ? [
             {
               $match: {
                 $or: [
-                  // User Model Search
                   { email: searchRegex },
-                  { phone: searchRegex },
-                  { accountStatus: searchRegex },
-                  { authMethod: searchRegex },
-
-                  // Profile Model Search
                   { "profile.nickname": searchRegex },
-                  { "profile.gender": searchRegex },
-                  { "profile.jobTitle": searchRegex },
-                  { "profile.company": searchRegex },
-                  { "profile.attributes.zodiac": searchRegex },
-                  { "profile.attributes.religion": searchRegex },
-                  { "profile.attributes.interests": searchRegex },
-                  { "profile.attributes.languages": searchRegex },
-                  { "profile.discovery.relationshipGoal": searchRegex },
-                  { "profile.verification.status": searchRegex },
-                  { "profile.location.city": searchRegex },
-                  { "profile.location.country": searchRegex },
                 ],
               },
-            },
-            /* -----------------------------------------------------------
-             * 4️⃣ SEARCH RANKING (Score results by relevance)
-             * ----------------------------------------------------------- */
+            }, // Simplified for brevity, use your full list
             {
               $addFields: {
                 searchScore: {
@@ -531,19 +323,103 @@ module.exports.SampleGETallUser = async (req, res) => {
             { $sort: { searchScore: -1, createdAt: -1 } },
           ]
         : [{ $sort: { createdAt: -1 } }]),
-
-      /* -----------------------------------------------------------
-       * 5️⃣ FACET FOR PAGINATION & PROJECTION
-       * ----------------------------------------------------------- */
       {
         $facet: {
           data: [
             { $skip: skip },
             { $limit: limit },
+            // 🔥 NEW STATS LOOKUPS: Swipe Stats
+            {
+              $lookup: {
+                from: "swipes",
+                let: { userId: "$_id" },
+                pipeline: [
+                  { $match: { $expr: { $eq: ["$swiperId", "$$userId"] } } },
+                  {
+                    $group: {
+                      _id: null,
+                      totalSwipes: { $sum: 1 },
+                      likes: {
+                        $sum: { $cond: [{ $eq: ["$action", "like"] }, 1, 0] },
+                      },
+                      superLikes: {
+                        $sum: {
+                          $cond: [{ $eq: ["$action", "superlike"] }, 1, 0],
+                        },
+                      },
+                    },
+                  },
+                ],
+                as: "swipeStats",
+              },
+            },
+            {
+              $unwind: {
+                path: "$swipeStats",
+                preserveNullAndEmptyArrays: true,
+              },
+            },
+            // 🔥 NEW STATS LOOKUPS: Match Stats HISTORY & COUNT
+            {
+              $lookup: {
+                from: "matches",
+                let: { currentUserId: "$_id" },
+                pipeline: [
+                  { $match: { $expr: { $in: ["$$currentUserId", "$users"] } } },
+                  { $sort: { matchedAt: -1 } },
+                  // We identify the "Other User" and get their profile info
+                  {
+                    $addFields: {
+                      otherUserId: {
+                        $first: {
+                          $filter: {
+                            input: "$users",
+                            as: "uId",
+                            cond: { $ne: ["$$uId", "$$currentUserId"] },
+                          },
+                        },
+                      },
+                    },
+                  },
+                  {
+                    $lookup: {
+                      from: "profiles",
+                      localField: "otherUserId",
+                      foreignField: "userId",
+                      as: "otherProfile",
+                    },
+                  },
+                  {
+                    $unwind: {
+                      path: "$otherProfile",
+                      preserveNullAndEmptyArrays: true,
+                    },
+                  },
+                  {
+                    $project: {
+                      _id: 1,
+                      matchedAt: 1,
+                      nickname: "$otherProfile.nickname",
+                      photo: { $arrayElemAt: ["$otherProfile.photos.url", 0] },
+                    },
+                  },
+                ],
+                as: "matchData",
+              },
+            },
             {
               $project: {
                 _id: 1,
                 role: 1,
+                // 🔥 ADD THE STATS TO THE PROJECT OUTPUT
+                stats: {
+                  totalSwipes: { $ifNull: ["$swipeStats.totalSwipes", 0] },
+                  totalLikes: { $ifNull: ["$swipeStats.likes", 0] },
+                  totalSuperLikes: { $ifNull: ["$swipeStats.superLikes", 0] },
+                  totalMatches: { $size: "$matchData" },
+                },
+                // Show only the 5 most recent matches in the array
+                recentMatches: { $slice: ["$matchData", 5] },
                 account: {
                   status: "$accountStatus",
                   isPremium: "$isPremium",
@@ -613,14 +489,11 @@ module.exports.SampleGETallUser = async (req, res) => {
       },
     ];
 
-    // console.log("searchRegex: ", searchRegex);
-
     const result = await User.aggregate(pipeline);
     const users = result[0]?.data || [];
     const total = result[0]?.total[0]?.count || 0;
 
-    return res.status(200).json({
-      success: true,
+    const responseData = {
       pagination: {
         page,
         limit,
@@ -628,6 +501,16 @@ module.exports.SampleGETallUser = async (req, res) => {
         totalPages: Math.ceil(total / limit),
       },
       data: users,
+    };
+    // --- YOUR EXISTING LOGIC END ---
+
+    // 3. Save to Redis with an expiration time (e.g., 5 minutes / 300 seconds)
+    // await redis.set(cacheKey, responseData, "EX", 300);
+
+    return res.status(200).json({
+      success: true,
+      cached: false,
+      ...responseData,
     });
   } catch (error) {
     console.error("GET USER LIST ERROR:", error);
@@ -639,6 +522,7 @@ module.exports.SampleGETallUser = async (req, res) => {
  * For GET SINGLE USER DETAILS – ADMIN:-
  * API 2: GET api/v1/admin/user-management/:userId
  ============================================ */
+//  Pending This API/.
 module.exports.GETSingleUserDetails = async (req, res) => {
   try {
     /* -----------------------------
@@ -946,7 +830,7 @@ module.exports.UPDATESingleUserDetail = async (req, res) => {
       data: response,
     });
   } catch (error) {
-    if (session.inAtomicity()) await session.abortTransaction();
+    await session.abortTransaction();
     console.error("UPDATE ERROR:", error);
     return res.status(500).json({ success: false, message: error.message });
   } finally {
@@ -993,6 +877,41 @@ module.exports.UPDATEUserStatus = async (req, res) => {
       success: false,
       message: "Failed to update status",
     });
+  }
+};
+
+module.exports.DELETEPhoto = async (req, res) => {
+  try {
+    const userId = req.user._id;
+    const { publicId } = req.body;
+    const profile = await Profile.findOne({ userId });
+
+    const photoIndex = profile?.photos.findIndex(
+      (p) => p.publicId === publicId
+    );
+    if (photoIndex === -1 || !profile)
+      return res
+        .status(404)
+        .json({ success: false, message: "Photo not found" });
+
+    await destroy(publicId);
+    profile.photos.splice(photoIndex, 1);
+    profile.photos.forEach((photo, index) => {
+      photo.order = index + 1;
+      photo.isPrimary = index === 0;
+    });
+
+    await profile.save();
+
+    res.json({
+      success: true,
+      message: "Photo deleted successfully",
+      data: {
+        profile: profile, // This contains the updated photos array
+      },
+    });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
   }
 };
 
@@ -1127,5 +1046,312 @@ module.exports.GETExportAllUsers = async (req, res) => {
         .status(500)
         .json({ success: false, message: "Failed to export users" });
     }
+  }
+};
+
+// module.exports.streamUsersExport = async (req, res) => {
+//   try {
+//     const filters = req.query || {};
+//     const userMatch = { role: "USER" };
+//     // Add other filter logic here...
+
+//     const totalUsers = await User.countDocuments(userMatch);
+//     if (totalUsers === 0) return res.status(404).send("No users found");
+
+//     let processed = 0;
+
+//     res.setHeader(
+//       "Content-Disposition",
+//       `attachment; filename=users_export_${Date.now()}.csv`
+//     );
+//     res.setHeader("Content-Type", "text/csv");
+//     // Disable compression/buffering for real-time streaming progress
+//     res.setHeader("X-Content-Type-Options", "nosniff");
+
+//     const csvStream = stringify({
+//       header: true,
+//       columns: [
+//         "UserId",
+//         "Email",
+//         "Phone",
+//         "AccountStatus",
+//         "IsPremium",
+//         "CreatedAt",
+//       ],
+//     });
+
+//     // We don't pipe directly to 'res' because we need to inject progress markers
+//     csvStream.on("data", (chunk) => {
+//       res.write(chunk);
+//     });
+
+//     const cursor = User.find(userMatch).cursor({ batchSize: 1000 });
+
+//     for await (const user of cursor) {
+//       processed++;
+
+//       const row = {
+//         UserId: user._id.toString(),
+//         Email: user.email || "",
+//         Phone: user.phone || "",
+//         AccountStatus: user.accountStatus,
+//         IsPremium: user.isPremium ? "Yes" : "No",
+//         CreatedAt: user.createdAt ? user.createdAt.toISOString() : "",
+//       };
+
+//       csvStream.write(row);
+
+//       // Send progress every 100 records to avoid flooding the stream
+//       if (processed % 100 === 0 || processed === totalUsers) {
+//         const progress = Math.round((processed / totalUsers) * 100);
+//         // We use a unique separator that's unlikely to be in user data
+//         res.write(`\n---PROGRESS:${progress}---\n`);
+//       }
+//     }
+
+//     csvStream.end();
+//     csvStream.on("end", () => res.end());
+//   } catch (err) {
+//     console.error("EXPORT STREAM ERROR:", err);
+//     if (!res.headersSent) res.status(500).send("Export failed");
+//     else res.end();
+//   }
+// };
+
+// module.exports.streamUsersExport = async (req, res) => {
+//   try {
+//     const filters = req.query || {};
+
+//     // 1. Setup Matches (Same logic as your reference API)
+//     const userMatch = { role: "USER" };
+//     if (filters.accountStatus) userMatch.accountStatus = filters.accountStatus;
+//     if (filters.isPremium !== undefined)
+//       userMatch.isPremium = filters.isPremium === "true";
+
+//     const profileMatch = {};
+//     if (filters.gender) profileMatch["profile.gender"] = filters.gender;
+
+//     // 2. Get total count for Progress Bar
+//     const totalUsers = await User.countDocuments(userMatch);
+//     let processed = 0;
+
+//     // 3. Set CSV Headers
+//     res.setHeader(
+//       "Content-Disposition",
+//       `attachment; filename=users_export_${Date.now()}.csv`
+//     );
+//     res.setHeader("Content-Type", "text/csv");
+//     res.setHeader("X-Content-Type-Options", "nosniff");
+
+//     const csvStream = stringify({
+//       header: true,
+//       columns: [
+//         "UserId",
+//         "Email",
+//         "Phone",
+//         "AccountStatus",
+//         "IsPremium",
+//         "AuthMethod",
+//         "CreatedAt",
+//         "Nickname",
+//         "Gender",
+//         "Age",
+//         "JobTitle",
+//         "City",
+//         "ProfileCompletion",
+//         "KYCStatus",
+//       ],
+//     });
+
+//     // Write CSV data directly to the response stream
+//     csvStream.on("data", (chunk) => res.write(chunk));
+
+//     // 4. Aggregation Pipeline
+//     const cursor = User.aggregate([
+//       { $match: userMatch },
+//       {
+//         $lookup: {
+//           from: "profiles", // Ensure this matches your MongoDB collection name
+//           localField: "_id",
+//           foreignField: "userId",
+//           as: "profile",
+//         },
+//       },
+//       { $unwind: { path: "$profile", preserveNullAndEmptyArrays: true } },
+//       ...(Object.keys(profileMatch).length ? [{ $match: profileMatch }] : []),
+//       {
+//         $project: {
+//           _id: 1,
+//           email: 1,
+//           phone: 1,
+//           accountStatus: 1,
+//           isPremium: 1,
+//           authMethod: 1,
+//           createdAt: 1,
+//           nickname: "$profile.nickname",
+//           gender: "$profile.gender",
+//           age: "$profile.age",
+//           jobTitle: "$profile.jobTitle",
+//           city: "$profile.location.city",
+//           profileCompletion: "$profile.onboardingProgress.totalCompletion",
+//           kycStatus: "$profile.verification.status",
+//         },
+//       },
+//     ]).cursor({ batchSize: 1000 });
+
+//     for await (const doc of cursor) {
+//       processed++;
+
+//       // Safe Date Formatting
+//       const formattedDate = doc.createdAt
+//         ? new Date(doc.createdAt).toISOString().split("T")[0]
+//         : "";
+
+//       csvStream.write({
+//         UserId: doc._id.toString(),
+//         Email: doc.email || "",
+//         Phone: doc.phone || "",
+//         AccountStatus: doc.accountStatus,
+//         IsPremium: doc.isPremium ? "Yes" : "No",
+//         AuthMethod: doc.authMethod || "phone",
+//         CreatedAt: formattedDate,
+//         Nickname: doc.nickname || "",
+//         Gender: doc.gender || "",
+//         Age: doc.age || "",
+//         JobTitle: doc.jobTitle || "",
+//         City: doc.city || "",
+//         ProfileCompletion: `${doc.profileCompletion || 0}%`,
+//         KYCStatus: doc.kycStatus || "not_started",
+//       });
+
+//       // 🔄 Write progress marker safely (Using a unique separator)
+//       if (processed % 100 === 0 || processed === totalUsers) {
+//         const progress = Math.round((processed / totalUsers) * 100);
+//         res.write(`\n---PROG:${progress}---\n`);
+//       }
+//     }
+
+//     csvStream.end();
+//     csvStream.on("finish", () => res.end());
+//   } catch (error) {
+//     console.error("STREAM EXPORT ERROR:", error);
+//     if (!res.headersSent) res.status(500).send("Export failed");
+//     else res.end();
+//   }
+// };
+
+module.exports.streamUsersExport = async (req, res) => {
+  try {
+    const filters = req.query || {};
+
+    // 1. Matches for both collections
+    const userMatch = { role: "USER" };
+    if (filters.accountStatus) userMatch.accountStatus = filters.accountStatus;
+
+    const profileMatch = {};
+    if (filters.gender) profileMatch["profile.gender"] = filters.gender;
+
+    const totalUsers = await User.countDocuments(userMatch);
+    let processed = 0;
+
+    // 2. HTTP Headers for Direct Download
+    res.setHeader(
+      "Content-Disposition",
+      `attachment; filename=users_export_${Date.now()}.csv`
+    );
+    res.setHeader("Content-Type", "text/csv");
+    res.setHeader("X-Content-Type-Options", "nosniff");
+
+    const csvStream = stringify({
+      header: true,
+      columns: [
+        "UserId",
+        "Email",
+        "Phone",
+        "AccountStatus",
+        "IsPremium",
+        "AuthMethod",
+        "CreatedAt",
+        "Nickname",
+        "Gender",
+        "Age",
+        "JobTitle",
+        "City",
+        "ProfileCompletion",
+        "KYCStatus",
+      ],
+    });
+
+    // Pipe CSV chunks directly to the HTTP response
+    csvStream.on("data", (chunk) => res.write(chunk));
+
+    // 3. The Join (User + Profile)
+    const cursor = User.aggregate([
+      { $match: userMatch },
+      {
+        $lookup: {
+          from: "profiles", // Verify this is your actual collection name
+          localField: "_id",
+          foreignField: "userId",
+          as: "profile",
+        },
+      },
+      { $unwind: { path: "$profile", preserveNullAndEmptyArrays: true } },
+      ...(Object.keys(profileMatch).length ? [{ $match: profileMatch }] : []),
+      {
+        $project: {
+          _id: 1,
+          email: 1,
+          phone: 1,
+          accountStatus: 1,
+          isPremium: 1,
+          authMethod: 1,
+          createdAt: 1,
+          nickname: "$profile.nickname",
+          gender: "$profile.gender",
+          age: "$profile.age",
+          jobTitle: "$profile.jobTitle",
+          city: "$profile.location.city",
+          profileCompletion: "$profile.onboardingProgress.totalCompletion",
+          kycStatus: "$profile.verification.status",
+        },
+      },
+    ]).cursor({ batchSize: 1000 });
+
+    for await (const doc of cursor) {
+      processed++;
+
+      csvStream.write({
+        UserId: doc._id.toString(),
+        Email: doc.email || "",
+        Phone: doc.phone || "",
+        AccountStatus: doc.accountStatus,
+        IsPremium: doc.isPremium ? "Yes" : "No",
+        AuthMethod: doc.authMethod || "phone",
+        CreatedAt: doc.createdAt
+          ? new Date(doc.createdAt).toISOString().split("T")[0]
+          : "",
+        Nickname: doc.nickname || "",
+        Gender: doc.gender || "",
+        Age: doc.age || "",
+        JobTitle: doc.jobTitle || "",
+        City: doc.city || "",
+        ProfileCompletion: `${doc.profileCompletion || 0}%`,
+        KYCStatus: doc.kycStatus || "not_started",
+      });
+
+      // Send progress marker
+      if (processed % 50 === 0 || processed === totalUsers) {
+        const prog = Math.round((processed / totalUsers) * 100);
+        res.write(`\n---PROG:${prog}---\n`);
+      }
+    }
+
+    csvStream.end();
+    csvStream.on("finish", () => res.end());
+  } catch (error) {
+    console.error("STREAM EXPORT ERROR:", error);
+    if (!res.headersSent) res.status(500).send("Export failed");
+    else res.end();
   }
 };

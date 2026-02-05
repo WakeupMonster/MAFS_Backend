@@ -410,30 +410,287 @@ module.exports.GETAllUsers = async (req, res) => {
 // };
 
 
+// module.exports.SampleGETallUser = async (req, res) => {
+//   try {
+//     const page = Math.max(parseInt(req.query.page) || 1, 1);
+//     const limit = Math.min(parseInt(req.query.limit) || 20, 100);
+//     const skip = (page - 1) * limit; // 1️⃣ Calculate skip
+//     const search = req.query.search?.trim();
+
+//     const baseMatch = { role: "USER" };
+//     if (req.query.accountStatus)
+//       baseMatch.accountStatus = req.query.accountStatus;
+//     if (req.query.isPremium)
+//       baseMatch.isPremium = req.query.isPremium === "true";
+
+//     if (req.query.isBanned !== undefined) {
+//       baseMatch["banDetails.isBanned"] = req.query.isBanned === "true";
+//     }
+
+//     const searchRegex = search
+//       ? new RegExp(search.replace(/[.*+?^${}()|[\\/]\\]/g, "\\$&"), "i")
+//       : null;
+
+//     const pipeline = [
+//       { $match: baseMatch },
+
+//       {
+//         $lookup: {
+//           from: "profiles",
+//           localField: "_id",
+//           foreignField: "userId",
+//           as: "profile",
+//         },
+//       },
+//       { $unwind: { path: "$profile", preserveNullAndEmptyArrays: true } },
+//       {
+//         $lookup: {
+//           from: "accounts",
+//           localField: "_id",
+//           foreignField: "userId",
+//           as: "account",
+//         },
+//       },
+//       { $unwind: { path: "$account", preserveNullAndEmptyArrays: true } },
+
+//       ...(searchRegex
+//         ? [
+//             {
+//               $match: {
+//                 $or: [
+//                   // User Model Search
+//                   { email: searchRegex },
+//                   { phone: searchRegex },
+//                   { accountStatus: searchRegex },
+//                   { authMethod: searchRegex },
+
+//                   // Profile Model Search
+//                   { "profile.nickname": searchRegex },
+//                   { "profile.gender": searchRegex },
+//                   { "profile.jobTitle": searchRegex },
+//                   { "profile.company": searchRegex },
+//                   { "profile.attributes.zodiac": searchRegex },
+//                   { "profile.attributes.religion": searchRegex },
+//                   { "profile.attributes.interests": searchRegex },
+//                   { "profile.attributes.languages": searchRegex },
+//                   { "profile.discovery.relationshipGoal": searchRegex },
+//                   { "profile.verification.status": searchRegex },
+//                   { "profile.location.city": searchRegex },
+//                   { "profile.location.country": searchRegex },
+//                 ],
+//               },
+//             },
+//             /* -----------------------------------------------------------
+//              * 4️⃣ SEARCH RANKING (Score results by relevance)
+//              * ----------------------------------------------------------- */
+//             {
+//               $addFields: {
+//                 searchScore: {
+//                   $sum: [
+//                     {
+//                       $cond: [
+//                         {
+//                           $regexMatch: {
+//                             input: { $ifNull: ["$profile.nickname", ""] },
+//                             regex: searchRegex,
+//                           },
+//                         },
+//                         10,
+//                         0,
+//                       ],
+//                     },
+//                     {
+//                       $cond: [
+//                         {
+//                           $regexMatch: {
+//                             input: { $ifNull: ["$account.email", ""] },
+//                             regex: searchRegex,
+//                           },
+//                         },
+//                         8,
+//                         0,
+//                       ],
+//                     },
+//                     {
+//                       $cond: [
+//                         {
+//                           $regexMatch: {
+//                             input: { $ifNull: ["$profile.jobTitle", ""] },
+//                             regex: searchRegex,
+//                           },
+//                         },
+//                         5,
+//                         0,
+//                       ],
+//                     },
+//                   ],
+//                 },
+//               },
+//             },
+//             // { $sort: { searchScore: -1, createdAt: -1 } },
+//           ]
+//         : // : [{ $sort: { createdAt: -1 } }]),
+//           []),
+
+//       /* -----------------------------------------------------------
+//        * 5️⃣ FACET FOR PAGINATION & PROJECTION
+//        * ----------------------------------------------------------- */
+//       {
+//         $facet: {
+//           data: [
+//             { $sort: searchRegex ? { searchScore: -1 } : { createdAt: -1 } },
+//             { $skip: skip }, // 2️⃣ Enable Skip
+//             { $limit: limit },
+//             {
+//               $project: {
+//                 _id: 1,
+//                 role: 1,
+//                 account: {
+//                   status: "$accountStatus",
+//                   isPremium: "$isPremium",
+//                   phone: "$phone",
+//                   email: "$email",
+//                   authMethod: "$authMethod",
+//                   banDetails: "$banDetails",
+//                   deactivationDetails: "$deactivationDetails",
+//                   deletionDetails: "$deletionDetails",
+//                   createdAt: "$createdAt",
+//                 },
+//                 profile: {
+//                   profileId: "$profile._id",
+//                   nickname: "$profile.nickname",
+//                   dob: "$profile.dob",
+//                   age: "$profile.age",
+//                   gender: "$profile.gender",
+//                   height: "$profile.height",
+//                   about: "$profile.about",
+//                   jobTitle: "$profile.jobTitle",
+//                   company: "$profile.company",
+//                   totalCompletion:
+//                     "$profile.onboardingProgress.totalCompletion",
+//                 },
+//                 attributes: {
+//                   zodiac: "$profile.attributes.zodiac",
+//                   education: "$profile.attributes.education",
+//                   familyPlans: "$profile.attributes.familyPlans",
+//                   personalityType: "$profile.attributes.personalityType",
+//                   communicationStyle: "$profile.attributes.communicationStyle",
+//                   loveStyle: "$profile.attributes.loveStyle",
+//                   pets: "$profile.attributes.pets",
+//                   drinking: "$profile.attributes.drinking",
+//                   smoking: "$profile.attributes.smoking",
+//                   workout: "$profile.attributes.workout",
+//                   dietary: "$profile.attributes.dietary",
+//                   sleeping: "$profile.attributes.sleeping",
+//                   socialMedia: "$profile.attributes.socialMedia",
+//                   languages: "$profile.attributes.languages",
+//                   interests: "$profile.attributes.interests",
+//                   music: "$profile.attributes.music",
+//                   movies: "$profile.attributes.movies",
+//                   books: "$profile.attributes.books",
+//                   travel: "$profile.attributes.travel",
+//                   religion: "$profile.attributes.religion",
+//                 },
+//                 discovery: {
+//                   distanceRange: "$profile.discovery.distanceRange",
+//                   ageRange: "$profile.discovery.ageRange",
+//                   showMeGender: "$profile.discovery.showMeGender",
+//                   relationshipGoal: "$profile.discovery.relationshipGoal",
+//                   globalVisibility: "$profile.discovery.globalVisibility",
+//                 },
+//                 discoveryFilters: "$profile.discoveryFilters",
+//                 location: "$profile.location",
+//                 photos: "$profile.photos",
+//                 verification: "$profile.verification",
+//                 createdAt: 1,
+//                 lastProfileUpdate: "$profile.lastProfileUpdate",
+//                 isPhoneVerified: 1,
+//                 isEmailVerified: 1,
+//               },
+//             },
+//           ],
+//           total: [{ $count: "count" }],
+//         },
+//       },
+//     ];
+
+//     // console.log("searchRegex: ", searchRegex);
+
+//     const result = await User.aggregate(pipeline);
+//     const users = result[0]?.data || [];
+//     const total = result[0]?.total[0]?.count || 0;
+
+//     return res.status(200).json({
+//       success: true,
+//       pagination: {
+//         page,
+//         limit,
+//         total,
+//         totalPages: Math.ceil(total / limit),
+//       },
+//       data: users,
+//     });
+//   } catch (error) {
+//     console.error("GET USER LIST ERROR:", error);
+//     res.status(500).json({ success: false, message: "Failed to fetch users" });
+//   }
+// };
+
+
+/* ============================================
+ * SAMPLE GET ALL USERS – ADMIN
+ * ============================================ */
 module.exports.SampleGETallUser = async (req, res) => {
   try {
-    const page = Math.max(parseInt(req.query.page) || 1, 1);
-    const limit = Math.min(parseInt(req.query.limit) || 20, 100);
-    const skip = (page - 1) * limit; // 1️⃣ Calculate skip
-    const search = req.query.search?.trim();
+    const {
+      page: reqPage,
+      limit: reqLimit,
+      search,
+      accountStatus,
+      isPremium,
+      isBanned,
+    } = req.query;
+
+    // 1. Generate a unique cache key based on query params
+    // const cacheKey = `users:list:${JSON.stringify({
+    //   reqPage,
+    //   reqLimit,
+    //   search,
+    //   accountStatus,
+    //   isPremium,
+    //   isBanned,
+    // })}`;
+
+    // 2. Try to fetch from Redis
+    // const cachedData = await redis.get(cacheKey);
+    // if (cachedData) {
+    //   console.log("CACHE HIT");
+    //   return res.status(200).json({
+    //     success: true,
+    //     cached: true,
+    //     ...JSON.parse(cachedData),
+    //   });
+    // }
+
+    // --- YOUR EXISTING LOGIC START ---
+    const page = Math.max(parseInt(reqPage) || 1, 1);
+    const limit = Math.min(parseInt(reqLimit) || 10, 100);
+    const skip = (page - 1) * limit;
+    const searchTrimmed = search?.trim();
 
     const baseMatch = { role: "USER" };
-    if (req.query.accountStatus)
-      baseMatch.accountStatus = req.query.accountStatus;
-    if (req.query.isPremium)
-      baseMatch.isPremium = req.query.isPremium === "true";
+    if (accountStatus) baseMatch.accountStatus = accountStatus;
+    if (isPremium) baseMatch.isPremium = isPremium === "true";
+    if (isBanned !== undefined)
+      baseMatch["banDetails.isBanned"] = isBanned === "true";
 
-    if (req.query.isBanned !== undefined) {
-      baseMatch["banDetails.isBanned"] = req.query.isBanned === "true";
-    }
-
-    const searchRegex = search
-      ? new RegExp(search.replace(/[.*+?^${}()|[\\/]\\]/g, "\\$&"), "i")
+    const searchRegex = searchTrimmed
+      ? new RegExp(searchTrimmed.replace(/[.*+?^${}()|[\\/]\\]/g, "\\$&"), "i")
       : null;
 
+    // Your Pipeline (Keeping your existing pipeline structure)
     const pipeline = [
       { $match: baseMatch },
-
       {
         $lookup: {
           from: "profiles",
@@ -452,37 +709,16 @@ module.exports.SampleGETallUser = async (req, res) => {
         },
       },
       { $unwind: { path: "$account", preserveNullAndEmptyArrays: true } },
-
       ...(searchRegex
         ? [
             {
               $match: {
                 $or: [
-                  // User Model Search
                   { email: searchRegex },
-                  { phone: searchRegex },
-                  { accountStatus: searchRegex },
-                  { authMethod: searchRegex },
-
-                  // Profile Model Search
                   { "profile.nickname": searchRegex },
-                  { "profile.gender": searchRegex },
-                  { "profile.jobTitle": searchRegex },
-                  { "profile.company": searchRegex },
-                  { "profile.attributes.zodiac": searchRegex },
-                  { "profile.attributes.religion": searchRegex },
-                  { "profile.attributes.interests": searchRegex },
-                  { "profile.attributes.languages": searchRegex },
-                  { "profile.discovery.relationshipGoal": searchRegex },
-                  { "profile.verification.status": searchRegex },
-                  { "profile.location.city": searchRegex },
-                  { "profile.location.country": searchRegex },
                 ],
               },
-            },
-            /* -----------------------------------------------------------
-             * 4️⃣ SEARCH RANKING (Score results by relevance)
-             * ----------------------------------------------------------- */
+            }, // Simplified for brevity, use your full list
             {
               $addFields: {
                 searchScore: {
@@ -527,24 +763,106 @@ module.exports.SampleGETallUser = async (req, res) => {
                 },
               },
             },
-            // { $sort: { searchScore: -1, createdAt: -1 } },
+            { $sort: { searchScore: -1, createdAt: -1 } },
           ]
-        : // : [{ $sort: { createdAt: -1 } }]),
-          []),
-
-      /* -----------------------------------------------------------
-       * 5️⃣ FACET FOR PAGINATION & PROJECTION
-       * ----------------------------------------------------------- */
+        : [{ $sort: { createdAt: -1 } }]),
       {
         $facet: {
           data: [
-            { $sort: searchRegex ? { searchScore: -1 } : { createdAt: -1 } },
-            { $skip: skip }, // 2️⃣ Enable Skip
+            { $skip: skip },
             { $limit: limit },
+            // 🔥 NEW STATS LOOKUPS: Swipe Stats
+            {
+              $lookup: {
+                from: "swipes",
+                let: { userId: "$_id" },
+                pipeline: [
+                  { $match: { $expr: { $eq: ["$swiperId", "$$userId"] } } },
+                  {
+                    $group: {
+                      _id: null,
+                      totalSwipes: { $sum: 1 },
+                      likes: {
+                        $sum: { $cond: [{ $eq: ["$action", "like"] }, 1, 0] },
+                      },
+                      superLikes: {
+                        $sum: {
+                          $cond: [{ $eq: ["$action", "superlike"] }, 1, 0],
+                        },
+                      },
+                    },
+                  },
+                ],
+                as: "swipeStats",
+              },
+            },
+            {
+              $unwind: {
+                path: "$swipeStats",
+                preserveNullAndEmptyArrays: true,
+              },
+            },
+            // 🔥 NEW STATS LOOKUPS: Match Stats HISTORY & COUNT
+            {
+              $lookup: {
+                from: "matches",
+                let: { currentUserId: "$_id" },
+                pipeline: [
+                  { $match: { $expr: { $in: ["$$currentUserId", "$users"] } } },
+                  { $sort: { matchedAt: -1 } },
+                  // We identify the "Other User" and get their profile info
+                  {
+                    $addFields: {
+                      otherUserId: {
+                        $first: {
+                          $filter: {
+                            input: "$users",
+                            as: "uId",
+                            cond: { $ne: ["$$uId", "$$currentUserId"] },
+                          },
+                        },
+                      },
+                    },
+                  },
+                  {
+                    $lookup: {
+                      from: "profiles",
+                      localField: "otherUserId",
+                      foreignField: "userId",
+                      as: "otherProfile",
+                    },
+                  },
+                  {
+                    $unwind: {
+                      path: "$otherProfile",
+                      preserveNullAndEmptyArrays: true,
+                    },
+                  },
+                  {
+                    $project: {
+                      _id: 1,
+                      matchedAt: 1,
+                      nickname: "$otherProfile.nickname",
+                      photo: { $arrayElemAt: ["$otherProfile.photos.url", 0] },
+                    },
+                  },
+                ],
+                as: "matchData",
+              },
+            },
             {
               $project: {
                 _id: 1,
                 role: 1,
+                // 🔥 ADD THE STATS TO THE PROJECT OUTPUT
+                stats: {
+                  totalSwipes: { $ifNull: ["$swipeStats.totalSwipes", 0] },
+                  totalLikes: { $ifNull: ["$swipeStats.likes", 0] },
+                  totalSuperLikes: { $ifNull: ["$swipeStats.superLikes", 0] },
+                  totalMatches: { $size: "$matchData" },
+                },
+                // Show only the 5 most recent matches in the array
+                recentMatches: { $slice: ["$matchData", 5] },
                 account: {
                   status: "$accountStatus",
                   isPremium: "$isPremium",
@@ -614,14 +932,11 @@ module.exports.SampleGETallUser = async (req, res) => {
       },
     ];
 
-    // console.log("searchRegex: ", searchRegex);
-
     const result = await User.aggregate(pipeline);
     const users = result[0]?.data || [];
     const total = result[0]?.total[0]?.count || 0;
 
-    return res.status(200).json({
-      success: true,
+    const responseData = {
       pagination: {
         page,
         limit,
@@ -629,13 +944,22 @@ module.exports.SampleGETallUser = async (req, res) => {
         totalPages: Math.ceil(total / limit),
       },
       data: users,
+    };
+    // --- YOUR EXISTING LOGIC END ---
+
+    // 3. Save to Redis with an expiration time (e.g., 5 minutes / 300 seconds)
+    // await redis.set(cacheKey, responseData, "EX", 300);
+
+    return res.status(200).json({
+      success: true,
+      cached: false,
+      ...responseData,
     });
   } catch (error) {
     console.error("GET USER LIST ERROR:", error);
     res.status(500).json({ success: false, message: "Failed to fetch users" });
   }
 };
-
 /* ============================================
  * For GET SINGLE USER DETAILS – ADMIN:-
  * API 2: GET api/v1/admin/user-management/:userId

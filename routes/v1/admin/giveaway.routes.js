@@ -82,6 +82,11 @@ router.patch(
   adminGiveawayController.pauseCampaign
 );
 
+
+router.get("/campaigns/participants", adminGiveawayController.getGiveawayParticipants)
+
+
+
 module.exports = router;
 // const runGiveawayWorker = require("../../../jobs/giveaway/giveaway.worker");
 

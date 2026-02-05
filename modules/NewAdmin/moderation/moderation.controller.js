@@ -614,13 +614,12 @@ module.exports.getBlockedUsers = async (req, res) => {
 
 
 
-
-
-
 module.exports.getPendingVerifications = async (req, res, next) => {
   try {
     // 1. Frontend se status mangwao (e.g., /api/verifications?status=approved)
     const { status } = req.query;
+
+    console.log(status)
 
     // 2. Dynamic Match Object banayein
     // Agar status 'all' hai toh filter hata do, warna specific status search karo
