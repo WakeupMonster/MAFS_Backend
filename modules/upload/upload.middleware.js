@@ -157,7 +157,7 @@ const handleMulterError = (err, req, res, next) => {
       if (err.code === "LIMIT_FILE_COUNT") {
         return res.status(400).json({
           success: false,
-          message: "Maximum 6 photos allowed.",
+          message: "Maximum 6 photo allowed.",
         });
     }
       if (err.code === "LIMIT_UNEXPECTED_FILE") {

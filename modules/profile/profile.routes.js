@@ -26,19 +26,25 @@ router.patch(
 );
 
 router.patch("/", controllerDis.updatePreference);
-
 router.post(
   "/photos",
-  (req, res, next) => {
-    uploadMiddleware.uploadPhotos(req, res, (err) => {
-      if (err) {
-        return uploadMiddleware.handleMulterError(err, req, res, next);
-      }
-      next();
-    });
-  },
+  uploadMiddleware.uploadPhotos,
   controller.uploadPhotos
 );
+
+
+// router.post(
+//   "/photos",
+//   (req, res, next) => {
+//     uploadMiddleware.uploadPhotos(req, res, (err) => {
+//       if (err) {
+//         return uploadMiddleware.handleMulterError(err, req, res, next);
+//       }
+//       next();
+//     });
+//   },
+//   controller.uploadPhotos
+// );
 
 
 router.delete("/photos", controller.deletePhoto);
