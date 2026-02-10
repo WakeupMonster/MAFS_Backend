@@ -56,11 +56,11 @@ tonight.setHours(24, 0, 0, 0);
     },
 
     // 2. ONBOARDING
-    onboarding: {
-      isComplete: user.onboardingComplete || false,
-      nextstep: user.nextStep || 1,
-      currentScreenSlug: user.currentScreenSlug || "welcome_screen"
-    },
+    // onboarding: {
+    //   isComplete: user.onboardingComplete || false,
+    //   nextstep: user.nextStep || 1,
+    //   currentScreenSlug: user.currentScreenSlug || "welcome_screen"
+    // },
 
     // 3. PUBLIC PROFILE (Data from Profile Model)
     profile: {
@@ -216,7 +216,12 @@ tonight.setHours(24, 0, 0, 0);
     createdAt: user.createdAt,
     updatedAt: user.updatedAt,
     isPhoneVerified: user.isPhoneVerified || false,
-    isEmailVerified: user.isEmailVerified || false
+    isEmailVerified: user.isEmailVerified || false,
+      onboarding: {
+      isComplete: user.onboardingComplete || false,
+      nextstep: user.nextStep || 1,
+      currentScreenSlug: user.currentScreenSlug || "welcome_screen"
+    },
   };
 };
 

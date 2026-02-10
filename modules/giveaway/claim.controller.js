@@ -21,6 +21,10 @@ module.exports.getSpinWheelConfig = async (req, res) => {
       drawStatus: "COMPLETED",
     });
 
+    const supportItem = await GiveawayPrize.findOne({
+      isActive : true
+    })
+
     // Agar aaj koi campaign hi nahi
     if (!campaign) {
       return res.json({
@@ -33,6 +37,7 @@ module.exports.getSpinWheelConfig = async (req, res) => {
     /**
      * 3️⃣ Check karo: ye user winner hai ya nahi
      */
+    
     if (
       !campaign.winnerUserId ||
       campaign.winnerUserId.toString() !== userId.toString()
@@ -54,7 +59,7 @@ module.exports.getSpinWheelConfig = async (req, res) => {
      * 5️⃣ Campaign ke supportive items lo
      * (ye admin ne set kiye hote hain)
      */
-    let supportiveItems = [...campaign.supportiveItems];
+    let supportiveItems = [...supportItem.supportiveItems];
 
     /**
      * 6️⃣ Random index decide karo

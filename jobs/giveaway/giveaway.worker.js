@@ -7,9 +7,10 @@ const Prize = require("../../modules/Admin/giveaways/prize.model");
 module.exports = async function runGiveawayWorker() {
   const today = new Date();
   today.setHours(0, 0, 0, 0);
+console.log(today)
+//   const settings = await GiveawaySettings.findOne();
+// const yearlyLimit = settings?.yearlyWinLimitPerUser || 2;
 
-  //   const settings = await GiveawaySettings.findOne();
-  // const yearlyLimit = settings?.yearlyWinLimitPerUser || 2;
 
   const campaign = await GiveawayCampaign.findOne({
     date: today,
@@ -90,6 +91,7 @@ module.exports = async function runGiveawayWorker() {
     const prize = await Prize.findById(campaign.prizeId).select("title");
     const winnerUserId = winner._id;
 
+    
     campaign.winnerUserId = winner._id;
     campaign.drawStatus = "COMPLETED";
     campaign.drawAt = new Date();

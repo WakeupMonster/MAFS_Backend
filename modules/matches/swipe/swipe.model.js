@@ -29,35 +29,6 @@ SwipeSchema.index({ swiperId: 1, targetId: 1 }, { unique: true });
 
 module.exports = mongoose.model("Swipe", SwipeSchema);
 
-// Match model
-// const MatchSchema = new mongoose.Schema({
-//   users: [
-//     { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true },
-//   ],
-//   matchedAt: { type: Date, default: Date.now },
-//    lastMessage: {
-//       type: String,
-//       default: ""
-//     },
-//     lastMessageAt: {
-//       type: Date,
-//       default: null,
-//       index: true
-//     },
-
-//     lastMessageBy: {
-//       type: mongoose.Schema.Types.ObjectId,
-//       ref: "User",
-//       default: null
-//     },
-//   createdAt: { type: Date, default: Date.now },
-// });
-// // MatchSchema.index({ users: 1 }); // not unique because pair order may vary; we will ensure unique in service
-
-// // unique match pair index (order-independent)
-// MatchSchema.index({ "users.0": 1, "users.1": 1 }, { unique: true });
-
-// module.exports.Match = mongoose.model("Match", MatchSchema);
 
 const MatchSchema = new mongoose.Schema(
   {

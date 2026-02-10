@@ -1,67 +1,27 @@
-const redis = require("../../config/cache");
-const {
-  Faq,
-  PrivacyPolicy,
-  TermsConditions,
-} = require("../Admin/cms/content.model");
-const { getFaqSchema } = require("../Admin/cms/content.validation");
+// const Content = require("./content.model");
 
-/* ================================
- * GET ALL FAQ
- * ================================
- */
-// module.exports.getFAQ = async (req, res) => {
+// /**
+//  * ================================
+//  * GET FAQ
+//  * ================================
+//  */
+// exports.getFAQ = async (req, res) => {
 //   try {
-//     const cacheKey = "faq:list";
+//     const data = await Content.findOne({ type: "faq" }).lean();
 
-//     // 1️⃣ Try cache first
-//     const cached = await redis.get(cacheKey);
-//     if (cached) {
-//       return res.status(200).json({
-//         success: true,
-//         cached: true,
-//         title: "Frequently Asked Questions",
-//         data: JSON.parse(cached),
-//       });
-//     }
-
-//     // 2️⃣ DB query
-//     const faqs = await Faq.find({}).select("-__v").sort({ order: 1 }).lean();
-
-//     if (!faqs) {
-//       return res.status(404).json({
-//         success: false,
-//         message: "Frequently Asked Question not found",
-//       });
-//     }
-
-//     // 3️⃣ Project response shape
-//     const response = faqs.map((faq) => ({
-//       id: faq._id,
-//       order: faq.order,
-//       question: faq.question,
-//       answer: faq.answer,
-//       createdAt: faq.createdAt,
-//       updatedAt: faq.updatedAt,
-//     }));
-
-//     // 3️⃣ Save to cache (24 hours)
-//     await redis.set(cacheKey, JSON.stringify(response), "EX", 60 * 60 * 24);
-
-//     return res.status(200).json({
+//     return res.json({
 //       success: true,
-//       title: "Frequently Asked Questions",
-//       data: response,
+//       data: data?.faqs || []
 //     });
 //   } catch (err) {
-//     console.error("Get FAQ error", err);
-
-//     return res.status(500).json({
+//     console.error("Get FAQ error:", err);
+//     res.status(500).json({
 //       success: false,
-//       message: "Failed to load FAQ",
+//       message: "Failed to load FAQ"
 //     });
 //   }
 // };
+
 
 module.exports.getFAQ = async (req, res) => {
   try {
@@ -286,15 +246,14 @@ module.exports.getPrivacyPolicy = async (req, res) => {
 
 //     return res.status(200).json({
 //       success: true,
-//       title: "Terms And Conditions",
-//       data: response,
+//       title: data?.title || "Terms & Conditions",
+//       sections: data?.sections || []
 //     });
 //   } catch (err) {
-//     console.error("Get Terms Conditions error", err);
-
-//     return res.status(500).json({
+//     console.error("Terms error:", err);
+//     res.status(500).json({
 //       success: false,
-//       message: "Failed to load Terms Conditions",
+//       message: "Failed to load terms & conditions"
 //     });
 //   }
 // };

@@ -1,4 +1,4 @@
-openapi: 3.0.0
+clsopenapi: 3.0.0
 info:
   title: MAFS Dating App API
   version: 1.0.0

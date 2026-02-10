@@ -634,6 +634,7 @@ module.exports.adminLogin = async (req, res, next) => {
     const admin = await User.findOne({
       email,
       role: "ADMIN",
+      role: "ADMIN",
     }).select("+password +refreshTokens");
 
     if (!admin) {
@@ -645,6 +646,7 @@ module.exports.adminLogin = async (req, res, next) => {
     }
 
     if (admin.accountStatus !== "active") {
+      throw new AppError("ACCOUNT_RESTRICTED", "Account is restricted", 403);
       throw new AppError("ACCOUNT_RESTRICTED", "Account is restricted", 403);
     }
 
@@ -680,8 +682,21 @@ module.exports.adminLogin = async (req, res, next) => {
       .select("nickname photos")
       .lean();
 
+    /* ------------------------------------
+     * 7️⃣ Fetch Profile (lean & minimal)
+     * ---------------------------------- */
+    const profile = await Profile.findOne({ userId: admin._id })
+      .select("nickname photos")
+      .lean();
+
     res.json({
       success: true,
+      message: "Login successful",
+      screen: "/admin/dashboard",
+      // data: {
+      //   accessToken,
+      //   refreshToken: refreshTokenRaw
+      // }
       message: "Login successful",
       screen: "/admin/dashboard",
       // data: {

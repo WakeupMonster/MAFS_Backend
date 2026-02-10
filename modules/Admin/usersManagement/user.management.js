@@ -11,6 +11,7 @@ const fs = require("fs");
 const path = require("path");
 const { stringify } = require("csv-stringify");
 const { destroy } = require("../../upload/cloudinary.service");
+const { destroy } = require("../../upload/cloudinary.service");
 
 /*
 For Data Table & Search or filters:- 
@@ -232,7 +233,43 @@ module.exports.SampleGETallUser = async (req, res) => {
     // --- YOUR EXISTING LOGIC START ---
     const page = Math.max(parseInt(reqPage) || 1, 1);
     const limit = Math.min(parseInt(reqLimit) || 10, 100);
+module.exports.SampleGETallUser = async (req, res) => {
+  try {
+    const {
+      page: reqPage,
+      limit: reqLimit,
+      search,
+      accountStatus,
+      isPremium,
+      isBanned,
+    } = req.query;
+
+    // 1. Generate a unique cache key based on query params
+    // const cacheKey = `users:list:${JSON.stringify({
+    //   reqPage,
+    //   reqLimit,
+    //   search,
+    //   accountStatus,
+    //   isPremium,
+    //   isBanned,
+    // })}`;
+
+    // 2. Try to fetch from Redis
+    // const cachedData = await redis.get(cacheKey);
+    // if (cachedData) {
+    //   console.log("CACHE HIT");
+    //   return res.status(200).json({
+    //     success: true,
+    //     cached: true,
+    //     ...JSON.parse(cachedData),
+    //   });
+    // }
+
+    // --- YOUR EXISTING LOGIC START ---
+    const page = Math.max(parseInt(reqPage) || 1, 1);
+    const limit = Math.min(parseInt(reqLimit) || 10, 100);
     const skip = (page - 1) * limit;
+    const searchTrimmed = search?.trim();
     const searchTrimmed = search?.trim();
 
     const baseMatch = { role: "USER" };
@@ -240,11 +277,18 @@ module.exports.SampleGETallUser = async (req, res) => {
     if (isPremium) baseMatch.isPremium = isPremium === "true";
     if (isBanned !== undefined)
       baseMatch["banDetails.isBanned"] = isBanned === "true";
+    if (accountStatus) baseMatch.accountStatus = accountStatus;
+    if (isPremium) baseMatch.isPremium = isPremium === "true";
+    if (isBanned !== undefined)
+      baseMatch["banDetails.isBanned"] = isBanned === "true";
 
+    const searchRegex = searchTrimmed
+      ? new RegExp(searchTrimmed.replace(/[.*+?^${}()|[\\/]\\]/g, "\\$&"), "i")
     const searchRegex = searchTrimmed
       ? new RegExp(searchTrimmed.replace(/[.*+?^${}()|[\\/]\\]/g, "\\$&"), "i")
       : null;
 
+    // Your Pipeline (Keeping your existing pipeline structure)
     // Your Pipeline (Keeping your existing pipeline structure)
     const pipeline = [
       { $match: baseMatch },
@@ -273,6 +317,9 @@ module.exports.SampleGETallUser = async (req, res) => {
                 $or: [
                   { email: searchRegex },
                   { "profile.nickname": searchRegex },
+                ],
+              },
+            }, // Simplified for brevity, use your full list
                 ],
               },
             }, // Simplified for brevity, use your full list
@@ -407,10 +454,98 @@ module.exports.SampleGETallUser = async (req, res) => {
                 as: "matchData",
               },
             },
+            // 🔥 NEW STATS LOOKUPS: Swipe Stats
+            {
+              $lookup: {
+                from: "swipes",
+                let: { userId: "$_id" },
+                pipeline: [
+                  { $match: { $expr: { $eq: ["$swiperId", "$$userId"] } } },
+                  {
+                    $group: {
+                      _id: null,
+                      totalSwipes: { $sum: 1 },
+                      likes: {
+                        $sum: { $cond: [{ $eq: ["$action", "like"] }, 1, 0] },
+                      },
+                      superLikes: {
+                        $sum: {
+                          $cond: [{ $eq: ["$action", "superlike"] }, 1, 0],
+                        },
+                      },
+                    },
+                  },
+                ],
+                as: "swipeStats",
+              },
+            },
+            {
+              $unwind: {
+                path: "$swipeStats",
+                preserveNullAndEmptyArrays: true,
+              },
+            },
+            // 🔥 NEW STATS LOOKUPS: Match Stats HISTORY & COUNT
+            {
+              $lookup: {
+                from: "matches",
+                let: { currentUserId: "$_id" },
+                pipeline: [
+                  { $match: { $expr: { $in: ["$$currentUserId", "$users"] } } },
+                  { $sort: { matchedAt: -1 } },
+                  // We identify the "Other User" and get their profile info
+                  {
+                    $addFields: {
+                      otherUserId: {
+                        $first: {
+                          $filter: {
+                            input: "$users",
+                            as: "uId",
+                            cond: { $ne: ["$$uId", "$$currentUserId"] },
+                          },
+                        },
+                      },
+                    },
+                  },
+                  {
+                    $lookup: {
+                      from: "profiles",
+                      localField: "otherUserId",
+                      foreignField: "userId",
+                      as: "otherProfile",
+                    },
+                  },
+                  {
+                    $unwind: {
+                      path: "$otherProfile",
+                      preserveNullAndEmptyArrays: true,
+                    },
+                  },
+                  {
+                    $project: {
+                      _id: 1,
+                      matchedAt: 1,
+                      nickname: "$otherProfile.nickname",
+                      photo: { $arrayElemAt: ["$otherProfile.photos.url", 0] },
+                    },
+                  },
+                ],
+                as: "matchData",
+              },
+            },
             {
               $project: {
                 _id: 1,
                 role: 1,
+                // 🔥 ADD THE STATS TO THE PROJECT OUTPUT
+                stats: {
+                  totalSwipes: { $ifNull: ["$swipeStats.totalSwipes", 0] },
+                  totalLikes: { $ifNull: ["$swipeStats.likes", 0] },
+                  totalSuperLikes: { $ifNull: ["$swipeStats.superLikes", 0] },
+                  totalMatches: { $size: "$matchData" },
+                },
+                // Show only the 5 most recent matches in the array
+                recentMatches: { $slice: ["$matchData", 5] },
                 // 🔥 ADD THE STATS TO THE PROJECT OUTPUT
                 stats: {
                   totalSwipes: { $ifNull: ["$swipeStats.totalSwipes", 0] },
@@ -494,6 +629,7 @@ module.exports.SampleGETallUser = async (req, res) => {
     const total = result[0]?.total[0]?.count || 0;
 
     const responseData = {
+    const responseData = {
       pagination: {
         page,
         limit,
@@ -501,6 +637,16 @@ module.exports.SampleGETallUser = async (req, res) => {
         totalPages: Math.ceil(total / limit),
       },
       data: users,
+    };
+    // --- YOUR EXISTING LOGIC END ---
+
+    // 3. Save to Redis with an expiration time (e.g., 5 minutes / 300 seconds)
+    // await redis.set(cacheKey, responseData, "EX", 300);
+
+    return res.status(200).json({
+      success: true,
+      cached: false,
+      ...responseData,
     };
     // --- YOUR EXISTING LOGIC END ---
 
@@ -522,6 +668,7 @@ module.exports.SampleGETallUser = async (req, res) => {
  * For GET SINGLE USER DETAILS – ADMIN:-
  * API 2: GET api/v1/admin/user-management/:userId
  ============================================ */
+//  Pending This API/.
 //  Pending This API/.
 module.exports.GETSingleUserDetails = async (req, res) => {
   try {
@@ -831,6 +978,7 @@ module.exports.UPDATESingleUserDetail = async (req, res) => {
     });
   } catch (error) {
     await session.abortTransaction();
+    await session.abortTransaction();
     console.error("UPDATE ERROR:", error);
     return res.status(500).json({ success: false, message: error.message });
   } finally {
@@ -877,6 +1025,41 @@ module.exports.UPDATEUserStatus = async (req, res) => {
       success: false,
       message: "Failed to update status",
     });
+  }
+};
+
+module.exports.DELETEPhoto = async (req, res) => {
+  try {
+    const userId = req.user._id;
+    const { publicId } = req.body;
+    const profile = await Profile.findOne({ userId });
+
+    const photoIndex = profile?.photos.findIndex(
+      (p) => p.publicId === publicId
+    );
+    if (photoIndex === -1 || !profile)
+      return res
+        .status(404)
+        .json({ success: false, message: "Photo not found" });
+
+    await destroy(publicId);
+    profile.photos.splice(photoIndex, 1);
+    profile.photos.forEach((photo, index) => {
+      photo.order = index + 1;
+      photo.isPrimary = index === 0;
+    });
+
+    await profile.save();
+
+    res.json({
+      success: true,
+      message: "Photo deleted successfully",
+      data: {
+        profile: profile, // This contains the updated photos array
+      },
+    });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
   }
 };
 

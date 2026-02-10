@@ -103,39 +103,38 @@ const ProfileSchema = new mongoose.Schema(
       },
     ],
 
-    location: {
-      type: { type: String, default: "Point" },
-      coordinates: { type: [Number], default: [0, 0] }, // [Longitude, Latitude]
-      city: String,
-      country: String,
-      full_address: String,
-    },
+  location: {
+    type: { type: String, default: "Point" },
+    coordinates: { type: [Number], default: [0, 0] }, // [Longitude, Latitude]
+    city: String,
+    country: String,
+    full_address: String
+  },
+
 
     verification: {
       status: {
         type: String,
         enum: ["not_started", "pending", "approved", "rejected"],
         default: "not_started",
-        index: true,
-      },
-
-      verifiedBy: {
-        type: mongoose.Schema.Types.ObjectId,
-        ref: "User",
-        default: null,
-      },
-
-      verifiedAt: { type: Date, default: null },
-
-      selfieUrl: String,
-
-      docUrl: String,
-
-      rejectionReason: {
-        type: String,
-        default: null,
-      },
+        index: true 
     },
+    verifiedBy: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: "User",
+    default: null
+  },
+   verifiedAt: {
+    type: Date,
+    default: null
+  },
+    selfieUrl: String,
+    docUrl: String,
+    rejectionReason: {
+      type : String,
+      default : null
+    }
+  },
 
     subscription: {
       planId: { type: String, default: "free" },

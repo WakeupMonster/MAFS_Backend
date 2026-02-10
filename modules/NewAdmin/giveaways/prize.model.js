@@ -38,6 +38,10 @@ const prizeSchema = new mongoose.Schema(
       type: String,
       required: true
     },
+      supportiveItems: {
+      type: [String],
+      default: []
+    },
 
     // Admin prize ko disable bhi kar sakta hai
     isActive: {

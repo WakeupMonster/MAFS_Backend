@@ -83,6 +83,15 @@ module.exports.getAllPrizes = async (req, res) => {
 module.exports.createPrize = async (req, res) => {
   try {
     const { title, type, value, description, spinWheelLabel } = req.body;
+    const { title, type, value, description, spinWheelLabel, supportiveItems } =
+      req.body;
+
+    if (!supportiveItems || supportiveItems.length < 2) {
+      return res.status(400).json({
+        success: false,
+        message: "At least 2 supportive items are required",
+      });
+    }
 
     if (!title || !type || !value || !spinWheelLabel) {
       return res.status(400).json({
@@ -97,6 +106,7 @@ module.exports.createPrize = async (req, res) => {
       value,
       description,
       spinWheelLabel,
+      supportiveItems,
     });
 
     return res.status(201).json({
@@ -250,7 +260,7 @@ module.exports.deletePrize = async (req, res, next) => {
 
 module.exports.createCampaign = async (req, res) => {
   try {
-    const { date, prizeId, supportiveItems } = req.body;
+    const { date, prizeId } = req.body;
 
     if (!supportiveItems || supportiveItems.length < 2) {
       return res.status(400).json({
@@ -407,7 +417,6 @@ module.exports.getWinner = async (req, res) => {
 module.exports.resendPrize = async (req, res) => {
   try {
     const { id } = req.params;
-
     const campaign = await GiveawayCampaign.findById(id);
     if (!campaign || !campaign.winnerUserId) {
       return res.status(400).json({
@@ -800,11 +809,56 @@ module.exports.pauseCampaign = async (req, res) => {
 };
 
 /**
+ * @desc    Delete a prize by ID
+ * @route   DELETE /api/v1/admin/giveaway/prizes/:id
+ * @access  Private/Admin
+ */
+exports.deletePrize = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+
+    // Find and delete the prize
+    const prize = await Prize.findByIdAndDelete(id);
+
+    if (!prize) {
+      return res.status(404).json({
+        success: false,
+        message: "Prize not found",
+      });
+    }
+
+    // Log the deletion
+    // await GiveawayAudit.create({
+    //   action: 'DELETE_PRIZE',
+    //   admin: req.user._id,
+    //   targetId: id,
+    //   details: {
+    //     prizeName: prize.name,
+    //     prizeId: prize._id
+    //   }
+    // });
+
+    res.status(200).json({
+      success: true,
+      message: "Prize deleted successfully",
+      data: { id },
+    });
+  } catch (error) {
+    console.error("Delete Prize Error:", error);
+    res.status(500).json({
+      success: false,
+      message: "Failed to delete prize",
+      error: error.message,
+    });
+  }
+};
+
+/**
  * @desc    Delete a campaign by ID
  * @route   DELETE /api/v1/admin/giveaway/campaigns/:id
  * @access  Private/Admin
  */
-module.exports.deleteCampaign = async (req, res, next) => {
+exports.deleteCampaign = async (req, res, next) => {
   try {
     const { id } = req.params;
 
@@ -873,175 +927,281 @@ module.exports.deleteCampaign = async (req, res, next) => {
   }
 };
 
-module.exports.getSpinWheelConfig = async (req, res) => {
-  try {
-    const userId = req.user._id;
+/**
+ * 📅 RANGE BASED BULK CREATE GIVEAWAY CAMPAIGNS
+ * Admin can define multiple date ranges with different prizes
+ */
+// exports.bulkCreateCampaignByRanges = async (req, res) => {
+//   try {
+//     const { ranges, isActive = true } = req.body;
 
-    /**
-     * 1️⃣ Aaj ki date normalize karo
-     * (taaki date comparison exact ho)
-     */
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
+//     if (!Array.isArray(ranges) || ranges.length === 0) {
+//       return res.status(400).json({
+//         success: false,
+//         message: "Ranges array is required"
+//       });
+//     }
 
-    /**
-     * 2️⃣ Aaj ka COMPLETED campaign nikaalo
-     */
-    const campaign = await GiveawayCampaign.findOne({
-      date: today,
-      isActive: true,
-      drawStatus: "COMPLETED",
-    });
+//     /**
+//      * 1️⃣ Normalize & validate ranges
+//      */
+//     const normalizedRanges = ranges.map((r) => {
+//       const start = new Date(r.startDate);
+//       const end = new Date(r.endDate);
 
-    // Agar aaj koi campaign hi nahi
-    if (!campaign) {
-      return res.json({
-        available: false,
-        showSpin: false,
-        reason: "NO_CAMPAIGN_TODAY",
-      });
-    }
+//       start.setHours(0, 0, 0, 0);
+//       end.setHours(0, 0, 0, 0);
 
-    /**
-     * 3️⃣ Check karo: ye user winner hai ya nahi
-     */
-    if (
-      !campaign.winnerUserId ||
-      campaign.winnerUserId.toString() !== userId.toString()
-    ) {
-      // Non-winner ko spin nahi dikhega
-      return res.json({
-        available: true,
-        showSpin: false,
-        message: "Better luck next time",
-      });
-    }
+//       if (start > end) {
+//         throw new Error("Start date cannot be after end date");
+//       }
 
-    /**
-     * 4️⃣ Prize ka data nikaalo
-     */
-    const prize = await Prize.findById(campaign.prizeId);
+//       return {
+//         startDate: start,
+//         endDate: end,
+//         prizeId: r.prizeId
+//       };
+//     });
 
-    /**
-     * 5️⃣ Campaign ke supportive items lo
-     * (ye admin ne set kiye hote hain)
-     */
-    let supportiveItems = [...campaign.supportiveItems];
+//     /**
+//      * 2️⃣ Overlapping range detection
+//      */
+//     const sortedRanges = [...normalizedRanges].sort(
+//       (a, b) => a.startDate - b.startDate
+//     );
 
-    /**
-     * 6️⃣ Random index decide karo
-     * (sirf UI ke liye, winner already decided hai)
-     */
-    const winnerIndex = Math.floor(
-      Math.random() * (supportiveItems.length + 1)
-    );
+//     for (let i = 1; i < sortedRanges.length; i++) {
+//       if (sortedRanges[i].startDate <= sortedRanges[i - 1].endDate) {
+//         return res.status(400).json({
+//           success: false,
+//           message: "Overlapping date ranges are not allowed"
+//         });
+//       }
+//     }
 
-    /**
-     * 7️⃣ Prize ka spin label
-     * us random index par insert karo
-     */
-    supportiveItems.splice(winnerIndex, 0, prize.spinWheelLabel);
+//     /**
+//      * 3️⃣ Validate all prizes
+//      */
+//     const prizeIds = [...new Set(normalizedRanges.map(r => r.prizeId))];
+//     const prizes = await Prize.find({ _id: { $in: prizeIds }, isActive: true });
 
-    /**
-     * 8️⃣ Final response frontend ko bhejo
-     */
-    return res.json({
-      available: true,
-      showSpin: true,
+//     if (prizes.length !== prizeIds.length) {
+//       return res.status(400).json({
+//         success: false,
+//         message: "One or more prizes are invalid or inactive"
+//       });
+//     }
 
-      // Spin wheel ke saare labels
-      items: supportiveItems.map((label) => ({ label })),
+//     // const today = new Date();
+//     // today.setHours(0, 0, 0, 0);
 
-      // Frontend isi index par wheel rokega
-      winnerIndex,
+//     const now = new Date();
+// const today = new Date(
+//   now.getFullYear(),
+//   now.getMonth(),
+//   now.getDate()
+// );
 
-      // Win screen ke liye prize info
-      prize: {
-        title: prize.title,
-        value: prize.value,
-        type: prize.type,
-      },
-    });
-  } catch (error) {
-    console.error("Spin wheel API error:", error);
-    return res.status(500).json({
-      success: false,
-      message: "Failed to load spin wheel",
-    });
-  }
-};
+//     const campaignsToInsert = [];
+//     const skippedDates = [];
 
-module.exports.claimPrize = async (req, res) => {
-  try {
-    const userId = req.user._id;
+//     /**
+//      * 4️⃣ Expand ranges into daily campaigns
+//      */
+//     for (const range of normalizedRanges) {
+//       for (
+//         let date = new Date(range.startDate);
+//         date <= range.endDate;
+//         date.setDate(date.getDate() + 1)
+//       ) {
+//         const campaignDate = new Date(date);
 
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
+//         // ❌ Skip past dates
+//         if (campaignDate < today) {
+//           skippedDates.push({
+//             date: campaignDate,
+//             reason: "Past date"
+//           });
+//           continue;
+//         }
 
-    const campaign = await GiveawayCampaign.findOne({
-      date: today,
-      drawStatus: "COMPLETED",
-    });
+//         // ❌ Skip if campaign already exists
+//         const existing = await GiveawayCampaign.findOne({
+//           date: campaignDate
+//         });
 
-    if (!campaign) {
-      return res.status(400).json({
-        success: false,
-        message: "No active giveaway today",
-      });
-    }
+//         if (existing) {
+//           skippedDates.push({
+//             date: campaignDate,
+//             reason: "Campaign already exists"
+//           });
+//           continue;
+//         }
 
-    if (campaign.winnerUserId.toString() !== userId.toString()) {
-      return res.status(403).json({
-        success: false,
-        message: "You are not the winner",
-      });
-    }
+//         campaignsToInsert.push({
+//           date: campaignDate,
+//           prizeId: range.prizeId,
+//            supportiveItems: Array.isArray(range.supportiveItems)
+//             ? range.supportiveItems
+//             : [],
+//           isActive,
+//           drawStatus: "PENDING"
+//         });
+//       }
+//     }
 
-    /**
-     * Win history nikaalo
-     */
-    const winHistory = await GiveawayWinHistory.findOne({
-      userId,
-      campaignId: campaign._id,
-    });
+//     /**
+//      * 5️⃣ Insert campaigns
+//      */
+//     if (campaignsToInsert.length > 0) {
+//       await GiveawayCampaign.insertMany(campaignsToInsert);
+//     }
 
-    if (!winHistory) {
-      return res.status(404).json({
-        success: false,
-        message: "Win record not found",
-      });
-    }
+//     /**
+//      * 6️⃣ Response
+//      */
+//     return res.status(201).json({
+//       success: true,
+//       message: "Range-based campaigns processed successfully",
+//       summary: {
+//         created: campaignsToInsert.length,
+//         skipped: skippedDates.length
+//       },
+//       skippedDates
+//     });
 
-    /**
-     * 4Double claim protection
-     */
-    if (winHistory.claimedAt) {
-      return res.status(400).json({
-        success: false,
-        message: "Prize already claimed",
-      });
-    }
+//   } catch (error) {
+//     console.error("Range bulk campaign error:", error);
+//     return res.status(500).json({
+//       success: false,
+//       message: error.message || "Failed to bulk create campaigns"
+//     });
+//   }
+// };
 
-    /**
-     * Claim prize (LOCK)
-     */
-    winHistory.claimedAt = new Date();
-    winHistory.deliveryStatus = "PENDING";
-    await winHistory.save();
+// {
+//   "ranges": [
+//     {
+//       "startDate": "2025-12-01",
+//       "endDate": "2025-12-05",
+//       "prizeId": "PRIZE_ID_1"
+//     },
+//     {
+//       "startDate": "2025-12-06",
+//       "endDate": "2025-12-11",
+//       "prizeId": "PRIZE_ID_2"
+//     },
+//     {
+//       "startDate": "2025-12-12",
+//       "endDate": "2025-12-15",
+//       "prizeId": "PRIZE_ID_3"
+//     }
+//   ],
+//   "isActive": true
+// }
 
-    return res.json({
-      success: true,
-      message: "Prize claimed successfully",
-      data: {
-        claimedAt: winHistory.claimedAt,
-        deliveryStatus: winHistory.deliveryStatus,
-      },
-    });
-  } catch (error) {
-    console.error("Claim prize error:", error);
-    return res.status(500).json({
-      success: false,
-      message: "Failed to claim prize",
-    });
-  }
-};
+// exports.bulkCreateCampaign = async (req, res) => {
+//   try {
+//     const { startDate, endDate, prizeId, isActive = true } = req.body;
+
+//     /**
+//      * 1️⃣ Prize validation
+//      */
+//     const prize = await Prize.findById(prizeId);
+//     if (!prize || !prize.isActive) {
+//       return res.status(400).json({
+//         success: false,
+//         message: "Invalid or inactive prize"
+//       });
+//     }
+
+//     /**
+//      * 2️⃣ Date validation
+//      */
+//     const start = new Date(startDate);
+//     const end = new Date(endDate);
+//     start.setHours(0, 0, 0, 0);
+//     end.setHours(0, 0, 0, 0);
+
+//     if (start > end) {
+//       return res.status(400).json({
+//         success: false,
+//         message: "Start date cannot be after end date"
+//       });
+//     }
+
+//     const today = new Date();
+//     today.setHours(0, 0, 0, 0);
+
+//     /**
+//      * 3️⃣ Loop through date range
+//      */
+//     const campaignsToInsert = [];
+//     const skippedDates = [];
+
+//     for (
+//       let date = new Date(start);
+//       date <= end;
+//       date.setDate(date.getDate() + 1)
+//     ) {
+//       const campaignDate = new Date(date);
+
+//       // ❌ Past dates skip
+//       if (campaignDate < today) {
+//         skippedDates.push({
+//           date: campaignDate,
+//           reason: "Past date"
+//         });
+//         continue;
+//       }
+
+//       // ❌ Already exists?
+//       const existingCampaign = await GiveawayCampaign.findOne({
+//         date: campaignDate
+//       });
+
+//       if (existingCampaign) {
+//         skippedDates.push({
+//           date: campaignDate,
+//           reason: "Campaign already exists"
+//         });
+//         continue;
+//       }
+
+//       // ✅ Ready to create
+//       campaignsToInsert.push({
+//         date: campaignDate,
+//         prizeId,
+//         isActive,
+//         drawStatus: "PENDING"
+//       });
+//     }
+
+//     /**
+//      * 4️⃣ Insert campaigns
+//      */
+//     if (campaignsToInsert.length > 0) {
+//       await GiveawayCampaign.insertMany(campaignsToInsert);
+//     }
+
+//     /**
+//      * 5️⃣ Response
+//      */
+//     return res.status(201).json({
+//       success: true,
+//       message: "Bulk campaigns processed",
+//       summary: {
+//         created: campaignsToInsert.length,
+//         skipped: skippedDates.length
+//       },
+//       skippedDates
+//     });
+
+//   } catch (error) {
+//     console.error("Bulk create campaign error:", error);
+//     return res.status(500).json({
+//       success: false,
+//       message: "Failed to bulk create campaigns"
+//     });
+//   }
+// };

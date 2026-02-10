@@ -21,12 +21,21 @@ router.patch("/forgot-password", adminController.adminForgotPassword);
  */
 // --- Protected Admin Routes ---
 router.use(auth);
-router.use(allowAdmin);
+router.get("/profile", adminController.getProfile);
 
-/**
- * @section Protected Auth Routes
- * Note: 'auth' and 'allowAdmin' are already applied in the Master Index
- */
-router.post("/reset-password", adminController.adminResetPassword);
+// Update admin name
+router.put("/profile/update-name", adminController.updateName);
 
+// Send OTP to new email for verification
+router.post("/profile/send-email-otp", adminController.sendEmailOTP);
+
+// Verify OTP and update email
+router.post("/profile/verify-email-otp", adminController.verifyEmailOTP);
+
+
+router.post(
+  "/reset-password",
+  allowAdminMiddleware,
+  adminController.adminResetPassword
+);
 module.exports = router;
