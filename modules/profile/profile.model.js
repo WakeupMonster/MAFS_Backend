@@ -173,6 +173,34 @@ const ProfileSchema = new mongoose.Schema({
     lastCompletedStep: { type: String }
   },
 
+
+  onboarding: {
+  nextstep: {
+    type: Number,
+    default: 1,
+    min: 1
+  },
+  currentScreenSlug: {
+    type: String,
+    default: "welcome_screen",
+    index: true
+  },
+  isComplete: {
+    type: Boolean,
+    default: false
+  },
+  lastUpdatedBy: {
+    type: String,
+    enum: ["client", "server"],
+    default: "client"
+  },
+  updatedAt: {
+    type: Date,
+    default: Date.now
+  }
+},
+
+
   settings: {
     notifications: {
       push: { type: Boolean, default: true },

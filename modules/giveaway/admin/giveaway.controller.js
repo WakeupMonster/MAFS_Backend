@@ -108,16 +108,10 @@ exports.createCampaign = async (req, res) => {
   try {
     const { date, prizeId } = req.body;
 
-    //  if (!supportiveItems || supportiveItems.length < 2) {
-    //   return res.status(400).json({
-    //     success: false,
-    //     message: "At least 2 supportive items are required"
-    //   });
-    // }
-
-  
     const campaignDate = new Date(date);
-    campaignDate.setHours(0, 0, 0, 0);
+    campaignDate.setUTCHours(0, 0, 0, 0);
+
+
 
 
     const existingCampaign = await GiveawayCampaign.findOne({
@@ -176,6 +170,154 @@ exports.createCampaign = async (req, res) => {
     });
   }
 };
+
+
+
+// exports.getAllCampaigns = async (req, res) => {
+//   try {
+//     const {
+//       page = 1,
+//       limit = 10,
+//       search,
+//       drawStatus,
+//       isActive,
+//       startDate,
+//       endDate,
+//       sortBy = "date",
+//       sortOrder = "desc",
+//     } = req.query;
+
+//     // --- Pagination setup ---
+//     const pageNum = Math.max(1, parseInt(page) || 1);
+//     const limitNum = Math.min(100, Math.max(1, parseInt(limit) || 10));
+//     const skip = (pageNum - 1) * limitNum;
+
+//     // --- Build filter ---
+//     const filter = {};
+
+//     if (drawStatus) {
+//       filter.drawStatus = drawStatus;
+//     }
+
+//     if (typeof isActive !== "undefined") {
+//       filter.isActive = isActive === "true";
+//     }
+
+//     if (startDate || endDate) {
+//       filter.date = {};
+//       if (startDate) filter.date.$gte = new Date(startDate);
+//       if (endDate) filter.date.$lte = new Date(endDate);
+//     }
+
+//     // --- Build pipeline ---
+//     const pipeline = [];
+
+//     // Step 1: Apply filters
+//     if (Object.keys(filter).length > 0) {
+//       pipeline.push({ $match: filter });
+//     }
+
+//     // Step 2: Join prize data
+//     pipeline.push({
+//       $lookup: {
+//         from: "giveawayprizes",
+//         localField: "prizeId",
+//         foreignField: "_id",
+//         as: "prizeId",
+//       },
+//     });
+//     pipeline.push({
+//       $unwind: { path: "$prizeId", preserveNullAndEmptyArrays: true },
+//     });
+
+//     // Step 3: Join winner data
+//     pipeline.push({
+//       $lookup: {
+//         from: "users",
+//         localField: "winnerUserId",
+//         foreignField: "_id",
+//         as: "winnerUserId",
+//       },
+//     });
+//     pipeline.push({
+//       $unwind: { path: "$winnerUserId", preserveNullAndEmptyArrays: true },
+//     });
+
+//     // Step 4: Search in prize title, type or winner email
+//     if (search && search.trim()) {
+//       const safeSearch = search.trim().replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
+//       pipeline.push({
+//         $match: {
+//           $or: [
+//             { "prizeId.title": { $regex: safeSearch, $options: "i" } },
+//             { "prizeId.type": { $regex: safeSearch, $options: "i" } },
+//             { "winnerUserId.email": { $regex: safeSearch, $options: "i" } },
+//             { "winnerUserId.phone": { $regex: safeSearch, $options: "i" } },
+//           ],
+//         },
+//       });
+//     }
+
+//     // Step 5: Only keep needed winner fields (like .populate select)
+//     pipeline.push({
+//       $project: {
+//         date: 1,
+//         prizeId: 1,
+//         drawStatus: 1,
+//         isActive: 1,
+//         createdAt: 1,
+//         updatedAt: 1,
+//         winnerUserId: {
+//           _id: "$winnerUserId._id",
+//           email: "$winnerUserId.email",
+//           phone: "$winnerUserId.phone",
+//         },
+//       },
+//     });
+
+//     // Step 6: Sort + Paginate in one DB call
+//     const allowedSorts = ["date", "createdAt", "drawStatus", "isActive"];
+//     const safeSortBy = allowedSorts.includes(sortBy) ? sortBy : "date";
+//     const safeSortOrder = sortOrder === "asc" ? 1 : -1;
+
+//     pipeline.push({
+//       $facet: {
+//         metadata: [{ $count: "total" }],
+//         data: [
+//           { $sort: { [safeSortBy]: safeSortOrder } },
+//           { $skip: skip },
+//           { $limit: limitNum },
+//         ],
+//       },
+//     });
+
+//     // --- Execute ---
+//     const [result] = await GiveawayCampaign.aggregate(pipeline);
+
+//     const total = result.metadata[0]?.total || 0;
+//     const totalPages = Math.ceil(total / limitNum);
+
+//     return res.json({
+//       success: true,
+//       data: result.data,
+//       pagination: {
+//         currentPage: pageNum,
+//         limit: limitNum,
+//         totalItems: total,
+//         totalPages,
+//         hasNextPage: pageNum < totalPages,
+//         hasPrevPage: pageNum > 1,
+//       },
+//     });
+//   } catch (err) {
+//     console.error("Get All Campaigns Error:", err);
+//     return res.status(500).json({
+//       success: false,
+//       message: "Failed to fetch campaigns",
+//     });
+//   }
+// };
 
 exports.getAllCampaigns = async (req, res) => {
   try {

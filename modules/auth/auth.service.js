@@ -7,7 +7,8 @@ const { formatUserProfile } = require("./auth.formatter");
 const BlockedContact = require("../BlockedContact/blockedContacts.model");
 const Block = require("../profile/user.block")
 const { normalizePhone, hashPhone } = require("../../common/utils/phone.util");
-const UserSubscription = require("../auth/UserSubscription.model")
+const UserSubscription = require("../auth/UserSubscription.model");
+const { formatProfileResponse } = require("../profile/profile.formatter");
 const EMAIL_OTP_TTL_MS = Number(1000 * 60 * 10); // 10 min
 const OTP_TTL = 300; // 5 minutes
 const RATE_LIMIT_MAX = 2; // max OTP requests allowed
@@ -144,7 +145,7 @@ async function verifyPhoneOtpUnified(phone, otp) {
 }
 
 
-async function verifyPhoneTestOtpUnified(phone, otp) {
+async function verifyPhoneTestOtpUnified(phone, otp,req) {
   // 1️⃣ Normalize phone (VERY IMPORTANT)
   const normalizedPhone = normalizePhone(phone);
   if (!normalizedPhone) throw new Error("Invalid phone number");
@@ -225,7 +226,8 @@ if (
     accessToken,
     refreshToken: refreshTokenRaw,
     isNewUser: !user.firstName,
-    user: formatUserProfile(user, profile, blockedContacts, blockedUser,subData)
+    // user: formatUserProfile(user, profile, blockedContacts, blockedUser,subData)
+    user: await formatProfileResponse(user, profile, blockedContacts, blockedUser,req)
   };
 }
 
@@ -324,7 +326,7 @@ async function verifyPhoneOtp(phone, otp) {
 // }
 
 
-async function verifyEmailOtp(token, otp) {
+async function verifyEmailOtp(token, otp,req) {
   const decoded = utils.verifyToken(token);
 
   const user = await User.findById(decoded.userId);
@@ -351,7 +353,8 @@ async function verifyEmailOtp(token, otp) {
 
   return {
     // Return the formatted user including block lists
-    user: formatUserProfile(user, profile, blockedContacts, blockedUser)
+    // user: formatUserProfile(user, profile, blockedContacts, blockedUser)
+      user: await formatProfileResponse(user, profile, blockedContacts, blockedUser,req)
   };
 }
 
@@ -494,7 +497,7 @@ async function loginVerifyOtp(phone, otp) {
   return { user, accessToken, refreshToken: refreshTokenRaw };
 }
 
-async function refreshAccessToken(refreshTokenRaw) {
+async function refreshAccessToken(refreshTokenRaw,req) {
   // 1. Hash incoming token to compare with DB
 
     if (!refreshTokenRaw) {
@@ -554,7 +557,7 @@ async function refreshAccessToken(refreshTokenRaw) {
   return {
     accessToken,
     refreshToken: refreshTokenRaw, 
-    user: formatUserProfile(user, profile, blockedContacts, blockedUser)
+    user: await formatProfileResponse(user, profile, blockedContacts, blockedUser,req)
   };
 }
 async function logout(refreshTokenRaw) {

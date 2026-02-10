@@ -1,34 +1,20 @@
 const appleService = require("../services/apple.service");
 const googleService = require("../services/google.service");
 const subscriptionService = require("../services/subscription.service");
+const logger = require("../utils/logger");
 
-// ─── VERIFY PURCHASE (App se call hogi) ───
-exports.verifyPurchase = async (req, res) => {
+const verifyPurchase = async (req, res, next) => {
   try {
-    // eslint-disable-next-line no-unused-vars
-    const { platform, receipt, purchaseToken, productId, transactionId } =
-      req.body;
+    const { platform, productId, transactionId, purchaseToken } = req.body;
     const userId = req.user._id;
-
-    if (!platform || !productId) {
-      return res
-        .status(400)
-        .json({ success: false, error: "platform and productId required" });
-    }
 
     let subscriptionData;
 
     if (platform === "ios") {
-      if (!transactionId) {
-        return res
-          .status(400)
-          .json({ success: false, error: "transactionId required for iOS" });
-      }
-
       const result = await appleService.verifyTransaction(transactionId);
 
       subscriptionData = {
-        userId,
+        userId: userId,
         platform: "ios",
         productId: result.productId || productId,
         originalTransactionId: result.originalTransactionId,
@@ -37,40 +23,30 @@ exports.verifyPurchase = async (req, res) => {
         expiresDate: result.expiresDate,
       };
     } else if (platform === "android") {
-      if (!purchaseToken) {
-        return res.status(400).json({
-          success: false,
-          error: "purchaseToken required for Android",
-        });
-      }
-
-      const result = await googleService.verifySubscription(
-        productId,
-        purchaseToken
-      );
+      const result = await googleService.verifySubscription(productId, purchaseToken);
 
       subscriptionData = {
-        userId,
+        userId: userId,
         platform: "android",
-        productId,
-        purchaseToken,
+        productId: productId,
+        purchaseToken: purchaseToken,
         orderId: result.orderId,
         purchaseDate: parseInt(result.startTimeMillis),
         expiresDate: parseInt(result.expiryTimeMillis),
       };
 
       await googleService.acknowledgePurchase(productId, purchaseToken);
-    } else {
-      return res
-        .status(400)
-        .json({ success: false, error: "Invalid platform" });
     }
 
-    const subscription = await subscriptionService.handlePurchase(
-      subscriptionData
-    );
+    const subscription = await subscriptionService.handlePurchase(subscriptionData);
 
-    res.json({
+    logger.info("Purchase verified", {
+      userId: userId,
+      platform: platform,
+      subscriptionId: subscription._id,
+    });
+
+    return res.json({
       success: true,
       subscription: {
         id: subscription._id,
@@ -81,50 +57,55 @@ exports.verifyPurchase = async (req, res) => {
       },
     });
   } catch (err) {
-    console.error("Verify purchase error:", err);
-    res.status(400).json({ success: false, error: err.message });
+    logger.error("Verify purchase error:", err.message);
+    return next(err);
   }
 };
 
-// ─── CHECK STATUS (App open hone pe) ───
-exports.getStatus = async (req, res) => {
+const getStatus = async (req, res, next) => {
   try {
     const access = await subscriptionService.checkAccess(req.user._id);
-    res.json({ success: true, ...access });
+
+    return res.json({
+      success: true,
+      ...access,
+    });
   } catch (err) {
-    res.status(500).json({ success: false, error: err.message });
+    logger.error("Get status error:", err.message);
+    return next(err);
   }
 };
 
-// ─── TRANSACTION HISTORY ───
-exports.getHistory = async (req, res) => {
+const getHistory = async (req, res, next) => {
   try {
     const limit = parseInt(req.query.limit) || 50;
     const transactions = await subscriptionService.getTransactionHistory(
       req.user._id,
       limit
     );
-    res.json({ success: true, transactions });
+
+    return res.json({
+      success: true,
+      transactions: transactions,
+    });
   } catch (err) {
-    res.status(500).json({ success: false, error: err.message });
+    logger.error("Get history error:", err.message);
+    return next(err);
   }
 };
 
-// ─── GET SUBSCRIPTION DETAILS ───
-exports.getSubscription = async (req, res) => {
+const getSubscription = async (req, res, next) => {
   try {
     const sub = await subscriptionService.getUserSubscription(req.user._id);
 
-    if (!sub) {
-      return res.json({
-        success: true,
-        subscription: null,
-        message: "No subscription found",
-      });
-    }
-
-    res.json({ success: true, subscription: sub });
+    return res.json({
+      success: true,
+      subscription: sub || null,
+    });
   } catch (err) {
-    res.status(500).json({ success: false, error: err.message });
+    logger.error("Get subscription error:", err.message);
+    return next(err);
   }
 };
+
+module.exports = { verifyPurchase, getStatus, getHistory, getSubscription };

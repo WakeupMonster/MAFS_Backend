@@ -1,10 +1,10 @@
-// cron/subscriptionCron.js
 const cron = require("node-cron");
 const Subscription = require("../models/Subscription");
-const SubscriptionEvent = require("../models/subscription_events");
+const SubscriptionEvent = require("../models/SubscriptionEvent");
+const logger = require("../utils/logger");
 
-function initCronJobs() {
-  // ─── Har 5 min: Expired subscriptions ───
+const initCronJobs = () => {
+  // Har 5 min: Expired subscriptions
   cron.schedule("*/5 * * * *", async () => {
     try {
       const result = await Subscription.updateMany(
@@ -17,14 +17,14 @@ function initCronJobs() {
       );
 
       if (result.modifiedCount > 0) {
-        console.log(`[CRON] Expired: ${result.modifiedCount} subscriptions`);
+        logger.info("[CRON] Expired subscriptions: " + result.modifiedCount);
       }
     } catch (err) {
-      console.error("[CRON] Expire check error:", err);
+      logger.error("[CRON] Expire check error:", err.message);
     }
   });
 
-  // ─── Har 5 min: Grace period expired ───
+  // Har 5 min: Grace period expired
   cron.schedule("*/5 * * * *", async () => {
     try {
       const result = await Subscription.updateMany(
@@ -36,37 +36,30 @@ function initCronJobs() {
       );
 
       if (result.modifiedCount > 0) {
-        console.log(`[CRON] Grace expired: ${result.modifiedCount}`);
+        logger.info("[CRON] Grace expired: " + result.modifiedCount);
       }
     } catch (err) {
-      console.error("[CRON] Grace check error:", err);
+      logger.error("[CRON] Grace check error:", err.message);
     }
   });
 
-  // ─── Har 10 min: Retry failed events ───
+  // Har 10 min: Failed events count
   cron.schedule("*/10 * * * *", async () => {
     try {
-      const failed = await SubscriptionEvent.find({
+      const failedCount = await SubscriptionEvent.countDocuments({
         processed: false,
-        $or: [
-          { error: { $exists: false } },
-          { "error.retryCount": { $lt: 5 } },
-        ],
-        receivedAt: {
-          $gte: new Date(Date.now() - 24 * 60 * 60 * 1000),
-        },
-      }).limit(20);
+        "error.retryCount": { $gte: 5 },
+      });
 
-      if (failed.length > 0) {
-        console.log(`[CRON] ${failed.length} events to retry`);
-        // TODO: Re-process these events
+      if (failedCount > 0) {
+        logger.warn("[CRON] " + failedCount + " permanently failed events need attention");
       }
     } catch (err) {
-      console.error("[CRON] Retry error:", err);
+      logger.error("[CRON] Failed events check error:", err.message);
     }
   });
 
-  console.log("[CRON] Subscription cron jobs initialized ✅");
-}
+  logger.info("[CRON] Subscription cron jobs initialized");
+};
 
 module.exports = { initCronJobs };

@@ -1,3 +1,5 @@
+const { buildOnboardingResponse } = require("../../common/utils/onBoardingSteps");
+
 const calculateAge = (dob) => {
   if (!dob) return null;
   const today = new Date();
@@ -22,7 +24,7 @@ const calculateCompletion = (profile) => {
 };
 
 
-const formatProfileResponse = (user, profile,blockedContacts = [], blockedUser = [],subData = {}) => {
+const formatProfileResponse = async (user, profile,blockedContacts = [], blockedUser = [],subData = {},req) => {
   if (!user) return null;
   const p = profile || {}; // Agar profile nahi hai toh empty object
 const sub = subData || {}; // Hum subData (UserSubscription document) pass karenge
@@ -217,11 +219,9 @@ tonight.setHours(24, 0, 0, 0);
     updatedAt: user.updatedAt,
     isPhoneVerified: user.isPhoneVerified || false,
     isEmailVerified: user.isEmailVerified || false,
-      onboarding: {
-      isComplete: user.onboardingComplete || false,
-      nextstep: user.nextStep || 1,
-      currentScreenSlug: user.currentScreenSlug || "welcome_screen"
-    },
+    //  onboarding: buildOnboardingResponse(req)
+    onboarding: await buildOnboardingResponse(req, user._id)
+
   };
 };
 

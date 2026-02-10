@@ -1,0 +1,109 @@
+{"level":"info","message":"[CRON] Subscription cron jobs initialized","service":"iap-service","timestamp":"2026-02-10 12:10:16"}
+{"level":"info","message":"[CRON] Subscription cron jobs initialized","service":"iap-service","timestamp":"2026-02-10 12:46:59"}
+{"level":"info","message":"[CRON] Subscription cron jobs initialized","service":"iap-service","timestamp":"2026-02-10 12:47:06"}
+{"level":"info","message":"[CRON] Subscription cron jobs initialized","service":"iap-service","timestamp":"2026-02-10 12:47:13"}
+{"level":"info","message":"[CRON] Subscription cron jobs initialized","service":"iap-service","timestamp":"2026-02-10 12:48:23"}
+{"level":"info","message":"[CRON] Subscription cron jobs initialized","service":"iap-service","timestamp":"2026-02-10 12:48:54"}
+{"level":"info","message":"[CRON] Subscription cron jobs initialized","service":"iap-service","timestamp":"2026-02-10 12:49:11"}
+{"level":"info","message":"[CRON] Subscription cron jobs initialized","service":"iap-service","timestamp":"2026-02-10 12:49:47"}
+{"level":"debug","message":"POST /api/v1/auth/refresh","service":"iap-service","timestamp":"2026-02-10 12:51:01"}
+{"level":"debug","message":"POST /api/v1/auth/refresh","service":"iap-service","timestamp":"2026-02-10 12:51:10"}
+{"level":"debug","message":"POST /api/v1/auth/refresh","service":"iap-service","timestamp":"2026-02-10 12:52:03"}
+{"level":"info","message":"[CRON] Subscription cron jobs initialized","service":"iap-service","timestamp":"2026-02-10 12:52:37"}
+{"level":"debug","message":"POST /api/v1/auth/refresh","service":"iap-service","timestamp":"2026-02-10 12:52:59"}
+{"level":"debug","message":"POST /api/v1/auth/refresh","service":"iap-service","timestamp":"2026-02-10 12:53:06"}
+{"level":"debug","message":"POST /api/v1/profile/photos","service":"iap-service","timestamp":"2026-02-10 12:54:36"}
+{"level":"info","message":"[CRON] Subscription cron jobs initialized","service":"iap-service","timestamp":"2026-02-10 12:56:15"}
+{"level":"info","message":"[CRON] Subscription cron jobs initialized","service":"iap-service","timestamp":"2026-02-10 12:56:25"}
+{"level":"info","message":"[CRON] Subscription cron jobs initialized","service":"iap-service","timestamp":"2026-02-10 12:58:34"}
+{"level":"info","message":"[CRON] Subscription cron jobs initialized","service":"iap-service","timestamp":"2026-02-10 12:58:41"}
+{"level":"info","message":"[CRON] Subscription cron jobs initialized","service":"iap-service","timestamp":"2026-02-10 12:59:04"}
+{"level":"info","message":"[CRON] Subscription cron jobs initialized","service":"iap-service","timestamp":"2026-02-10 12:59:55"}
+{"level":"debug","message":"POST /api/v1/profile/photos","service":"iap-service","timestamp":"2026-02-10 13:00:09"}
+{"level":"info","message":"[CRON] Subscription cron jobs initialized","service":"iap-service","timestamp":"2026-02-10 13:01:07"}
+{"level":"info","message":"[CRON] Subscription cron jobs initialized","service":"iap-service","timestamp":"2026-02-10 13:02:13"}
+{"level":"info","message":"[CRON] Subscription cron jobs initialized","service":"iap-service","timestamp":"2026-02-10 13:02:22"}
+{"level":"info","message":"[CRON] Subscription cron jobs initialized","service":"iap-service","timestamp":"2026-02-10 13:02:36"}
+{"level":"info","message":"[CRON] Subscription cron jobs initialized","service":"iap-service","timestamp":"2026-02-10 13:02:47"}
+{"level":"info","message":"[CRON] Subscription cron jobs initialized","service":"iap-service","timestamp":"2026-02-10 13:03:05"}
+{"level":"info","message":"[CRON] Subscription cron jobs initialized","service":"iap-service","timestamp":"2026-02-10 13:03:14"}
+{"level":"info","message":"[CRON] Subscription cron jobs initialized","service":"iap-service","timestamp":"2026-02-10 13:03:34"}
+{"level":"info","message":"[CRON] Subscription cron jobs initialized","service":"iap-service","timestamp":"2026-02-10 13:03:43"}
+{"level":"info","message":"[CRON] Subscription cron jobs initialized","service":"iap-service","timestamp":"2026-02-10 13:05:36"}
+{"level":"info","message":"[CRON] Subscription cron jobs initialized","service":"iap-service","timestamp":"2026-02-10 13:06:02"}
+{"level":"info","message":"[CRON] Subscription cron jobs initialized","service":"iap-service","timestamp":"2026-02-10 13:06:20"}
+{"level":"info","message":"[CRON] Subscription cron jobs initialized","service":"iap-service","timestamp":"2026-02-10 13:06:37"}
+{"level":"info","message":"[CRON] Subscription cron jobs initialized","service":"iap-service","timestamp":"2026-02-10 13:06:42"}
+{"level":"info","message":"[CRON] Subscription cron jobs initialized","service":"iap-service","timestamp":"2026-02-10 13:09:56"}
+{"level":"info","message":"[CRON] Subscription cron jobs initialized","service":"iap-service","timestamp":"2026-02-10 13:10:40"}
+{"level":"info","message":"[CRON] Subscription cron jobs initialized","service":"iap-service","timestamp":"2026-02-10 13:12:15"}
+{"level":"info","message":"[CRON] Subscription cron jobs initialized","service":"iap-service","timestamp":"2026-02-10 13:12:42"}
+{"level":"debug","message":"POST /api/v1/auth/refresh","service":"iap-service","timestamp":"2026-02-10 13:12:53"}
+{"level":"debug","message":"POST /api/v1/auth/refresh","service":"iap-service","timestamp":"2026-02-10 13:13:44"}
+{"level":"info","message":"[CRON] Subscription cron jobs initialized","service":"iap-service","timestamp":"2026-02-10 13:14:11"}
+{"level":"info","message":"[CRON] Subscription cron jobs initialized","service":"iap-service","timestamp":"2026-02-10 13:14:29"}
+{"level":"info","message":"[CRON] Subscription cron jobs initialized","service":"iap-service","timestamp":"2026-02-10 13:14:48"}
+{"level":"debug","message":"POST /api/v1/auth/refresh","service":"iap-service","timestamp":"2026-02-10 13:15:06"}
+{"level":"info","message":"[CRON] Subscription cron jobs initialized","service":"iap-service","timestamp":"2026-02-10 13:16:30"}
+{"level":"info","message":"[CRON] Subscription cron jobs initialized","service":"iap-service","timestamp":"2026-02-10 13:17:03"}
+{"level":"debug","message":"POST /api/v1/auth/refresh","service":"iap-service","timestamp":"2026-02-10 13:17:09"}
+{"level":"debug","message":"POST /api/v1/auth/refresh","service":"iap-service","timestamp":"2026-02-10 13:17:54"}
+{"level":"debug","message":"POST /api/v1/auth/refresh","service":"iap-service","timestamp":"2026-02-10 13:18:04"}
+{"level":"debug","message":"POST /api/v1/profile/photos","service":"iap-service","timestamp":"2026-02-10 13:21:31"}
+{"level":"debug","message":"POST /api/v1/auth/refresh","service":"iap-service","timestamp":"2026-02-10 13:22:37"}
+{"level":"debug","message":"POST /api/v1/profile/photos","service":"iap-service","timestamp":"2026-02-10 13:23:45"}
+{"level":"info","message":"[CRON] Subscription cron jobs initialized","service":"iap-service","timestamp":"2026-02-10 13:24:40"}
+{"level":"debug","message":"POST /api/v1/profile/photos","service":"iap-service","timestamp":"2026-02-10 13:24:46"}
+{"level":"debug","message":"POST /api/v1/profile/photos","service":"iap-service","timestamp":"2026-02-10 13:25:52"}
+{"level":"debug","message":"POST /api/v1/auth/refresh","service":"iap-service","timestamp":"2026-02-10 13:26:05"}
+{"level":"debug","message":"POST /api/v1/auth/refresh","service":"iap-service","timestamp":"2026-02-10 13:26:15"}
+{"level":"info","message":"[CRON] Subscription cron jobs initialized","service":"iap-service","timestamp":"2026-02-10 13:27:28"}
+{"level":"info","message":"[CRON] Subscription cron jobs initialized","service":"iap-service","timestamp":"2026-02-10 13:27:38"}
+{"level":"debug","message":"POST /api/v1/auth/refresh","service":"iap-service","timestamp":"2026-02-10 13:27:54"}
+{"level":"debug","message":"POST /api/v1/auth/refresh","service":"iap-service","timestamp":"2026-02-10 13:28:47"}
+{"level":"info","message":"[CRON] Subscription cron jobs initialized","service":"iap-service","timestamp":"2026-02-10 13:28:59"}
+{"level":"debug","message":"POST /api/v1/auth/refresh","service":"iap-service","timestamp":"2026-02-10 13:29:04"}
+{"level":"info","message":"[CRON] Subscription cron jobs initialized","service":"iap-service","timestamp":"2026-02-10 13:29:14"}
+{"level":"info","message":"[CRON] Subscription cron jobs initialized","service":"iap-service","timestamp":"2026-02-10 13:31:38"}
+{"level":"info","message":"[CRON] Subscription cron jobs initialized","service":"iap-service","timestamp":"2026-02-10 13:33:14"}
+{"level":"info","message":"[CRON] Subscription cron jobs initialized","service":"iap-service","timestamp":"2026-02-10 13:35:21"}
+{"level":"info","message":"[CRON] Subscription cron jobs initialized","service":"iap-service","timestamp":"2026-02-10 13:35:37"}
+{"level":"debug","message":"POST /api/v1/auth/refresh","service":"iap-service","timestamp":"2026-02-10 13:35:57"}
+{"level":"debug","message":"POST /api/v1/profile/photos","service":"iap-service","timestamp":"2026-02-10 13:36:07"}
+{"level":"debug","message":"POST /api/v1/profile/photos","service":"iap-service","timestamp":"2026-02-10 13:36:21"}
+{"level":"info","message":"[CRON] Subscription cron jobs initialized","service":"iap-service","timestamp":"2026-02-10 13:37:54"}
+{"level":"info","message":"[CRON] Subscription cron jobs initialized","service":"iap-service","timestamp":"2026-02-10 13:38:02"}
+{"level":"info","message":"[CRON] Subscription cron jobs initialized","service":"iap-service","timestamp":"2026-02-10 13:38:43"}
+{"level":"info","message":"[CRON] Subscription cron jobs initialized","service":"iap-service","timestamp":"2026-02-10 13:38:58"}
+{"level":"debug","message":"POST /api/v1/profile/photos","service":"iap-service","timestamp":"2026-02-10 13:39:18"}
+{"level":"info","message":"[CRON] Subscription cron jobs initialized","service":"iap-service","timestamp":"2026-02-10 13:39:40"}
+{"level":"debug","message":"POST /api/v1/profile/photos","service":"iap-service","timestamp":"2026-02-10 13:39:47"}
+{"level":"debug","message":"POST /api/v1/auth/refresh","service":"iap-service","timestamp":"2026-02-10 13:40:07"}
+{"level":"info","message":"[CRON] Subscription cron jobs initialized","service":"iap-service","timestamp":"2026-02-10 13:40:26"}
+{"level":"info","message":"[CRON] Subscription cron jobs initialized","service":"iap-service","timestamp":"2026-02-10 13:40:34"}
+{"level":"info","message":"[CRON] Subscription cron jobs initialized","service":"iap-service","timestamp":"2026-02-10 13:40:39"}
+{"level":"info","message":"[CRON] Subscription cron jobs initialized","service":"iap-service","timestamp":"2026-02-10 13:40:45"}
+{"level":"info","message":"[CRON] Subscription cron jobs initialized","service":"iap-service","timestamp":"2026-02-10 13:41:12"}
+{"level":"info","message":"[CRON] Subscription cron jobs initialized","service":"iap-service","timestamp":"2026-02-10 13:41:50"}
+{"level":"debug","message":"POST /api/v1/auth/refresh","service":"iap-service","timestamp":"2026-02-10 13:41:55"}
+{"level":"info","message":"[CRON] Subscription cron jobs initialized","service":"iap-service","timestamp":"2026-02-10 13:42:11"}
+{"level":"debug","message":"POST /api/v1/auth/refresh","service":"iap-service","timestamp":"2026-02-10 13:42:16"}
+{"level":"info","message":"[CRON] Subscription cron jobs initialized","service":"iap-service","timestamp":"2026-02-10 13:43:03"}
+{"level":"info","message":"[CRON] Subscription cron jobs initialized","service":"iap-service","timestamp":"2026-02-10 13:43:08"}
+{"level":"debug","message":"POST /api/v1/auth/refresh","service":"iap-service","timestamp":"2026-02-10 13:43:14"}
+{"level":"info","message":"[CRON] Subscription cron jobs initialized","service":"iap-service","timestamp":"2026-02-10 13:43:36"}
+{"level":"debug","message":"POST /api/v1/auth/refresh","service":"iap-service","timestamp":"2026-02-10 13:43:42"}
+{"level":"debug","message":"POST /api/v1/profile/photos","service":"iap-service","timestamp":"2026-02-10 13:43:57"}
+{"level":"info","message":"[CRON] Subscription cron jobs initialized","service":"iap-service","timestamp":"2026-02-10 13:44:23"}
+{"level":"info","message":"[CRON] Subscription cron jobs initialized","service":"iap-service","timestamp":"2026-02-10 13:44:28"}
+{"level":"debug","message":"POST /api/v1/profile/photos","service":"iap-service","timestamp":"2026-02-10 13:44:40"}
+{"level":"debug","message":"POST /api/v1/auth/refresh","service":"iap-service","timestamp":"2026-02-10 13:45:03"}
+{"level":"info","message":"[CRON] Subscription cron jobs initialized","service":"iap-service","timestamp":"2026-02-10 13:47:03"}
+{"level":"info","message":"[CRON] Subscription cron jobs initialized","service":"iap-service","timestamp":"2026-02-10 13:47:28"}
+{"level":"debug","message":"POST /api/v1/auth/phonetest","service":"iap-service","timestamp":"2026-02-10 13:47:43"}
+{"level":"debug","message":"POST /api/v1/auth/verifytestotp","service":"iap-service","timestamp":"2026-02-10 13:47:53"}
+{"level":"info","message":"[CRON] Subscription cron jobs initialized","service":"iap-service","timestamp":"2026-02-10 13:48:32"}
+{"level":"debug","message":"POST /api/v1/auth/phonetest","service":"iap-service","timestamp":"2026-02-10 13:49:28"}
+{"level":"debug","message":"POST /api/v1/auth/verifytestotp","service":"iap-service","timestamp":"2026-02-10 13:49:42"}
+{"level":"info","message":"[CRON] Subscription cron jobs initialized","service":"iap-service","timestamp":"2026-02-10 13:50:43"}
+{"level":"debug","message":"POST /api/v1/auth/register/email","service":"iap-service","timestamp":"2026-02-10 13:50:52"}

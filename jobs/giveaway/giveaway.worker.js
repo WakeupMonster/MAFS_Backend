@@ -6,12 +6,13 @@ const Prize = require("../../modules/giveaway/prize.model");
 
 module.exports = async function runGiveawayWorker() {
   const today = new Date();
-  today.setHours(0, 0, 0, 0);
+  // today.setHours(0, 0, 0, 0);
+    today.setUTCHours(0, 0, 0, 0);
 console.log(today)
 //   const settings = await GiveawaySettings.findOne();
 // const yearlyLimit = settings?.yearlyWinLimitPerUser || 2;
 
-
+console.log("campaign starting")
   const campaign = await GiveawayCampaign.findOne({
     date: today,
     isActive: true,
@@ -78,6 +79,7 @@ console.log(today)
     if (!winner) {
       campaign.drawStatus = "COMPLETED";
       campaign.failureReason = "No eligible users (yearly limit reached)";
+      console.log("no winner found")
       await campaign.save();
       return;
     }

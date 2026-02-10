@@ -1,16 +1,17 @@
-// function buildOnboardingResponse(req) {
-//   const onboarding = req.body && req.body.onboarding;
 
-//    if (typeof onboarding === "string") {
+
+// function buildOnboardingResponse(req={}) {
+//   let onboarding = req.body && req.body.onboarding;
+
+//   if (typeof onboarding === "string") {
 //     try {
 //       onboarding = JSON.parse(onboarding);
 //     // eslint-disable-next-line no-unused-vars
-//     } catch (e) {
+//     } catch (err) {
 //       onboarding = null;
 //     }
 //   }
 
-//   // frontend se valid object aaya ho
 //   if (
 //     onboarding &&
 //     typeof onboarding.nextstep === "number" &&
@@ -20,7 +21,7 @@
 //     return onboarding;
 //   }
 
-//   // fallback default
+//   // fallback
 //   return {
 //     nextstep: 1,
 //     currentScreenSlug: "photos_screen",
@@ -28,37 +29,66 @@
 //   };
 // }
 
-// module.exports = {
-//   buildOnboardingResponse
-// };
+// module.exports = { buildOnboardingResponse };
 
 
-function buildOnboardingResponse(req) {
-  let onboarding = req.body && req.body.onboarding;
 
+
+const Profile = require("../../modules/profile/profile.model");
+
+async function buildOnboardingResponse(req = {}, userId) {
+  let onboarding = req.body?.onboarding;
+
+  // string safety
   if (typeof onboarding === "string") {
     try {
       onboarding = JSON.parse(onboarding);
-    // eslint-disable-next-line no-unused-vars
-    } catch (err) {
+    } catch {
       onboarding = null;
     }
   }
 
+  // ❌ frontend ne kuch nahi bheja
   if (
-    onboarding &&
-    typeof onboarding.nextstep === "number" &&
-    typeof onboarding.currentScreenSlug === "string" &&
-    typeof onboarding.isComplete === "boolean"
+    !onboarding ||
+    typeof onboarding.nextstep !== "number" ||
+    typeof onboarding.currentScreenSlug !== "string" ||
+    typeof onboarding.isComplete !== "boolean"
   ) {
-    return onboarding;
+    // DB se existing onboarding return karo
+    const profile = await Profile.findOne(
+      { userId },
+      { onboarding: 1, onboardingProgress: 1 }
+    ).lean();
+
+    return (
+      profile?.onboarding || {
+        nextstep: 1,
+        currentScreenSlug: "email_verification",
+        isComplete: false,
+        // totalCompletion: profile?.onboardingProgress?.totalCompletion || 0
+      }
+    );
   }
 
-  // fallback
+  // ✅ VALID onboarding aaya hai → SAVE to DB
+  const updatedProfile = await Profile.findOneAndUpdate(
+    { userId },
+    {
+      $set: {
+        onboarding: {
+          ...onboarding,
+          // lastUpdatedBy: "client",
+          // updatedAt: new Date()
+        }
+      }
+    },
+    { upsert: true, new: true, lean: true }
+  );
+
   return {
-    nextstep: 1,
-    currentScreenSlug: "photos_screen",
-    isComplete: false
+    ...updatedProfile.onboarding,
+    // totalCompletion: updatedProfile.onboardingProgress?.totalCompletion || 0
   };
 }
 

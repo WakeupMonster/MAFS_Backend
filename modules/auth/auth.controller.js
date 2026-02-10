@@ -5,6 +5,7 @@ const User = require("../auth/auth.model");
 const otpService = require("../../common/otp/otp.service");
 const { normalizePhone, hashPhone } = require("../../common/utils/phone.util");
 const AppError = require("../../common/errors/ApiError");
+// const { buildOnboardingResponse } = require("../../common/utils/onBoardingSteps");
 
 module.exports.sendOtp = async (req, res) => {
   try {
@@ -114,7 +115,7 @@ module.exports.verifyTestOtp = async (req, res) => {
       return res.status(400).json({ success: false, message: "Phone and OTP are required" });
     }
 
-    const result = await authService.verifyPhoneTestOtpUnified(phone, otp);
+    const result = await authService.verifyPhoneTestOtpUnified(phone, otp,req);
 
     return res.json({
       success: true,
@@ -171,7 +172,7 @@ module.exports.verifyEmail = async (req, res) => {
       });
     }
 
-    const result = await authService.verifyEmailOtp(token, otp);
+    const result = await authService.verifyEmailOtp(token, otp,req);
 
     // await profileModel.findOneAndUpdate(
     //   { userId: result.user._id },
@@ -252,7 +253,7 @@ module.exports.refreshToken = async (req, res) => {
     }
 
     const refreshToken = authHeader.split(" ")[1];
-    const result = await authService.refreshAccessToken(refreshToken);
+    const result = await authService.refreshAccessToken(refreshToken,req);
 
     return res.json({
       success: true,

@@ -107,8 +107,8 @@ exports.updateProfile = async (req, res) => {
       success: true,
       message: "Profile updated successfully",
       data: {
-        user: formatProfileResponse(data.user, profile, data.blockedContacts, data.blockedUser, data.subData),
-        onboarding: buildOnboardingResponse(req)
+        user: await  formatProfileResponse(data.user, profile, data.blockedContacts, data.blockedUser, data.subData,req),
+        // onboarding: buildOnboardingResponse(req)
       }
     });
   } catch (error) {
@@ -124,7 +124,7 @@ exports.getMyProfile = async (req, res) => {
 
     res.json({
       success: true,
-      data: { user: formatProfileResponse(data.user, data.profile, data.blockedContacts, data.blockedUser, data.subData) }
+      data: { user:await formatProfileResponse(data.user, data.profile, data.blockedContacts, data.blockedUser, data.subData,req) }
     });
   } catch (err) {
     res.status(500).json({ success: false, message: "Failed to fetch profile" });
@@ -138,9 +138,9 @@ exports.uploadPhotos = async (req, res) => {
     if (!files || files.length === 0) return res.status(400).json({ success: false, message: "No files uploaded" });
 
     let profile = await getOrCreateProfile(userId);
-    if (profile.photos.length + files.length > 6) {
-      return res.status(400).json({ success: false, message: `Maximum 6 photos allowed.` });
-    }
+    // if (profile.photos.length + files.length > 6) {
+    //   return res.status(400).json({ success: false, message: `Maximum 6 photos allowed.` });
+    // }
 
     const uploadPromises = files.map(file => uploadStream(file.buffer, {
       folder: `mafs/users/${userId}/photos`,
@@ -170,8 +170,8 @@ exports.uploadPhotos = async (req, res) => {
       success: true,
       message: `${newPhotosResults.length} photo uploaded successfully`,
       data: {
-        user: formatProfileResponse(data.user, profile, data.blockedContacts, data.blockedUser, data.subData),
-        onboarding: buildOnboardingResponse(req)
+        user: await formatProfileResponse(data.user, profile, data.blockedContacts, data.blockedUser, data.subData,req),
+        // onboarding: buildOnboardingResponse(req)
 
       }
     });
@@ -202,7 +202,7 @@ exports.deletePhoto = async (req, res) => {
     res.json({
       success: true,
       message: "photo deleted successfully",
-      data: { user: formatProfileResponse(data.user, profile, data.blockedContacts, data.blockedUser, data.subData) }
+      data: { user: await formatProfileResponse(data.user, profile, data.blockedContacts, data.blockedUser, data.subData,req) }
     });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
@@ -235,7 +235,7 @@ exports.reorderPhotos = async (req, res) => {
     res.json({
       success: true,
       message: "Photos reordered successfully",
-      data: { user: formatProfileResponse(data.user, profile, data.blockedContacts, data.blockedUser, data.subData) }
+      data: { user: await formatProfileResponse(data.user, profile, data.blockedContacts, data.blockedUser, data.subData,req) }
     });
   } catch (err) {
     res.status(400).json({ success: false, message: err.message });
@@ -291,8 +291,8 @@ module.exports.uploadSelfie = async (req, res) => {
       success: true,
       message: "Selfie upload started...",
       data: {
-        user: formatProfileResponse(data.user, data.profile, data.blockedContacts, data.blockedUser, data.subData),
-        onboarding: buildOnboardingResponse(req)
+        user: await  formatProfileResponse(data.user, data.profile, data.blockedContacts, data.blockedUser, data.subData,req),
+        // onboarding: buildOnboardingResponse(req)
       }
     });
 
@@ -340,8 +340,8 @@ module.exports.uploadIDDocument = async (req, res) => {
       success: true,
       message: "ID upload started. We will notify you once verified.",
       data: {
-        user: formatProfileResponse(data.user, data.profile, data.blockedContacts, data.blockedUser, data.subData),
-        onboarding: buildOnboardingResponse(req)
+        user: await formatProfileResponse(data.user, data.profile, data.blockedContacts, data.blockedUser, data.subData,req),
+        // onboarding: buildOnboardingResponse(req)
       }
     });
 
@@ -455,7 +455,7 @@ exports.updateLocation = async (req, res) => {
     res.json({
       success: true,
       message: "Location updated successfully",
-      data: { user: formatProfileResponse(data.user, profile, data.blockedContacts, data.blockedUser, data.subData) }
+      data: { user: await formatProfileResponse(data.user, profile, data.blockedContacts, data.blockedUser, data.subData,req) }
     });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
@@ -471,7 +471,7 @@ exports.getStatus = async (req, res) => {
     if (cached) return res.json({ success: true, data: JSON.parse(cached), cached: true });
 
     const data = await getFullUserData(userId);
-    const formatted = formatProfileResponse(data.user, data.profile, data.blockedContacts, data.blockedUser, data.subData);
+    const formatted = await formatProfileResponse(data.user, data.profile, data.blockedContacts, data.blockedUser, data.subData,req);
 
     await cache.set(cacheKey, JSON.stringify(formatted), { EX: 30 });
     res.json({ success: true, data: formatted, cached: false });
