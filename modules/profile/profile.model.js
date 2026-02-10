@@ -189,11 +189,6 @@ const ProfileSchema = new mongoose.Schema({
     type: Boolean,
     default: false
   },
-  lastUpdatedBy: {
-    type: String,
-    enum: ["client", "server"],
-    default: "client"
-  },
   updatedAt: {
     type: Date,
     default: Date.now

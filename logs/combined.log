@@ -107,3 +107,7 @@
 {"level":"debug","message":"POST /api/v1/auth/verifytestotp","service":"iap-service","timestamp":"2026-02-10 13:49:42"}
 {"level":"info","message":"[CRON] Subscription cron jobs initialized","service":"iap-service","timestamp":"2026-02-10 13:50:43"}
 {"level":"debug","message":"POST /api/v1/auth/register/email","service":"iap-service","timestamp":"2026-02-10 13:50:52"}
+{"level":"info","message":"[CRON] Subscription cron jobs initialized","service":"iap-service","timestamp":"2026-02-10 13:51:36"}
+{"level":"debug","message":"POST /api/v1/auth/register/email","service":"iap-service","timestamp":"2026-02-10 13:55:31"}
+{"level":"info","message":"[CRON] Subscription cron jobs initialized","service":"iap-service","timestamp":"2026-02-10 14:00:38"}
+{"level":"info","message":"[CRON] Subscription cron jobs initialized","service":"iap-service","timestamp":"2026-02-10 14:00:54"}

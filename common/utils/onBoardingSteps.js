@@ -78,7 +78,6 @@ async function buildOnboardingResponse(req = {}, userId) {
       $set: {
         onboarding: {
           ...onboarding,
-          // lastUpdatedBy: "client",
           // updatedAt: new Date()
         }
       }
