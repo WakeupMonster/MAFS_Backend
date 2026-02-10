@@ -633,7 +633,7 @@ module.exports.getPendingVerifications = async (req, res, next) => {
 
     const pendingProfiles = await Profile.aggregate([
       {
-        $match: matchQuery, // ⭐ Ab ye dynamic hai
+        $match: matchQuery, 
       },
       {
         $lookup: {

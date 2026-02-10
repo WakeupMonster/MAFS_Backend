@@ -15,7 +15,7 @@ exports.getKpiOverview = async (req, res) => {
     const last24Hours = new Date(now.getTime() - 24 * 60 * 60 * 1000);
 
     const [
-      totalUsers,
+      totalUsers, 
       activeUsers24h,
       paidUsers,
       TotalBanUsers,
