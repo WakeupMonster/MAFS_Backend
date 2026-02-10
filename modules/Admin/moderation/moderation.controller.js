@@ -592,15 +592,91 @@ module.exports.getBlockedUsers = async (req, res) => {
   }
 };
 
+// module.exports.getPendingVerifications = async (req, res, next) => {
+//   try {
+//     // Find all profiles with pending verification
+//     const pendingProfiles = await Profile.aggregate([
+//       {
+//         $match: {
+//           "verification.status": "pending",
+//         },
+//       },
+//       {
+//         $lookup: {
+//           from: "users",
+//           localField: "userId",
+//           foreignField: "_id",
+//           as: "user",
+//         },
+//       },
+//       { $unwind: "$user" },
+//       {
+//         $project: {
+//           _id: 1,
+//           userId: 1,
+//           verification: 1,
+//           "user.email": 1,
+//           "user.phone": 1,
+//           "user.createdAt": 1,
+//           profilePhoto: 1,
+//           fullName: 1,
+//         },
+//       },
+//       { $sort: { createdAt: -1 } },
+//     ]);
+//     res.json({
+//       success: true,
+//       count: pendingProfiles.length,
+//       data: pendingProfiles,
+//     });
+//   } catch (error) {
+//     res.status(500).json({
+//       success: false,
+//       message: "Failed to fetch pending verifications",
+//     });
+//   }
+// };
+
 module.exports.getPendingVerifications = async (req, res, next) => {
   try {
-    // Find all profiles with pending verification
-    const pendingProfiles = await Profile.aggregate([
-      {
-        $match: {
-          "verification.status": "pending",
-        },
-      },
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 10;
+    const skip = (page - 1) * limit;
+    const search = req.query.search || "";
+    const sortBy = req.query.sortBy || "";
+    const status = req.query.status || "";
+
+    const limitNum = parseInt(limit);
+
+    // 1. DYNAMIC SORTING
+    // If sortBy is empty, it stays as Newest First (default)
+    let sortQuery = { createdAt: -1 };
+    if (sortBy === "oldest") {
+      sortQuery = { createdAt: 1 };
+    } else if (sortBy === "alphabetical" || sortBy === "name") {
+      sortQuery = { nickname: 1 };
+    }
+
+    // 2. DYNAMIC MATCHING (FILTERING)
+    const matchStage = {
+      "user.role": "USER", // ✅ Always restrict to users with 'USER' role
+    };
+
+    // Only filter by status if a status is actually provided
+    if (status && status !== "all") {
+      matchStage["verification.status"] = status;
+    }
+
+    // Add search logic if search term exists
+    if (search) {
+      matchStage.$or = [
+        { nickname: { $regex: search, $options: "i" } },
+        { "user.email": { $regex: search, $options: "i" } },
+        { "user.phone": { $regex: search, $options: "i" } },
+      ];
+    }
+
+    const pipeline = [
       {
         $lookup: {
           from: "users",
@@ -610,29 +686,46 @@ module.exports.getPendingVerifications = async (req, res, next) => {
         },
       },
       { $unwind: "$user" },
+      { $match: matchStage }, // ✅ Match runs AFTER lookup/unwind to see the role
       {
-        $project: {
-          _id: 1,
-          userId: 1,
-          verification: 1,
-          "user.email": 1,
-          "user.phone": 1,
-          "user.createdAt": 1,
-          profilePhoto: 1,
-          fullName: 1,
+        $facet: {
+          metadata: [{ $count: "total" }],
+          data: [
+            { $sort: sortQuery },
+            { $skip: skip },
+            { $limit: limitNum },
+            {
+              $project: {
+                _id: 1,
+                userId: 1,
+                verification: 1,
+                nickname: 1,
+                "user.email": 1,
+                "user.phone": 1,
+                "user.role": 1, // Optional: project role for debugging
+                createdAt: 1,
+              },
+            },
+          ],
         },
       },
-      { $sort: { createdAt: -1 } },
-    ]);
-    res.json({
+    ];
+
+    const result = await Profile.aggregate(pipeline);
+    const total = result[0].metadata[0]?.total || 0;
+
+    res.status(200).json({
       success: true,
-      count: pendingProfiles.length,
-      data: pendingProfiles,
+      pagination: {
+        total,
+        page: parseInt(page),
+        limit: limitNum,
+        totalPages: Math.ceil(total / limitNum),
+      },
+      data: result[0].data,
     });
   } catch (error) {
-    res.status(500).json({
-      success: false,
-      message: "Failed to fetch pending verifications",
-    });
+    console.error("KYC Fetch Error:", error);
+    res.status(500).json({ success: false, message: "Server error" });
   }
 };

@@ -5,6 +5,81 @@ const User = require("../../../modules/auth/auth.model");
 const Prize = require("./prize.model");
 const utils = require("../../auth/auth.utils");
 
+// module.exports.getAllPrizes = async (req, res) => {
+//   try {
+//     const prizes = await Prize.find().sort({ createdAt: -1 });
+
+//     return res.json({
+//       success: true,
+//       data: prizes,
+//     });
+//   } catch (err) {
+//     return res.status(500).json({
+//       success: false,
+//       message: "Failed to fetch prizes",
+//     });
+//   }
+// };
+
+module.exports.getAllPrizes = async (req, res) => {
+  try {
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 10;
+    const skip = (page - 1) * limit;
+    const search = req.query.search || "";
+    const type = req.query.type || "";
+
+    // 1. Build Match Stage (Filtering)
+    const matchStage = {};
+    if (type && type !== "ALL") {
+      matchStage.type = type;
+    }
+    if (search) {
+      matchStage.title = { $regex: search, $options: "i" };
+    }
+
+    // 2. Execute Aggregation
+    const result = await Prize.aggregate([
+      { $match: matchStage },
+      {
+        $facet: {
+          // Metadata: Count total documents matching the filters
+          metadata: [{ $count: "total" }],
+          // Data: Apply sorting and pagination
+          data: [
+            { $sort: { createdAt: -1 } },
+            { $skip: skip },
+            { $limit: limit },
+          ],
+        },
+      },
+    ]);
+
+    // 3. Extract results from Facet
+    const prizes = result[0].data;
+    const totalPrizes = result[0].metadata[0]?.total || 0;
+    const totalPages = Math.ceil(totalPrizes / limit);
+
+    return res.status(200).json({
+      success: true,
+      pagination: {
+        totalPrizes,
+        page,
+        limit,
+        totalPages,
+      },
+      data: prizes,
+    });
+  } catch (err) {
+    console.error("Fetch Prizes Error:", err);
+    return res.status(500).json({
+      success: false,
+      message: "Failed to fetch prizes",
+      error: err.message,
+    });
+  }
+};
+
 module.exports.createPrize = async (req, res) => {
   try {
     const { title, type, value, description, spinWheelLabel } = req.body;
@@ -39,29 +114,72 @@ module.exports.createPrize = async (req, res) => {
   }
 };
 
-module.exports.getAllPrizes = async (req, res) => {
-  try {
-    const prizes = await Prize.find().sort({ createdAt: -1 });
+// module.exports.updatePrize = async (req, res) => {
+//   try {
+//     const { id } = req.params;
 
-    return res.json({
-      success: true,
-      data: prizes,
-    });
-  } catch (err) {
-    return res.status(500).json({
-      success: false,
-      message: "Failed to fetch prizes",
-    });
-  }
-};
+//     console.log("req.body: ", req.body);
+
+//     const prize = await Prize.findByIdAndUpdate(id, req.body, {
+//       new: true,
+//     });
+
+//     if (!prize) {
+//       return res.status(404).json({
+//         success: false,
+//         message: "Prize not found",
+//       });
+//     }
+
+//     return res.json({
+//       success: true,
+//       message: "Prize updated successfully",
+//       data: prize,
+//     });
+//   } catch (err) {
+//     return res.status(500).json({
+//       success: false,
+//       message: "Failed to update prize",
+//     });
+//   }
+// };
 
 module.exports.updatePrize = async (req, res) => {
   try {
     const { id } = req.params;
 
-    const prize = await Prize.findByIdAndUpdate(id, req.body, {
-      new: true,
-    });
+    // 1. Destructure only the allowed fields from req.body
+    const {
+      title,
+      type,
+      value,
+      spinWheelLabel,
+      supportiveItems,
+      description,
+      durationInDays,
+      isActive,
+    } = req.body;
+
+    // 2. Perform the update with validation
+    const prize = await Prize.findByIdAndUpdate(
+      id,
+      {
+        $set: {
+          title,
+          type,
+          value,
+          spinWheelLabel,
+          supportiveItems,
+          description,
+          durationInDays,
+          isActive,
+        },
+      },
+      {
+        new: true, // Return the updated document
+        runValidators: true, // ✅ Ensure enum and required checks are run on update
+      }
+    );
 
     if (!prize) {
       return res.status(404).json({
@@ -70,15 +188,62 @@ module.exports.updatePrize = async (req, res) => {
       });
     }
 
-    return res.json({
+    return res.status(200).json({
       success: true,
       message: "Prize updated successfully",
       data: prize,
     });
   } catch (err) {
+    console.error("Update Prize Error:", err);
     return res.status(500).json({
       success: false,
-      message: "Failed to update prize",
+      message:
+        err.name === "ValidationError" ? err.message : "Failed to update prize",
+    });
+  }
+};
+
+/**
+ * @desc    Delete a prize by ID
+ * @route   DELETE /api/v1/admin/giveaway/prizes/:id
+ * @access  Private/Admin
+ */
+module.exports.deletePrize = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+
+    // Find and delete the prize
+    const prize = await Prize.findByIdAndDelete(id);
+
+    if (!prize) {
+      return res.status(404).json({
+        success: false,
+        message: "Prize not found",
+      });
+    }
+
+    // Log the deletion
+    // await GiveawayAudit.create({
+    //   action: 'DELETE_PRIZE',
+    //   admin: req.user._id,
+    //   targetId: id,
+    //   details: {
+    //     prizeName: prize.name,
+    //     prizeId: prize._id
+    //   }
+    // });
+
+    res.status(200).json({
+      success: true,
+      message: "Prize deleted successfully",
+      data: { id },
+    });
+  } catch (error) {
+    console.error("Delete Prize Error:", error);
+    res.status(500).json({
+      success: false,
+      message: "Failed to delete prize",
+      error: error.message,
     });
   }
 };
@@ -630,51 +795,6 @@ module.exports.pauseCampaign = async (req, res) => {
     return res.status(500).json({
       success: false,
       message: "Failed to pause campaign",
-    });
-  }
-};
-
-/**
- * @desc    Delete a prize by ID
- * @route   DELETE /api/v1/admin/giveaway/prizes/:id
- * @access  Private/Admin
- */
-module.exports.deletePrize = async (req, res, next) => {
-  try {
-    const { id } = req.params;
-
-    // Find and delete the prize
-    const prize = await Prize.findByIdAndDelete(id);
-
-    if (!prize) {
-      return res.status(404).json({
-        success: false,
-        message: "Prize not found",
-      });
-    }
-
-    // Log the deletion
-    // await GiveawayAudit.create({
-    //   action: 'DELETE_PRIZE',
-    //   admin: req.user._id,
-    //   targetId: id,
-    //   details: {
-    //     prizeName: prize.name,
-    //     prizeId: prize._id
-    //   }
-    // });
-
-    res.status(200).json({
-      success: true,
-      message: "Prize deleted successfully",
-      data: { id },
-    });
-  } catch (error) {
-    console.error("Delete Prize Error:", error);
-    res.status(500).json({
-      success: false,
-      message: "Failed to delete prize",
-      error: error.message,
     });
   }
 };

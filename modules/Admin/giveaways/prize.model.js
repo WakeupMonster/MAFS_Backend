@@ -6,52 +6,62 @@ const prizeSchema = new mongoose.Schema(
     title: {
       type: String,
       required: true,
-      trim: true
+      trim: true,
     },
 
-    // Prize ka type 
+    // Prize ka type
     type: {
       type: String,
       enum: ["GIFT_CARD", "FREE_PREMIUM"],
-      required: true
+      required: true,
     },
 
     // Monetary value (USD ya base currency)
     value: {
       type: Number,
-      required: true
+      required: true,
     },
 
     durationInDays: {
-    type: Number,
-    default: null
-  },
+      type: Number,
+      default: null,
+    },
 
     // Prize ka short description
     description: {
       type: String,
-      trim: true
+      trim: true,
     },
 
     // Spin wheel pe jo label dikhega
     spinWheelLabel: {
       type: String,
-      required: true
+      required: true,
+    },
+
+    supportiveItems: {
+      type: [String],
+      validate: {
+        validator: function (v) {
+          return v && v.length > 0;
+        },
+        message: "A prize must have at least one supportive item.",
+      },
     },
 
     // Admin prize ko disable bhi kar sakta hai
     isActive: {
       type: Boolean,
-      default: true
+      default: true,
     },
 
     // Admin reference / notes (optional but pro-level)
     adminNotes: {
-      type: String
-    }
+      type: String,
+    },
   },
   {
-    timestamps: true
+    timestamps: true,
   }
 );
 

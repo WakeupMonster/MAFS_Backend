@@ -74,6 +74,7 @@ module.exports.sendOtp = async (req, res) => {
     next(err);
   }
 };
+
 module.exports.verifyOtp = async (req, res) => {
   try {
     const { phone, otp } = req.body;
@@ -160,6 +161,7 @@ module.exports.registerEmail = async (req, res) => {
     });
   }
 };
+
 module.exports.verifyEmail = async (req, res) => {
   try {
     const { otp } = req.body;
@@ -199,6 +201,7 @@ module.exports.verifyEmail = async (req, res) => {
     });
   }
 };
+
 module.exports.loginSendOtp = async (req, res) => {
   try {
     const { phone } = req.body;
@@ -217,6 +220,7 @@ module.exports.loginSendOtp = async (req, res) => {
     });
   }
 };
+
 module.exports.loginVerify = async (req, res) => {
   try {
     const { phone, otp } = req.body;
@@ -240,6 +244,7 @@ module.exports.loginVerify = async (req, res) => {
     });
   }
 };
+
 module.exports.refreshToken = async (req, res) => {
   try {
     // const { refreshToken } = req.body;
@@ -266,6 +271,7 @@ module.exports.refreshToken = async (req, res) => {
     return res.status(401).json({ success: false, message: err.message });
   }
 };
+
 module.exports.logout = async (req, res) => {
   try {
     const { refreshToken } = req.body;
@@ -337,6 +343,7 @@ module.exports.resendPhoneOtp = async (req, res) => {
     });
   }
 };
+
 module.exports.resendEmailOtp = async (req, res) => {
   try {
     const { email } = req.body;

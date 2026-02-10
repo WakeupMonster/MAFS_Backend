@@ -10,6 +10,7 @@ const {
 const fs = require("fs");
 const path = require("path");
 const { stringify } = require("csv-stringify");
+const { destroy } = require("../../upload/cloudinary.service");
 
 /*
 For Data Table & Search or filters:- 
@@ -1051,90 +1052,18 @@ module.exports.GETExportAllUsers = async (req, res) => {
 // module.exports.streamUsersExport = async (req, res) => {
 //   try {
 //     const filters = req.query || {};
-//     const userMatch = { role: "USER" };
-//     // Add other filter logic here...
 
-//     const totalUsers = await User.countDocuments(userMatch);
-//     if (totalUsers === 0) return res.status(404).send("No users found");
-
-//     let processed = 0;
-
-//     res.setHeader(
-//       "Content-Disposition",
-//       `attachment; filename=users_export_${Date.now()}.csv`
-//     );
-//     res.setHeader("Content-Type", "text/csv");
-//     // Disable compression/buffering for real-time streaming progress
-//     res.setHeader("X-Content-Type-Options", "nosniff");
-
-//     const csvStream = stringify({
-//       header: true,
-//       columns: [
-//         "UserId",
-//         "Email",
-//         "Phone",
-//         "AccountStatus",
-//         "IsPremium",
-//         "CreatedAt",
-//       ],
-//     });
-
-//     // We don't pipe directly to 'res' because we need to inject progress markers
-//     csvStream.on("data", (chunk) => {
-//       res.write(chunk);
-//     });
-
-//     const cursor = User.find(userMatch).cursor({ batchSize: 1000 });
-
-//     for await (const user of cursor) {
-//       processed++;
-
-//       const row = {
-//         UserId: user._id.toString(),
-//         Email: user.email || "",
-//         Phone: user.phone || "",
-//         AccountStatus: user.accountStatus,
-//         IsPremium: user.isPremium ? "Yes" : "No",
-//         CreatedAt: user.createdAt ? user.createdAt.toISOString() : "",
-//       };
-
-//       csvStream.write(row);
-
-//       // Send progress every 100 records to avoid flooding the stream
-//       if (processed % 100 === 0 || processed === totalUsers) {
-//         const progress = Math.round((processed / totalUsers) * 100);
-//         // We use a unique separator that's unlikely to be in user data
-//         res.write(`\n---PROGRESS:${progress}---\n`);
-//       }
-//     }
-
-//     csvStream.end();
-//     csvStream.on("end", () => res.end());
-//   } catch (err) {
-//     console.error("EXPORT STREAM ERROR:", err);
-//     if (!res.headersSent) res.status(500).send("Export failed");
-//     else res.end();
-//   }
-// };
-
-// module.exports.streamUsersExport = async (req, res) => {
-//   try {
-//     const filters = req.query || {};
-
-//     // 1. Setup Matches (Same logic as your reference API)
+//     // 1. Matches for both collections
 //     const userMatch = { role: "USER" };
 //     if (filters.accountStatus) userMatch.accountStatus = filters.accountStatus;
-//     if (filters.isPremium !== undefined)
-//       userMatch.isPremium = filters.isPremium === "true";
 
 //     const profileMatch = {};
 //     if (filters.gender) profileMatch["profile.gender"] = filters.gender;
 
-//     // 2. Get total count for Progress Bar
 //     const totalUsers = await User.countDocuments(userMatch);
 //     let processed = 0;
 
-//     // 3. Set CSV Headers
+//     // 2. HTTP Headers for Direct Download
 //     res.setHeader(
 //       "Content-Disposition",
 //       `attachment; filename=users_export_${Date.now()}.csv`
@@ -1162,15 +1091,15 @@ module.exports.GETExportAllUsers = async (req, res) => {
 //       ],
 //     });
 
-//     // Write CSV data directly to the response stream
+//     // Pipe CSV chunks directly to the HTTP response
 //     csvStream.on("data", (chunk) => res.write(chunk));
 
-//     // 4. Aggregation Pipeline
+//     // 3. The Join (User + Profile)
 //     const cursor = User.aggregate([
 //       { $match: userMatch },
 //       {
 //         $lookup: {
-//           from: "profiles", // Ensure this matches your MongoDB collection name
+//           from: "profiles", // Verify this is your actual collection name
 //           localField: "_id",
 //           foreignField: "userId",
 //           as: "profile",
@@ -1201,11 +1130,6 @@ module.exports.GETExportAllUsers = async (req, res) => {
 //     for await (const doc of cursor) {
 //       processed++;
 
-//       // Safe Date Formatting
-//       const formattedDate = doc.createdAt
-//         ? new Date(doc.createdAt).toISOString().split("T")[0]
-//         : "";
-
 //       csvStream.write({
 //         UserId: doc._id.toString(),
 //         Email: doc.email || "",
@@ -1213,7 +1137,9 @@ module.exports.GETExportAllUsers = async (req, res) => {
 //         AccountStatus: doc.accountStatus,
 //         IsPremium: doc.isPremium ? "Yes" : "No",
 //         AuthMethod: doc.authMethod || "phone",
-//         CreatedAt: formattedDate,
+//         CreatedAt: doc.createdAt
+//           ? new Date(doc.createdAt).toISOString().split("T")[0]
+//           : "",
 //         Nickname: doc.nickname || "",
 //         Gender: doc.gender || "",
 //         Age: doc.age || "",
@@ -1223,10 +1149,10 @@ module.exports.GETExportAllUsers = async (req, res) => {
 //         KYCStatus: doc.kycStatus || "not_started",
 //       });
 
-//       // 🔄 Write progress marker safely (Using a unique separator)
-//       if (processed % 100 === 0 || processed === totalUsers) {
-//         const progress = Math.round((processed / totalUsers) * 100);
-//         res.write(`\n---PROG:${progress}---\n`);
+//       // Send progress marker
+//       if (processed % 50 === 0 || processed === totalUsers) {
+//         const prog = Math.round((processed / totalUsers) * 100);
+//         res.write(`\n---PROG:${prog}---\n`);
 //       }
 //     }
 
@@ -1243,20 +1169,19 @@ module.exports.streamUsersExport = async (req, res) => {
   try {
     const filters = req.query || {};
 
-    // 1. Matches for both collections
+    // 1. Build Filter Logic
     const userMatch = { role: "USER" };
     if (filters.accountStatus) userMatch.accountStatus = filters.accountStatus;
+    if (filters.isPremium) userMatch.isPremium = filters.isPremium === "true";
 
     const profileMatch = {};
     if (filters.gender) profileMatch["profile.gender"] = filters.gender;
 
-    const totalUsers = await User.countDocuments(userMatch);
-    let processed = 0;
-
     // 2. HTTP Headers for Direct Download
+    // Removed progress markers because they corrupt the CSV file structure
     res.setHeader(
       "Content-Disposition",
-      `attachment; filename=users_export_${Date.now()}.csv`
+      `attachment; filename=MAFS_Users_${Date.now()}.csv`
     );
     res.setHeader("Content-Type", "text/csv");
     res.setHeader("X-Content-Type-Options", "nosniff");
@@ -1281,15 +1206,16 @@ module.exports.streamUsersExport = async (req, res) => {
       ],
     });
 
-    // Pipe CSV chunks directly to the HTTP response
-    csvStream.on("data", (chunk) => res.write(chunk));
+    // Pipe the stringifier directly to the response
+    //
+    csvStream.pipe(res);
 
-    // 3. The Join (User + Profile)
+    // 3. The Aggregation Cursor
     const cursor = User.aggregate([
       { $match: userMatch },
       {
         $lookup: {
-          from: "profiles", // Verify this is your actual collection name
+          from: "profiles",
           localField: "_id",
           foreignField: "userId",
           as: "profile",
@@ -1315,11 +1241,9 @@ module.exports.streamUsersExport = async (req, res) => {
           kycStatus: "$profile.verification.status",
         },
       },
-    ]).cursor({ batchSize: 1000 });
+    ]).cursor({ batchSize: 1000 }); // Smaller batch size to prevent ETIMEDOUT
 
     for await (const doc of cursor) {
-      processed++;
-
       csvStream.write({
         UserId: doc._id.toString(),
         Email: doc.email || "",
@@ -1338,19 +1262,13 @@ module.exports.streamUsersExport = async (req, res) => {
         ProfileCompletion: `${doc.profileCompletion || 0}%`,
         KYCStatus: doc.kycStatus || "not_started",
       });
-
-      // Send progress marker
-      if (processed % 50 === 0 || processed === totalUsers) {
-        const prog = Math.round((processed / totalUsers) * 100);
-        res.write(`\n---PROG:${prog}---\n`);
-      }
     }
 
     csvStream.end();
-    csvStream.on("finish", () => res.end());
   } catch (error) {
     console.error("STREAM EXPORT ERROR:", error);
-    if (!res.headersSent) res.status(500).send("Export failed");
+    if (!res.headersSent)
+      res.status(500).json({ success: false, message: "Export failed" });
     else res.end();
   }
 };
