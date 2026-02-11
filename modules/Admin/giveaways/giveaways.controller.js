@@ -5,22 +5,6 @@ const User = require("../../../modules/auth/auth.model");
 const Prize = require("./prize.model");
 const utils = require("../../auth/auth.utils");
 
-// module.exports.getAllPrizes = async (req, res) => {
-//   try {
-//     const prizes = await Prize.find().sort({ createdAt: -1 });
-
-//     return res.json({
-//       success: true,
-//       data: prizes,
-//     });
-//   } catch (err) {
-//     return res.status(500).json({
-//       success: false,
-//       message: "Failed to fetch prizes",
-//     });
-//   }
-// };
-
 module.exports.getAllPrizes = async (req, res) => {
   try {
     const page = parseInt(req.query.page) || 1;
@@ -82,7 +66,6 @@ module.exports.getAllPrizes = async (req, res) => {
 
 module.exports.createPrize = async (req, res) => {
   try {
-    const { title, type, value, description, spinWheelLabel } = req.body;
     const { title, type, value, description, spinWheelLabel, supportiveItems } =
       req.body;
 
@@ -123,36 +106,6 @@ module.exports.createPrize = async (req, res) => {
     });
   }
 };
-
-// module.exports.updatePrize = async (req, res) => {
-//   try {
-//     const { id } = req.params;
-
-//     console.log("req.body: ", req.body);
-
-//     const prize = await Prize.findByIdAndUpdate(id, req.body, {
-//       new: true,
-//     });
-
-//     if (!prize) {
-//       return res.status(404).json({
-//         success: false,
-//         message: "Prize not found",
-//       });
-//     }
-
-//     return res.json({
-//       success: true,
-//       message: "Prize updated successfully",
-//       data: prize,
-//     });
-//   } catch (err) {
-//     return res.status(500).json({
-//       success: false,
-//       message: "Failed to update prize",
-//     });
-//   }
-// };
 
 module.exports.updatePrize = async (req, res) => {
   try {
@@ -218,11 +171,62 @@ module.exports.updatePrize = async (req, res) => {
  * @route   DELETE /api/v1/admin/giveaway/prizes/:id
  * @access  Private/Admin
  */
+// module.exports.deletePrize = async (req, res, next) => {
+//   try {
+//     const { id } = req.params;
+
+//     // Find and delete the prize
+//     const prize = await Prize.findByIdAndDelete(id);
+
+//     if (!prize) {
+//       return res.status(404).json({
+//         success: false,
+//         message: "Prize not found",
+//       });
+//     }
+
+//     // Log the deletion
+//     // await GiveawayAudit.create({
+//     //   action: 'DELETE_PRIZE',
+//     //   admin: req.user._id,
+//     //   targetId: id,
+//     //   details: {
+//     //     prizeName: prize.name,
+//     //     prizeId: prize._id
+//     //   }
+//     // });
+
+//     res.status(200).json({
+//       success: true,
+//       message: "Prize deleted successfully",
+//       data: { id },
+//     });
+//   } catch (error) {
+//     console.error("Delete Prize Error:", error);
+//     res.status(500).json({
+//       success: false,
+//       message: "Failed to delete prize",
+//       error: error.message,
+//     });
+//   }
+// };
+
 module.exports.deletePrize = async (req, res, next) => {
   try {
     const { id } = req.params;
 
-    // Find and delete the prize
+    // 1. Check if the prize is currently linked to any campaigns
+    const linkedCampaign = await GiveawayCampaign.findOne({ prizeId: id });
+
+    if (linkedCampaign) {
+      return res.status(400).json({
+        success: false,
+        message:
+          "Cannot delete prize. It is currently assigned to one or more campaigns.",
+      });
+    }
+
+    // 2. Perform the deletion
     const prize = await Prize.findByIdAndDelete(id);
 
     if (!prize) {
@@ -232,17 +236,7 @@ module.exports.deletePrize = async (req, res, next) => {
       });
     }
 
-    // Log the deletion
-    // await GiveawayAudit.create({
-    //   action: 'DELETE_PRIZE',
-    //   admin: req.user._id,
-    //   targetId: id,
-    //   details: {
-    //     prizeName: prize.name,
-    //     prizeId: prize._id
-    //   }
-    // });
-
+    // 3. Success Response
     res.status(200).json({
       success: true,
       message: "Prize deleted successfully",
@@ -261,13 +255,6 @@ module.exports.deletePrize = async (req, res, next) => {
 module.exports.createCampaign = async (req, res) => {
   try {
     const { date, prizeId } = req.body;
-
-    if (!supportiveItems || supportiveItems.length < 2) {
-      return res.status(400).json({
-        success: false,
-        message: "At least 2 supportive items are required",
-      });
-    }
 
     const campaignDate = new Date(date);
     campaignDate.setHours(0, 0, 0, 0);
@@ -298,7 +285,6 @@ module.exports.createCampaign = async (req, res) => {
     const campaign = await GiveawayCampaign.create({
       date: campaignDate,
       prizeId: prize._id,
-      supportiveItems,
     });
 
     return res.status(201).json({
@@ -327,18 +313,126 @@ module.exports.createCampaign = async (req, res) => {
   }
 };
 
-module.exports.getAllCampaigns = async (req, res) => {
+exports.getAllCampaigns = async (req, res) => {
   try {
-    const campaigns = await GiveawayCampaign.find()
-      .populate("prizeId")
-      .populate("winnerUserId", "email phone")
-      .sort({ date: -1 });
+    // 1. Pagination Setup
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 10;
+    const skip = (page - 1) * limit;
+    const search = req.query.search || "";
+    const drawStatus = req.query.drawStatus || "";
+    const isActive = req.query.isActive;
 
-    return res.json({
+    // 2. Initial Match (Static filters)
+    // const matchFilter = {};
+    // if (drawStatus) matchFilter.drawStatus = drawStatus;
+    // if (isActive !== undefined) matchFilter.isActive = isActive === "true";
+
+    // Inside your getAllCampaigns controller
+    const matchFilter = {};
+
+    if (drawStatus === "ACTIVE") {
+      // Active: Not drawn yet AND admin has it enabled
+      matchFilter.drawStatus = "PENDING";
+      matchFilter.isActive = true;
+    } else if (drawStatus === "DISABLED") {
+      // Disabled: Admin has manually toggled it off
+      matchFilter.isActive = false;
+    } else if (drawStatus === "COMPLETED") {
+      // Completed: Draw is finished
+      matchFilter.drawStatus = "COMPLETED";
+    }
+
+    const pipeline = [];
+
+    // Filter early to improve performance
+    if (Object.keys(matchFilter).length > 0) {
+      pipeline.push({ $match: matchFilter });
+    }
+
+    // 3. Joins (Lookup)
+    pipeline.push(
+      {
+        $lookup: {
+          from: "giveawayprizes",
+          localField: "prizeId",
+          foreignField: "_id",
+          as: "prize",
+        },
+      },
+      { $unwind: { path: "$prize", preserveNullAndEmptyArrays: true } },
+      {
+        $lookup: {
+          from: "users",
+          localField: "winnerUserId",
+          foreignField: "_id",
+          as: "winner",
+        },
+      },
+      { $unwind: { path: "$winner", preserveNullAndEmptyArrays: true } }
+    );
+
+    // 4. Server-side Search
+    if (search?.trim()) {
+      const regex = new RegExp(
+        search.trim().replace(/[.*+?^${}()|[\]\\]/g, "\\$&"),
+        "i"
+      );
+      pipeline.push({
+        $match: {
+          $or: [
+            { "prize.title": regex },
+            { "prize.spinWheelLabel": regex }, // Added search field
+            { "winner.email": regex },
+            { "winner.phone": regex },
+          ],
+        },
+      });
+    }
+
+    // 5. Execution with Facet (Pagination)
+    pipeline.push({
+      $facet: {
+        metadata: [{ $count: "total" }],
+        data: [
+          { $sort: { createdAt: -1 } }, // Default server-side sort (newest first)
+          { $skip: skip },
+          { $limit: limit },
+          {
+            $project: {
+              date: 1,
+              drawStatus: 1,
+              isActive: 1,
+              createdAt: 1,
+              prize: 1,
+              winner: {
+                _id: "$winner._id",
+                email: "$winner.email",
+                phone: "$winner.phone",
+              },
+            },
+          },
+        ],
+      },
+    });
+
+    const [result] = await GiveawayCampaign.aggregate(pipeline);
+
+    const total = result.metadata[0]?.total || 0;
+    const totalPages = Math.ceil(total / limit);
+
+    return res.status(200).json({
       success: true,
-      data: campaigns,
+      pagination: {
+        totalItems: total,
+        page,
+        limit,
+        totalPages,
+      },
+      data: result.data,
     });
   } catch (err) {
+    console.error(">>> Get All Campaigns Error:", err);
     return res.status(500).json({
       success: false,
       message: "Failed to fetch campaigns",
@@ -381,36 +475,179 @@ module.exports.updateCampaign = async (req, res) => {
   }
 };
 
-module.exports.getWinner = async (req, res) => {
+// exports.getWinners = async (req, res) => {
+//   try {
+//     const { id } = req.params;
+
+//     const campaign = await GiveawayCampaign.findById(id)
+//       .populate("winnerUserId", "email phone")
+//       .populate("prizeId");
+
+//     if (!campaign) {
+//       return res.status(404).json({
+//         success: false,
+//         message: "Campaign not found",
+//       });
+//     }
+
+//     return res.json({
+//       success: true,
+//       data: {
+//         campaignId: campaign._id,
+//         date: campaign.date,
+//         prize: campaign.prizeId,
+//         winner: campaign.winnerUserId,
+//         drawStatus: campaign.drawStatus,
+//         drawAt: campaign.drawAt || null,
+//       },
+//     });
+//   } catch (err) {
+//     return res.status(500).json({
+//       success: false,
+//       message: "Failed to fetch winner",
+//     });
+//   }
+// };
+
+exports.getAllWinners = async (req, res) => {
   try {
-    const { id } = req.params;
+    // 1. Pagination Setup
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 10;
+    const skip = (page - 1) * limit;
+    const search = req.query.search || "";
+    const status = req.query.status || "";
 
-    const campaign = await GiveawayCampaign.findById(id)
-      .populate("winnerUserId", "email phone")
-      .populate("prizeId");
+    // 1. Initial Match (Index-friendly)
+    const initialMatch = {};
+    if (status) initialMatch.drawStatus = status;
 
-    if (!campaign) {
-      return res.status(404).json({
-        success: false,
-        message: "Campaign not found",
+    // 2. Base Pipeline for Joins and Search
+    const pipeline = [
+      { $match: initialMatch },
+      {
+        $lookup: {
+          from: "giveawayprizes",
+          localField: "prizeId",
+          foreignField: "_id",
+          as: "prize",
+        },
+      },
+      { $unwind: { path: "$prize", preserveNullAndEmptyArrays: true } },
+      {
+        $lookup: {
+          from: "users",
+          localField: "winnerUserId",
+          foreignField: "_id",
+          as: "winner",
+        },
+      },
+      { $unwind: { path: "$winner", preserveNullAndEmptyArrays: true } },
+    ];
+
+    // 3. Global Search Filter
+    if (search.trim()) {
+      const searchRegex = new RegExp(search.trim(), "i");
+      pipeline.push({
+        $match: {
+          $or: [
+            { "prize.title": searchRegex },
+            { "winner.phone": searchRegex },
+            { "winner.email": searchRegex },
+          ],
+        },
       });
     }
 
+    // 4. Multi-Facet execution (No $sort stage here as requested)
+    const results = await GiveawayCampaign.aggregate([
+      ...pipeline,
+      {
+        $facet: {
+          metadata: [{ $count: "total" }],
+          stats: [
+            {
+              $group: {
+                _id: null,
+                totalCampaigns: { $sum: 1 },
+                completed: {
+                  $sum: {
+                    $cond: [{ $eq: ["$drawStatus", "COMPLETED"] }, 1, 0],
+                  },
+                },
+                pending: {
+                  $sum: { $cond: [{ $eq: ["$drawStatus", "PENDING"] }, 1, 0] },
+                },
+                withWinner: {
+                  $sum: {
+                    $cond: [{ $ifNull: ["$winnerUserId", false] }, 1, 0],
+                  },
+                },
+              },
+            },
+          ],
+          data: [
+            { $skip: skip },
+            { $limit: limit },
+            {
+              $project: {
+                _id: 1,
+                date: 1,
+                drawStatus: 1,
+                drawAt: 1,
+                prize: {
+                  _id: "$prize._id",
+                  title: "$prize.title",
+                  type: "$prize.type",
+                  value: "$prize.value",
+                  spinWheelLabel: "$prize.spinWheelLabel",
+                },
+                winner: {
+                  $cond: {
+                    if: { $gt: ["$winner._id", null] },
+                    then: {
+                      _id: "$winner._id",
+                      phone: "$winner.phone",
+                      email: "$winner.email",
+                      nickname: "$winner.nickname",
+                    },
+                    else: null,
+                  },
+                },
+              },
+            },
+          ],
+        },
+      },
+    ]);
+
+    // Format Response
+    const total = results[0].metadata[0]?.total || 0;
+    const totalPages = Math.ceil(total / limit);
+    const statsKPI = results[0].stats[0] || {
+      totalCampaigns: 0,
+      completed: 0,
+      pending: 0,
+      withWinner: 0,
+    };
+    const data = results[0].data;
+
     return res.json({
       success: true,
-      data: {
-        campaignId: campaign._id,
-        date: campaign.date,
-        prize: campaign.prizeId,
-        winner: campaign.winnerUserId,
-        drawStatus: campaign.drawStatus,
+      pagination: {
+        page,
+        limit,
+        total,
+        totalPages,
       },
+      statsKPI,
+      data,
     });
   } catch (err) {
-    return res.status(500).json({
-      success: false,
-      message: "Failed to fetch winner",
-    });
+    console.error("getAllWinners error:", err);
+    return res
+      .status(500)
+      .json({ success: false, message: "Failed to fetch winners" });
   }
 };
 
@@ -524,25 +761,148 @@ module.exports.markPrizeAsDelivered = async (req, res) => {
   }
 };
 
+// module.exports.getPendingDeliveries = async (req, res) => {
+//   try {
+//     const records = await GiveawayWinHistory.find({
+//       deliveryStatus: "PENDING",
+//     })
+//       .populate("userId", "phone email")
+//       .populate("campaignId", "date")
+//       .populate("prizeId", "title value")
+//       .sort({ claimedAt: -1 });
+//     res.json({
+//       success: true,
+//       count: records.length,
+//       data: records,
+//     });
+//   } catch (error) {
+//     console.error("Pending deliveries error:", error);
+//     res.status(500).json({
+//       success: false,
+//       message: "Failed to fetch pending deliveries",
+//     });
+//   }
+// };
+
 module.exports.getPendingDeliveries = async (req, res) => {
   try {
-    const records = await GiveawayWinHistory.find({
-      deliveryStatus: "PENDING",
-    })
-      .populate("userId", "phone email")
-      .populate("campaignId", "date")
-      .populate("prizeId", "title value")
-      .sort({ claimedAt: -1 });
-    res.json({
+    // 1. Pagination Setup
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 10;
+    const skip = (page - 1) * limit;
+    const search = req.query.search || "";
+    const deliveryStatus = req.query.deliveryStatus || "";
+
+    // --- 1. Build Dynamic Filter ---
+    const matchQuery = {};
+
+    // If deliveryStatus is provided and isn't "ALL", filter by it
+    if (
+      deliveryStatus &&
+      ["PENDING", "DELIVERED"].includes(deliveryStatus.toUpperCase())
+    ) {
+      matchQuery.deliveryStatus = deliveryStatus.toUpperCase();
+    }
+
+    const pipeline = [];
+
+    // Stage 1: Initial Filter (Filter early for better performance)
+    if (Object.keys(matchQuery).length > 0) {
+      pipeline.push({ $match: matchQuery });
+    }
+
+    // Stage 2: Joins (Lookups)
+    pipeline.push(
+      {
+        $lookup: {
+          from: "users",
+          localField: "userId",
+          foreignField: "_id",
+          as: "user",
+        },
+      },
+      { $unwind: { path: "$user", preserveNullAndEmptyArrays: true } },
+      {
+        $lookup: {
+          from: "giveawaycampaigns",
+          localField: "campaignId",
+          foreignField: "_id",
+          as: "campaign",
+        },
+      },
+      { $unwind: { path: "$campaign", preserveNullAndEmptyArrays: true } },
+      {
+        $lookup: {
+          from: "giveawayprizes",
+          localField: "prizeId",
+          foreignField: "_id",
+          as: "prize",
+        },
+      },
+      { $unwind: { path: "$prize", preserveNullAndEmptyArrays: true } }
+    );
+
+    // Stage 3: Global Search (Winner info or Prize info)
+    if (search?.trim()) {
+      const regex = new RegExp(
+        search.trim().replace(/[.*+?^${}()|[\]\\]/g, "\\$&"),
+        "i"
+      );
+      pipeline.push({
+        $match: {
+          $or: [
+            { "user.email": regex },
+            { "user.phone": regex },
+            { "prize.title": regex },
+          ],
+        },
+      });
+    }
+
+    // Stage 4: Facet for Meta and Data
+    pipeline.push({
+      $facet: {
+        metadata: [{ $count: "total" }],
+        data: [
+          { $sort: { createdAt: -1 } }, // Newest win histories first
+          { $skip: skip },
+          { $limit: limit },
+          {
+            $project: {
+              _id: 1,
+              deliveryStatus: 1,
+              claimedAt: 1,
+              wonAt: 1,
+              year: 1,
+              user: { _id: 1, nickname: 1, email: 1, phone: 1 },
+              campaign: { _id: 1, date: 1 },
+              prize: { _id: 1, title: 1, value: 1, type: 1 },
+            },
+          },
+        ],
+      },
+    });
+
+    const [result] = await GiveawayWinHistory.aggregate(pipeline);
+
+    const total = result.metadata[0]?.total || 0;
+    const totalPages = Math.ceil(total / limit);
+
+    return res.status(200).json({
       success: true,
-      count: records.length,
-      data: records,
+      pagination: {
+        totalItems: total,
+        page,
+        limit,
+        totalPages,
+      },
+      data: result.data,
     });
   } catch (error) {
-    console.error("Pending deliveries error:", error);
-    res.status(500).json({
+    console.error(">>> Get Deliveries Error:", error);
+    return res.status(500).json({
       success: false,
-      message: "Failed to fetch pending deliveries",
+      message: "Internal server error while fetching delivery data",
     });
   }
 };
@@ -809,51 +1169,6 @@ module.exports.pauseCampaign = async (req, res) => {
 };
 
 /**
- * @desc    Delete a prize by ID
- * @route   DELETE /api/v1/admin/giveaway/prizes/:id
- * @access  Private/Admin
- */
-exports.deletePrize = async (req, res, next) => {
-  try {
-    const { id } = req.params;
-
-    // Find and delete the prize
-    const prize = await Prize.findByIdAndDelete(id);
-
-    if (!prize) {
-      return res.status(404).json({
-        success: false,
-        message: "Prize not found",
-      });
-    }
-
-    // Log the deletion
-    // await GiveawayAudit.create({
-    //   action: 'DELETE_PRIZE',
-    //   admin: req.user._id,
-    //   targetId: id,
-    //   details: {
-    //     prizeName: prize.name,
-    //     prizeId: prize._id
-    //   }
-    // });
-
-    res.status(200).json({
-      success: true,
-      message: "Prize deleted successfully",
-      data: { id },
-    });
-  } catch (error) {
-    console.error("Delete Prize Error:", error);
-    res.status(500).json({
-      success: false,
-      message: "Failed to delete prize",
-      error: error.message,
-    });
-  }
-};
-
-/**
  * @desc    Delete a campaign by ID
  * @route   DELETE /api/v1/admin/giveaway/campaigns/:id
  * @access  Private/Admin
@@ -926,282 +1241,3 @@ exports.deleteCampaign = async (req, res, next) => {
     });
   }
 };
-
-/**
- * 📅 RANGE BASED BULK CREATE GIVEAWAY CAMPAIGNS
- * Admin can define multiple date ranges with different prizes
- */
-// exports.bulkCreateCampaignByRanges = async (req, res) => {
-//   try {
-//     const { ranges, isActive = true } = req.body;
-
-//     if (!Array.isArray(ranges) || ranges.length === 0) {
-//       return res.status(400).json({
-//         success: false,
-//         message: "Ranges array is required"
-//       });
-//     }
-
-//     /**
-//      * 1️⃣ Normalize & validate ranges
-//      */
-//     const normalizedRanges = ranges.map((r) => {
-//       const start = new Date(r.startDate);
-//       const end = new Date(r.endDate);
-
-//       start.setHours(0, 0, 0, 0);
-//       end.setHours(0, 0, 0, 0);
-
-//       if (start > end) {
-//         throw new Error("Start date cannot be after end date");
-//       }
-
-//       return {
-//         startDate: start,
-//         endDate: end,
-//         prizeId: r.prizeId
-//       };
-//     });
-
-//     /**
-//      * 2️⃣ Overlapping range detection
-//      */
-//     const sortedRanges = [...normalizedRanges].sort(
-//       (a, b) => a.startDate - b.startDate
-//     );
-
-//     for (let i = 1; i < sortedRanges.length; i++) {
-//       if (sortedRanges[i].startDate <= sortedRanges[i - 1].endDate) {
-//         return res.status(400).json({
-//           success: false,
-//           message: "Overlapping date ranges are not allowed"
-//         });
-//       }
-//     }
-
-//     /**
-//      * 3️⃣ Validate all prizes
-//      */
-//     const prizeIds = [...new Set(normalizedRanges.map(r => r.prizeId))];
-//     const prizes = await Prize.find({ _id: { $in: prizeIds }, isActive: true });
-
-//     if (prizes.length !== prizeIds.length) {
-//       return res.status(400).json({
-//         success: false,
-//         message: "One or more prizes are invalid or inactive"
-//       });
-//     }
-
-//     // const today = new Date();
-//     // today.setHours(0, 0, 0, 0);
-
-//     const now = new Date();
-// const today = new Date(
-//   now.getFullYear(),
-//   now.getMonth(),
-//   now.getDate()
-// );
-
-//     const campaignsToInsert = [];
-//     const skippedDates = [];
-
-//     /**
-//      * 4️⃣ Expand ranges into daily campaigns
-//      */
-//     for (const range of normalizedRanges) {
-//       for (
-//         let date = new Date(range.startDate);
-//         date <= range.endDate;
-//         date.setDate(date.getDate() + 1)
-//       ) {
-//         const campaignDate = new Date(date);
-
-//         // ❌ Skip past dates
-//         if (campaignDate < today) {
-//           skippedDates.push({
-//             date: campaignDate,
-//             reason: "Past date"
-//           });
-//           continue;
-//         }
-
-//         // ❌ Skip if campaign already exists
-//         const existing = await GiveawayCampaign.findOne({
-//           date: campaignDate
-//         });
-
-//         if (existing) {
-//           skippedDates.push({
-//             date: campaignDate,
-//             reason: "Campaign already exists"
-//           });
-//           continue;
-//         }
-
-//         campaignsToInsert.push({
-//           date: campaignDate,
-//           prizeId: range.prizeId,
-//            supportiveItems: Array.isArray(range.supportiveItems)
-//             ? range.supportiveItems
-//             : [],
-//           isActive,
-//           drawStatus: "PENDING"
-//         });
-//       }
-//     }
-
-//     /**
-//      * 5️⃣ Insert campaigns
-//      */
-//     if (campaignsToInsert.length > 0) {
-//       await GiveawayCampaign.insertMany(campaignsToInsert);
-//     }
-
-//     /**
-//      * 6️⃣ Response
-//      */
-//     return res.status(201).json({
-//       success: true,
-//       message: "Range-based campaigns processed successfully",
-//       summary: {
-//         created: campaignsToInsert.length,
-//         skipped: skippedDates.length
-//       },
-//       skippedDates
-//     });
-
-//   } catch (error) {
-//     console.error("Range bulk campaign error:", error);
-//     return res.status(500).json({
-//       success: false,
-//       message: error.message || "Failed to bulk create campaigns"
-//     });
-//   }
-// };
-
-// {
-//   "ranges": [
-//     {
-//       "startDate": "2025-12-01",
-//       "endDate": "2025-12-05",
-//       "prizeId": "PRIZE_ID_1"
-//     },
-//     {
-//       "startDate": "2025-12-06",
-//       "endDate": "2025-12-11",
-//       "prizeId": "PRIZE_ID_2"
-//     },
-//     {
-//       "startDate": "2025-12-12",
-//       "endDate": "2025-12-15",
-//       "prizeId": "PRIZE_ID_3"
-//     }
-//   ],
-//   "isActive": true
-// }
-
-// exports.bulkCreateCampaign = async (req, res) => {
-//   try {
-//     const { startDate, endDate, prizeId, isActive = true } = req.body;
-
-//     /**
-//      * 1️⃣ Prize validation
-//      */
-//     const prize = await Prize.findById(prizeId);
-//     if (!prize || !prize.isActive) {
-//       return res.status(400).json({
-//         success: false,
-//         message: "Invalid or inactive prize"
-//       });
-//     }
-
-//     /**
-//      * 2️⃣ Date validation
-//      */
-//     const start = new Date(startDate);
-//     const end = new Date(endDate);
-//     start.setHours(0, 0, 0, 0);
-//     end.setHours(0, 0, 0, 0);
-
-//     if (start > end) {
-//       return res.status(400).json({
-//         success: false,
-//         message: "Start date cannot be after end date"
-//       });
-//     }
-
-//     const today = new Date();
-//     today.setHours(0, 0, 0, 0);
-
-//     /**
-//      * 3️⃣ Loop through date range
-//      */
-//     const campaignsToInsert = [];
-//     const skippedDates = [];
-
-//     for (
-//       let date = new Date(start);
-//       date <= end;
-//       date.setDate(date.getDate() + 1)
-//     ) {
-//       const campaignDate = new Date(date);
-
-//       // ❌ Past dates skip
-//       if (campaignDate < today) {
-//         skippedDates.push({
-//           date: campaignDate,
-//           reason: "Past date"
-//         });
-//         continue;
-//       }
-
-//       // ❌ Already exists?
-//       const existingCampaign = await GiveawayCampaign.findOne({
-//         date: campaignDate
-//       });
-
-//       if (existingCampaign) {
-//         skippedDates.push({
-//           date: campaignDate,
-//           reason: "Campaign already exists"
-//         });
-//         continue;
-//       }
-
-//       // ✅ Ready to create
-//       campaignsToInsert.push({
-//         date: campaignDate,
-//         prizeId,
-//         isActive,
-//         drawStatus: "PENDING"
-//       });
-//     }
-
-//     /**
-//      * 4️⃣ Insert campaigns
-//      */
-//     if (campaignsToInsert.length > 0) {
-//       await GiveawayCampaign.insertMany(campaignsToInsert);
-//     }
-
-//     /**
-//      * 5️⃣ Response
-//      */
-//     return res.status(201).json({
-//       success: true,
-//       message: "Bulk campaigns processed",
-//       summary: {
-//         created: campaignsToInsert.length,
-//         skipped: skippedDates.length
-//       },
-//       skippedDates
-//     });
-
-//   } catch (error) {
-//     console.error("Bulk create campaign error:", error);
-//     return res.status(500).json({
-//       success: false,
-//       message: "Failed to bulk create campaigns"
-//     });
-//   }
-// };

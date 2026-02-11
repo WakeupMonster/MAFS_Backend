@@ -41,12 +41,7 @@ const prizeSchema = new mongoose.Schema(
 
     supportiveItems: {
       type: [String],
-      validate: {
-        validator: function (v) {
-          return v && v.length > 0;
-        },
-        message: "A prize must have at least one supportive item.",
-      },
+      default: [],
     },
 
     // Admin prize ko disable bhi kar sakta hai

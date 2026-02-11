@@ -1,28 +1,15 @@
-// const Content = require("./content.model");
+const redis = require("../../config/cache");
+const {
+  Faq,
+  PrivacyPolicy,
+  TermsConditions,
+} = require("../Admin/cms/content.model");
+const { getFaqSchema } = require("../Admin/cms/content.validation");
 
-// /**
-//  * ================================
-//  * GET FAQ
-//  * ================================
-//  */
-// exports.getFAQ = async (req, res) => {
-//   try {
-//     const data = await Content.findOne({ type: "faq" }).lean();
-
-//     return res.json({
-//       success: true,
-//       data: data?.faqs || []
-//     });
-//   } catch (err) {
-//     console.error("Get FAQ error:", err);
-//     res.status(500).json({
-//       success: false,
-//       message: "Failed to load FAQ"
-//     });
-//   }
-// };
-
-
+/* ================================
+ * GET ALL FAQ
+ * ================================
+ */
 module.exports.getFAQ = async (req, res) => {
   try {
     // ✅ Validate query
@@ -100,68 +87,6 @@ module.exports.getFAQ = async (req, res) => {
  * PRIVACY POLICY
  * =========================================
  */
-// module.exports.getPrivacyPolicy = async (req, res) => {
-//   try {
-//     const cacheKey = "privacy_policy:list";
-
-//     // 1️⃣ Try cache first
-//     const cached = await redis.get(cacheKey);
-//     if (cached) {
-//       return res.status(200).json({
-//         success: true,
-//         cached: true,
-//         title: "Privacy And Policy",
-//         data: JSON.parse(cached),
-//       });
-//     }
-
-//     // 2️⃣ Fetch SINGLE document
-//     const privacy = await PrivacyPolicy.findOne({}).select("-__v").lean();
-
-//     if (!privacy) {
-//       return res.status(404).json({
-//         success: false,
-//         message: "Privacy Policy not found",
-//       });
-//     }
-
-//     // 3️⃣ PROJECT SECTIONS & Sort
-//     const projectedSections = privacy.sections
-//       .sort((a, b) => a.order - b.order)
-//       .map((section) => ({
-//         _id: section._id,
-//         order: section.order,
-//         heading: section.heading,
-//         paragraph: section.paragraph,
-//         list: section.list || [],
-//       }));
-
-//     const response = {
-//       id: privacy._id,
-//       title: privacy.title,
-//       sections: projectedSections,
-//       createdAt: privacy.createdAt,
-//       updatedAt: privacy.updatedAt,
-//     };
-
-//     // 4️⃣ Cache for 24 hours
-//     await redis.set(cacheKey, JSON.stringify(response), "EX", 60 * 60 * 24);
-
-//     return res.status(200).json({
-//       success: true,
-//       title: "Privacy And Policy",
-//       data: response,
-//     });
-//   } catch (err) {
-//     console.error("Get Privacy Policy error", err);
-
-//     return res.status(500).json({
-//       success: false,
-//       message: "Failed to load Privacy Policy",
-//     });
-//   }
-// };
-
 module.exports.getPrivacyPolicy = async (req, res) => {
   try {
     // Try to get from Redis first
@@ -197,67 +122,6 @@ module.exports.getPrivacyPolicy = async (req, res) => {
  * TERMS & CONDITIONS
  * =========================================
  */
-// module.exports.getTermsConditions = async (req, res) => {
-//   try {
-//     const cacheKey = "terms_conditions:list";
-
-//     // 1️⃣ Try cache first
-//     const cached = await redis.get(cacheKey);
-//     if (cached) {
-//       return res.status(200).json({
-//         success: true,
-//         cached: true,
-//         title: "Terms And Conditions",
-//         data: JSON.parse(cached),
-//       });
-//     }
-
-//     // 2️⃣ DB query
-//     const terms = await TermsConditions.findOne({}).select("-__v").lean();
-
-//     if (!terms) {
-//       return res.status(404).json({
-//         success: false,
-//         message: "Terms and condition not found",
-//       });
-//     }
-
-//     // 3️⃣ PROJECT SECTIONS & Sort
-//     const projectedSections = terms.sections
-//       .sort((a, b) => a.order - b.order)
-//       .map((section) => ({
-//         _id: section._id,
-//         order: section.order,
-//         heading: section.heading,
-//         paragraph: section.paragraph,
-//         list: section.list || [],
-//       }));
-
-//     const response = {
-//       id: terms._id,
-//       title: terms.title,
-//       sections: projectedSections,
-//       createdAt: terms.createdAt,
-//       updatedAt: terms.updatedAt,
-//     };
-
-//     // 3️⃣ Save to cache (24 hours)
-//     await redis.set(cacheKey, JSON.stringify(response), "EX", 60 * 60 * 24);
-
-//     return res.status(200).json({
-//       success: true,
-//       title: data?.title || "Terms & Conditions",
-//       sections: data?.sections || []
-//     });
-//   } catch (err) {
-//     console.error("Terms error:", err);
-//     res.status(500).json({
-//       success: false,
-//       message: "Failed to load terms & conditions"
-//     });
-//   }
-// };
-
 module.exports.getTermsConditions = async (req, res) => {
   try {
     // Try to get from Redis first

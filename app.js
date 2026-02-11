@@ -4,9 +4,9 @@ const cors = require("cors");
 const errorHandling = require("./common/middlewares/error.middleware");
 
 require("./jobs/giveaway/giveaway.cron"); // <-- cron auto starts
-require("./jobs/unsuspendUsers.job")
-require("./jobs/adminNotification/premiumExpiryReminder.cron")
-require("./workers/emailnotification.worker")
+require("./jobs/unsuspendUsers.job");
+require("./jobs/adminNotification/premiumExpiryReminder.cron");
+require("./workers/emailnotification.worker");
 
 app.use(express.json({ limit: "10mb" }));
 app.use(express.urlencoded({ extended: true }));
@@ -53,7 +53,9 @@ app.get("/api/iap/health", (req, res) => {
 });
 
 // ─── Start Cron Jobs ───
-const { initCronJobs } = require("./modules/subscription/cron/subscriptionCron");
+const {
+  initCronJobs,
+} = require("./modules/subscription/cron/subscriptionCron");
 initCronJobs();
 
 app.use((req, res) => {

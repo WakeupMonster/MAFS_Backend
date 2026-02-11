@@ -1,12 +1,14 @@
 const Profile = require("../../../modules/profile/profile.model");
 const User = require("../../../modules/auth/auth.model");
-const { formatProfileResponse } = require("../../../modules/profile/profile.formatter");
+const {
+  formatProfileResponse,
+} = require("../../../modules/profile/profile.formatter");
 const Report = require("../../../modules/profile/user.report");
-const { sendReplyToReporterEmail } = require("../../auth/auth.utils");
 
 const getProfileForReview = async (req, res) => {
   try {
     const { userId } = req.params;
+    console.log("userId: ", userId);
 
     // Get user and profile with all necessary data
     const [user, profile, reports] = await Promise.all([
@@ -16,6 +18,7 @@ const getProfileForReview = async (req, res) => {
         // .populate('reportedBy', 'name email phone')
         .lean(),
     ]);
+
     // console.log(reports)
     if (!user || !profile) {
       return res.status(404).json({
@@ -77,28 +80,30 @@ const getProfileForReview = async (req, res) => {
 const updateProfileStatus = async (req, res) => {
   try {
     const { userId } = req.params;
-    const { action, reason, banDuration } = req.body;
+    const {
+      action,
+      reason,
+      banDuration,
+      suspendDuration,
+      replyMessage,
+      reportId,
+    } = req.body;
     const adminId = req.user?._id;
 
-    if (!['approve', 'reject', 'ban'].includes(action)) {
-      return res.status(400).json({
-        success: false,
-        message: 'Invalid action. Must be one of: approve, reject, ban'
-      });
-    }
+    // 1. Expanded validation to include 'suspend', 'resolve', and 'reply'
+    const allowedActions = [
+      "approve",
+      "reject",
+      "ban",
+      "suspend",
+      "resolve",
+      "reply",
+    ];
 
-    if ((action === 'reject' || action === 'ban') && !reason) {
+    if (!allowedActions.includes(action)) {
       return res.status(400).json({
         success: false,
         message: `Invalid action. Must be one of: ${allowedActions.join(", ")}`,
-      });
-    }
-
-    // For reply action, validate required fields
-    if (action === 'reply' && (!replyMessage || !reportId)) {
-      return res.status(400).json({
-        success: false,
-        message: 'Reply message and report ID are required for reply action'
       });
     }
 
@@ -109,8 +114,7 @@ const updateProfileStatus = async (req, res) => {
         .json({ success: false, message: "User not found" });
     }
 
-    // let update = {};
-    let message = '';
+    let message = "";
 
     switch (action) {
       case "approve":
@@ -127,69 +131,76 @@ const updateProfileStatus = async (req, res) => {
             },
           }
         );
-        await User.updateMany({ accountStatus: "banned",  "banDetails.isBanned": true }, {
-          $set: {
-            accountStatus: "active",
-            "banDetails.isBanned": false,
-            "banDetails.reason": "",
-            "banDetails.bannedAt": null
-          }
-        })
-        message = 'Profile approved successfully';
+        // Ensure user is active
+        user.accountStatus = "active";
+        user.banDetails = { isBanned: false };
+        await user.save();
+        message = "Profile marked as safe and reports resolved.";
         break;
 
+      case "reject":
+      case "ban":
+        // Permanent or temporary ban
+        user.accountStatus = "banned";
+        user.banDetails = {
+          isBanned: true,
+          reason: reason,
+          bannedBy: adminId,
+          bannedAt: new Date(),
+          banExpiresAt: banDuration
+            ? new Date(Date.now() + banDuration * 24 * 60 * 60 * 1000)
+            : null,
+        };
+        await user.save();
 
-      case 'reject':
-        // Mark all reports as reviewed
+        // Resolve reports with the ban reason
         await Report.updateMany(
           { reportedId: userId, status: { $in: ["new", "in_progress"] } },
           {
             $set: {
-              status: 'resolved',
+              status: "resolved",
               resolvedAt: new Date(),
               resolvedBy: adminId,
-              resolution: 'Profile rejected: ' + reason
-            }
+              resolution: `User banned: ${reason}`,
+            },
           }
         );
-        message = 'Profile rejected successfully';
+        message = `User has been banned.`;
         break;
 
-      case 'ban':
-        {
-          const banDetails = {
-            isBanned: true,
-            reason,
-            bannedBy: adminId,
-            bannedAt: new Date(),
-            banExpiresAt: banDuration ?
-              new Date(Date.now() + banDuration * 24 * 60 * 60 * 1000) :
-              null // Permanent ban if no duration
-          };
+      case "suspend":
+        // Suspension uses suspendDuration in HOURS (based on your frontend input)
+        user.accountStatus = "suspended";
+        user.banDetails = {
+          isBanned: true, // We treat suspension as a temporary ban
+          reason: reason,
+          bannedBy: adminId,
+          bannedAt: new Date(),
+          banExpiresAt: new Date(Date.now() + suspendDuration * 60 * 60 * 1000),
+        };
+        await user.save();
+        message = `User suspended for ${suspendDuration} hours.`;
+        break;
 
-          await User.findByIdAndUpdate(userId, {
-            $set: {
-              'banDetails': banDetails,
-              'accountStatus': 'banned'
-            }
+      case "reply":
+        // Specific reply to a single report
+        if (!reportId || !replyMessage) {
+          return res.status(400).json({
+            success: false,
+            message: "Report ID and Message are required",
           });
-
-          // Mark all reports as reviewed
-          await Report.updateMany(
-            { reportedId: userId, status: 'new' },
-            {
-              $set: {
-                status: 'resolved',
-                resolvedAt: new Date(),
-                resolvedBy: adminId,
-                resolution: 'User banned: ' + reason
-              }
-            }
-          );
-
-          message = 'User banned successfully';
-          break;
         }
+
+        await Report.findByIdAndUpdate(reportId, {
+          $set: {
+            adminReply: replyMessage,
+            repliedAt: new Date(),
+            repliedBy: adminId,
+            status: "in_progress", // Moving to in_progress because admin has engaged
+          },
+        });
+        message = "Reply sent to the reporter.";
+        break;
     }
 
     res.json({
@@ -205,67 +216,91 @@ const updateProfileStatus = async (req, res) => {
     });
   }
 };
+
 const getReportedProfiles = async (req, res) => {
   try {
     const page = parseInt(req.query.page) || 1;
     const limit = parseInt(req.query.limit) || 20;
     const skip = (page - 1) * limit;
+    const search = req.query.search || "";
+    const status = req.query.status || ""; // ✅ Get status filter from frontend
 
-    // First, get the base query without pagination to get total count
-    const countQuery = {
-      status: { $in: ["new", "in_progress"] }, // Changed to match your status values
-      reportedId: { $exists: true, $ne: null }
+    // Dynamic match stage
+    const matchStage = {
+      reportedId: { $exists: true, $ne: null },
     };
 
-    const total = await Report.countDocuments(countQuery);
-    // Get reported profiles with pagination
-    const reports = await Report.aggregate([
-      {
-        $match: {
-          status: { $in: ["new", "in_progress"] },
-          reportedId: { $exists: true, $ne: null }
-        }
-      },
-      {
-        $lookup: {
-          from: 'users',
-          localField: 'reportedId', // Changed from reportedUser to reportedId
-          foreignField: '_id',
-          as: 'reportedUser'
-        }
-      },
-      { $unwind: '$reportedUser' },
+    // ✅ Apply status filter: if "all" or empty, allow all valid statuses
+    if (status && status !== "all") {
+      matchStage.status = status;
+    } else {
+      matchStage.status = { $in: ["new", "in_progress", "resolved"] };
+    }
+
+    const pipeline = [
+      { $match: matchStage },
+      { $sort: { createdAt: -1 } },
+
+      // Join User data
       {
         $lookup: {
-          from: 'profiles',
-          localField: 'reportedUser._id',
-          foreignField: 'userId',
-          as: 'profile'
-        }
+          from: "users",
+          localField: "reportedId",
+          foreignField: "_id",
+          as: "reportedUser",
+        },
       },
-      { $unwind: { path: '$profile', preserveNullAndEmptyArrays: true } },
+      { $unwind: { path: "$reportedUser", preserveNullAndEmptyArrays: true } },
+
+      // Join Profile data
+      {
+        $lookup: {
+          from: "profiles",
+          localField: "reportedId",
+          foreignField: "userId",
+          as: "profile",
+        },
+      },
+      { $unwind: { path: "$profile", preserveNullAndEmptyArrays: true } },
+
+      // ===== SEARCH FILTER =====
+      ...(search
+        ? [
+            {
+              $match: {
+                $or: [
+                  { "profile.nickname": { $regex: search, $options: "i" } },
+                  { "reportedUser.name": { $regex: search, $options: "i" } },
+                ],
+              },
+            },
+          ]
+        : []),
+
+      // Group reports by user
       {
         $group: {
-          _id: '$reportedUser._id',
-          user: { $first: '$reportedUser' },
-          profile: { $first: '$profile' },
+          _id: "$reportedId",
+          user: { $first: "$reportedUser" },
+          profile: { $first: "$profile" },
           reportCount: { $sum: 1 },
-          reasons: { $addToSet: '$reason' },
-          latestReport: { $max: '$createdAt' },
+          reasons: { $addToSet: "$reason" },
+          latestReport: { $first: "$createdAt" },
+          latestStatus: { $first: "$status" },
+          latestSeverity: { $first: "$severity" },
           reports: {
             $push: {
-              _id: '$_id',
-              reason: '$reason',
-              description: '$description',
-              status: '$status',
-              severity: '$severity',
-              reportedById: '$reporterId', // Changed from reportedBy to reporterId
-              reportedAt: '$createdAt'
-            }
-          }
-        }
+              _id: "$_id",
+              reason: "$reason",
+              description: "$description",
+              status: "$status",
+              severity: "$severity",
+              reportedById: "$reporterId",
+              reportedAt: "$createdAt",
+            },
+          },
+        },
       },
-
       { $sort: { latestReport: -1 } },
     ];
 
@@ -276,44 +311,37 @@ const getReportedProfiles = async (req, res) => {
       { $limit: limit },
     ]);
 
-    // Format the response
-    const result = await Promise.all(reports.map(async (item) => {
-      // If profile doesn't exist, create a minimal profile from user data
-      if (!item.profile) {
-        item.profile = {
-          nickname: item.user.name || 'No Profile',
-          photos: [],
-          about: 'No profile information available',
-          interests: [],
-          gender: item.user.gender || 'Not specified',
-          age: item.user.age || null,
-          location: {},
-          verification: {}
-        };
-      }
+    // Calculate total count for pagination (accounts for search & status filter)
+    const totalCountResult = await Report.aggregate([
+      ...pipeline,
+      { $count: "total" },
+    ]);
+    const total = totalCountResult.length > 0 ? totalCountResult[0].total : 0;
 
-      const formattedProfile = formatProfileResponse(item.user, item.profile);
+    // ===== FORMAT RESPONSE =====
+    const result = reports.map((item) => {
+      const user = item.user || {};
+      const profile = item.profile || {};
 
       return {
-        userId: item.user._id,
-        nickname: item.profile.nickname || item.user.name || 'No Nickname',
-        profilePhoto: item.profile.photos?.[0]?.url || null,
+        userId: item._id,
+        nickname: profile.nickname || user.name || "No Nickname",
+        profilePhoto: profile.photos?.[0]?.url || null,
         reportCount: item.reportCount,
         lastReportedAt: item.latestReport,
         status: item.latestStatus,
         severity: item.latestSeverity,
         reasons: item.reasons,
-
         profile: {
-          photos: formattedProfile?.profile?.photos || [],
-          bio: formattedProfile?.profile?.about || '',
-          interests: formattedProfile?.profile?.interests || [],
-          gender: formattedProfile?.profile?.gender || '',
-          age: formattedProfile?.profile?.age || null,
-          location: formattedProfile?.profile?.location || {},
-          verification: formattedProfile?.profile?.verification || {}
+          photos: profile.photos || [],
+          bio: profile.about || "",
+          interests: profile.interests || [],
+          gender: profile.gender || user.gender || "",
+          age: profile.age || user.age || null,
+          location: profile.location || {},
+          verification: profile.verification || {},
         },
-        reports: item.reports
+        reports: item.reports,
       };
     });
 
@@ -327,16 +355,16 @@ const getReportedProfiles = async (req, res) => {
       },
       data: result,
     });
-
   } catch (error) {
     console.error("Error in getReportedProfiles:", error);
     return res.status(500).json({
       success: false,
-      message: 'Failed to fetch reported profiles',
-      error: error.message
+      message: "Failed to fetch reported profiles",
+      error: error.message,
     });
   }
 };
+
 module.exports = {
   getReportedProfiles,
   getProfileForReview,

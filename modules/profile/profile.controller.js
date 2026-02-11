@@ -9,7 +9,9 @@ const Block = require("../profile/user.block");
 const { formatProfileResponse } = require("./profile.formatter");
 const UserSubscription = require("../auth/UserSubscription.model");
 const { formatPublictargetProfile } = require("./profile.userFormatter");
-const { buildOnboardingResponse } = require("../../common/utils/onBoardingSteps");
+const {
+  buildOnboardingResponse,
+} = require("../../common/utils/onBoardingSteps");
 
 async function getFullUserData(userId, existingProfile = null) {
   const [user, profile, blockedContacts, blockedUser, subData] =
@@ -176,11 +178,8 @@ module.exports.updateProfile = async (req, res) => {
           data.blockedUser,
           data.subData
         ),
+        onboarding: buildOnboardingResponse(req),
       },
-      data: {
-        user: formatProfileResponse(data.user, profile, data.blockedContacts, data.blockedUser, data.subData),
-        onboarding: buildOnboardingResponse(req)
-      }
     });
   } catch (error) {
     console.error("Update Error:", error);
@@ -265,7 +264,15 @@ module.exports.uploadPhotos = async (req, res) => {
     res.json({
       success: true,
       message: `${newPhotosResults.length} photo uploaded successfully`,
-      data: { user: formatProfileResponse(data.user, profile, data.blockedContacts, data.blockedUser, data.subData) }
+      data: {
+        user: formatProfileResponse(
+          data.user,
+          profile,
+          data.blockedContacts,
+          data.blockedUser,
+          data.subData
+        ),
+      },
     });
   } catch (err) {
     res
@@ -329,8 +336,14 @@ module.exports.reorderPhotos = async (req, res) => {
         .json({ success: false, message: "photoIds array is required" });
 
     const profile = await Profile.findOne({ userId });
-    if (!profile) return res.status(404).json({ success: false, message: "Profile not found" });
-    if (photoIds.length !== profile.photos.length) return res.status(400).json({ success: false, message: "Photo count mismatch" });
+    if (!profile)
+      return res
+        .status(404)
+        .json({ success: false, message: "Profile not found" });
+    if (photoIds.length !== profile.photos.length)
+      return res
+        .status(400)
+        .json({ success: false, message: "Photo count mismatch" });
 
     const photoMap = new Map();
     profile.photos.forEach((photo) =>
@@ -417,28 +430,39 @@ module.exports.uploadSelfie = async (req, res) => {
     res.json({
       success: true,
       message: "Selfie upload started...",
-      data: { user: formatProfileResponse(data.user, data.profile, data.blockedContacts, data.blockedUser, data.subData) }
+      data: {
+        user: formatProfileResponse(
+          data.user,
+          data.profile,
+          data.blockedContacts,
+          data.blockedUser,
+          data.subData
+        ),
+      },
     });
 
     // Step 3: BACKGROUND PROCESSING (No 'await' for the response)
     // Ye line response bhejne ke BAAD execute hogi
     uploadStream(req.file.buffer, {
       folder: `mafs/users/${userId}/kyc`,
-      transformation: [{ width: 800, height: 800, crop: "fill", quality: "auto:best" }]
-    }).then(async (result) => {
-      await Profile.updateOne(
-        { userId },
-        { 
-          $set: { 
-            "verification.selfieUrl": result.secure_url, 
-            "verification.status": "pending" 
-          } 
-        }
-      );
-      await cache.del(`profile:status:${userId}`);
-      console.log(`Selfie processed for ${userId}`);
-    }).catch(err => console.error("Background Upload Error:", err));
-
+      transformation: [
+        { width: 800, height: 800, crop: "fill", quality: "auto:best" },
+      ],
+    })
+      .then(async (result) => {
+        await Profile.updateOne(
+          { userId },
+          {
+            $set: {
+              "verification.selfieUrl": result.secure_url,
+              "verification.status": "pending",
+            },
+          }
+        );
+        await cache.del(`profile:status:${userId}`);
+        console.log(`Selfie processed for ${userId}`);
+      })
+      .catch((err) => console.error("Background Upload Error:", err));
   } catch (err) {
     if (!res.headersSent)
       res.status(500).json({ success: false, message: "Server Error" });
@@ -469,9 +493,15 @@ module.exports.uploadIDDocument = async (req, res) => {
     res.json({
       success: true,
       message: "ID upload started. We will notify you once verified.",
-      data: { 
-        user: formatProfileResponse(data.user, data.profile, data.blockedContacts, data.blockedUser, data.subData) 
-      }
+      data: {
+        user: formatProfileResponse(
+          data.user,
+          data.profile,
+          data.blockedContacts,
+          data.blockedUser,
+          data.subData
+        ),
+      },
     });
 
     // 3. BACKGROUND PROCESSING (Network I/O)
@@ -686,19 +716,24 @@ module.exports.getUserProfile = async (req, res) => {
       Swipe.findOne({ swiperId: viewerId, targetId: targetUserId }).lean(),
       Block.findOne({
         $or: [
-          { blockerId: viewerId, blockedId: targetUserId }, 
-          { blockerId: targetUserId, blockedId: viewerId }
-        ] 
+          { blockerId: viewerId, blockedId: targetUserId },
+          { blockerId: targetUserId, blockedId: viewerId },
+        ],
       }).lean(),
       Match.findOne({ users: { $all: [viewerId, targetUserId] } }).lean(),
-      redis.get(`boost:${targetUserId}`) 
+      redis.get(`boost:${targetUserId}`),
     ]);
 
     // 2️⃣ Edge Case Handlers
-    if (!targetProfile) return res.status(404).json({ success: false, message: "Profile not found" });
-    if (blockStatus) return res.status(403).json({ success: false, message: "Profile unavailable" });
+    if (!targetProfile)
+      return res
+        .status(404)
+        .json({ success: false, message: "Profile not found" });
+    if (blockStatus)
+      return res
+        .status(403)
+        .json({ success: false, message: "Profile unavailable" });
 
-    
     const formattedData = await formatPublictargetProfile(
       viewerProfile,
       targetProfile,

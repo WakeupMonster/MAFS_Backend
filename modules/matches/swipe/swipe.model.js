@@ -29,7 +29,6 @@ SwipeSchema.index({ swiperId: 1, targetId: 1 }, { unique: true });
 
 module.exports = mongoose.model("Swipe", SwipeSchema);
 
-
 const MatchSchema = new mongoose.Schema(
   {
     users: [
