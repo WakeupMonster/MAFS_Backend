@@ -409,6 +409,193 @@ exports.getWinner = async (req, res) => {
   }
 };
 
+
+
+// controllers/giveaway.controller.js
+
+exports.getAllWinners = async (req, res) => {
+  try {
+    const {
+      page = 1,
+      limit = 10,
+      search = "",
+      status = "",       
+      sortBy = "date",   
+      order = "desc",    
+    } = req.query;
+
+    const pageNum = Math.max(1, parseInt(page));
+    const limitNum = Math.max(1, Math.min(100, parseInt(limit)));
+    const skip = (pageNum - 1) * limitNum;
+    const sortOrder = order === "asc" ? 1 : -1;
+
+    const filter = {};
+    if (status) {
+      filter.drawStatus = status;
+    }
+
+    const pipeline = [];
+
+    if (status) {
+      pipeline.push({ $match: { drawStatus: status } });
+    }
+
+    pipeline.push({
+      $lookup: {
+        from: "GiveawayPrize",       
+        localField: "prizeId",
+        foreignField: "_id",
+        as: "prize",
+      },
+    });
+    pipeline.push({ $unwind: { path: "$prize", preserveNullAndEmptyArrays: true } });
+
+    pipeline.push({
+      $lookup: {
+        from: "users",         
+        localField: "winnerUserId",
+        foreignField: "_id",
+        as: "winner",
+      },
+    });
+    pipeline.push({ $unwind: { path: "$winner", preserveNullAndEmptyArrays: true } });
+
+    if (search.trim()) {
+      const searchRegex = new RegExp(search.trim(), "i");
+      pipeline.push({
+        $match: {
+          $or: [
+            { "prize.title": searchRegex },
+            { "winner.phone": searchRegex },
+            { "winner.email": searchRegex },
+          ],
+        },
+      });
+    }
+
+    const countPipeline = [...pipeline, { $count: "total" }];
+    const countResult = await GiveawayCampaign.aggregate(countPipeline);
+    const total = countResult[0]?.total || 0;
+
+    pipeline.push({ $sort: { [sortBy]: sortOrder } });
+
+    pipeline.push({ $skip: skip });
+    pipeline.push({ $limit: limitNum });
+
+    pipeline.push({
+      $project: {
+        campaignId: "$_id",
+        date: 1,
+        drawStatus: 1,
+        drawAt: 1,
+        prize: {
+          _id: "$prize._id",
+          title: "$prize.title",
+          type: "$prize.type",
+          value: "$prize.value",
+          spinWheelLabel: "$prize.spinWheelLabel",
+
+        },
+        winner: {
+          $cond: {
+            if: { $ifNull: ["$winner._id", false] },
+            then: {
+              _id: "$winner._id",
+              phone: "$winner.phone",
+              email: "$winner.email",
+              nickname : "$winner.nickname"
+            },
+            else: null,
+          },
+        },
+      },
+    });
+
+    const data = await GiveawayCampaign.aggregate(pipeline);
+
+    const stats = await GiveawayCampaign.aggregate([
+      {
+        $group: {
+          _id: null,
+          totalCampaigns: { $sum: 1 },
+          completed: {
+            $sum: { $cond: [{ $eq: ["$drawStatus", "COMPLETED"] }, 1, 0] },
+          },
+          pending: {
+            $sum: { $cond: [{ $eq: ["$drawStatus", "PENDING"] }, 1, 0] },
+          },
+          withWinner: {
+            $sum: { $cond: [{ $ifNull: ["$winnerUserId", false] }, 1, 0] },
+          },
+        },
+      },
+    ]);
+
+    return res.json({
+      success: true,
+      data,
+      pagination: {
+        page: pageNum,
+        limit: limitNum,
+        total,
+        totalPages: Math.ceil(total / limitNum),
+        hasNext: pageNum < Math.ceil(total / limitNum),
+        hasPrev: pageNum > 1,
+      },
+      stats: stats[0] || {
+        totalCampaigns: 0,
+        completed: 0,
+        pending: 0,
+        withWinner: 0,
+      },
+    });
+  } catch (err) {
+    console.error("getAllWinners error:", err);
+    return res.status(500).json({
+      success: false,
+      message: "Failed to fetch winners",
+    });
+  }
+};
+
+// controllers/giveaway.controller.js
+
+// exports.getAllWinners = async (req, res) => {
+//   try {
+//     const { status } = req.query; // optional filter: COMPLETED, PENDING
+
+//     const filter = {};
+//     if (status) {
+//       filter.drawStatus = status;
+//     }
+
+//     const campaigns = await GiveawayCampaign
+//       .find(filter)
+//       .populate("winnerUserId", "email phone")
+//       .populate("prizeId")
+//       .sort({ date: -1 });
+
+//     const data = campaigns.map((campaign) => ({
+//       campaignId: campaign._id,
+//       date: campaign.date,
+//       prize: campaign.prizeId,
+//       winner: campaign.winnerUserId || null,
+//       drawStatus: campaign.drawStatus,
+//       drawAt: campaign.drawAt || null,
+//     }));
+
+//     return res.json({
+//       success: true,
+//       count: data.length,
+//       data,
+//     });
+//   } catch (err) {
+//     return res.status(500).json({
+//       success: false,
+//       message: "Failed to fetch winners",
+//     });
+//   }
+// };
 exports.resendPrize = async (req, res) => {
   try {
     const { id } = req.params;

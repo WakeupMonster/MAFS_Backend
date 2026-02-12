@@ -44,6 +44,8 @@ router.get(
   adminGiveawayController.getWinner
 );
 
+router.get("/campaigns/winners", adminGiveawayController.getAllWinners);
+
 router.post(
   "/campaigns/:id/resend-prize",
   adminGiveawayController.resendPrize

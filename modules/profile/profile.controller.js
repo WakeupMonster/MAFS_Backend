@@ -138,9 +138,9 @@ exports.uploadPhotos = async (req, res) => {
     if (!files || files.length === 0) return res.status(400).json({ success: false, message: "No files uploaded" });
 
     let profile = await getOrCreateProfile(userId);
-    // if (profile.photos.length + files.length > 6) {
-    //   return res.status(400).json({ success: false, message: `Maximum 6 photos allowed.` });
-    // }
+    if (profile.photos.length + files.length > 6) {
+      return res.status(400).json({ success: false, message: `Maximum 6 photos allowed.` });
+    }
 
     const uploadPromises = files.map(file => uploadStream(file.buffer, {
       folder: `mafs/users/${userId}/photos`,
@@ -209,38 +209,137 @@ exports.deletePhoto = async (req, res) => {
   }
 };
 
+
+
 exports.reorderPhotos = async (req, res) => {
   try {
     const userId = req.user._id;
     const { photoIds } = req.body;
-    if (!Array.isArray(photoIds) || photoIds.length === 0) return res.status(400).json({ success: false, message: "photoIds array is required" });
+
+    // ✅ 1. Basic validation
+    if (!Array.isArray(photoIds) || photoIds.length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: "photoIds array is required",
+      });
+    }
+
+    // ✅ 2. Ensure all IDs are strings
+    const cleanedIds = photoIds.map((id) => String(id).trim());
+
+    // ✅ 3. Check for duplicates
+    const uniqueIds = [...new Set(cleanedIds)];
+    if (uniqueIds.length !== cleanedIds.length) {
+      return res.status(400).json({
+        success: false,
+        message: "Duplicate photoIds are not allowed",
+      });
+    }
 
     const profile = await Profile.findOne({ userId });
-    if (!profile) return res.status(404).json({ success: false, message: "Profile not found" });
-    // if (photoIds.length !== profile.photos.length) return res.status(400).json({ success: false, message: "Photo count mismatch" });
+    if (!profile) {
+      return res.status(404).json({
+        success: false,
+        message: "Profile not found",
+      });
+    }
 
+    // ✅ 4. Photo count must match (no silent deletion)
+    if (uniqueIds.length !== profile.photos.length) {
+      return res.status(400).json({
+        success: false,
+        message: `Expected ${profile.photos.length} photoIds, got ${uniqueIds.length}`,
+      });
+    }
+
+    // ✅ 5. Build lookup map
     const photoMap = new Map();
-    profile.photos.forEach(photo => photoMap.set(photo.publicId.toString(), photo));
-
-    const reorderedPhotos = photoIds.map((id, index) => {
-      const photo = photoMap.get(id.trim());
-      if (!photo) throw new Error(`Invalid photoId: ${id}`);
-      return { ...photo.toObject(), order: index + 1, isPrimary: index === 0 };
+    profile.photos.forEach((photo) => {
+      photoMap.set(photo.publicId.toString(), photo);
     });
+
+    // ✅ 6. Validate all IDs exist before reordering
+    const invalidIds = uniqueIds.filter((id) => !photoMap.has(id));
+    if (invalidIds.length > 0) {
+      return res.status(400).json({
+        success: false,
+        message: `Invalid photoIds: ${invalidIds.join(", ")}`,
+      });
+    }
+
+    // ✅ 7. Reorder
+    const reorderedPhotos = uniqueIds.map((id, index) => ({
+      ...photoMap.get(id).toObject(),
+      order: index + 1,
+      isPrimary: index === 0,
+    }));
 
     profile.photos = reorderedPhotos;
     await profile.save();
-    const [data] = await Promise.all([getFullUserData(userId, profile), clearProfileCache(userId)]);
 
-    res.json({
+    // ✅ 8. Response
+    const [data] = await Promise.all([
+      getFullUserData(userId, profile),
+      clearProfileCache(userId),
+    ]);
+
+    return res.json({
       success: true,
       message: "Photos reordered successfully",
-      data: { user: await formatProfileResponse(data.user, profile, data.blockedContacts, data.blockedUser, data.subData,req) }
+      data: {
+        user: await formatProfileResponse(
+          data.user,
+          profile,
+          data.blockedContacts,
+          data.blockedUser,
+          data.subData,
+          req
+        ),
+      },
     });
   } catch (err) {
-    res.status(400).json({ success: false, message: err.message });
+    console.error("reorderPhotos error:", err);
+    return res.status(500).json({
+      success: false,
+      message: "Something went wrong",
+    });
   }
 };
+
+
+
+// exports.reorderPhotos = async (req, res) => {
+//   try {
+//     const userId = req.user._id;
+//     const { photoIds } = req.body;
+//     if (!Array.isArray(photoIds) || photoIds.length === 0) return res.status(400).json({ success: false, message: "photoIds array is required" });
+
+//     const profile = await Profile.findOne({ userId });
+//     if (!profile) return res.status(404).json({ success: false, message: "Profile not found" });
+//     // if (photoIds.length !== profile.photos.length) return res.status(400).json({ success: false, message: "Photo count mismatch" });
+
+//     const photoMap = new Map();
+//     profile.photos.forEach(photo => photoMap.set(photo.publicId.toString(), photo));
+
+//     const reorderedPhotos = photoIds.map((id, index) => {
+//       const photo = photoMap.get(id.trim());
+//       if (!photo) throw new Error(`Invalid photoId: ${id}`);
+//       return { ...photo.toObject(), order: index + 1, isPrimary: index === 0 };
+//     });
+
+//     profile.photos = reorderedPhotos;
+//     await profile.save();
+//     const [data] = await Promise.all([getFullUserData(userId, profile), clearProfileCache(userId)]);
+
+//     res.json({
+//       success: true,
+//       message: "Photos reordered successfully",
+//       data: { user: await formatProfileResponse(data.user, profile, data.blockedContacts, data.blockedUser, data.subData,req) }
+//     });
+//   } catch (err) {
+//     res.status(400).json({ success: false, message: err.message });
+//   }
+// };
 
 // Function name vahi hai, bas logic change kiya hai file handle karne ka
 // module.exports.uploadSelfie = async (req, res) => {

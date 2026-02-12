@@ -108,4 +108,639 @@ const getSubscription = async (req, res, next) => {
   }
 };
 
-module.exports = { verifyPurchase, getStatus, getHistory, getSubscription };
+
+
+const Subscription = require("../../../modules/subscription/models/Subscription");
+const SubscriptionTransaction = require("../../../modules/subscription/models/SubscriptionTransaction");
+const SubscriptionEvent = require("../../../modules/subscription/models/SubscriptionEvent")
+
+const getStats = async (req, res, next) => {
+  try {
+    // Status wise count
+    const statusStats = await Subscription.aggregate([
+      {
+        $group: {
+          _id: "$status",
+          count: { $sum: 1 },
+        },
+      },
+    ]);
+
+    const planStats = await Subscription.aggregate([
+      {
+        $match: { status: "ACTIVE" },
+      },
+      {
+        $group: {
+          _id: "$planType",
+          count: { $sum: 1 },
+        },
+      },
+    ]);
+
+    const platformStats = await Subscription.aggregate([
+      {
+        $match: { status: "ACTIVE" },
+      },
+      {
+        $group: {
+          _id: "$platform",
+          count: { $sum: 1 },
+        },
+      },
+    ]);
+
+    const totalSubscribers = await Subscription.countDocuments();
+
+    const todayStart = new Date();
+    todayStart.setHours(0, 0, 0, 0);
+
+    const todayNew = await Subscription.countDocuments({
+      createdAt: { $gte: todayStart },
+    });
+
+    const todayCancelled = await Subscription.countDocuments({
+      cancelledAt: { $gte: todayStart },
+    });
+
+    const todayRevenue = await SubscriptionTransaction.aggregate([
+      {
+        $match: {
+          eventType: { $in: ["PURCHASE", "RENEW"] },
+          occurredAt: { $gte: todayStart },
+        },
+      },
+      {
+        $group: {
+          _id: null,
+          total: { $sum: "$amount" },
+          count: { $sum: 1 },
+        },
+      },
+    ]);
+
+    const statusMap = {};
+    statusStats.forEach((s) => {
+      statusMap[s._id] = s.count;
+    });
+
+    const planMap = {};
+    planStats.forEach((p) => {
+      planMap[p._id] = p.count;
+    });
+
+    const platformMap = {};
+    platformStats.forEach((p) => {
+      platformMap[p._id] = p.count;
+    });
+
+    return res.json({
+      success: true,
+      stats: {
+        total: totalSubscribers,
+        active: statusMap["ACTIVE"] || 0,
+        grace: statusMap["GRACE"] || 0,
+        expired: statusMap["EXPIRED"] || 0,
+        cancelled: statusMap["CANCELLED"] || 0,
+        revoked: statusMap["REVOKED"] || 0,
+        paused: statusMap["PAUSED"] || 0,
+        pending: statusMap["PENDING"] || 0,
+
+        byPlan: {
+          monthly: planMap["monthly"] || 0,
+          yearly: planMap["yearly"] || 0,
+          weekly: planMap["weekly"] || 0,
+        },
+
+        byPlatform: {
+          ios: platformMap["ios"] || 0,
+          android: platformMap["android"] || 0,
+        },
+
+        today: {
+          newSubscriptions: todayNew,
+          cancellations: todayCancelled,
+          revenue: todayRevenue[0] ? todayRevenue[0].total : 0,
+          transactions: todayRevenue[0] ? todayRevenue[0].count : 0,
+        },
+      },
+    });
+  } catch (err) {
+    logger.error("Admin stats error:", err.message);
+    return next(err);
+  }
+};
+
+
+const getAllSubscriptions = async (req, res, next) => {
+  try {
+    const {
+      status,
+      plan,
+      platform,
+      page = 1,
+      limit = 20,
+      search,
+      sortBy = "createdAt",
+      sortOrder = "desc",
+    } = req.query;
+
+    const filter = {};
+
+    if (status) {
+      filter.status = status;
+    }
+    if (plan) {
+      filter.planType = plan;
+    }
+    if (platform) {
+      filter.platform = platform;
+    }
+
+    if (search) {
+      filter.$or = [
+        { originalTransactionId: { $regex: search, $options: "i" } },
+        { purchaseToken: { $regex: search, $options: "i" } },
+        { orderId: { $regex: search, $options: "i" } },
+      ];
+
+      if (search.match(/^[0-9a-fA-F]{24}$/)) {
+        filter.$or.push({ userId: search });
+      }
+    }
+
+    const pageNum = parseInt(page);
+    const limitNum = parseInt(limit);
+    const skip = (pageNum - 1) * limitNum;
+
+    const sort = {};
+    sort[sortBy] = sortOrder === "asc" ? 1 : -1;
+
+    const [subscriptions, total] = await Promise.all([
+      Subscription.find(filter)
+        .populate("userId", "nickname email phone")
+        .sort(sort)
+        .skip(skip)
+        .limit(limitNum)
+        .lean(),
+      Subscription.countDocuments(filter),
+    ]);
+
+    return res.json({
+      success: true,
+      subscriptions: subscriptions,
+      pagination: {
+        currentPage: pageNum,
+        totalPages: Math.ceil(total / limitNum),
+        totalItems: total,
+        itemsPerPage: limitNum,
+        hasNext: pageNum * limitNum < total,
+        hasPrev: pageNum > 1,
+      },
+    });
+  } catch (err) {
+    logger.error("Admin get subscriptions error:", err.message);
+    return next(err);
+  }
+};
+
+
+const getUserSubscriptionDetail = async (req, res, next) => {
+  try {
+    const { userId } = req.params;
+
+    const subscription = await Subscription.findOne({ userId: userId })
+      .populate("userId", "name email phone profileImage")
+      .sort({ createdAt: -1 })
+      .lean();
+
+    if (!subscription) {
+      return res.json({
+        success: true,
+        subscription: null,
+        transactions: [],
+        events: [],
+        message: "No subscription found for this user",
+      });
+    }
+
+    const transactions = await SubscriptionTransaction.find({
+      userId: userId,
+    })
+      .sort({ occurredAt: -1 })
+      .lean();
+
+    const events = await SubscriptionEvent.find({
+      subscriptionId: subscription._id,
+    })
+      .sort({ receivedAt: -1 })
+      .limit(50)
+      .lean();
+
+    return res.json({
+      success: true,
+      subscription: subscription,
+      transactions: transactions,
+      events: events,
+      summary: {
+        totalPaid: transactions
+          .filter((t) => t.eventType === "PURCHASE" || t.eventType === "RENEW")
+          .reduce((sum, t) => sum + (t.amount || 0), 0),
+        totalRefunded: transactions
+          .filter((t) => t.eventType === "REFUND")
+          .reduce((sum, t) => sum + (t.refundAmount || 0), 0),
+        totalTransactions: transactions.length,
+        renewalCount: transactions.filter((t) => t.eventType === "RENEW").length,
+        daysSinceStart: Math.floor(
+          (new Date() - new Date(subscription.startedAt)) / (1000 * 60 * 60 * 24)
+        ),
+      },
+    });
+  } catch (err) {
+    logger.error("Admin user detail error:", err.message);
+    return next(err);
+  }
+};
+
+
+const getRevenueAnalytics = async (req, res, next) => {
+  try {
+    const {
+      period = "month",
+      startDate,
+      endDate,
+    } = req.query;
+
+    let start;
+    let end = new Date();
+
+    if (startDate && endDate) {
+      start = new Date(startDate);
+      end = new Date(endDate);
+    } else {
+      switch (period) {
+        case "today":
+          start = new Date();
+          start.setHours(0, 0, 0, 0);
+          break;
+        case "week":
+          start = new Date();
+          start.setDate(start.getDate() - 7);
+          break;
+        case "month":
+          start = new Date();
+          start.setMonth(start.getMonth() - 1);
+          break;
+        case "year":
+          start = new Date();
+          start.setFullYear(start.getFullYear() - 1);
+          break;
+        default:
+          start = new Date();
+          start.setMonth(start.getMonth() - 1);
+      }
+    }
+
+    const revenueByType = await SubscriptionTransaction.aggregate([
+      {
+        $match: {
+          occurredAt: { $gte: start, $lte: end },
+          eventType: { $in: ["PURCHASE", "RENEW", "REFUND"] },
+        },
+      },
+      {
+        $group: {
+          _id: "$eventType",
+          totalAmount: { $sum: "$amount" },
+          totalRefund: { $sum: "$refundAmount" },
+          count: { $sum: 1 },
+        },
+      },
+    ]);
+
+    const dailyRevenue = await SubscriptionTransaction.aggregate([
+      {
+        $match: {
+          occurredAt: { $gte: start, $lte: end },
+          eventType: { $in: ["PURCHASE", "RENEW"] },
+        },
+      },
+      {
+        $group: {
+          _id: {
+            $dateToString: { format: "%Y-%m-%d", date: "$occurredAt" },
+          },
+          revenue: { $sum: "$amount" },
+          count: { $sum: 1 },
+        },
+      },
+      { $sort: { _id: 1 } },
+    ]);
+
+    const revenueByPlan = await SubscriptionTransaction.aggregate([
+      {
+        $match: {
+          occurredAt: { $gte: start, $lte: end },
+          eventType: { $in: ["PURCHASE", "RENEW"] },
+        },
+      },
+      {
+        $lookup: {
+          from: "subscriptions",
+          localField: "subscriptionId",
+          foreignField: "_id",
+          as: "subscription",
+        },
+      },
+      { $unwind: "$subscription" },
+      {
+        $group: {
+          _id: "$subscription.planType",
+          revenue: { $sum: "$amount" },
+          count: { $sum: 1 },
+        },
+      },
+    ]);
+
+    const revenueByPlatform = await SubscriptionTransaction.aggregate([
+      {
+        $match: {
+          occurredAt: { $gte: start, $lte: end },
+          eventType: { $in: ["PURCHASE", "RENEW"] },
+        },
+      },
+      {
+        $group: {
+          _id: "$platform",
+          revenue: { $sum: "$amount" },
+          count: { $sum: 1 },
+        },
+      },
+    ]);
+
+    const typeMap = {};
+    revenueByType.forEach((r) => {
+      typeMap[r._id] = r;
+    });
+
+    const purchases = typeMap["PURCHASE"] || { totalAmount: 0, count: 0 };
+    const renewals = typeMap["RENEW"] || { totalAmount: 0, count: 0 };
+    const refunds = typeMap["REFUND"] || { totalRefund: 0, count: 0 };
+
+    const totalRevenue = purchases.totalAmount + renewals.totalAmount;
+    const netRevenue = totalRevenue - (refunds.totalRefund || 0);
+
+    return res.json({
+      success: true,
+      period: { start: start, end: end },
+      revenue: {
+        total: totalRevenue,
+        net: netRevenue,
+        purchases: {
+          amount: purchases.totalAmount,
+          count: purchases.count,
+        },
+        renewals: {
+          amount: renewals.totalAmount,
+          count: renewals.count,
+        },
+        refunds: {
+          amount: refunds.totalRefund || 0,
+          count: refunds.count,
+        },
+      },
+      daily: dailyRevenue,
+      byPlan: revenueByPlan,
+      byPlatform: revenueByPlatform,
+    });
+  } catch (err) {
+    logger.error("Admin revenue error:", err.message);
+    return next(err);
+  }
+};
+
+
+
+const getCancellationAnalytics = async (req, res, next) => {
+  try {
+    const { period = "month" } = req.query;
+
+    let start = new Date();
+    if (period === "week") start.setDate(start.getDate() - 7);
+    else if (period === "month") start.setMonth(start.getMonth() - 1);
+    else if (period === "year") start.setFullYear(start.getFullYear() - 1);
+
+    const byReason = await Subscription.aggregate([
+      {
+        $match: {
+          cancelledAt: { $gte: start },
+          cancellationReason: { $exists: true },
+        },
+      },
+      {
+        $group: {
+          _id: "$cancellationReason",
+          count: { $sum: 1 },
+        },
+      },
+      { $sort: { count: -1 } },
+    ]);
+
+    const byPlan = await Subscription.aggregate([
+      {
+        $match: { cancelledAt: { $gte: start } },
+      },
+      {
+        $group: {
+          _id: "$planType",
+          count: { $sum: 1 },
+        },
+      },
+    ]);
+
+    const byPlatform = await Subscription.aggregate([
+      {
+        $match: { cancelledAt: { $gte: start } },
+      },
+      {
+        $group: {
+          _id: "$platform",
+          count: { $sum: 1 },
+        },
+      },
+    ]);
+
+    const daily = await Subscription.aggregate([
+      {
+        $match: { cancelledAt: { $gte: start } },
+      },
+      {
+        $group: {
+          _id: {
+            $dateToString: { format: "%Y-%m-%d", date: "$cancelledAt" },
+          },
+          count: { $sum: 1 },
+        },
+      },
+      { $sort: { _id: 1 } },
+    ]);
+
+    const totalCancelled = byReason.reduce((sum, r) => sum + r.count, 0);
+
+    return res.json({
+      success: true,
+      total: totalCancelled,
+      byReason: byReason,
+      byPlan: byPlan,
+      byPlatform: byPlatform,
+      daily: daily,
+    });
+  } catch (err) {
+    logger.error("Admin cancellation error:", err.message);
+    return next(err);
+  }
+};
+
+
+
+const getAtRiskUsers = async (req, res, next) => {
+  try {
+    const { page = 1, limit = 20 } = req.query;
+    const skip = (parseInt(page) - 1) * parseInt(limit);
+
+    const [users, total] = await Promise.all([
+      Subscription.find({
+        status: "GRACE",
+      })
+        .populate("userId", "name email phone")
+        .sort({ gracePeriodEndsAt: 1 })
+        .skip(skip)
+        .limit(parseInt(limit))
+        .lean(),
+      Subscription.countDocuments({ status: "GRACE" }),
+    ]);
+
+    return res.json({
+      success: true,
+      total: total,
+      atRiskUsers: users.map((u) => ({
+        userId: u.userId,
+        plan: u.planType,
+        platform: u.platform,
+        retryCount: u.retryCount,
+        gracePeriodEndsAt: u.gracePeriodEndsAt,
+        daysRemaining: Math.max(
+          0,
+          Math.ceil((new Date(u.gracePeriodEndsAt) - new Date()) / (1000 * 60 * 60 * 24))
+        ),
+        startedAt: u.startedAt,
+      })),
+      pagination: {
+        currentPage: parseInt(page),
+        totalPages: Math.ceil(total / parseInt(limit)),
+        totalItems: total,
+      },
+    });
+  } catch (err) {
+    logger.error("Admin at risk error:", err.message);
+    return next(err);
+  }
+};
+
+
+const getWebhookEvents = async (req, res, next) => {
+  try {
+    const {
+      platform,
+      eventType,
+      processed,
+      page = 1,
+      limit = 20,
+    } = req.query;
+
+    const filter = {};
+    if (platform) filter.platform = platform;
+    if (eventType) filter.eventType = eventType;
+    if (processed !== undefined) filter.processed = processed === "true";
+
+    const skip = (parseInt(page) - 1) * parseInt(limit);
+
+    const [events, total] = await Promise.all([
+      SubscriptionEvent.find(filter)
+        .sort({ receivedAt: -1 })
+        .skip(skip)
+        .limit(parseInt(limit))
+        .lean(),
+      SubscriptionEvent.countDocuments(filter),
+    ]);
+
+    const failedCount = await SubscriptionEvent.countDocuments({
+      processed: false,
+      "error.retryCount": { $gte: 5 },
+    });
+
+    return res.json({
+      success: true,
+      events: events,
+      failedCount: failedCount,
+      pagination: {
+        currentPage: parseInt(page),
+        totalPages: Math.ceil(total / parseInt(limit)),
+        totalItems: total,
+      },
+    });
+  } catch (err) {
+    logger.error("Admin webhook events error:", err.message);
+    return next(err);
+  }
+};
+const getAllTransactions = async (req, res, next) => {
+  try {
+    const {
+      eventType,
+      platform,
+      page = 1,
+      limit = 20,
+      startDate,
+      endDate,
+    } = req.query;
+
+    const filter = {};
+    if (eventType) filter.eventType = eventType;
+    if (platform) filter.platform = platform;
+    if (startDate && endDate) {
+      filter.occurredAt = {
+        $gte: new Date(startDate),
+        $lte: new Date(endDate),
+      };
+    }
+
+    const skip = (parseInt(page) - 1) * parseInt(limit);
+
+    const [transactions, total] = await Promise.all([
+      SubscriptionTransaction.find(filter)
+        .populate("userId", "nickname email phone")
+        .sort({ occurredAt: -1 })
+        .skip(skip)
+        .limit(parseInt(limit))
+        .lean(),
+      SubscriptionTransaction.countDocuments(filter),
+    ]);
+
+    return res.json({
+      success: true,
+      transactions: transactions,
+      pagination: {
+        currentPage: parseInt(page),
+        totalPages: Math.ceil(total / parseInt(limit)),
+        totalItems: total,
+      },
+    });
+  } catch (err) {
+    logger.error("Admin transactions error:", err.message);
+    return next(err);
+  }
+};
+
+
+module.exports = { verifyPurchase, getStatus, getHistory, getSubscription,getStats,getAllSubscriptions,getUserSubscriptionDetail, getRevenueAnalytics, getCancellationAnalytics, getAtRiskUsers, getWebhookEvents, getAllTransactions };

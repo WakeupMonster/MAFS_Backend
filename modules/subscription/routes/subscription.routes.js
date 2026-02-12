@@ -1,37 +1,24 @@
 const express = require("express");
 const router = express.Router();
-const { verifyPurchase, getStatus, getHistory, getSubscription } = require("../controllers/subscription.controller");
+const { verifyPurchase, getStatus, getHistory, getSubscription, getStats, getAllSubscriptions,getUserSubscriptionDetail,getRevenueAnalytics, getCancellationAnalytics, getAtRiskUsers,getWebhookEvents, getAllTransactions } = require("../controllers/subscription.controller");
 const { apiLimiter } = require("../middlewares/rateLimiter.middleware");
 const { validate, verifyPurchaseSchema } = require("../validators/subscription.validator");
+const protect = require("../../auth/auth.middleware")
 
-// NOTE: 'protect' middleware tumhara existing auth middleware hai
-// Agar nahi hai toh neeche wala dummy use karo testing ke liye
-const protect = (req, res, next) => {
-  // Tumhara existing JWT auth middleware yaha import karo
-  // const { protect } = require("../middlewares/auth.middleware");
-  // Abhi testing ke liye dummy user set kar rahe hain
-
-  try {
-    const jwt = require("jsonwebtoken");
-    const authHeader = req.headers.authorization;
-
-    if (!authHeader || !authHeader.startsWith("Bearer ")) {
-      return res.status(401).json({ success: false, error: "No token provided" });
-    }
-
-    const token = authHeader.split("Bearer ")[1];
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    req.user = { _id: decoded.id || decoded._id || decoded.userId };
-    next();
-  // eslint-disable-next-line no-unused-vars
-  } catch (err) {
-    return res.status(401).json({ success: false, error: "Invalid token" });
-  }
-};
 
 router.post("/verify", apiLimiter, protect, validate(verifyPurchaseSchema), verifyPurchase);
 router.get("/status", apiLimiter, protect, getStatus);
 router.get("/history", apiLimiter, protect, getHistory);
 router.get("/details", apiLimiter, protect, getSubscription);
+
+
+router.get("/stats",apiLimiter,protect,getStats)
+router.get("/subsciptionlist",apiLimiter,protect,getAllSubscriptions)
+router.get("/user/:userId",apiLimiter,protect,getUserSubscriptionDetail)
+router.get("/revenue",apiLimiter,protect,getRevenueAnalytics)
+router.get("/cancel",apiLimiter,protect,getCancellationAnalytics)
+router.get("/risk",apiLimiter,protect,getAtRiskUsers)
+router.get("/webhook",apiLimiter,protect,getWebhookEvents)
+router.get("/alltransection",apiLimiter,protect,getAllTransactions)
 
 module.exports = router;
