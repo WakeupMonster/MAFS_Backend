@@ -1,8 +1,8 @@
 const Joi = require("joi");
 
 const adminRegisterSchema = Joi.object({
-  fullName: Joi.string().min(3).max(50).required().messages({
-    "string.empty": "Full name is required",
+  nickname: Joi.string().min(3).max(50).required().messages({
+    "string.empty": "Nick name is required",
   }),
   // Email is optional but must be valid if provided
   email: Joi.string().email().lowercase().trim(),

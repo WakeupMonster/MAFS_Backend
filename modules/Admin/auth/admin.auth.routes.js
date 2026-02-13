@@ -1,35 +1,32 @@
 const express = require("express");
 const router = express.Router();
 const adminController = require("./auth.admin.controller");
-const auth = require("../../auth/auth.middleware");
-const allowAdminMiddleware = require("../../../common/middlewares/allowAdmin.middleware");
+// Middlewares
+const auth = require("../../../modules/auth/auth.middleware");
+// const {
+//   allowAdmin,
+// } = require("../../../common/middlewares/allowAdmin.middleware");
 
-
+/** @section Public Auth Routes These are accessible without a token */
 router.post("/login", adminController.adminLogin);
 router.post("/register", adminController.adminRegister);
-router.post("/send-email-otp", adminController.sendEmailPassOTP);
-// router.post("/verify-email-otp", adminController.verifyEmailOTP);
-router.post("/forgot-password", adminController.adminForgotPassword);
+
+/*============= POST API'S FORGET PASSWORD =====================*/
+router.post("/request-otp", adminController.sendEmailOTP);
+router.post("/verify-otp", adminController.verifyEmailOTP);
+router.patch("/forgot-password", adminController.adminForgotPassword);
+
+/*
+ * ============= ATUHORIZED OR ENSURE ROLE IS ADMIN or not =============
+ */
+// --- Protected Admin Routes ---
 router.use(auth);
-router.get("/profile", adminController.getProfile);
+// router.use(allowAdmin);
 
-
-// Update admin name
-router.put("/profile/update-name", adminController.updateName);
-
-
-// Send OTP to new email for verification
-router.post("/profile/send-email-otp", adminController.sendEmailOTP);
-
-
-// Verify OTP and update email
-router.post("/profile/verify-email-otp", adminController.verifyEmailOTP);
-
-
-router.post(
-  "/reset-password",
-  allowAdminMiddleware,
-  adminController.adminResetPassword
-);
+/**
+ * @section Protected Auth Routes
+ * Note: 'auth' and 'allowAdmin' are already applied in the Master Index
+ */
+router.post("/reset-password", adminController.adminResetPassword);
 
 module.exports = router;

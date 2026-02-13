@@ -1,7 +1,7 @@
 const AdminEmailCampaign = require("./adminEmailCampaign.model");
 const emailQueue = require("../../../queues/email.queue");
 
-exports.createEmailCampaign = async (req, res) => {
+module.exports.createEmailCampaign = async (req, res) => {
   try {
     const adminId = req.user._id;
     const { campaignName, subject, body, target } = req.body;
@@ -9,7 +9,7 @@ exports.createEmailCampaign = async (req, res) => {
     if (!campaignName || !subject || !body || !target) {
       return res.status(400).json({
         success: false,
-        message: "Missing required fields"
+        message: "Missing required fields",
       });
     }
 
@@ -18,23 +18,23 @@ exports.createEmailCampaign = async (req, res) => {
       subject,
       body,
       target,
-      createdBy: adminId
+      createdBy: adminId,
     });
 
     await emailQueue.add("send_campaign_email", {
-      campaignId: campaign._id
+      campaignId: campaign._id,
     });
 
     return res.json({
       success: true,
       message: "Email campaign queued successfully",
-      campaignId: campaign._id
+      campaignId: campaign._id,
     });
   } catch (err) {
     console.error("❌ Email campaign error:", err);
     return res.status(500).json({
       success: false,
-      message: "Failed to create email campaign"
+      message: "Failed to create email campaign",
     });
   }
 };

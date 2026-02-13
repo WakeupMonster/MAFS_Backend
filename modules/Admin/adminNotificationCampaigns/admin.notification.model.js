@@ -1,68 +1,61 @@
 const mongoose = require("mongoose");
 
-const AdminNotificationSchema = new mongoose.Schema({
-  campaignName: { type: String, required: true },
+const AdminNotificationSchema = new mongoose.Schema(
+  {
+    campaignName: { type: String, required: true },
 
-  title: { type: String, required: true },
-  message: { type: String, required: true },
+    title: { type: String, required: true },
+    message: { type: String, required: true },
 
-  cta: {
-    label: String,
-    action: String // OPEN_CHAT | BUY_PREMIUM | OPEN_APP
-  },
+    cta: {
+      label: String,
+      action: String, // OPEN_CHAT | BUY_PREMIUM | OPEN_APP
+    },
 
-  target: {
-    type: String,
-    enum: ["premium_users","premium_expiry","all_users","free_users"],
-    required: true
-  },
+    target: {
+      type: String,
+      enum: ["premium_users", "premium_expiry", "all_users", "free_users"],
+      required: true,
+    },
 
-  channels: {
-    push: { type: Boolean, default: true },
-    inApp: { type: Boolean, default: true },
-    email: { type: Boolean, default: false }
-  },
+    channels: {
+      push: { type: Boolean, default: true },
+      inApp: { type: Boolean, default: true },
+      email: { type: Boolean, default: false },
+    },
 
-     mode: {
+    mode: {
       type: String,
       enum: ["auto", "manual"],
       default: "auto",
-      index: true
+      index: true,
     },
 
-    expiryRule: {
-      daysBeforeExpiry: Number
+    expiryRule: { daysBeforeExpiry: Number },
+
+    scheduleAt: { type: Date, default: null }, // null = send now
+
+    status: {
+      type: String,
+      enum: ["pending", "scheduled", "sent"],
+      default: "pending",
     },
 
-  scheduleAt: { type: Date, default: null }, // null = send now
+    sentCount: { type: Number, default: 0 },
 
-  status: {
-    type: String,
-    enum: ["pending", "scheduled", "sent"],
-    default: "pending"
+    createdBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+      required: true,
+    },
   },
-
-  sentCount: { type: Number, default: 0 },
-
-  createdBy: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: "User",
-    required: true
-  }
-
-}, { timestamps: true });
+  { timestamps: true }
+);
 
 module.exports = mongoose.model(
   "AdminNotificationCampaign",
   AdminNotificationSchema
 );
-
-
-
-
-
-
-
 
 // {
 //   "campaignName": "Premium Offer July",
@@ -75,7 +68,6 @@ module.exports = mongoose.model(
 //   "sendNow": true
 // }
 
-
 // {
 //   "campaignName": "Premium Expiry Reminder",
 //   "title": "Premium Ending Soon ⏰",
@@ -87,7 +79,6 @@ module.exports = mongoose.model(
 //   "sendNow": false,
 //   "scheduleAt": "2026-01-26T20:00:00.000Z"
 // }
-
 
 // PREMIUM EXPIRE DATA
 

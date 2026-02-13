@@ -1,23 +1,20 @@
 const express = require("express");
 const router = express.Router();
 const cmsController = require("./content.admin.controller");
-const auth = require("../../auth/auth.middleware");
-const allowAdminMiddleware = require("../../../common/middlewares/allowAdmin.middleware");
 
+/** @section FAQ Management */
+router.post("/faq", cmsController.createFAQ); // Create
+router.patch("/faq/:id", cmsController.updateFAQ); // Update
+router.delete("/faq/:id", cmsController.deleteFAQ); // Delete
 
-router.use(auth);
-router.use(allowAdminMiddleware);
+/** @section Privacy Policy */
+router.post("/privacy-policy", cmsController.updatePrivacyPolicy); // ADD & Update Privacy Policy
 
-router.post("/add-faq", cmsController.createFAQ);
-router.patch("/update-faq", cmsController.updateFAQ);
-router.delete("/delete-faq", cmsController.deleteFAQ);
+// router.post("/add-privacy-policy", cmsController.addPrivacySection);
+// router.patch("/update-privacy-policy", cmsController.updatePrivacySection);
+// router.delete("/delete-privacy-policy", cmsController.deletePrivacySection);
 
-router.post("/add-privacy-policy", cmsController.addPrivacySection);
-router.patch("/update-privacy-policy", cmsController.updatePrivacySection);
-router.delete("/delete-privacy-policy", cmsController.deletePrivacySection);
-
-router.post("/add-terms-conditions", cmsController.addTermCondtion);
-router.patch("/update-terms-conditions", cmsController.updateTermCondtion);
-router.delete("/delete-terms-conditions", cmsController.deleteTermCondtion);
+/** @section Terms & Conditions*/
+router.post("/terms-conditions", cmsController.updateTermsCondition); // ADD & Update terms conditions
 
 module.exports = router;

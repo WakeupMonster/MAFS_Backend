@@ -1,21 +1,17 @@
 const express = require("express");
 const router = express.Router();
-const adminAuth = require("../../../modules/auth/auth.middleware");
-
 const {
   broadcastNotification,
   sendNotificationToPremiumUsers,
   createPremiumExpiryCampaign,
-  getNotificationHistory
+  getNotificationHistory,
 } = require("./adminNotification.controller");
-  
-const {createEmailCampaign} = require("./adminEmail.controller")
 
-router.use(adminAuth);
+const { createEmailCampaign } = require("./adminEmail.controller");
 
 router.post("/broadcast", broadcastNotification);
 
-router.post("/broadcastemail", adminAuth, createEmailCampaign);
+router.post("/broadcastemail", createEmailCampaign);
 
 router.post("/premium/send", sendNotificationToPremiumUsers);
 

@@ -5,7 +5,7 @@ const SupportTicketSchema = new mongoose.Schema(
     userId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",
-      required: true
+      required: true,
     },
 
     category: {
@@ -18,40 +18,26 @@ const SupportTicketSchema = new mongoose.Schema(
         "Troubleshooting",
         "Security & Privacy",
         "Safety & Reporting",
-        "Other"
+        "Other",
       ],
-      required: true
-    },
-
-    subject: {
-      type: String,
       required: true,
-      trim: true
     },
 
-    message: {
-      type: String,
-      required: true
-    },
+    subject: { type: String, required: true, trim: true },
 
-    attachments: [
-      {
-        url: String,
-        publicId: String
-      }
-    ],
+    message: { type: String, required: true },
+
+    attachments: [{ url: String, publicId: String }],
 
     status: {
       type: String,
       enum: ["open", "in_progress", "resolved", "closed"],
-      default: "open"
+      default: "open",
     },
 
-    adminReply: {
-      type: String
-    },
+    adminReply: { type: String },
 
-    repliedAt: Date
+    repliedAt: Date,
   },
   { timestamps: true }
 );

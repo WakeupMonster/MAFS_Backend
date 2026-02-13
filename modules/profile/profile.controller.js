@@ -209,33 +209,31 @@ exports.deletePhoto = async (req, res) => {
   }
 };
 
-
-
 exports.reorderPhotos = async (req, res) => {
   try {
     const userId = req.user._id;
-    const { photoIds } = req.body;
+    const { photoId, toPosition } = req.body;
 
-    // ✅ 1. Basic validation
-    if (!Array.isArray(photoIds) || photoIds.length === 0) {
+    // ✅ 1. Validation
+    if (!photoId || !toPosition) {
       return res.status(400).json({
         success: false,
-        message: "photoIds array is required",
+        message: "photoId and toPosition are required",
       });
     }
 
-    // ✅ 2. Ensure all IDs are strings
-    const cleanedIds = photoIds.map((id) => String(id).trim());
+    const cleanedPhotoId = String(photoId).trim();
+    const position = parseInt(toPosition);
 
-    // ✅ 3. Check for duplicates
-    const uniqueIds = [...new Set(cleanedIds)];
-    if (uniqueIds.length !== cleanedIds.length) {
+    // ✅ 2. Position valid hai ya nahi
+    if (isNaN(position) || position < 1) {
       return res.status(400).json({
         success: false,
-        message: "Duplicate photoIds are not allowed",
+        message: "toPosition must be a number >= 1",
       });
     }
 
+    // ✅ 3. Profile find karo
     const profile = await Profile.findOne({ userId });
     if (!profile) {
       return res.status(404).json({
@@ -244,40 +242,52 @@ exports.reorderPhotos = async (req, res) => {
       });
     }
 
-    // ✅ 4. Photo count must match (no silent deletion)
-    if (uniqueIds.length !== profile.photos.length) {
+    // ✅ 4. Position photos count se zyada toh nahi
+    if (position > profile.photos.length) {
       return res.status(400).json({
         success: false,
-        message: `Expected ${profile.photos.length} photoIds, got ${uniqueIds.length}`,
+        message: `toPosition cannot be greater than ${profile.photos.length}`,
       });
     }
 
-    // ✅ 5. Build lookup map
-    const photoMap = new Map();
-    profile.photos.forEach((photo) => {
-      photoMap.set(photo.publicId.toString(), photo);
-    });
+    // ✅ 5. Photo find karo — current index nikalo
+    const currentIndex = profile.photos.findIndex(
+      (p) => p.publicId.toString() === cleanedPhotoId
+    );
 
-    // ✅ 6. Validate all IDs exist before reordering
-    const invalidIds = uniqueIds.filter((id) => !photoMap.has(id));
-    if (invalidIds.length > 0) {
+    if (currentIndex === -1) {
       return res.status(400).json({
         success: false,
-        message: `Invalid photoIds: ${invalidIds.join(", ")}`,
+        message: "Photo not found in profile",
       });
     }
 
-    // ✅ 7. Reorder
-    const reorderedPhotos = uniqueIds.map((id, index) => ({
-      ...photoMap.get(id).toObject(),
+    const newIndex = position - 1; // position 1 = index 0
+
+    // ✅ 6. Same position pe hai toh kuch mat karo
+    if (currentIndex === newIndex) {
+      return res.status(400).json({
+        success: false,
+        message: "Photo is already at this position",
+      });
+    }
+
+    // ✅ 7. INSERT LOGIC — NIKALO aur DAALO
+    const photosArray = [...profile.photos];
+    const [movedPhoto] = photosArray.splice(currentIndex, 1); // NIKALO
+    photosArray.splice(newIndex, 0, movedPhoto);               // DAALO
+
+    // ✅ 8. Order aur isPrimary update karo
+    const updatedPhotos = photosArray.map((photo, index) => ({
+      ...photo.toObject(),
       order: index + 1,
       isPrimary: index === 0,
     }));
 
-    profile.photos = reorderedPhotos;
+    profile.photos = updatedPhotos;
     await profile.save();
 
-    // ✅ 8. Response
+    // ✅ 9. Response
     const [data] = await Promise.all([
       getFullUserData(userId, profile),
       clearProfileCache(userId),
@@ -285,7 +295,7 @@ exports.reorderPhotos = async (req, res) => {
 
     return res.json({
       success: true,
-      message: "Photos reordered successfully",
+      message: `Photo moved to position ${position}`,
       data: {
         user: await formatProfileResponse(
           data.user,
@@ -305,6 +315,101 @@ exports.reorderPhotos = async (req, res) => {
     });
   }
 };
+
+// exports.reorderPhotos = async (req, res) => {
+//   try {
+//     const userId = req.user._id;
+//     const { photoIds } = req.body;
+
+//     // ✅ 1. Basic validation
+//     if (!Array.isArray(photoIds) || photoIds.length === 0) {
+//       return res.status(400).json({
+//         success: false,
+//         message: "photoIds array is required",
+//       });
+//     }
+
+//     // ✅ 2. Ensure all IDs are strings
+//     const cleanedIds = photoIds.map((id) => String(id).trim());
+
+//     // ✅ 3. Check for duplicates
+//     const uniqueIds = [...new Set(cleanedIds)];
+//     if (uniqueIds.length !== cleanedIds.length) {
+//       return res.status(400).json({
+//         success: false,
+//         message: "Duplicate photoIds are not allowed",
+//       });
+//     }
+
+//     const profile = await Profile.findOne({ userId });
+//     if (!profile) {
+//       return res.status(404).json({
+//         success: false,
+//         message: "Profile not found",
+//       });
+//     }
+
+//     // ✅ 4. Photo count must match (no silent deletion)
+//     if (uniqueIds.length !== profile.photos.length) {
+//       return res.status(400).json({
+//         success: false,
+//         message: `Expected ${profile.photos.length} photoIds, got ${uniqueIds.length}`,
+//       });
+//     }
+
+//     // ✅ 5. Build lookup map
+//     const photoMap = new Map();
+//     profile.photos.forEach((photo) => {
+//       photoMap.set(photo.publicId.toString(), photo);
+//     });
+
+//     // ✅ 6. Validate all IDs exist before reordering
+//     const invalidIds = uniqueIds.filter((id) => !photoMap.has(id));
+//     if (invalidIds.length > 0) {
+//       return res.status(400).json({
+//         success: false,
+//         message: `Invalid photoIds: ${invalidIds.join(", ")}`,
+//       });
+//     }
+
+//     // ✅ 7. Reorder
+//     const reorderedPhotos = uniqueIds.map((id, index) => ({
+//       ...photoMap.get(id).toObject(),
+//       order: index + 1,
+//       isPrimary: index === 0,
+//     }));
+
+//     profile.photos = reorderedPhotos;
+//     await profile.save();
+
+//     // ✅ 8. Response
+//     const [data] = await Promise.all([
+//       getFullUserData(userId, profile),
+//       clearProfileCache(userId),
+//     ]);
+
+//     return res.json({
+//       success: true,
+//       message: "Photos reordered successfully",
+//       data: {
+//         user: await formatProfileResponse(
+//           data.user,
+//           profile,
+//           data.blockedContacts,
+//           data.blockedUser,
+//           data.subData,
+//           req
+//         ),
+//       },
+//     });
+//   } catch (err) {
+//     console.error("reorderPhotos error:", err);
+//     return res.status(500).json({
+//       success: false,
+//       message: "Something went wrong",
+//     });
+//   }
+// };
 
 
 

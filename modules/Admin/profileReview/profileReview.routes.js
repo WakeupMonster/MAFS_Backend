@@ -1,13 +1,13 @@
-const express = require('express');
+const express = require("express");
 const router = express.Router();
-const { 
-  getReportedProfiles, 
-  getProfileForReview, 
-  updateProfileStatus 
-} = require('./profileReview.controller');
+const {
+  getReportedProfiles,
+  getProfileForReview,
+  updateProfileStatus,
+} = require("./profileReview.controller");
 
-router.get('/reported', getReportedProfiles);
-router.get('/:userId', getProfileForReview);
-router.put('/:userId/status', updateProfileStatus);
+router.get("/reported", getReportedProfiles);
+router.get("/:userId", getProfileForReview);
+router.put("/:userId/status", updateProfileStatus);
 
 module.exports = router;

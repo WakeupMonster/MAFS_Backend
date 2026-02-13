@@ -46,6 +46,12 @@ tonight.setHours(24, 0, 0, 0);
         bannedBy: user.banDetails?.bannedBy || null,
         bannedAt: user.banDetails?.bannedAt || null
       },
+      suspensionDetails : {
+        isSuspended : user.suspensionDetails?.isSuspended || false,
+        reason: user.suspensionDetails?.reason || null,
+        suspendedAt : user.suspensionDetails?.suspendedAt || null,
+        suspendUntil : user.suspensionDetails?.suspendUntil || null
+      },
       deactivationDetails: {
         isDeactivated: user.deactivationDetails?.isDeactivated || false,
         reason: user.deactivationDetails?.reason || null,

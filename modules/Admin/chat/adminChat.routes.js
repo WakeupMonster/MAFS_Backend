@@ -5,12 +5,8 @@ const {
   getReportedChats,
   getChatMessagesForReview,
   takeChatAction,
-  getChatActionHistory
+  getChatActionHistory,
 } = require("./adminChat.controller");
-
-const adminAuth = require("../../../modules/auth/auth.middleware");
-
-router.use(adminAuth);
 
 /**
  * GET all reported chats (queue)

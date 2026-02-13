@@ -1,34 +1,34 @@
 const ChatMessage = require("../../../modules/matches/chat/chat.message.model");
-const {Match}  = require("../../../modules/matches/swipe/swipe.model");
+const { Match } = require("../../../modules/matches/swipe/swipe.model");
 const Report = require("../../../modules/profile/user.report");
 const User = require("../../../modules/auth/auth.model");
 
-exports.getReportedChats = async (req, res) => {
+module.exports.getReportedChats = async (req, res) => {
   try {
     const chats = await Report.aggregate([
       {
         $match: {
           type: "chat",
-          status: { $in: ["new", "in_progress"] }
-        }
+          status: { $in: ["new", "in_progress"] },
+        },
       },
       {
         $group: {
           _id: "$matchId",
           reportCount: { $sum: 1 },
           reasons: { $addToSet: "$reason" },
-          lastReportedAt: { $max: "$createdAt" }
-        }
+          lastReportedAt: { $max: "$createdAt" },
+        },
       },
       {
         $lookup: {
           from: "matches",
           localField: "_id",
           foreignField: "_id",
-          as: "match"
-        }
+          as: "match",
+        },
       },
-      { $sort: { lastReportedAt: -1 } }
+      { $sort: { lastReportedAt: -1 } },
     ]);
 
     return res.json({ success: true, data: chats });
@@ -36,13 +36,12 @@ exports.getReportedChats = async (req, res) => {
     console.error("Admin getReportedChats error:", err);
     return res.status(500).json({
       success: false,
-      message: "Failed to fetch reported chats"
+      message: "Failed to fetch reported chats",
     });
   }
 };
 
-
-exports.getChatMessagesForReview = async (req, res) => {
+module.exports.getChatMessagesForReview = async (req, res) => {
   try {
     const { matchId } = req.params;
     const { limit = 50 } = req.query;
@@ -50,13 +49,13 @@ exports.getChatMessagesForReview = async (req, res) => {
     if (!match) {
       return res.status(404).json({
         success: false,
-        message: "Match not found"
+        message: "Match not found",
       });
     }
 
     const messages = await ChatMessage.find({
       matchId,
-      isDeletedForEveryone: false
+      isDeletedForEveryone: false,
     })
       .sort({ createdAt: -1 })
       .limit(parseInt(limit))
@@ -66,26 +65,26 @@ exports.getChatMessagesForReview = async (req, res) => {
       success: true,
       data: {
         participants: match.users,
-        messages: messages.reverse().map(m => ({
+        messages: messages.reverse().map((m) => ({
           id: m._id,
           sender: m.sender,
           text: m.text,
           media: m.media || [],
           createdAt: m.createdAt,
-          flagged: m.isFlagged || false
-        }))
-      }
+          flagged: m.isFlagged || false,
+        })),
+      },
     });
   } catch (err) {
     console.error("Admin getChatMessagesForReview error:", err);
     return res.status(500).json({
       success: false,
-      message: "Failed to fetch chat messages"
+      message: "Failed to fetch chat messages",
     });
   }
 };
 
-// exports.takeChatAction = async (req, res) => {
+// module.exports.takeChatAction = async (req, res) => {
 //   try {
 //     const adminId = req.user._id;
 //     const { matchId } = req.params;
@@ -156,7 +155,7 @@ exports.getChatMessagesForReview = async (req, res) => {
 //   }
 // };
 
-// exports.getChatActionHistory = async (req, res) => {
+// module.exports.getChatActionHistory = async (req, res) => {
 //   try {
 //     const { matchId } = req.params;
 
@@ -180,22 +179,17 @@ exports.getChatMessagesForReview = async (req, res) => {
 //   }
 // };
 
-exports.takeChatAction = async (req, res) => {
+module.exports.takeChatAction = async (req, res) => {
   try {
     const adminId = req.user._id;
     const { reportId } = req.params;
 
-    const {
-      action,
-      reason,
-      messageIds = [],
-      targetUser
-    } = req.body;
+    const { action, reason, messageIds = [], targetUser } = req.body;
 
     if (!action || !reason) {
       return res.status(400).json({
         success: false,
-        message: "Action and reason are required"
+        message: "Action and reason are required",
       });
     }
 
@@ -203,7 +197,7 @@ exports.takeChatAction = async (req, res) => {
     if (!report) {
       return res.status(404).json({
         success: false,
-        message: "Report not found"
+        message: "Report not found",
       });
     }
 
@@ -213,7 +207,7 @@ exports.takeChatAction = async (req, res) => {
         {
           isDeletedForEveryone: true,
           text: "",
-          media: []
+          media: [],
         }
       );
     }
@@ -224,24 +218,23 @@ exports.takeChatAction = async (req, res) => {
           warnings: {
             reason,
             warnedBy: adminId,
-            warnedAt: new Date()
-          }
-        }
+            warnedAt: new Date(),
+          },
+        },
       });
     }
 
     if (action === "block_user" && targetUser) {
       await User.findByIdAndUpdate(targetUser, {
-        accountStatus: "suspended"
+        accountStatus: "suspended",
       });
     }
 
     if (action === "freeze_chat" && report.matchId) {
       await Match.findByIdAndUpdate(report.matchId, {
-        isFrozen: true
+        isFrozen: true,
       });
     }
-
 
     report.actionAudit.push({
       action,
@@ -249,7 +242,7 @@ exports.takeChatAction = async (req, res) => {
       matchId: report.matchId || null,
       messageIds,
       targetUser: targetUser || null,
-      actedBy: adminId
+      actedBy: adminId,
     });
 
     report.status = "resolved";
@@ -260,21 +253,18 @@ exports.takeChatAction = async (req, res) => {
 
     return res.json({
       success: true,
-      message: "Action applied and report resolved successfully"
+      message: "Action applied and report resolved successfully",
     });
-
   } catch (err) {
     console.error("Admin takeChatAction error:", err);
     return res.status(500).json({
       success: false,
-      message: "Failed to apply action"
+      message: "Failed to apply action",
     });
   }
 };
 
-
-
-exports.getChatActionHistory = async (req, res) => {
+module.exports.getChatActionHistory = async (req, res) => {
   try {
     const { reportId } = req.params;
 
@@ -286,28 +276,27 @@ exports.getChatActionHistory = async (req, res) => {
     if (!report) {
       return res.status(404).json({
         success: false,
-        message: "Report not found"
+        message: "Report not found",
       });
     }
 
     return res.json({
       success: true,
-      data: report.actionAudit.map(a => ({
+      data: report.actionAudit.map((a) => ({
         action: a.action,
         reason: a.reason,
         matchId: a.matchId,
         messageIds: a.messageIds,
         targetUser: a.targetUser?.email || null,
         actedBy: a.actedBy?.email || "System",
-        actedAt: a.actedAt
-      }))
+        actedAt: a.actedAt,
+      })),
     });
-
   } catch (err) {
     console.error("Admin getChatActionHistory error:", err);
     return res.status(500).json({
       success: false,
-      message: "Failed to fetch action history"
+      message: "Failed to fetch action history",
     });
   }
 };
