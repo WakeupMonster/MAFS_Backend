@@ -3,7 +3,7 @@ const redis = require("../../config/cache");
 const profileModel = require("../profile/profile.model");
 const User = require("./auth.model");
 const utils = require("./auth.utils");
-const { formatUserProfile } = require("./auth.formatter");
+// const { formatUserProfile } = require("./auth.formatter");
 const BlockedContact = require("../BlockedContact/blockedContacts.model");
 const Block = require("../profile/user.block")
 const { normalizePhone, hashPhone } = require("../../common/utils/phone.util");
@@ -37,7 +37,7 @@ async function sendPhoneOtp(phone) {
   return { ok: true };
 }
 
-async function verifyPhoneOtpUnified(phone, otp) {
+async function verifyPhoneOtpUnified(phone, otp,req) {
   const normalizedPhone = normalizePhone(phone);
   if (!normalizedPhone) throw new Error("Invalid phone number");
 
@@ -110,7 +110,8 @@ async function verifyPhoneOtpUnified(phone, otp) {
         }
       }
     },
-    { new: true }
+    { new: true },
+    
   );
 
   const profile = await profileModel.findOneAndUpdate(
@@ -134,13 +135,18 @@ async function verifyPhoneOtpUnified(phone, otp) {
     accessToken,
     refreshToken: refreshTokenRaw,
     isNewUser,
-    user: formatUserProfile(
-      user,
-      profile,
-      blockedContacts,
-      blockedUser,
-      subData
-    )
+    // user: formatUserProfile(
+    //   user,
+    //   profile,
+    //   blockedContacts,
+    //   blockedUser,
+    //   subData
+    // )
+     data: {
+            user: await  formatProfileResponse(user, profile,blockedContacts, blockedUser,subData,req),
+            
+            // onboarding: buildOnboardingResponse(req)
+          }
   };
 }
 
@@ -166,18 +172,20 @@ async function verifyPhoneTestOtpUnified(phone, otp,req) {
       phoneHash: phoneHash 
     });
   }
+
+  
 // ACCOUNT STATE CHECK (CRITICAL)
-if (user.banDetails?.isBanned) {
-  throw new Error("Your account has been banned. Please contact support.");
-}
-if (
-  user.suspensionDetails?.isSuspended &&
-  user.suspensionDetails.suspendUntil > new Date()
-) {
-  throw new Error(
-    `Your account is suspended until ${user.suspensionDetails.suspendUntil.toISOString()}`
-  );
-}
+// if (user.banDetails?.isBanned) {
+//   throw new Error("Your account has been banned. Please contact support.");
+// }
+// if (
+//   user.suspensionDetails?.isSuspended &&
+//   user.suspensionDetails.suspendUntil > new Date()
+// ) {
+//   throw new Error(
+//     `Your account is suspended until ${user.suspensionDetails.suspendUntil.toISOString()}`
+//   );
+// }
 
   const accessToken = utils.generateAccessToken(user);
   const refreshTokenRaw = utils.generateRefreshToken();

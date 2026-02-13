@@ -3,10 +3,11 @@ const User = require("../modules/auth/auth.model");
 
 const runUnsuspendUsersJob = () => {
   // Runs every 5 minutes
-  cron.schedule("47 1 * * * *", async () => {
+  cron.schedule("35 11 * * * *", async () => {
+    console.log("job started")
     try {
+      console.log("job started in try block")
       const now = new Date();
-
       const usersToUnsuspend = await User.updateMany(
         {
           accountStatus: "suspended",

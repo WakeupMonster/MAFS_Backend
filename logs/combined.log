@@ -1028,3 +1028,94 @@
 {"level":"debug","message":"GET /api/v1/admin/users?page=1&limit=10&search=ruchi","service":"iap-service","timestamp":"2026-02-13 11:03:33"}
 {"level":"debug","message":"POST /api/v1/admin/moderation/users/696f847d7d7893801c4417b2/unban","service":"iap-service","timestamp":"2026-02-13 11:03:43"}
 {"level":"debug","message":"GET /api/v1/profile/me","service":"iap-service","timestamp":"2026-02-13 11:03:46"}
+{"level":"info","message":"[CRON] Subscription cron jobs initialized","service":"iap-service","timestamp":"2026-02-13 11:07:32"}
+{"level":"debug","message":"POST /api/v1/admin/moderation/users/696f847d7d7893801c4417b2/suspend","service":"iap-service","timestamp":"2026-02-13 11:07:42"}
+{"level":"debug","message":"POST /api/v1/admin/moderation/users/696f847d7d7893801c4417b2/unsuspend","service":"iap-service","timestamp":"2026-02-13 11:07:59"}
+{"level":"debug","message":"POST /api/v1/admin/moderation/users/696f847d7d7893801c4417b2/suspend","service":"iap-service","timestamp":"2026-02-13 11:08:52"}
+{"level":"debug","message":"POST /api/v1/admin/moderation/users/696f847d7d7893801c4417b2/ban","service":"iap-service","timestamp":"2026-02-13 11:10:11"}
+{"level":"debug","message":"POST /api/v1/admin/moderation/users/696f847d7d7893801c4417b2/unsuspend","service":"iap-service","timestamp":"2026-02-13 11:10:44"}
+{"level":"debug","message":"GET /api/v1/admin/users?page=1&limit=10","service":"iap-service","timestamp":"2026-02-13 11:15:24"}
+{"level":"debug","message":"GET /api/v1/admin/users?page=1&limit=10&search=ruchi","service":"iap-service","timestamp":"2026-02-13 11:15:31"}
+{"level":"debug","message":"GET /api/v1/admin/users?page=1&limit=10","service":"iap-service","timestamp":"2026-02-13 11:15:46"}
+{"level":"debug","message":"GET /api/v1/admin/users?page=1&limit=10&search=r","service":"iap-service","timestamp":"2026-02-13 11:15:49"}
+{"level":"debug","message":"GET /api/v1/admin/users?page=1&limit=10&search=ru","service":"iap-service","timestamp":"2026-02-13 11:15:51"}
+{"level":"debug","message":"GET /api/v1/admin/users?page=1&limit=10&search=ruch","service":"iap-service","timestamp":"2026-02-13 11:15:52"}
+{"level":"debug","message":"GET /api/v1/admin/profile-review/reported?page=1&limit=10","service":"iap-service","timestamp":"2026-02-13 11:16:13"}
+{"level":"debug","message":"GET /api/v1/admin/profile-review/reported?page=1&limit=10","service":"iap-service","timestamp":"2026-02-13 11:16:16"}
+{"level":"debug","message":"GET /api/v1/admin/users?page=1&limit=10","service":"iap-service","timestamp":"2026-02-13 11:16:17"}
+{"level":"debug","message":"GET /api/v1/admin/users?page=1&limit=10&search=ruchi","service":"iap-service","timestamp":"2026-02-13 11:16:20"}
+{"level":"debug","message":"POST /api/v1/admin/moderation/users/696f847d7d7893801c4417b2/suspend","service":"iap-service","timestamp":"2026-02-13 11:19:55"}
+{"level":"debug","message":"POST /api/v1/admin/moderation/users/696f847d7d7893801c4417b2/unsuspend","service":"iap-service","timestamp":"2026-02-13 11:20:11"}
+{"level":"info","message":"[CRON] Subscription cron jobs initialized","service":"iap-service","timestamp":"2026-02-13 11:30:31"}
+{"level":"info","message":"[CRON] Subscription cron jobs initialized","service":"iap-service","timestamp":"2026-02-13 11:32:53"}
+{"level":"info","message":"[CRON] Subscription cron jobs initialized","service":"iap-service","timestamp":"2026-02-13 11:33:52"}
+{"level":"info","message":"[CRON] Subscription cron jobs initialized","service":"iap-service","timestamp":"2026-02-13 11:33:58"}
+{"level":"info","message":"[CRON] Subscription cron jobs initialized","service":"iap-service","timestamp":"2026-02-13 11:34:10"}
+{"level":"info","message":"[CRON] Subscription cron jobs initialized","service":"iap-service","timestamp":"2026-02-13 11:34:22"}
+{"level":"info","message":"[CRON] Subscription cron jobs initialized","service":"iap-service","timestamp":"2026-02-13 11:34:26"}
+{"level":"info","message":"[CRON] Subscription cron jobs initialized","service":"iap-service","timestamp":"2026-02-13 11:37:43"}
+{"level":"info","message":"[CRON] Subscription cron jobs initialized","service":"iap-service","timestamp":"2026-02-13 11:38:21"}
+{"level":"error","message":"[CRON] Grace check error:","service":"iap-service","timestamp":"2026-02-13 12:45:05"}
+{"level":"error","message":"[CRON] Expire check error:","service":"iap-service","timestamp":"2026-02-13 12:45:05"}
+{"level":"error","message":"[CRON] Grace check error:","service":"iap-service","timestamp":"2026-02-13 13:20:25"}
+{"level":"debug","message":"GET /api/v1/admin/dashboard/stats/kpi","service":"iap-service","timestamp":"2026-02-13 13:56:51"}
+{"level":"debug","message":"GET /api/v1/admin/dashboard/stats/kpi","service":"iap-service","timestamp":"2026-02-13 13:56:53"}
+{"level":"debug","message":"GET /api/v1/admin/dashboard/stats/kpi","service":"iap-service","timestamp":"2026-02-13 13:56:55"}
+{"level":"debug","message":"GET /api/v1/admin/dashboard/stats/kpi","service":"iap-service","timestamp":"2026-02-13 13:56:57"}
+{"level":"debug","message":"GET /api/v1/admin/dashboard/stats/kpi","service":"iap-service","timestamp":"2026-02-13 13:56:58"}
+{"level":"debug","message":"GET /api/v1/admin/dashboard/stats/kpi","service":"iap-service","timestamp":"2026-02-13 13:56:58"}
+{"level":"error","message":"[CRON] Grace check error:","service":"iap-service","timestamp":"2026-02-13 14:35:21"}
+{"level":"error","message":"[CRON] Expire check error:","service":"iap-service","timestamp":"2026-02-13 16:20:11"}
+{"level":"error","message":"[CRON] Grace check error:","service":"iap-service","timestamp":"2026-02-13 16:20:11"}
+{"level":"error","message":"[CRON] Grace check error:","service":"iap-service","timestamp":"2026-02-13 16:35:22"}
+{"level":"error","message":"[CRON] Expire check error:","service":"iap-service","timestamp":"2026-02-13 16:35:22"}
+{"level":"error","message":"[CRON] Grace check error:","service":"iap-service","timestamp":"2026-02-13 16:55:19"}
+{"level":"error","message":"[CRON] Expire check error:","service":"iap-service","timestamp":"2026-02-13 16:55:19"}
+{"level":"error","message":"[CRON] Expire check error:","service":"iap-service","timestamp":"2026-02-13 17:10:19"}
+{"level":"error","message":"[CRON] Grace check error:","service":"iap-service","timestamp":"2026-02-13 17:55:34"}
+{"level":"error","message":"[CRON] Expire check error:","service":"iap-service","timestamp":"2026-02-13 17:55:45"}
+{"level":"debug","message":"GET /api/v1/admin/dashboard/stats/kpi","service":"iap-service","timestamp":"2026-02-13 17:57:59"}
+{"level":"debug","message":"GET /api/v1/admin/dashboard/stats/kpi","service":"iap-service","timestamp":"2026-02-13 17:58:08"}
+{"level":"debug","message":"GET /api/v1/admin/dashboard/stats/kpi","service":"iap-service","timestamp":"2026-02-13 17:58:12"}
+{"level":"debug","message":"GET /api/v1/admin/dashboard/stats/kpi","service":"iap-service","timestamp":"2026-02-13 17:58:13"}
+{"level":"debug","message":"GET /api/v1/admin/dashboard/stats/kpi","service":"iap-service","timestamp":"2026-02-13 17:58:13"}
+{"level":"debug","message":"GET /api/v1/admin/dashboard/stats/kpi","service":"iap-service","timestamp":"2026-02-13 17:58:14"}
+{"level":"debug","message":"GET /api/v1/admin/dashboard/stats/kpi","service":"iap-service","timestamp":"2026-02-13 18:03:00"}
+{"level":"debug","message":"GET /api/v1/admin/dashboard/stats/kpi","service":"iap-service","timestamp":"2026-02-13 18:08:00"}
+{"level":"debug","message":"GET /api/v1/admin/dashboard/stats/kpi","service":"iap-service","timestamp":"2026-02-13 18:13:00"}
+{"level":"debug","message":"GET /api/v1/admin/users?page=1&limit=10","service":"iap-service","timestamp":"2026-02-13 18:16:40"}
+{"level":"debug","message":"POST /api/v1/auth/phone","service":"iap-service","timestamp":"2026-02-13 18:28:26"}
+{"level":"info","message":"[CRON] Subscription cron jobs initialized","service":"iap-service","timestamp":"2026-02-13 18:29:41"}
+{"level":"debug","message":"POST /api/v1/auth/phone","service":"iap-service","timestamp":"2026-02-13 18:29:53"}
+{"level":"error","message":"[CRON] Grace check error:","service":"iap-service","timestamp":"2026-02-13 18:55:01"}
+{"level":"error","message":"[CRON] Expire check error:","service":"iap-service","timestamp":"2026-02-13 18:55:01"}
+{"level":"info","message":"[CRON] Subscription cron jobs initialized","service":"iap-service","timestamp":"2026-02-13 19:10:27"}
+{"level":"info","message":"[CRON] Subscription cron jobs initialized","service":"iap-service","timestamp":"2026-02-13 19:12:35"}
+{"level":"info","message":"[CRON] Subscription cron jobs initialized","service":"iap-service","timestamp":"2026-02-13 19:12:44"}
+{"level":"info","message":"[CRON] Subscription cron jobs initialized","service":"iap-service","timestamp":"2026-02-13 19:31:47"}
+{"level":"info","message":"[CRON] Subscription cron jobs initialized","service":"iap-service","timestamp":"2026-02-13 19:31:57"}
+{"level":"info","message":"[CRON] Subscription cron jobs initialized","service":"iap-service","timestamp":"2026-02-13 19:32:03"}
+{"level":"info","message":"[CRON] Subscription cron jobs initialized","service":"iap-service","timestamp":"2026-02-13 19:32:06"}
+{"level":"info","message":"[CRON] Subscription cron jobs initialized","service":"iap-service","timestamp":"2026-02-13 19:32:10"}
+{"level":"info","message":"[CRON] Subscription cron jobs initialized","service":"iap-service","timestamp":"2026-02-13 19:32:37"}
+{"level":"info","message":"[CRON] Subscription cron jobs initialized","service":"iap-service","timestamp":"2026-02-13 19:33:13"}
+{"level":"info","message":"[CRON] Subscription cron jobs initialized","service":"iap-service","timestamp":"2026-02-13 19:33:23"}
+{"level":"info","message":"[CRON] Subscription cron jobs initialized","service":"iap-service","timestamp":"2026-02-13 19:34:33"}
+{"level":"info","message":"[CRON] Subscription cron jobs initialized","service":"iap-service","timestamp":"2026-02-13 19:34:41"}
+{"level":"debug","message":"POST /api/v1/auth/phonetest","service":"iap-service","timestamp":"2026-02-13 19:35:20"}
+{"level":"debug","message":"POST /api/v1/auth/verifytestotp","service":"iap-service","timestamp":"2026-02-13 19:35:32"}
+{"level":"error","message":"[CRON] Grace check error:","service":"iap-service","timestamp":"2026-02-13 19:40:00"}
+{"level":"error","message":"[CRON] Expire check error:","service":"iap-service","timestamp":"2026-02-13 19:40:00"}
+{"level":"info","message":"[CRON] Subscription cron jobs initialized","service":"iap-service","timestamp":"2026-02-13 19:43:42"}
+{"level":"info","message":"[CRON] Subscription cron jobs initialized","service":"iap-service","timestamp":"2026-02-13 19:43:49"}
+{"level":"info","message":"[CRON] Subscription cron jobs initialized","service":"iap-service","timestamp":"2026-02-13 19:49:30"}
+{"level":"debug","message":"POST /api/v1/auth/phonetest","service":"iap-service","timestamp":"2026-02-13 19:49:52"}
+{"level":"info","message":"[CRON] Subscription cron jobs initialized","service":"iap-service","timestamp":"2026-02-13 19:50:33"}
+{"level":"info","message":"[CRON] Subscription cron jobs initialized","service":"iap-service","timestamp":"2026-02-13 19:51:18"}
+{"level":"info","message":"[CRON] Subscription cron jobs initialized","service":"iap-service","timestamp":"2026-02-13 19:51:25"}
+{"level":"info","message":"[CRON] Subscription cron jobs initialized","service":"iap-service","timestamp":"2026-02-13 19:51:30"}
+{"level":"debug","message":"POST /api/v1/auth/phonetest","service":"iap-service","timestamp":"2026-02-13 19:51:40"}
+{"level":"debug","message":"POST /api/v1/auth/phonetest","service":"iap-service","timestamp":"2026-02-13 19:51:56"}
+{"level":"info","message":"[CRON] Subscription cron jobs initialized","service":"iap-service","timestamp":"2026-02-13 19:52:11"}
+{"level":"debug","message":"POST /api/v1/auth/phonetest","service":"iap-service","timestamp":"2026-02-13 19:52:58"}
+{"level":"debug","message":"POST /api/v1/auth/verifytestotp","service":"iap-service","timestamp":"2026-02-13 19:53:47"}

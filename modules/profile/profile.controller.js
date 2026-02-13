@@ -108,6 +108,7 @@ exports.updateProfile = async (req, res) => {
       message: "Profile updated successfully",
       data: {
         user: await  formatProfileResponse(data.user, profile, data.blockedContacts, data.blockedUser, data.subData,req),
+        
         // onboarding: buildOnboardingResponse(req)
       }
     });

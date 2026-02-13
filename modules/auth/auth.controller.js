@@ -5,9 +5,10 @@ const User = require("../auth/auth.model");
 const otpService = require("../../common/otp/otp.service");
 const { normalizePhone, hashPhone } = require("../../common/utils/phone.util");
 const AppError = require("../../common/errors/ApiError");
+const { formatProfileResponse } = require("../profile/profile.formatter");
 // const { buildOnboardingResponse } = require("../../common/utils/onBoardingSteps");
 
-module.exports.sendOtp = async (req, res) => {
+module.exports.sendOtp = async (req, res,next) => {
   try {
     let { phone } = req.body;
 
@@ -87,7 +88,7 @@ module.exports.verifyOtp = async (req, res) => {
         400
       );
     }
-    const result = await authService.verifyPhoneOtpUnified(phone, otp);
+    const result = await authService.verifyPhoneOtpUnified(phone, otp,req);
 
     return res.json({
       success: true,
@@ -387,10 +388,17 @@ module.exports.resendEmailOtp = async (req, res) => {
   }
 };
 
+
+
+
+const Profile = require("../../modules/profile/profile.model");
+const BlockedContact = require("../../modules/BlockedContact/blockedContacts.model");
+const BlockedUser = require("../../modules/profile/user.block");
+const UserSubscription = require("../../modules/auth/UserSubscription.model");
+
 module.exports.sendTestOtp = async (req, res) => {
   try {
     let { phone } = req.body;
-    // const ip = req.ip;
 
     if (!phone) {
       return res.status(400).json({
@@ -399,7 +407,7 @@ module.exports.sendTestOtp = async (req, res) => {
       });
     }
 
-    // 🔹 Normalize phone (VERY IMPORTANT)
+    // normalize
     const normalizedPhone = normalizePhone(phone);
     if (!normalizedPhone) {
       return res.status(400).json({
@@ -408,31 +416,53 @@ module.exports.sendTestOtp = async (req, res) => {
       });
     }
 
-    // 🔹 Hash phone (future consistency)
-    const phoneHash = hashPhone(normalizedPhone);
+    // const phoneHash = hashPhone(normalizedPhone);
 
-    // Rate limiting
-    // const isLimited = await rateLimit(`otp:test:${ip}`, 10, 60);
-    // if (isLimited) {
-    //   return res.status(429).json({
-    //     success: false,
-    //     message: "Too many test requests. Try again later."
-    //   });
-    // }
-
-    // ✅ OTP send (NO DB WRITE HERE)
+    // OTP send
     const result = await authService.sendPhoneOtpTest(normalizedPhone, true);
+
+    // ✅ USER fetch karo
+    const user = await User.findOne({ phone: normalizedPhone });
+
+    let formattedUser = null;
+
+    if (user) {
+      const userId = user._id;
+
+      const profile = await Profile.findOne({ userId });
+
+      const blockedContacts = await BlockedContact.find({
+        userId
+      }).lean();
+
+      const blockedUser = await BlockedUser.find({
+        userId
+      }).lean();
+
+      const subData = await UserSubscription.findOne({
+        userId,
+        isActive: true
+      }).lean();
+
+      formattedUser = await formatProfileResponse(
+        user,
+        profile,
+        blockedContacts,
+        blockedUser,
+        subData,
+        req
+      );
+    }
 
     return res.json({
       success: true,
       message: `Test OTP: ${result.otp}`,
-      otp: result.otp,
-
-      debug: {
-        normalizedPhone,
-        phoneHash
+      data : {
+         user: formattedUser
       }
+    
     });
+
   } catch (err) {
     console.error("Error in sendTestOtp:", err);
     return res.status(400).json({
@@ -441,3 +471,59 @@ module.exports.sendTestOtp = async (req, res) => {
     });
   }
 };
+
+
+// module.exports.sendTestOtp = async (req, res) => {
+//   try {
+//     let { phone } = req.body;
+//     // const ip = req.ip;
+
+//     if (!phone) {
+//       return res.status(400).json({
+//         success: false,
+//         message: "Phone is required"
+//       });
+//     }
+
+//     // 🔹 Normalize phone (VERY IMPORTANT)
+//     const normalizedPhone = normalizePhone(phone);
+//     if (!normalizedPhone) {
+//       return res.status(400).json({
+//         success: false,
+//         message: "Invalid phone number"
+//       });
+//     }
+
+//     // 🔹 Hash phone (future consistency)
+//     const phoneHash = hashPhone(normalizedPhone);
+
+//     // Rate limiting
+//     // const isLimited = await rateLimit(`otp:test:${ip}`, 10, 60);
+//     // if (isLimited) {
+//     //   return res.status(429).json({
+//     //     success: false,
+//     //     message: "Too many test requests. Try again later."
+//     //   });
+//     // }
+
+//     // ✅ OTP send (NO DB WRITE HERE)
+//     const result = await authService.sendPhoneOtpTest(normalizedPhone, true);
+
+//     return res.json({
+//       success: true,
+//       message: `Test OTP: ${result.otp}`,
+//         otp: result.otp,
+//        user: await formatProfileResponse(user, profile, blockedContacts, blockedUser,req),
+//       debug: {
+//         normalizedPhone,
+//         phoneHash
+//       }
+//     });
+//   } catch (err) {
+//     console.error("Error in sendTestOtp:", err);
+//     return res.status(400).json({
+//       success: false,
+//       message: err.message
+//     });
+//   }
+// };
