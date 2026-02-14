@@ -22,20 +22,20 @@ module.exports = async function authMiddleware(req, res, next) {
     if (!user) {
       return res.status(401).json({ message: "Invalid token user not found" });
     }
-    if (user.accountStatus === "deleted") {
-      return res.status(401).json({
-        success: false,
-        message: "Account no longer exists"
-      });
-    }
+    // if (user.accountStatus === "deleted") {
+    //   return res.status(401).json({
+    //     success: false,
+    //     message: "Account no longer exists"
+    //   });
+    // }
 
-     if (user.banDetails?.isBanned) {
-      return res.status(403).json({
-        success: false,
-        code: "ACCOUNT_BANNED",
-        banDetails: user.banDetails?.reason
-      });
-    }
+    //  if (user.banDetails?.isBanned) {
+    //   return res.status(403).json({
+    //     success: false,
+    //     code: "ACCOUNT_BANNED",
+    //     banDetails: user.banDetails?.reason
+    //   });
+    // }
 
     // // 📴 DEACTIVATED
     // if (user.deactivationDetails?.isDeactivated) {

@@ -127,7 +127,19 @@ const userSchema = new mongoose.Schema({
       default: null
     }
   },
-  //temporary suspension
+
+
+  deleteAccountOtp: {
+  type: String,
+  default: null,
+  select: false
+},
+
+deleteAccountOtpExpires: {
+  type: Date,
+  default: null,
+  select: false
+},
   suspensionDetails: {
     isSuspended: {
       type: Boolean,

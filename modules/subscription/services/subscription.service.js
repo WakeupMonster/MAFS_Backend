@@ -3,9 +3,50 @@ const SubscriptionTransaction = require("../models/SubscriptionTransaction");
 const iapConfig = require("../config/iap.config");
 const { generateIdempotencyKey } = require("../utils/iap.helpers");
 const logger = require("../utils/logger");
+const Profile = require("../../profile/profile.model");
 
 class SubscriptionService {
-  // ─── PURCHASE ───
+
+
+
+  async _syncProfile(subscription) {
+    try {
+      
+    console.log("🔄 Syncing Profile for User:", subscription.userId); // Debug 1
+      if (!subscription || !subscription.userId) {
+         console.log("❌ Subscription or UserId missing"); // Debug 2
+        return;
+      }
+
+      const profileUpdate = {
+        "subscription.planId": subscription.planType || "free",
+        "subscription.isActive": subscription.status === "ACTIVE" || subscription.status === "GRACE",
+        "subscription.expiryDate": subscription.expiresAt,
+        "subscription.isTrial": false, // Logic add kar sakte ho agar trial ho
+      };
+
+      // Agar expired/cancelled hai toh free pe set karo?
+      // Optional: Depend karta hai business logic pe
+      if (subscription.status === "EXPIRED" || subscription.status === "REVOKED") {
+        profileUpdate["subscription.planId"] = "free";
+        profileUpdate["subscription.isActive"] = false;
+      }
+
+       console.log("📝 Update Payload:", profileUpdate); // Debug 3
+
+      await Profile.findOneAndUpdate(
+        { userId: subscription.userId },
+        { $set: profileUpdate }
+      );
+
+      logger.info("Profile subscription synced", { userId: subscription.userId });
+    } catch (err) {
+      logger.error("Profile sync failed:", err.message);
+    }
+  }
+
+
+  
   async handlePurchase(data) {
     const orConditions = [];
 
@@ -27,6 +68,8 @@ class SubscriptionService {
       existing.latestTransactionId = data.transactionId || existing.latestTransactionId;
       existing.previousStatus = existing.status;
       await existing.save();
+
+       await this._syncProfile(existing); 
 
       logger.info("Subscription updated (existing)", {
         subscriptionId: existing._id,
@@ -72,6 +115,8 @@ class SubscriptionService {
       userId: data.userId,
       planType: subscription.planType,
     });
+
+    await this._syncProfile(subscription);
 
     return subscription;
   }
@@ -124,6 +169,8 @@ class SubscriptionService {
     sub.cancelledAt = new Date();
     await sub.save();
 
+    await this._syncProfile(sub);
+
     await this._logTransaction({
       subscriptionId: sub._id,
       userId: sub.userId,
@@ -153,6 +200,8 @@ class SubscriptionService {
     sub.retryCount = (sub.retryCount || 0) + 1;
     await sub.save();
 
+    await this._syncProfile(sub);
+
     await this._logTransaction({
       subscriptionId: sub._id,
       userId: sub.userId,
@@ -181,6 +230,7 @@ class SubscriptionService {
     sub.status = "EXPIRED";
     sub.autoRenew = false;
     await sub.save();
+     await this._syncProfile(sub);
 
     await this._logTransaction({
       subscriptionId: sub._id,

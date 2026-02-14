@@ -1119,3 +1119,481 @@
 {"level":"info","message":"[CRON] Subscription cron jobs initialized","service":"iap-service","timestamp":"2026-02-13 19:52:11"}
 {"level":"debug","message":"POST /api/v1/auth/phonetest","service":"iap-service","timestamp":"2026-02-13 19:52:58"}
 {"level":"debug","message":"POST /api/v1/auth/verifytestotp","service":"iap-service","timestamp":"2026-02-13 19:53:47"}
+{"level":"info","message":"[CRON] Subscription cron jobs initialized","service":"iap-service","timestamp":"2026-02-13 20:05:30"}
+{"level":"debug","message":"GET /api/v1/admin/moderation/pending-verifications?page=1&limit=10","service":"iap-service","timestamp":"2026-02-13 20:12:50"}
+{"level":"debug","message":"GET /api/v1/admin/moderation/pending-verifications?page=1&limit=10&status=pending","service":"iap-service","timestamp":"2026-02-13 20:12:55"}
+{"level":"debug","message":"GET /api/v1/admin/users?page=1&limit=10","service":"iap-service","timestamp":"2026-02-13 20:16:38"}
+{"level":"debug","message":"GET /api/v1/admin/moderation/pending-verifications?page=1&limit=10","service":"iap-service","timestamp":"2026-02-13 20:16:40"}
+{"level":"debug","message":"GET /api/v1/admin/users?page=1&limit=10","service":"iap-service","timestamp":"2026-02-13 20:17:50"}
+{"level":"error","message":"[CRON] Failed events check error:","service":"iap-service","timestamp":"2026-02-13 20:20:05"}
+{"level":"error","message":"[CRON] Grace check error:","service":"iap-service","timestamp":"2026-02-13 20:20:05"}
+{"level":"error","message":"[CRON] Expire check error:","service":"iap-service","timestamp":"2026-02-13 20:20:05"}
+{"level":"debug","message":"POST /api/v1/admin/moderation/users/698f20c11ff3e123d1038296/verify","service":"iap-service","timestamp":"2026-02-13 20:22:18"}
+{"level":"debug","message":"GET /api/v1/admin/moderation/pending-verifications?page=1&limit=10","service":"iap-service","timestamp":"2026-02-13 20:22:34"}
+{"level":"debug","message":"GET /api/v1/admin/dashboard/stats/kpi","service":"iap-service","timestamp":"2026-02-13 20:22:38"}
+{"level":"debug","message":"GET /api/v1/admin/dashboard/stats/kpi","service":"iap-service","timestamp":"2026-02-13 20:22:40"}
+{"level":"debug","message":"GET /api/v1/admin/dashboard/stats/kpi","service":"iap-service","timestamp":"2026-02-13 20:22:42"}
+{"level":"debug","message":"GET /api/v1/admin/dashboard/stats/kpi","service":"iap-service","timestamp":"2026-02-13 20:22:44"}
+{"level":"debug","message":"GET /api/v1/admin/dashboard/stats/kpi","service":"iap-service","timestamp":"2026-02-13 20:22:46"}
+{"level":"debug","message":"GET /api/v1/admin/dashboard/stats/kpi","service":"iap-service","timestamp":"2026-02-13 20:22:46"}
+{"level":"debug","message":"GET /api/v1/admin/moderation/pending-verifications?page=1&limit=10&status=pending","service":"iap-service","timestamp":"2026-02-13 20:23:00"}
+{"level":"debug","message":"GET /api/v1/admin/dashboard/stats/kpi","service":"iap-service","timestamp":"2026-02-13 20:23:04"}
+{"level":"debug","message":"GET /api/v1/admin/dashboard/stats/kpi","service":"iap-service","timestamp":"2026-02-13 20:23:05"}
+{"level":"debug","message":"GET /api/v1/admin/users?page=1&limit=10&accountStatus=banned","service":"iap-service","timestamp":"2026-02-13 20:23:07"}
+{"level":"debug","message":"GET /api/v1/admin/dashboard/stats/kpi","service":"iap-service","timestamp":"2026-02-13 20:23:08"}
+{"level":"debug","message":"GET /api/v1/admin/dashboard/stats/kpi","service":"iap-service","timestamp":"2026-02-13 20:23:10"}
+{"level":"debug","message":"GET /api/v1/admin/dashboard/stats/kpi","service":"iap-service","timestamp":"2026-02-13 20:23:12"}
+{"level":"debug","message":"GET /api/v1/admin/dashboard/stats/kpi","service":"iap-service","timestamp":"2026-02-13 20:23:13"}
+{"level":"debug","message":"GET /api/v1/admin/dashboard/stats/kpi","service":"iap-service","timestamp":"2026-02-13 20:23:14"}
+{"level":"debug","message":"GET /api/v1/admin/users?page=1&limit=10","service":"iap-service","timestamp":"2026-02-13 20:23:15"}
+{"level":"debug","message":"GET /api/v1/admin/dashboard/stats/kpi","service":"iap-service","timestamp":"2026-02-13 20:23:16"}
+{"level":"debug","message":"GET /api/v1/admin/dashboard/stats/kpi","service":"iap-service","timestamp":"2026-02-13 20:23:18"}
+{"level":"debug","message":"GET /api/v1/admin/dashboard/stats/kpi","service":"iap-service","timestamp":"2026-02-13 20:23:19"}
+{"level":"debug","message":"GET /api/v1/admin/dashboard/stats/kpi","service":"iap-service","timestamp":"2026-02-13 20:23:19"}
+{"level":"debug","message":"GET /api/v1/admin/dashboard/stats/kpi","service":"iap-service","timestamp":"2026-02-13 20:23:20"}
+{"level":"debug","message":"GET /api/v1/admin/users?page=1&limit=10&accountStatus=active","service":"iap-service","timestamp":"2026-02-13 20:23:21"}
+{"level":"debug","message":"GET /api/v1/admin/dashboard/stats/kpi","service":"iap-service","timestamp":"2026-02-13 20:23:34"}
+{"level":"debug","message":"GET /api/v1/admin/dashboard/stats/kpi","service":"iap-service","timestamp":"2026-02-13 20:23:35"}
+{"level":"debug","message":"GET /api/v1/admin/dashboard/stats/kpi","service":"iap-service","timestamp":"2026-02-13 20:23:36"}
+{"level":"debug","message":"GET /api/v1/admin/users?page=1&limit=10&accountStatus=active","service":"iap-service","timestamp":"2026-02-13 20:23:36"}
+{"level":"debug","message":"GET /api/v1/admin/dashboard/stats/kpi","service":"iap-service","timestamp":"2026-02-13 20:23:39"}
+{"level":"debug","message":"GET /api/v1/admin/dashboard/stats/kpi","service":"iap-service","timestamp":"2026-02-13 20:23:40"}
+{"level":"debug","message":"GET /api/v1/admin/dashboard/stats/kpi","service":"iap-service","timestamp":"2026-02-13 20:23:41"}
+{"level":"debug","message":"GET /api/v1/admin/users?page=1&limit=10","service":"iap-service","timestamp":"2026-02-13 20:23:41"}
+{"level":"debug","message":"GET /api/v1/admin/dashboard/stats/kpi","service":"iap-service","timestamp":"2026-02-13 20:23:42"}
+{"level":"debug","message":"GET /api/v1/admin/dashboard/stats/kpi","service":"iap-service","timestamp":"2026-02-13 20:23:43"}
+{"level":"debug","message":"GET /api/v1/admin/moderation/pending-verifications?page=1&limit=10","service":"iap-service","timestamp":"2026-02-13 20:23:48"}
+{"level":"debug","message":"GET /api/v1/admin/moderation/pending-verifications?page=1&limit=10&search=suman","service":"iap-service","timestamp":"2026-02-13 20:23:54"}
+{"level":"debug","message":"GET /api/v1/admin/moderation/pending-verifications?page=1&limit=10","service":"iap-service","timestamp":"2026-02-13 20:25:55"}
+{"level":"debug","message":"GET /api/v1/admin/moderation/pending-verifications?page=1&limit=10","service":"iap-service","timestamp":"2026-02-13 20:30:23"}
+{"level":"debug","message":"GET /api/v1/admin/moderation/pending-verifications?page=1&limit=10","service":"iap-service","timestamp":"2026-02-13 23:09:12"}
+{"level":"error","message":"[CRON] Expire check error:","service":"iap-service","timestamp":"2026-02-13 23:10:05"}
+{"level":"error","message":"[CRON] Grace check error:","service":"iap-service","timestamp":"2026-02-13 23:10:05"}
+{"level":"error","message":"[CRON] Failed events check error:","service":"iap-service","timestamp":"2026-02-13 23:10:05"}
+{"level":"info","message":"[CRON] Subscription cron jobs initialized","service":"iap-service","timestamp":"2026-02-13 23:13:56"}
+{"level":"debug","message":"GET /api/v1/admin/users?page=1&limit=10","service":"iap-service","timestamp":"2026-02-13 23:19:21"}
+{"level":"debug","message":"GET /api/v1/admin/users?page=2&limit=10","service":"iap-service","timestamp":"2026-02-13 23:19:29"}
+{"level":"debug","message":"GET /api/v1/admin/users?page=3&limit=10","service":"iap-service","timestamp":"2026-02-13 23:19:39"}
+{"level":"debug","message":"POST /api/v1/admin/moderation/users/697066e19ab4d75fecb920ad/suspend","service":"iap-service","timestamp":"2026-02-13 23:20:00"}
+{"level":"debug","message":"POST /api/v1/admin/moderation/users/697066e19ab4d75fecb920ad/unsuspend","service":"iap-service","timestamp":"2026-02-13 23:21:06"}
+{"level":"debug","message":"POST /api/v1/admin/moderation/users/697066e19ab4d75fecb920ad/ban","service":"iap-service","timestamp":"2026-02-13 23:22:03"}
+{"level":"debug","message":"GET /api/v1/admin/users?page=1&limit=10","service":"iap-service","timestamp":"2026-02-13 23:22:30"}
+{"level":"debug","message":"GET /api/v1/admin/users?page=2&limit=10","service":"iap-service","timestamp":"2026-02-13 23:22:36"}
+{"level":"debug","message":"GET /api/v1/admin/users?page=3&limit=10","service":"iap-service","timestamp":"2026-02-13 23:22:39"}
+{"level":"debug","message":"POST /api/v1/admin/moderation/users/697066e19ab4d75fecb920ad/unban","service":"iap-service","timestamp":"2026-02-13 23:22:51"}
+{"level":"debug","message":"POST /api/v1/admin/moderation/users/697066e19ab4d75fecb920ad/suspend","service":"iap-service","timestamp":"2026-02-13 23:23:28"}
+{"level":"info","message":"[CRON] Subscription cron jobs initialized","service":"iap-service","timestamp":"2026-02-13 23:24:39"}
+{"level":"info","message":"[CRON] Subscription cron jobs initialized","service":"iap-service","timestamp":"2026-02-13 23:25:59"}
+{"level":"info","message":"[CRON] Subscription cron jobs initialized","service":"iap-service","timestamp":"2026-02-13 23:26:06"}
+{"level":"info","message":"[CRON] Subscription cron jobs initialized","service":"iap-service","timestamp":"2026-02-13 23:29:27"}
+{"level":"info","message":"[CRON] Subscription cron jobs initialized","service":"iap-service","timestamp":"2026-02-13 23:30:12"}
+{"level":"info","message":"[CRON] Subscription cron jobs initialized","service":"iap-service","timestamp":"2026-02-13 23:30:27"}
+{"level":"debug","message":"GET /api/v1/admin/dashboard/stats/kpi","service":"iap-service","timestamp":"2026-02-13 23:32:19"}
+{"level":"debug","message":"GET /api/v1/admin/dashboard/stats/kpi","service":"iap-service","timestamp":"2026-02-13 23:32:19"}
+{"level":"debug","message":"GET /api/v1/admin/dashboard/stats/kpi","service":"iap-service","timestamp":"2026-02-13 23:32:20"}
+{"level":"debug","message":"GET /api/v1/admin/dashboard/stats/kpi","service":"iap-service","timestamp":"2026-02-13 23:32:20"}
+{"level":"debug","message":"GET /api/v1/admin/dashboard/stats/kpi","service":"iap-service","timestamp":"2026-02-13 23:32:20"}
+{"level":"debug","message":"GET /api/v1/admin/dashboard/stats/kpi","service":"iap-service","timestamp":"2026-02-13 23:32:20"}
+{"level":"debug","message":"GET /api/v1/admin/users?page=1&limit=10","service":"iap-service","timestamp":"2026-02-13 23:32:27"}
+{"level":"debug","message":"GET /api/v1/admin/users?page=1&limit=10&accountStatus=suspended","service":"iap-service","timestamp":"2026-02-13 23:32:31"}
+{"level":"debug","message":"POST /api/v1/admin/moderation/users/6970b3bb9ab4d75fecb92530/unsuspend","service":"iap-service","timestamp":"2026-02-13 23:34:47"}
+{"level":"debug","message":"GET /api/v1/admin/users?page=1&limit=10","service":"iap-service","timestamp":"2026-02-13 23:38:07"}
+{"level":"debug","message":"POST /api/v1/admin/moderation/users/698f20c11ff3e123d1038296/ban","service":"iap-service","timestamp":"2026-02-13 23:39:21"}
+{"level":"debug","message":"GET /api/v1/admin/users?page=1&limit=10","service":"iap-service","timestamp":"2026-02-13 23:39:31"}
+{"level":"debug","message":"POST /api/v1/admin/moderation/users/698f20c11ff3e123d1038296/unban","service":"iap-service","timestamp":"2026-02-13 23:40:03"}
+{"level":"info","message":"[CRON] Subscription cron jobs initialized","service":"iap-service","timestamp":"2026-02-13 23:42:23"}
+{"level":"info","message":"[CRON] Subscription cron jobs initialized","service":"iap-service","timestamp":"2026-02-13 23:42:51"}
+{"level":"debug","message":"GET /api/v1/admin/users?page=1&limit=10","service":"iap-service","timestamp":"2026-02-13 23:42:56"}
+{"level":"debug","message":"POST /api/v1/admin/moderation/users/698f4f3cf9886c049b7b5fa7/ban","service":"iap-service","timestamp":"2026-02-13 23:43:15"}
+{"level":"debug","message":"GET /api/v1/admin/users?page=1&limit=10","service":"iap-service","timestamp":"2026-02-13 23:55:37"}
+{"level":"debug","message":"POST /api/v1/admin/moderation/users/698f4f3cf9886c049b7b5fa7/unban","service":"iap-service","timestamp":"2026-02-13 23:55:47"}
+{"level":"debug","message":"POST /api/v1/admin/moderation/users/698f4f3cf9886c049b7b5fa7/suspend","service":"iap-service","timestamp":"2026-02-13 23:55:54"}
+{"level":"debug","message":"POST /api/v1/admin/moderation/users/698f4f3cf9886c049b7b5fa7/unsuspend","service":"iap-service","timestamp":"2026-02-13 23:56:00"}
+{"level":"debug","message":"POST /api/v1/admin/moderation/users/698f4f3cf9886c049b7b5fa7/ban","service":"iap-service","timestamp":"2026-02-13 23:56:06"}
+{"level":"debug","message":"GET /api/v1/admin/users?page=1&limit=10","service":"iap-service","timestamp":"2026-02-13 23:56:12"}
+{"level":"debug","message":"POST /api/v1/admin/moderation/users/698f4f3cf9886c049b7b5fa7/unban","service":"iap-service","timestamp":"2026-02-13 23:56:21"}
+{"level":"debug","message":"POST /api/v1/admin/moderation/users/698f4f3cf9886c049b7b5fa7/suspend","service":"iap-service","timestamp":"2026-02-13 23:57:24"}
+{"level":"debug","message":"POST /api/v1/admin/moderation/users/698f4f3cf9886c049b7b5fa7/unsuspend","service":"iap-service","timestamp":"2026-02-13 23:57:30"}
+{"level":"debug","message":"POST /api/v1/admin/moderation/users/698f4f3cf9886c049b7b5fa7/ban","service":"iap-service","timestamp":"2026-02-13 23:59:06"}
+{"level":"error","message":"[CRON] Grace check error:","service":"iap-service","timestamp":"2026-02-14 00:10:20"}
+{"level":"error","message":"[CRON] Expire check error:","service":"iap-service","timestamp":"2026-02-14 00:10:43"}
+{"level":"debug","message":"GET /api/v1/admin/users?page=1&limit=10","service":"iap-service","timestamp":"2026-02-14 00:26:25"}
+{"level":"info","message":"[CRON] Subscription cron jobs initialized","service":"iap-service","timestamp":"2026-02-14 09:49:55"}
+{"level":"info","message":"[CRON] Subscription cron jobs initialized","service":"iap-service","timestamp":"2026-02-14 09:54:11"}
+{"level":"info","message":"[CRON] Subscription cron jobs initialized","service":"iap-service","timestamp":"2026-02-14 09:54:58"}
+{"level":"debug","message":"GET /api/v1/admin/dashboard/stats/kpi","service":"iap-service","timestamp":"2026-02-14 10:04:03"}
+{"level":"debug","message":"GET /api/v1/admin/dashboard/stats/kpi","service":"iap-service","timestamp":"2026-02-14 10:04:04"}
+{"level":"debug","message":"GET /api/v1/admin/dashboard/stats/kpi","service":"iap-service","timestamp":"2026-02-14 10:04:05"}
+{"level":"debug","message":"GET /api/v1/admin/dashboard/stats/kpi","service":"iap-service","timestamp":"2026-02-14 10:04:06"}
+{"level":"debug","message":"GET /api/v1/admin/dashboard/stats/kpi","service":"iap-service","timestamp":"2026-02-14 10:04:06"}
+{"level":"debug","message":"GET /api/v1/admin/dashboard/stats/kpi","service":"iap-service","timestamp":"2026-02-14 10:04:06"}
+{"level":"debug","message":"GET /api/v1/admin/users?page=1&limit=10","service":"iap-service","timestamp":"2026-02-14 10:04:12"}
+{"level":"debug","message":"GET /api/v1/admin/giveaway/prizes?page=1&limit=10","service":"iap-service","timestamp":"2026-02-14 10:04:19"}
+{"level":"debug","message":"GET /api/v1/admin/giveaway/prizes","service":"iap-service","timestamp":"2026-02-14 10:04:23"}
+{"level":"debug","message":"GET /api/v1/admin/giveaway/prizes","service":"iap-service","timestamp":"2026-02-14 10:04:23"}
+{"level":"debug","message":"GET /api/v1/admin/giveaway/campaigns?page=1&limit=10","service":"iap-service","timestamp":"2026-02-14 10:04:24"}
+{"level":"info","message":"[CRON] Subscription cron jobs initialized","service":"iap-service","timestamp":"2026-02-14 10:05:31"}
+{"level":"info","message":"[CRON] Subscription cron jobs initialized","service":"iap-service","timestamp":"2026-02-14 10:07:22"}
+{"level":"debug","message":"GET /api/v1/admin/users?page=1&limit=10","service":"iap-service","timestamp":"2026-02-14 10:16:50"}
+{"level":"debug","message":"POST /api/v1/admin/moderation/users/698705450cd0fd5ccf63bdbd/unban","service":"iap-service","timestamp":"2026-02-14 10:17:10"}
+{"level":"info","message":"[CRON] Subscription cron jobs initialized","service":"iap-service","timestamp":"2026-02-14 10:24:33"}
+{"level":"info","message":"[CRON] Subscription cron jobs initialized","service":"iap-service","timestamp":"2026-02-14 10:24:41"}
+{"level":"info","message":"[CRON] Subscription cron jobs initialized","service":"iap-service","timestamp":"2026-02-14 10:24:51"}
+{"level":"info","message":"[CRON] Subscription cron jobs initialized","service":"iap-service","timestamp":"2026-02-14 10:27:37"}
+{"level":"info","message":"[CRON] Subscription cron jobs initialized","service":"iap-service","timestamp":"2026-02-14 10:27:52"}
+{"level":"debug","message":"GET /api/v1/admin/giveaway/prizes?page=1&limit=10","service":"iap-service","timestamp":"2026-02-14 10:28:15"}
+{"level":"debug","message":"GET /api/v1/admin/giveaway/prizes","service":"iap-service","timestamp":"2026-02-14 10:28:18"}
+{"level":"debug","message":"GET /api/v1/admin/giveaway/campaigns?page=1&limit=10","service":"iap-service","timestamp":"2026-02-14 10:28:19"}
+{"level":"debug","message":"GET /api/v1/admin/giveaway/prizes","service":"iap-service","timestamp":"2026-02-14 10:28:19"}
+{"level":"debug","message":"GET /api/v1/admin/giveaway/campaigns?page=2&limit=10","service":"iap-service","timestamp":"2026-02-14 10:28:42"}
+{"level":"debug","message":"GET /api/v1/admin/giveaway/campaigns?page=3&limit=10","service":"iap-service","timestamp":"2026-02-14 10:28:45"}
+{"level":"debug","message":"POST /api/v1/admin/giveaway/campaigns","service":"iap-service","timestamp":"2026-02-14 10:29:01"}
+{"level":"debug","message":"POST /api/v1/admin/giveaway/campaigns","service":"iap-service","timestamp":"2026-02-14 10:29:14"}
+{"level":"debug","message":"POST /api/v1/admin/giveaway/campaigns","service":"iap-service","timestamp":"2026-02-14 10:31:51"}
+{"level":"info","message":"[CRON] Subscription cron jobs initialized","service":"iap-service","timestamp":"2026-02-14 10:32:21"}
+{"level":"info","message":"[CRON] Subscription cron jobs initialized","service":"iap-service","timestamp":"2026-02-14 10:35:36"}
+{"level":"debug","message":"GET /api/v1/admin/giveaway/prizes?page=1&limit=10","service":"iap-service","timestamp":"2026-02-14 10:37:03"}
+{"level":"debug","message":"GET /api/v1/admin/giveaway/prizes","service":"iap-service","timestamp":"2026-02-14 10:37:05"}
+{"level":"debug","message":"GET /api/v1/admin/giveaway/prizes","service":"iap-service","timestamp":"2026-02-14 10:37:05"}
+{"level":"debug","message":"GET /api/v1/admin/giveaway/campaigns?page=1&limit=10","service":"iap-service","timestamp":"2026-02-14 10:37:05"}
+{"level":"debug","message":"POST /api/v1/admin/giveaway/campaigns","service":"iap-service","timestamp":"2026-02-14 10:37:12"}
+{"level":"info","message":"[CRON] Subscription cron jobs initialized","service":"iap-service","timestamp":"2026-02-14 10:37:26"}
+{"level":"info","message":"[CRON] Subscription cron jobs initialized","service":"iap-service","timestamp":"2026-02-14 10:39:28"}
+{"level":"info","message":"[CRON] Subscription cron jobs initialized","service":"iap-service","timestamp":"2026-02-14 10:39:38"}
+{"level":"debug","message":"GET /api/v1/admin/giveaway/prizes?page=1&limit=10","service":"iap-service","timestamp":"2026-02-14 10:40:07"}
+{"level":"debug","message":"GET /api/v1/admin/giveaway/prizes","service":"iap-service","timestamp":"2026-02-14 10:40:09"}
+{"level":"debug","message":"GET /api/v1/admin/giveaway/campaigns?page=1&limit=10","service":"iap-service","timestamp":"2026-02-14 10:40:09"}
+{"level":"debug","message":"GET /api/v1/admin/giveaway/prizes","service":"iap-service","timestamp":"2026-02-14 10:40:09"}
+{"level":"debug","message":"POST /api/v1/admin/giveaway/campaigns","service":"iap-service","timestamp":"2026-02-14 10:40:18"}
+{"level":"info","message":"[CRON] Subscription cron jobs initialized","service":"iap-service","timestamp":"2026-02-14 10:46:03"}
+{"level":"debug","message":"GET /api/v1/admin/giveaway/prizes?page=1&limit=10","service":"iap-service","timestamp":"2026-02-14 10:46:34"}
+{"level":"debug","message":"GET /api/v1/admin/giveaway/prizes","service":"iap-service","timestamp":"2026-02-14 10:46:38"}
+{"level":"debug","message":"GET /api/v1/admin/giveaway/campaigns?page=1&limit=10","service":"iap-service","timestamp":"2026-02-14 10:46:39"}
+{"level":"debug","message":"GET /api/v1/admin/giveaway/prizes","service":"iap-service","timestamp":"2026-02-14 10:46:39"}
+{"level":"debug","message":"GET /api/v1/admin/giveaway/prizes?page=1&limit=10","service":"iap-service","timestamp":"2026-02-14 10:46:40"}
+{"level":"debug","message":"GET /api/v1/admin/giveaway/prizes","service":"iap-service","timestamp":"2026-02-14 10:46:44"}
+{"level":"debug","message":"GET /api/v1/admin/giveaway/prizes","service":"iap-service","timestamp":"2026-02-14 10:46:45"}
+{"level":"debug","message":"GET /api/v1/admin/giveaway/campaigns?page=1&limit=10","service":"iap-service","timestamp":"2026-02-14 10:46:45"}
+{"level":"debug","message":"POST /api/v1/admin/giveaway/campaigns","service":"iap-service","timestamp":"2026-02-14 10:46:53"}
+{"level":"info","message":"[CRON] Subscription cron jobs initialized","service":"iap-service","timestamp":"2026-02-14 10:47:07"}
+{"level":"debug","message":"GET /api/v1/admin/giveaway/prizes?page=1&limit=10","service":"iap-service","timestamp":"2026-02-14 10:50:49"}
+{"level":"debug","message":"GET /api/v1/admin/giveaway/prizes","service":"iap-service","timestamp":"2026-02-14 10:50:50"}
+{"level":"debug","message":"GET /api/v1/admin/giveaway/campaigns?page=1&limit=10","service":"iap-service","timestamp":"2026-02-14 10:50:51"}
+{"level":"debug","message":"GET /api/v1/admin/giveaway/prizes","service":"iap-service","timestamp":"2026-02-14 10:50:51"}
+{"level":"debug","message":"POST /api/v1/admin/giveaway/campaigns","service":"iap-service","timestamp":"2026-02-14 10:50:59"}
+{"level":"info","message":"[CRON] Subscription cron jobs initialized","service":"iap-service","timestamp":"2026-02-14 10:51:11"}
+{"level":"info","message":"[CRON] Subscription cron jobs initialized","service":"iap-service","timestamp":"2026-02-14 10:52:43"}
+{"level":"debug","message":"GET /api/v1/admin/giveaway/prizes?page=1&limit=10","service":"iap-service","timestamp":"2026-02-14 10:53:39"}
+{"level":"debug","message":"GET /api/v1/admin/giveaway/prizes","service":"iap-service","timestamp":"2026-02-14 10:53:40"}
+{"level":"debug","message":"GET /api/v1/admin/giveaway/prizes","service":"iap-service","timestamp":"2026-02-14 10:53:40"}
+{"level":"debug","message":"GET /api/v1/admin/giveaway/campaigns?page=1&limit=10","service":"iap-service","timestamp":"2026-02-14 10:53:41"}
+{"level":"debug","message":"POST /api/v1/admin/giveaway/campaigns","service":"iap-service","timestamp":"2026-02-14 10:53:49"}
+{"level":"info","message":"[CRON] Subscription cron jobs initialized","service":"iap-service","timestamp":"2026-02-14 10:54:08"}
+{"level":"debug","message":"GET /api/v1/admin/giveaway/prizes?page=1&limit=10","service":"iap-service","timestamp":"2026-02-14 11:01:14"}
+{"level":"debug","message":"GET /api/v1/admin/giveaway/prizes","service":"iap-service","timestamp":"2026-02-14 11:01:15"}
+{"level":"debug","message":"GET /api/v1/admin/giveaway/prizes","service":"iap-service","timestamp":"2026-02-14 11:01:15"}
+{"level":"debug","message":"GET /api/v1/admin/giveaway/campaigns?page=1&limit=10","service":"iap-service","timestamp":"2026-02-14 11:01:16"}
+{"level":"debug","message":"POST /api/v1/admin/giveaway/campaigns","service":"iap-service","timestamp":"2026-02-14 11:01:23"}
+{"level":"info","message":"[CRON] Subscription cron jobs initialized","service":"iap-service","timestamp":"2026-02-14 11:01:51"}
+{"level":"info","message":"[CRON] Subscription cron jobs initialized","service":"iap-service","timestamp":"2026-02-14 11:12:08"}
+{"level":"info","message":"[CRON] Subscription cron jobs initialized","service":"iap-service","timestamp":"2026-02-14 11:12:44"}
+{"level":"info","message":"[CRON] Subscription cron jobs initialized","service":"iap-service","timestamp":"2026-02-14 11:12:57"}
+{"level":"info","message":"[CRON] Subscription cron jobs initialized","service":"iap-service","timestamp":"2026-02-14 11:13:14"}
+{"level":"info","message":"[CRON] Subscription cron jobs initialized","service":"iap-service","timestamp":"2026-02-14 11:14:02"}
+{"level":"info","message":"[CRON] Subscription cron jobs initialized","service":"iap-service","timestamp":"2026-02-14 11:14:20"}
+{"level":"debug","message":"GET /api/v1/admin/giveaway/prizes?page=1&limit=10","service":"iap-service","timestamp":"2026-02-14 11:29:47"}
+{"level":"info","message":"[CRON] Subscription cron jobs initialized","service":"iap-service","timestamp":"2026-02-14 11:37:22"}
+{"level":"info","message":"[CRON] Subscription cron jobs initialized","service":"iap-service","timestamp":"2026-02-14 11:40:01"}
+{"level":"info","message":"[CRON] Subscription cron jobs initialized","service":"iap-service","timestamp":"2026-02-14 11:40:18"}
+{"level":"debug","message":"POST /api/v1/auth/phonetest","service":"iap-service","timestamp":"2026-02-14 11:40:30"}
+{"level":"info","message":"[CRON] Subscription cron jobs initialized","service":"iap-service","timestamp":"2026-02-14 11:40:44"}
+{"level":"info","message":"[CRON] Subscription cron jobs initialized","service":"iap-service","timestamp":"2026-02-14 11:40:51"}
+{"level":"debug","message":"POST /api/v1/auth/phonetest","service":"iap-service","timestamp":"2026-02-14 11:40:59"}
+{"level":"info","message":"[CRON] Subscription cron jobs initialized","service":"iap-service","timestamp":"2026-02-14 11:41:29"}
+{"level":"debug","message":"POST /api/v1/auth/phonetest","service":"iap-service","timestamp":"2026-02-14 11:41:36"}
+{"level":"info","message":"[CRON] Subscription cron jobs initialized","service":"iap-service","timestamp":"2026-02-14 11:41:46"}
+{"level":"info","message":"[CRON] Subscription cron jobs initialized","service":"iap-service","timestamp":"2026-02-14 11:41:57"}
+{"level":"info","message":"[CRON] Subscription cron jobs initialized","service":"iap-service","timestamp":"2026-02-14 11:42:06"}
+{"level":"info","message":"[CRON] Subscription cron jobs initialized","service":"iap-service","timestamp":"2026-02-14 11:42:13"}
+{"level":"info","message":"[CRON] Subscription cron jobs initialized","service":"iap-service","timestamp":"2026-02-14 11:42:18"}
+{"level":"info","message":"[CRON] Subscription cron jobs initialized","service":"iap-service","timestamp":"2026-02-14 11:42:30"}
+{"level":"debug","message":"POST /api/v1/auth/phonetest","service":"iap-service","timestamp":"2026-02-14 11:42:37"}
+{"level":"info","message":"[CRON] Subscription cron jobs initialized","service":"iap-service","timestamp":"2026-02-14 11:43:42"}
+{"level":"debug","message":"POST /api/v1/auth/phonetest","service":"iap-service","timestamp":"2026-02-14 11:43:49"}
+{"level":"info","message":"[CRON] Subscription cron jobs initialized","service":"iap-service","timestamp":"2026-02-14 11:44:21"}
+{"level":"info","message":"[CRON] Subscription cron jobs initialized","service":"iap-service","timestamp":"2026-02-14 11:44:34"}
+{"level":"debug","message":"POST /api/v1/auth/phonetest","service":"iap-service","timestamp":"2026-02-14 11:44:44"}
+{"level":"info","message":"[CRON] Subscription cron jobs initialized","service":"iap-service","timestamp":"2026-02-14 11:44:59"}
+{"level":"info","message":"[CRON] Subscription cron jobs initialized","service":"iap-service","timestamp":"2026-02-14 11:46:29"}
+{"level":"info","message":"[CRON] Subscription cron jobs initialized","service":"iap-service","timestamp":"2026-02-14 11:46:40"}
+{"level":"debug","message":"POST /api/v1/auth/phonetest","service":"iap-service","timestamp":"2026-02-14 11:46:52"}
+{"level":"debug","message":"POST /api/v1/auth/verifytestotp","service":"iap-service","timestamp":"2026-02-14 11:47:07"}
+{"level":"debug","message":"GET /api/v1/admin/giveaway/prizes?page=1&limit=10","service":"iap-service","timestamp":"2026-02-14 11:51:15"}
+{"level":"debug","message":"GET /api/v1/admin/dashboard/stats/kpi","service":"iap-service","timestamp":"2026-02-14 11:51:16"}
+{"level":"debug","message":"GET /api/v1/admin/dashboard/stats/kpi","service":"iap-service","timestamp":"2026-02-14 11:51:16"}
+{"level":"debug","message":"GET /api/v1/admin/dashboard/stats/kpi","service":"iap-service","timestamp":"2026-02-14 11:51:16"}
+{"level":"debug","message":"GET /api/v1/admin/dashboard/stats/kpi","service":"iap-service","timestamp":"2026-02-14 11:51:16"}
+{"level":"debug","message":"GET /api/v1/admin/dashboard/stats/kpi","service":"iap-service","timestamp":"2026-02-14 11:51:17"}
+{"level":"debug","message":"GET /api/v1/admin/dashboard/stats/kpi","service":"iap-service","timestamp":"2026-02-14 11:51:17"}
+{"level":"debug","message":"GET /api/v1/admin/moderation/pending-verifications?page=1&limit=10&status=pending","service":"iap-service","timestamp":"2026-02-14 11:51:20"}
+{"level":"debug","message":"POST /api/v1/admin/moderation/users/69900fa2f9886c049b7b6d0a/verify","service":"iap-service","timestamp":"2026-02-14 11:51:25"}
+{"level":"debug","message":"GET /api/v1/admin/users?page=1&limit=10","service":"iap-service","timestamp":"2026-02-14 11:53:36"}
+{"level":"debug","message":"GET /api/v1/admin/profile-review/reported?page=1&limit=10","service":"iap-service","timestamp":"2026-02-14 11:53:59"}
+{"level":"debug","message":"GET /api/v1/admin/users?page=1&limit=10","service":"iap-service","timestamp":"2026-02-14 11:54:00"}
+{"level":"debug","message":"GET /api/v1/admin/giveaway/prizes?page=1&limit=10","service":"iap-service","timestamp":"2026-02-14 11:59:19"}
+{"level":"debug","message":"GET /api/v1/admin/giveaway/prizes","service":"iap-service","timestamp":"2026-02-14 11:59:20"}
+{"level":"debug","message":"GET /api/v1/admin/giveaway/prizes","service":"iap-service","timestamp":"2026-02-14 11:59:20"}
+{"level":"debug","message":"GET /api/v1/admin/giveaway/campaigns?page=1&limit=10","service":"iap-service","timestamp":"2026-02-14 11:59:20"}
+{"level":"debug","message":"POST /api/v1/admin/giveaway/campaigns","service":"iap-service","timestamp":"2026-02-14 11:59:37"}
+{"level":"info","message":"[CRON] Subscription cron jobs initialized","service":"iap-service","timestamp":"2026-02-14 12:00:24"}
+{"level":"debug","message":"GET /api/v1/admin/giveaway/prizes?page=1&limit=10","service":"iap-service","timestamp":"2026-02-14 12:05:39"}
+{"level":"debug","message":"GET /api/v1/admin/giveaway/prizes","service":"iap-service","timestamp":"2026-02-14 12:05:39"}
+{"level":"debug","message":"GET /api/v1/admin/giveaway/prizes","service":"iap-service","timestamp":"2026-02-14 12:05:40"}
+{"level":"debug","message":"GET /api/v1/admin/giveaway/campaigns?page=1&limit=10","service":"iap-service","timestamp":"2026-02-14 12:05:40"}
+{"level":"debug","message":"POST /api/v1/admin/giveaway/campaigns","service":"iap-service","timestamp":"2026-02-14 12:05:47"}
+{"level":"info","message":"[CRON] Subscription cron jobs initialized","service":"iap-service","timestamp":"2026-02-14 12:05:59"}
+{"level":"info","message":"[CRON] Subscription cron jobs initialized","service":"iap-service","timestamp":"2026-02-14 12:06:18"}
+{"level":"debug","message":"GET /api/v1/admin/giveaway/prizes?page=1&limit=10","service":"iap-service","timestamp":"2026-02-14 12:10:46"}
+{"level":"debug","message":"GET /api/v1/admin/giveaway/prizes","service":"iap-service","timestamp":"2026-02-14 12:10:46"}
+{"level":"debug","message":"GET /api/v1/admin/giveaway/prizes","service":"iap-service","timestamp":"2026-02-14 12:10:46"}
+{"level":"debug","message":"GET /api/v1/admin/giveaway/campaigns?page=1&limit=10","service":"iap-service","timestamp":"2026-02-14 12:10:46"}
+{"level":"debug","message":"POST /api/v1/admin/giveaway/campaigns","service":"iap-service","timestamp":"2026-02-14 12:10:56"}
+{"level":"info","message":"[CRON] Subscription cron jobs initialized","service":"iap-service","timestamp":"2026-02-14 12:12:28"}
+{"level":"info","message":"[CRON] Subscription cron jobs initialized","service":"iap-service","timestamp":"2026-02-14 12:12:45"}
+{"level":"debug","message":"GET /api/v1/admin/giveaway/campaigns/699018f8c3da9dad6d8caed7/participants","service":"iap-service","timestamp":"2026-02-14 12:14:41"}
+{"level":"debug","message":"GET /api/v1/admin/giveaway/prizes?page=1&limit=10","service":"iap-service","timestamp":"2026-02-14 12:15:45"}
+{"level":"debug","message":"GET /api/v1/admin/giveaway/prizes","service":"iap-service","timestamp":"2026-02-14 12:15:45"}
+{"level":"debug","message":"GET /api/v1/admin/giveaway/prizes","service":"iap-service","timestamp":"2026-02-14 12:15:45"}
+{"level":"debug","message":"GET /api/v1/admin/giveaway/campaigns?page=1&limit=10","service":"iap-service","timestamp":"2026-02-14 12:15:46"}
+{"level":"debug","message":"POST /api/v1/admin/giveaway/campaigns","service":"iap-service","timestamp":"2026-02-14 12:15:53"}
+{"level":"info","message":"[CRON] Subscription cron jobs initialized","service":"iap-service","timestamp":"2026-02-14 12:17:10"}
+{"level":"debug","message":"GET /api/v1/admin/giveaway/campaigns/699018f8c3da9dad6d8caed7/participants","service":"iap-service","timestamp":"2026-02-14 12:17:21"}
+{"level":"debug","message":"GET /api/v1/admin/giveaway/prizes?page=1&limit=10","service":"iap-service","timestamp":"2026-02-14 12:17:45"}
+{"level":"debug","message":"GET /api/v1/admin/giveaway/prizes","service":"iap-service","timestamp":"2026-02-14 12:17:46"}
+{"level":"debug","message":"GET /api/v1/admin/giveaway/prizes","service":"iap-service","timestamp":"2026-02-14 12:17:46"}
+{"level":"debug","message":"GET /api/v1/admin/giveaway/campaigns?page=1&limit=10","service":"iap-service","timestamp":"2026-02-14 12:17:46"}
+{"level":"debug","message":"POST /api/v1/admin/giveaway/campaigns","service":"iap-service","timestamp":"2026-02-14 12:17:53"}
+{"level":"info","message":"[CRON] Subscription cron jobs initialized","service":"iap-service","timestamp":"2026-02-14 12:18:19"}
+{"level":"debug","message":"GET /api/v1/admin/giveaway/campaigns/699018f8c3da9dad6d8caed7/participants","service":"iap-service","timestamp":"2026-02-14 12:19:12"}
+{"level":"debug","message":"GET /api/v1/admin/giveaway/campaigns/69901a991355bbb6a7097f02/participants","service":"iap-service","timestamp":"2026-02-14 12:19:33"}
+{"level":"info","message":"[CRON] Subscription cron jobs initialized","service":"iap-service","timestamp":"2026-02-14 12:29:50"}
+{"level":"debug","message":"GET /api/v1/admin/giveaway/campaigns/69901a991355bbb6a7097f02/participants","service":"iap-service","timestamp":"2026-02-14 12:30:00"}
+{"level":"debug","message":"GET /api/v1/admin/giveaway/campaigns/69901a991355bbb6a7097f02/participants","service":"iap-service","timestamp":"2026-02-14 12:30:21"}
+{"level":"info","message":"[CRON] Subscription cron jobs initialized","service":"iap-service","timestamp":"2026-02-14 12:30:55"}
+{"level":"debug","message":"GET /api/v1/admin/giveaway/campaigns/69901a991355bbb6a7097f02/participants","service":"iap-service","timestamp":"2026-02-14 12:31:01"}
+{"level":"info","message":"[CRON] Subscription cron jobs initialized","service":"iap-service","timestamp":"2026-02-14 12:37:11"}
+{"level":"info","message":"[CRON] Subscription cron jobs initialized","service":"iap-service","timestamp":"2026-02-14 12:37:38"}
+{"level":"info","message":"[CRON] Subscription cron jobs initialized","service":"iap-service","timestamp":"2026-02-14 12:37:59"}
+{"level":"info","message":"[CRON] Subscription cron jobs initialized","service":"iap-service","timestamp":"2026-02-14 12:38:06"}
+{"level":"info","message":"[CRON] Subscription cron jobs initialized","service":"iap-service","timestamp":"2026-02-14 12:38:10"}
+{"level":"debug","message":"GET /api/v1/admin/users?page=1&limit=10","service":"iap-service","timestamp":"2026-02-14 12:38:45"}
+{"level":"debug","message":"GET /api/v1/admin/giveaway/prizes?page=1&limit=10","service":"iap-service","timestamp":"2026-02-14 12:41:04"}
+{"level":"debug","message":"GET /api/v1/admin/giveaway/prizes?page=1&limit=10&search=test","service":"iap-service","timestamp":"2026-02-14 12:41:20"}
+{"level":"debug","message":"GET /api/v1/admin/giveaway/prizes?page=1&limit=10","service":"iap-service","timestamp":"2026-02-14 12:41:25"}
+{"level":"debug","message":"GET /api/v1/admin/giveaway/prizes?page=1&limit=10","service":"iap-service","timestamp":"2026-02-14 12:41:39"}
+{"level":"debug","message":"GET /api/v1/admin/giveaway/prizes?page=1&limit=10","service":"iap-service","timestamp":"2026-02-14 12:41:52"}
+{"level":"debug","message":"GET /api/v1/admin/giveaway/campaigns/winner?page=1&limit=10","service":"iap-service","timestamp":"2026-02-14 12:42:03"}
+{"level":"debug","message":"GET /api/v1/admin/giveaway/deliveries/pending?page=1&limit=10","service":"iap-service","timestamp":"2026-02-14 12:42:13"}
+{"level":"debug","message":"GET /api/v1/admin/giveaway/prizes","service":"iap-service","timestamp":"2026-02-14 12:42:21"}
+{"level":"debug","message":"GET /api/v1/admin/giveaway/prizes","service":"iap-service","timestamp":"2026-02-14 12:42:21"}
+{"level":"debug","message":"GET /api/v1/admin/giveaway/prizes","service":"iap-service","timestamp":"2026-02-14 12:42:23"}
+{"level":"debug","message":"GET /api/v1/admin/giveaway/prizes","service":"iap-service","timestamp":"2026-02-14 12:42:23"}
+{"level":"debug","message":"GET /api/v1/admin/giveaway/campaigns?page=1&limit=10","service":"iap-service","timestamp":"2026-02-14 12:42:24"}
+{"level":"debug","message":"GET /api/v1/admin/giveaway/prizes?page=1&limit=10","service":"iap-service","timestamp":"2026-02-14 12:42:28"}
+{"level":"debug","message":"GET /api/v1/admin/giveaway/prizes?page=1&limit=10","service":"iap-service","timestamp":"2026-02-14 12:42:39"}
+{"level":"debug","message":"POST /api/v1/admin/giveaway/prizes","service":"iap-service","timestamp":"2026-02-14 12:43:20"}
+{"level":"debug","message":"PATCH /api/v1/admin/giveaway/prizes/6990209031cee5b5f7f88de5","service":"iap-service","timestamp":"2026-02-14 12:43:42"}
+{"level":"debug","message":"GET /api/v1/admin/giveaway/prizes","service":"iap-service","timestamp":"2026-02-14 12:43:48"}
+{"level":"debug","message":"GET /api/v1/admin/giveaway/prizes","service":"iap-service","timestamp":"2026-02-14 12:43:48"}
+{"level":"debug","message":"GET /api/v1/admin/giveaway/campaigns?page=1&limit=10","service":"iap-service","timestamp":"2026-02-14 12:43:49"}
+{"level":"debug","message":"GET /api/v1/admin/giveaway/prizes","service":"iap-service","timestamp":"2026-02-14 12:43:58"}
+{"level":"debug","message":"GET /api/v1/admin/giveaway/prizes","service":"iap-service","timestamp":"2026-02-14 12:43:58"}
+{"level":"debug","message":"GET /api/v1/admin/giveaway/prizes?page=1&limit=10","service":"iap-service","timestamp":"2026-02-14 12:46:58"}
+{"level":"debug","message":"GET /api/v1/admin/giveaway/campaigns/winner?page=1&limit=10","service":"iap-service","timestamp":"2026-02-14 12:47:03"}
+{"level":"debug","message":"GET /api/v1/admin/giveaway/prizes?page=1&limit=10","service":"iap-service","timestamp":"2026-02-14 12:47:40"}
+{"level":"debug","message":"GET /api/v1/admin/giveaway/prizes?page=1&limit=10","service":"iap-service","timestamp":"2026-02-14 13:17:32"}
+{"level":"debug","message":"GET /api/v1/admin/dashboard/stats/kpi","service":"iap-service","timestamp":"2026-02-14 13:18:28"}
+{"level":"debug","message":"GET /api/v1/admin/dashboard/stats/kpi","service":"iap-service","timestamp":"2026-02-14 13:18:30"}
+{"level":"debug","message":"GET /api/v1/admin/dashboard/stats/kpi","service":"iap-service","timestamp":"2026-02-14 13:18:30"}
+{"level":"debug","message":"GET /api/v1/admin/dashboard/stats/kpi","service":"iap-service","timestamp":"2026-02-14 13:18:31"}
+{"level":"debug","message":"GET /api/v1/admin/dashboard/stats/kpi","service":"iap-service","timestamp":"2026-02-14 13:18:32"}
+{"level":"debug","message":"GET /api/v1/admin/dashboard/stats/kpi","service":"iap-service","timestamp":"2026-02-14 13:18:33"}
+{"level":"debug","message":"GET /api/v1/admin/users?page=1&limit=10&accountStatus=banned","service":"iap-service","timestamp":"2026-02-14 13:21:16"}
+{"level":"debug","message":"POST /api/v1/auth/phonetest","service":"iap-service","timestamp":"2026-02-14 13:21:44"}
+{"level":"debug","message":"POST /api/v1/auth/verifytestotp","service":"iap-service","timestamp":"2026-02-14 13:22:13"}
+{"level":"debug","message":"GET /api/v1/admin/giveaway/prizes?page=1&limit=10","service":"iap-service","timestamp":"2026-02-14 13:25:31"}
+{"level":"debug","message":"GET /api/v1/admin/giveaway/prizes?page=1&limit=10","service":"iap-service","timestamp":"2026-02-14 13:41:01"}
+{"level":"error","message":"[CRON] Expire check error:","service":"iap-service","timestamp":"2026-02-14 14:00:31"}
+{"level":"error","message":"[CRON] Grace check error:","service":"iap-service","timestamp":"2026-02-14 14:00:31"}
+{"level":"info","message":"[CRON] Subscription cron jobs initialized","service":"iap-service","timestamp":"2026-02-14 14:15:26"}
+{"level":"info","message":"[CRON] Subscription cron jobs initialized","service":"iap-service","timestamp":"2026-02-14 14:16:00"}
+{"level":"info","message":"[CRON] Subscription cron jobs initialized","service":"iap-service","timestamp":"2026-02-14 14:17:08"}
+{"level":"info","message":"[CRON] Subscription cron jobs initialized","service":"iap-service","timestamp":"2026-02-14 14:17:28"}
+{"level":"info","message":"[CRON] Subscription cron jobs initialized","service":"iap-service","timestamp":"2026-02-14 14:18:07"}
+{"level":"info","message":"[CRON] Subscription cron jobs initialized","service":"iap-service","timestamp":"2026-02-14 14:18:24"}
+{"level":"info","message":"[CRON] Subscription cron jobs initialized","service":"iap-service","timestamp":"2026-02-14 14:18:41"}
+{"level":"error","message":"[CRON] Expire check error:","service":"iap-service","timestamp":"2026-02-14 14:25:31"}
+{"level":"error","message":"[CRON] Grace check error:","service":"iap-service","timestamp":"2026-02-14 14:25:32"}
+{"level":"debug","message":"POST /webhook/test/apple","service":"iap-service","timestamp":"2026-02-14 14:33:43"}
+{"level":"debug","message":"GET /api/v1/subscription/status","service":"iap-service","timestamp":"2026-02-14 14:36:19"}
+{"level":"debug","message":"GET /api/v1/subscription/status","service":"iap-service","timestamp":"2026-02-14 14:37:19"}
+{"level":"info","message":"[CRON] Subscription cron jobs initialized","service":"iap-service","timestamp":"2026-02-14 14:39:49"}
+{"level":"info","message":"[CRON] Subscription cron jobs initialized","service":"iap-service","timestamp":"2026-02-14 14:40:00"}
+{"level":"info","message":"[CRON] Subscription cron jobs initialized","service":"iap-service","timestamp":"2026-02-14 14:40:10"}
+{"level":"info","message":"[CRON] Subscription cron jobs initialized","service":"iap-service","timestamp":"2026-02-14 14:40:22"}
+{"level":"debug","message":"GET /api/v1/subscription/status","service":"iap-service","timestamp":"2026-02-14 14:42:05"}
+{"level":"debug","message":"POST /webhook/test/apple","service":"iap-service","timestamp":"2026-02-14 14:43:19"}
+{"level":"debug","message":"POST /webhook/test/apple","service":"iap-service","timestamp":"2026-02-14 14:43:55"}
+{"level":"info","message":"New subscription created","planType":"monthly","service":"iap-service","subscriptionId":"69903cd307e044ec9fd70f45","timestamp":"2026-02-14 14:43:56","userId":"698f20c11ff3e123d1038296"}
+{"level":"info","message":"Profile subscription synced","service":"iap-service","timestamp":"2026-02-14 14:43:56","userId":"698f20c11ff3e123d1038296"}
+{"level":"debug","message":"GET /api/v1/profile/me","service":"iap-service","timestamp":"2026-02-14 14:49:48"}
+{"level":"info","message":"[CRON] Subscription cron jobs initialized","service":"iap-service","timestamp":"2026-02-14 14:51:48"}
+{"level":"debug","message":"GET /api/v1/profile/me","service":"iap-service","timestamp":"2026-02-14 14:51:58"}
+{"level":"info","message":"[CRON] Subscription cron jobs initialized","service":"iap-service","timestamp":"2026-02-14 14:56:18"}
+{"level":"debug","message":"GET /api/v1/profile/me","service":"iap-service","timestamp":"2026-02-14 14:56:31"}
+{"level":"info","message":"[CRON] Subscription cron jobs initialized","service":"iap-service","timestamp":"2026-02-14 14:57:05"}
+{"level":"debug","message":"GET /api/v1/profile/me","service":"iap-service","timestamp":"2026-02-14 14:57:13"}
+{"level":"info","message":"[CRON] Subscription cron jobs initialized","service":"iap-service","timestamp":"2026-02-14 14:57:55"}
+{"level":"debug","message":"GET /api/v1/profile/me","service":"iap-service","timestamp":"2026-02-14 14:58:09"}
+{"level":"info","message":"[CRON] Subscription cron jobs initialized","service":"iap-service","timestamp":"2026-02-14 14:59:00"}
+{"level":"debug","message":"GET /api/v1/profile/me","service":"iap-service","timestamp":"2026-02-14 14:59:08"}
+{"level":"debug","message":"GET /api/v1/profile/me","service":"iap-service","timestamp":"2026-02-14 15:44:21"}
+{"level":"info","message":"[CRON] Subscription cron jobs initialized","service":"iap-service","timestamp":"2026-02-14 15:54:33"}
+{"level":"debug","message":"POST /api/v1/auth/phonetest","service":"iap-service","timestamp":"2026-02-14 16:02:34"}
+{"level":"debug","message":"POST /api/v1/auth/verifytestotp","service":"iap-service","timestamp":"2026-02-14 16:02:49"}
+{"level":"debug","message":"GET /api/v1/profile/me","service":"iap-service","timestamp":"2026-02-14 16:05:34"}
+{"level":"debug","message":"GET /api/v1/swipe/matches","service":"iap-service","timestamp":"2026-02-14 16:05:40"}
+{"level":"debug","message":"GET /api/v1/swipe/feed","service":"iap-service","timestamp":"2026-02-14 16:09:24"}
+{"level":"debug","message":"GET /api/v1/swipe/feed","service":"iap-service","timestamp":"2026-02-14 16:09:30"}
+{"level":"debug","message":"GET /api/v1/swipe/feed","service":"iap-service","timestamp":"2026-02-14 16:09:32"}
+{"level":"debug","message":"GET /api/v1/swipe/feed","service":"iap-service","timestamp":"2026-02-14 16:09:33"}
+{"level":"debug","message":"GET /api/v1/swipe/feed","service":"iap-service","timestamp":"2026-02-14 16:09:34"}
+{"level":"debug","message":"GET /api/v1/swipe/feed","service":"iap-service","timestamp":"2026-02-14 16:09:39"}
+{"level":"debug","message":"GET /api/v1/swipe/feed","service":"iap-service","timestamp":"2026-02-14 16:09:40"}
+{"level":"debug","message":"GET /api/v1/swipe/feed","service":"iap-service","timestamp":"2026-02-14 16:11:27"}
+{"level":"debug","message":"GET /api/v1/swipe/feed","service":"iap-service","timestamp":"2026-02-14 16:11:32"}
+{"level":"debug","message":"GET /api/v1/swipe/feed","service":"iap-service","timestamp":"2026-02-14 16:11:43"}
+{"level":"debug","message":"GET /api/v1/swipe/feed","service":"iap-service","timestamp":"2026-02-14 16:12:19"}
+{"level":"debug","message":"GET /api/v1/swipe/feed","service":"iap-service","timestamp":"2026-02-14 16:12:24"}
+{"level":"debug","message":"GET /api/v1/swipe/feed","service":"iap-service","timestamp":"2026-02-14 16:12:28"}
+{"level":"debug","message":"GET /api/v1/swipe/matches","service":"iap-service","timestamp":"2026-02-14 16:14:47"}
+{"level":"debug","message":"GET /api/v1/swipe/matches","service":"iap-service","timestamp":"2026-02-14 16:14:49"}
+{"level":"info","message":"[CRON] Subscription cron jobs initialized","service":"iap-service","timestamp":"2026-02-14 16:17:35"}
+{"level":"info","message":"[CRON] Subscription cron jobs initialized","service":"iap-service","timestamp":"2026-02-14 16:17:43"}
+{"level":"info","message":"[CRON] Subscription cron jobs initialized","service":"iap-service","timestamp":"2026-02-14 16:17:59"}
+{"level":"debug","message":"GET /api/v1/profile/me","service":"iap-service","timestamp":"2026-02-14 16:19:31"}
+{"level":"debug","message":"GET /api/v1/profile/me","service":"iap-service","timestamp":"2026-02-14 16:19:38"}
+{"level":"debug","message":"GET /api/v1/profile/me","service":"iap-service","timestamp":"2026-02-14 16:19:56"}
+{"level":"debug","message":"GET /api/v1/profile/me","service":"iap-service","timestamp":"2026-02-14 16:20:23"}
+{"level":"debug","message":"POST /api/v1/account/deactivate","service":"iap-service","timestamp":"2026-02-14 16:20:39"}
+{"level":"debug","message":"GET /api/v1/profile/me","service":"iap-service","timestamp":"2026-02-14 16:20:54"}
+{"level":"debug","message":"GET /api/v1/profile/me","service":"iap-service","timestamp":"2026-02-14 16:29:11"}
+{"level":"info","message":"[CRON] Subscription cron jobs initialized","service":"iap-service","timestamp":"2026-02-14 16:32:42"}
+{"level":"info","message":"[CRON] Subscription cron jobs initialized","service":"iap-service","timestamp":"2026-02-14 16:32:50"}
+{"level":"info","message":"[CRON] Subscription cron jobs initialized","service":"iap-service","timestamp":"2026-02-14 16:32:59"}
+{"level":"info","message":"[CRON] Subscription cron jobs initialized","service":"iap-service","timestamp":"2026-02-14 16:33:30"}
+{"level":"debug","message":"POST /api/v1/account/reactivate","service":"iap-service","timestamp":"2026-02-14 16:33:57"}
+{"level":"debug","message":"POST /api/v1/profile/me","service":"iap-service","timestamp":"2026-02-14 16:34:06"}
+{"level":"debug","message":"GET /api/v1/profile/me","service":"iap-service","timestamp":"2026-02-14 16:34:19"}
+{"level":"debug","message":"POST /api/v1/account/deactivate","service":"iap-service","timestamp":"2026-02-14 16:34:36"}
+{"level":"debug","message":"POST /api/v1/account/deactivate","service":"iap-service","timestamp":"2026-02-14 16:35:15"}
+{"level":"debug","message":"POST /api/v1/account/deactivate","service":"iap-service","timestamp":"2026-02-14 16:35:45"}
+{"level":"debug","message":"POST /api/v1/profile/me","service":"iap-service","timestamp":"2026-02-14 16:35:56"}
+{"level":"debug","message":"GET /api/v1/profile/me","service":"iap-service","timestamp":"2026-02-14 16:36:00"}
+{"level":"info","message":"[CRON] Subscription cron jobs initialized","service":"iap-service","timestamp":"2026-02-14 16:45:51"}
+{"level":"debug","message":"POST /api/v1/account/reactivate","service":"iap-service","timestamp":"2026-02-14 16:46:08"}
+{"level":"debug","message":"POST /api/v1/account/deactivate","service":"iap-service","timestamp":"2026-02-14 16:46:34"}
+{"level":"debug","message":"POST /api/v1/account/reactivate","service":"iap-service","timestamp":"2026-02-14 16:47:49"}
+{"level":"debug","message":"POST /api/v1/account/reactivate","service":"iap-service","timestamp":"2026-02-14 16:48:38"}
+{"level":"debug","message":"POST /api/v1","service":"iap-service","timestamp":"2026-02-14 16:49:10"}
+{"level":"info","message":"[CRON] Subscription cron jobs initialized","service":"iap-service","timestamp":"2026-02-14 16:49:30"}
+{"level":"debug","message":"POST /api/v1/account/reactivate","service":"iap-service","timestamp":"2026-02-14 16:49:38"}
+{"level":"debug","message":"GET /api/v1/profile/me","service":"iap-service","timestamp":"2026-02-14 17:07:26"}
+{"level":"debug","message":"GET /api/v1/swipe/matches","service":"iap-service","timestamp":"2026-02-14 17:08:14"}
+{"level":"debug","message":"GET /api/v1/swipe/superkeen","service":"iap-service","timestamp":"2026-02-14 17:08:35"}
+{"level":"debug","message":"GET /api/v1/swipe/superkeen","service":"iap-service","timestamp":"2026-02-14 17:09:09"}
+{"level":"debug","message":"GET /api/v1/swipe/superkeen","service":"iap-service","timestamp":"2026-02-14 17:09:58"}
+{"level":"debug","message":"GET /api/v1/profile/me","service":"iap-service","timestamp":"2026-02-14 17:10:07"}
+{"level":"debug","message":"GET /api/v1/profile/me","service":"iap-service","timestamp":"2026-02-14 17:11:23"}
+{"level":"debug","message":"GET /api/v1/swipe/superkeen","service":"iap-service","timestamp":"2026-02-14 17:11:33"}
+{"level":"debug","message":"GET /api/v1/swipe/superkeen","service":"iap-service","timestamp":"2026-02-14 17:11:39"}
+{"level":"info","message":"[CRON] Subscription cron jobs initialized","service":"iap-service","timestamp":"2026-02-14 17:15:43"}
+{"level":"info","message":"[CRON] Subscription cron jobs initialized","service":"iap-service","timestamp":"2026-02-14 17:36:49"}
+{"level":"info","message":"[CRON] Subscription cron jobs initialized","service":"iap-service","timestamp":"2026-02-14 17:37:20"}
+{"level":"info","message":"[CRON] Subscription cron jobs initialized","service":"iap-service","timestamp":"2026-02-14 17:37:36"}
+{"level":"info","message":"[CRON] Subscription cron jobs initialized","service":"iap-service","timestamp":"2026-02-14 17:38:33"}
+{"level":"info","message":"[CRON] Subscription cron jobs initialized","service":"iap-service","timestamp":"2026-02-14 17:40:06"}
+{"level":"info","message":"[CRON] Subscription cron jobs initialized","service":"iap-service","timestamp":"2026-02-14 17:41:15"}
+{"level":"info","message":"[CRON] Subscription cron jobs initialized","service":"iap-service","timestamp":"2026-02-14 17:41:33"}
+{"level":"info","message":"[CRON] Subscription cron jobs initialized","service":"iap-service","timestamp":"2026-02-14 17:41:38"}
+{"level":"info","message":"[CRON] Subscription cron jobs initialized","service":"iap-service","timestamp":"2026-02-14 17:42:24"}
+{"level":"info","message":"[CRON] Subscription cron jobs initialized","service":"iap-service","timestamp":"2026-02-14 17:42:32"}
+{"level":"info","message":"[CRON] Subscription cron jobs initialized","service":"iap-service","timestamp":"2026-02-14 17:42:57"}
+{"level":"info","message":"[CRON] Subscription cron jobs initialized","service":"iap-service","timestamp":"2026-02-14 17:43:02"}
+{"level":"info","message":"[CRON] Subscription cron jobs initialized","service":"iap-service","timestamp":"2026-02-14 17:43:25"}
+{"level":"info","message":"[CRON] Subscription cron jobs initialized","service":"iap-service","timestamp":"2026-02-14 17:43:47"}
+{"level":"info","message":"[CRON] Subscription cron jobs initialized","service":"iap-service","timestamp":"2026-02-14 17:44:07"}
+{"level":"info","message":"[CRON] Subscription cron jobs initialized","service":"iap-service","timestamp":"2026-02-14 18:07:03"}
+{"level":"debug","message":"PATCH /api/v1/profile/photos/reorder","service":"iap-service","timestamp":"2026-02-14 18:09:09"}
+{"level":"info","message":"[CRON] Subscription cron jobs initialized","service":"iap-service","timestamp":"2026-02-14 18:09:40"}
+{"level":"debug","message":"PATCH /api/v1/profile/photos/reorder","service":"iap-service","timestamp":"2026-02-14 18:09:48"}
+{"level":"debug","message":"PATCH /api/v1/profile/photos/reorder","service":"iap-service","timestamp":"2026-02-14 18:09:55"}
+{"level":"info","message":"[CRON] Subscription cron jobs initialized","service":"iap-service","timestamp":"2026-02-14 18:10:09"}
+{"level":"debug","message":"PATCH /api/v1/profile/photos/reorder","service":"iap-service","timestamp":"2026-02-14 18:10:30"}
+{"level":"debug","message":"GET /api/v1/profile/me","service":"iap-service","timestamp":"2026-02-14 18:10:39"}
+{"level":"debug","message":"GET /api/v1/profile/me","service":"iap-service","timestamp":"2026-02-14 18:11:15"}
+{"level":"debug","message":"GET /api/v1/profile/me","service":"iap-service","timestamp":"2026-02-14 18:11:23"}
+{"level":"debug","message":"POST /api/v1/profile/photos/reorder","service":"iap-service","timestamp":"2026-02-14 18:11:32"}
+{"level":"debug","message":"POST /api/v1/profile/photos/reorder","service":"iap-service","timestamp":"2026-02-14 18:11:40"}
+{"level":"debug","message":"POST /api/v1/profile/photos/reorder","service":"iap-service","timestamp":"2026-02-14 18:11:46"}
+{"level":"debug","message":"PATCH /api/v1/profile/photos/reorder","service":"iap-service","timestamp":"2026-02-14 18:11:59"}
+{"level":"debug","message":"PATCH /api/v1/profile/photos/reorder","service":"iap-service","timestamp":"2026-02-14 18:12:24"}
+{"level":"info","message":"[CRON] Subscription cron jobs initialized","service":"iap-service","timestamp":"2026-02-14 18:13:49"}
+{"level":"info","message":"[CRON] Subscription cron jobs initialized","service":"iap-service","timestamp":"2026-02-14 18:17:33"}
+{"level":"info","message":"[CRON] Subscription cron jobs initialized","service":"iap-service","timestamp":"2026-02-14 18:22:15"}
+{"level":"info","message":"[CRON] Subscription cron jobs initialized","service":"iap-service","timestamp":"2026-02-14 18:22:25"}
+{"level":"info","message":"[CRON] Subscription cron jobs initialized","service":"iap-service","timestamp":"2026-02-14 18:22:35"}
+{"level":"info","message":"[CRON] Subscription cron jobs initialized","service":"iap-service","timestamp":"2026-02-14 18:22:53"}
+{"level":"debug","message":"POST /api/v1/profile/delete/request-otp","service":"iap-service","timestamp":"2026-02-14 18:24:30"}
+{"level":"debug","message":"POST /api/v1/profile/delete/request-otp","service":"iap-service","timestamp":"2026-02-14 18:25:02"}
+{"level":"debug","message":"POST /api/v1/account/delete/request-otp","service":"iap-service","timestamp":"2026-02-14 18:25:17"}
+{"level":"debug","message":"DELETE /api/v1/account/delete","service":"iap-service","timestamp":"2026-02-14 18:26:45"}
+{"level":"debug","message":"DELETE /api/v1/account/delete","service":"iap-service","timestamp":"2026-02-14 18:26:52"}
+{"level":"debug","message":"DELETE /api/v1/account/delete","service":"iap-service","timestamp":"2026-02-14 18:27:06"}
+{"level":"info","message":"[CRON] Subscription cron jobs initialized","service":"iap-service","timestamp":"2026-02-14 18:29:07"}
+{"level":"debug","message":"DELETE /api/v1/account/delete","service":"iap-service","timestamp":"2026-02-14 18:29:21"}
+{"level":"debug","message":"POST /api/v1/auth/phonetest","service":"iap-service","timestamp":"2026-02-14 18:30:02"}
+{"level":"debug","message":"POST /api/v1/auth/verifytestotp","service":"iap-service","timestamp":"2026-02-14 18:30:19"}
+{"level":"debug","message":"POST /api/v1/account/delete/request-otp","service":"iap-service","timestamp":"2026-02-14 18:30:51"}
+{"level":"debug","message":"DELETE /api/v1/account/delete","service":"iap-service","timestamp":"2026-02-14 18:31:58"}
+{"level":"info","message":"[CRON] Subscription cron jobs initialized","service":"iap-service","timestamp":"2026-02-14 18:33:31"}
+{"level":"info","message":"[CRON] Subscription cron jobs initialized","service":"iap-service","timestamp":"2026-02-14 18:34:21"}
+{"level":"debug","message":"DELETE /api/v1/account/delete","service":"iap-service","timestamp":"2026-02-14 18:34:31"}
+{"level":"info","message":"[CRON] Subscription cron jobs initialized","service":"iap-service","timestamp":"2026-02-14 18:36:53"}
+{"level":"info","message":"[CRON] Subscription cron jobs initialized","service":"iap-service","timestamp":"2026-02-14 18:37:00"}
+{"level":"debug","message":"POST /api/v1/account/delete/request-otp","service":"iap-service","timestamp":"2026-02-14 18:37:21"}
+{"level":"info","message":"[CRON] Subscription cron jobs initialized","service":"iap-service","timestamp":"2026-02-14 18:39:26"}
+{"level":"debug","message":"POST /api/v1/account/delete/restore","service":"iap-service","timestamp":"2026-02-14 18:39:49"}
+{"level":"debug","message":"POST /api/v1/account/delete/restore","service":"iap-service","timestamp":"2026-02-14 18:40:09"}
+{"level":"debug","message":"POST /api/v1/account/delete/restore","service":"iap-service","timestamp":"2026-02-14 18:40:37"}
+{"level":"info","message":"[CRON] Subscription cron jobs initialized","service":"iap-service","timestamp":"2026-02-14 18:40:51"}
+{"level":"debug","message":"POST /api/v1/account/delete/restore","service":"iap-service","timestamp":"2026-02-14 18:41:00"}
+{"level":"debug","message":"POST /api/v1/account/delete/ddsee","service":"iap-service","timestamp":"2026-02-14 18:41:27"}
+{"level":"debug","message":"POST /api/v1/profile/me","service":"iap-service","timestamp":"2026-02-14 18:41:40"}
+{"level":"debug","message":"GET /api/v1/profile/me","service":"iap-service","timestamp":"2026-02-14 18:41:46"}
+{"level":"debug","message":"POST /api/v1/account/delete/restore","service":"iap-service","timestamp":"2026-02-14 18:42:16"}
+{"level":"debug","message":"POST /api/v1/account/delete/restore","service":"iap-service","timestamp":"2026-02-14 18:42:37"}
+{"level":"debug","message":"POST /api/v1/account/delete/restore","service":"iap-service","timestamp":"2026-02-14 18:42:47"}
+{"level":"info","message":"[CRON] Subscription cron jobs initialized","service":"iap-service","timestamp":"2026-02-14 18:44:24"}
+{"level":"debug","message":"POST /api/v1/account/delete/restore","service":"iap-service","timestamp":"2026-02-14 18:44:57"}
+{"level":"debug","message":"POST /api/v1/account/delete/request-otp","service":"iap-service","timestamp":"2026-02-14 18:45:44"}
+{"level":"debug","message":"POST /api/v1/account/delete","service":"iap-service","timestamp":"2026-02-14 18:46:07"}
+{"level":"debug","message":"DELETE /api/v1/account/delete","service":"iap-service","timestamp":"2026-02-14 18:46:30"}
+{"level":"debug","message":"GET /api/v1/profile/me","service":"iap-service","timestamp":"2026-02-14 18:47:06"}
+{"level":"info","message":"[CRON] Subscription cron jobs initialized","service":"iap-service","timestamp":"2026-02-14 18:49:04"}
+{"level":"info","message":"[CRON] Subscription cron jobs initialized","service":"iap-service","timestamp":"2026-02-14 18:49:19"}
+{"level":"debug","message":"GET /api/v1/profile/me","service":"iap-service","timestamp":"2026-02-14 18:50:23"}
+{"level":"debug","message":"POST /api/v1/account/delete/restore","service":"iap-service","timestamp":"2026-02-14 18:50:55"}
+{"level":"debug","message":"GET /api/v1/profile/me","service":"iap-service","timestamp":"2026-02-14 18:51:06"}
+{"level":"debug","message":"POST /api/v1/account/found-the-right-one","service":"iap-service","timestamp":"2026-02-14 18:51:31"}
+{"level":"debug","message":"GET /api/v1/profile/me","service":"iap-service","timestamp":"2026-02-14 18:51:48"}

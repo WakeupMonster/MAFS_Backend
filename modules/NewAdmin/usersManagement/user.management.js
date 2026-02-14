@@ -960,11 +960,13 @@ module.exports.SampleGETallUser = async (req, res) => {
     res.status(500).json({ success: false, message: "Failed to fetch users" });
   }
 };
+
 /* ============================================
  * For GET SINGLE USER DETAILS – ADMIN:-
  * API 2: GET api/v1/admin/user-management/:userId
  ============================================ */
 //  Pending This API/.
+
 module.exports.GETSingleUserDetails = async (req, res) => {
   try {
     /* -----------------------------

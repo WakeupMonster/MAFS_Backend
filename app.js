@@ -53,13 +53,6 @@
 
 
 
-
-
-
-
-
-
-
 const express = require("express");
 const app = express();
 const cors = require("cors");
@@ -72,6 +65,7 @@ require("./jobs/giveaway/giveaway.cron");
 require("./jobs/unsuspendUsers.job");
 require("./jobs/adminNotification/premiumExpiryReminder.cron");
 require("./workers/emailnotification.worker");
+require("./jobs/deletion.job")
 
 // ─── IAP Cron Jobs ───
 const { initCronJobs } = require("./modules/subscription/cron/subscriptionCron");

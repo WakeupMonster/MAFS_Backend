@@ -131,7 +131,7 @@ exports.getMyProfile = async (req, res) => {
     res.status(500).json({ success: false, message: "Failed to fetch profile" });
   }
 };
-
+  
 exports.uploadPhotos = async (req, res) => {
   try {
     const userId = req.user._id;
@@ -227,10 +227,10 @@ exports.reorderPhotos = async (req, res) => {
     const position = parseInt(toPosition);
 
     // ✅ 2. Position valid hai ya nahi
-    if (isNaN(position) || position < 1) {
+    if (isNaN(position) || position < 0) {
       return res.status(400).json({
         success: false,
-        message: "toPosition must be a number >= 1",
+        message: "toPosition must be a number >= 0",
       });
     }
 

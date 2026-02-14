@@ -14,13 +14,14 @@ const planNames = {
     free: "MAFS Free",
     plus: "MAFS Plus",
     gold: "MAFS Gold",
-    platinum: "MAFS Platinum"
+    platinum: "MAFS Platinum",
+    monthly : "MAFS PREMIUM"
   };
 
 
 // Simple completion logic based on mandatory fields
 const calculateCompletion = (profile) => {
-  return profile.onboardingProgress?.totalCompletion || 0;
+  return profile?.onboardingProgress?.totalCompletion || 0;
 };
 
 
@@ -63,15 +64,15 @@ tonight.setHours(24, 0, 0, 0);
       }
     },
     profile: {
-    id: profile.userId,
+    id: profile?.userId || null,
       nickname: p.nickname || null,
-      dob: profile.dob
+      dob: profile?.dob
   ? profile.dob.toISOString().split("T")[0]
   : null,
-      age: profile.age || calculateAge(profile.dob),
-      gender: p.gender || null,
-      height: p.height || null,
-      about: p.about || null,
+      age: profile?.age || calculateAge(profile?.dob),
+      gender: p?.gender || null,
+      height: p?.height || null,
+      about: p?.about || null,
       jobTitle: p.jobTitle || null,
       company: p.company || null,
       school: p.school || null,
@@ -157,12 +158,12 @@ tonight.setHours(24, 0, 0, 0);
     },
     subscription: {
       plan: {
-        id: sub.planId || "free",
-        name: planNames[sub.planId] || "MAFS Free",
-        isActive: sub.isActive || false,
-        expiryDate: sub.expiryDate || null,
-        isAutoRenew: sub.isAutoRenew || false,
-        source: sub.paymentSource || "google_play"
+        id: p.subscription?.planId || "free",
+        name: planNames[p.subscription?.planId] || "MAFS Free",
+        isActive: p.subscription?.isActive || false,
+        expiryDate: p.subscription?.expiryDate || null,
+        isAutoRenew: p.subscription?.isAutoRenew || false,
+        source: p.subscription?.paymentSource || "google_play"
       },
       wallet: {
             likes: {

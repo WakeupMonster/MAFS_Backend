@@ -1242,3 +1242,125 @@ exports.deleteCampaign = async (req, res, next) => {
     });
   }
 };
+
+
+
+const Profile = require("../../profile/profile.model"); // adjust path
+
+module.exports.getParticipants = async (req, res) => {
+  try {
+    const { campaignId } = req.params;
+    const { page = 1, limit = 20, search = "" } = req.query;
+
+    const campaign = await GiveawayCampaign.findById(campaignId).lean();
+
+    if (!campaign) {
+      return res.status(404).json({
+        success: false,
+        message: "Campaign not found",
+      });
+    }
+
+    const participantIds = campaign.participants || [];
+
+    if (!participantIds.length) {
+      return res.status(200).json({
+        success: true,
+        data: [],
+        pagination: { page: 1, limit, total: 0, totalPages: 0 },
+      });
+    }
+
+    const profileMatchFilter = {
+      userId: { $in: participantIds },
+    };
+
+    if (search) {
+      profileMatchFilter.$or = [
+        { nickname: { $regex: search, $options: "i" } },
+        { fullName: { $regex: search, $options: "i" } },
+      ];
+    }
+
+    const total = await Profile.countDocuments(profileMatchFilter);
+
+    const skip = (Number(page) - 1) * Number(limit);
+
+    const participants = await Profile.aggregate([
+      {
+        $match: profileMatchFilter,
+      },
+      {
+        $lookup: {
+          from: "users",
+          localField: "userId",
+          foreignField: "_id",
+          as: "user",
+        },
+      },
+      { $unwind: "$user" },
+      {
+        $project: {
+          _id: "$userId",
+          nickname: "$nickname",
+          fullName: "$fullName",
+          age: "$age",
+          gender: "$gender",
+          photo: {
+            $arrayElemAt: [
+              {
+                $filter: {
+                  input: "$photos",
+                  as: "p",
+                  cond: { $eq: ["$$p.order", 0] },
+                },
+              },
+              0,
+            ],
+          },
+          city: "$location.city",
+          country: "$location.country",
+          phone: "$user.phone",
+          email: "$user.email",
+          isPremium: "$user.isPremium",
+          accountStatus: "$user.accountStatus",
+          isWinner: {
+            $cond: {
+              if: {
+                $eq: ["$userId", campaign.winnerUserId],
+              },
+              then: true,
+              else: false,
+            },
+          },
+        },
+      },
+      { $skip: skip },
+      { $limit: Number(limit) },
+    ]);
+
+    return res.status(200).json({
+      success: true,
+      data: participants,
+      campaign: {
+        _id: campaign._id,
+        date: campaign.date,
+        drawStatus: campaign.drawStatus,
+        totalParticipants: campaign.totalParticipants,
+        winnerUserId: campaign.winnerUserId,
+      },
+      pagination: {
+        page: Number(page),
+        limit: Number(limit),
+        total,
+        totalPages: Math.ceil(total / Number(limit)),
+      },
+    });
+  } catch (error) {
+    console.error("Get participants error:", error);
+    return res.status(500).json({
+      success: false,
+      message: error.message || "Failed to fetch participants",
+    });
+  }
+};
