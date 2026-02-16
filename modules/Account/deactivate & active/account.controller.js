@@ -497,8 +497,7 @@ exports.requestDeleteAccountOtp = async (req, res) => {
     // 7️⃣ Response
     return res.json({
       success: true,
-      message: "Delete account OTP sent successfully",
-      otp : `Your otp for account deletion is : ${otp}`,
+      message: `Delete account OTP sent successfully : ${otp}`,
         data: {
         user: formattedUser
       }
