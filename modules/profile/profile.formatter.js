@@ -56,11 +56,14 @@ tonight.setHours(24, 0, 0, 0);
       deactivationDetails: {
         isDeactivated: user.deactivationDetails?.isDeactivated || false,
         reason: user.deactivationDetails?.reason || null,
-        deactivatedAt: user.deactivationDetails?.deactivatedAt || null
+        deactivatedAt: user.deactivationDetails?.deactivatedAt || null,
       },
       deletionDetails: {
         isScheduledForDeletion: user.deletionDetails?.isScheduledForDeletion || false,
-        scheduledAt: user.deletionDetails?.scheduledAt || null
+        reason : user.deletionDetails?.reason || null,
+        scheduledAt: user.deletionDetails?.scheduledAt || null,
+        deletionDate : user.deletionDetails?.deletionDate || null,
+        daysRemaining : user.deletionDetails?.daysRemaining || null
       }
     },
     profile: {

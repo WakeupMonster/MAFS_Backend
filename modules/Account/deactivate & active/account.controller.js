@@ -21,7 +21,7 @@ exports.deleteAccount = async (req, res) => {
   try {
 
     const userId = req.user._id;
-    const { otp } = req.body;
+     const { otp, reason } = req.body;
 
     if (!otp) {
       return res.status(400).json({
@@ -29,6 +29,14 @@ exports.deleteAccount = async (req, res) => {
         message: "OTP is required"
       });
     }
+
+      if (!reason || reason.trim().length < 3) {
+      return res.status(400).json({
+        success: false,
+        message: "Deletion reason is required"
+      });
+    }
+
 
     // const user = await User.findById(userId);
     const user = await User.findById(userId)
@@ -58,10 +66,16 @@ exports.deleteAccount = async (req, res) => {
 
     const now = new Date();
 
-    // 30 days grace period
-    const permanentDeleteAt = new Date(
+     const deletionDate = new Date(
       now.getTime() + 30 * 24 * 60 * 60 * 1000
     );
+
+     const diffMs = deletionDate - now;
+
+    const daysRemaining = Math.floor(
+      diffMs / (1000 * 60 * 60 * 24)
+    );
+
 
     await Promise.all([
 
@@ -75,7 +89,10 @@ exports.deleteAccount = async (req, res) => {
 
             deletionDetails: {
               isScheduledForDeletion: true,
-              scheduledAt: permanentDeleteAt
+              scheduledAt: now,
+              deletionDate: deletionDate,
+              reason: reason.trim(),
+              daysRemaining : daysRemaining
             },
 
             deleteAccountOtp: null,
@@ -114,7 +131,17 @@ exports.deleteAccount = async (req, res) => {
     return res.json({
       success: true,
       message: "Account scheduled for deletion",
-      permanentDeleteAt
+         deletionDetails: {
+
+        reason: reason.trim(),
+
+        scheduledAt: now,
+
+        deletionDate: deletionDate,
+
+        daysRemaining: daysRemaining
+
+      }
     });
 
   } catch (error) {

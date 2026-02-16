@@ -122,9 +122,21 @@ const userSchema = new mongoose.Schema({
       type: Boolean,
       default: false
     },
+      reason: {
+      type: String,
+      default: null
+    },
     scheduledAt: {
       type: Date,
       default: null
+    },
+    deletionDate : {
+      type : Date,
+      default : null
+    },
+    daysRemaining : {
+      type : Number,
+      default : null
     }
   },
 
