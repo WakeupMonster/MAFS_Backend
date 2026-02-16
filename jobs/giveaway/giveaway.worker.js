@@ -240,6 +240,8 @@ module.exports = async function runGiveawayWorker() {
     const startOfTodayAEST = nowAEST.startOf("day").toDate();
     const endOfTodayAEST = nowAEST.endOf("day").toDate();
 
+    
+
     console.log("📅 Now AEST:", nowAEST.format("YYYY-MM-DD HH:mm:ss"));
 
     const settings = await GiveawaySettings.findOne();
@@ -253,6 +255,10 @@ module.exports = async function runGiveawayWorker() {
       isActive: true,
       drawStatus: "PENDING"
     });
+     const campaignDateAEST = dayjs(campaign.date).tz("Australia/Sydney");
+    console.log("campaignDateAEST:", campaignDateAEST)
+      const yesterdayAEST = nowAEST.subtract(1, "day");
+    console.log("yesterdayAEST :", yesterdayAEST)
 
     if (!campaign) {
       console.log("ℹ️ No pending giveaway campaign today");
@@ -271,9 +277,15 @@ module.exports = async function runGiveawayWorker() {
     // 3️⃣ Match window = YESTERDAY 00:00 - 23:59 AEST
     //    (Draw is NEXT DAY at 7PM)
     // ===============================
-    const yesterdayAEST = nowAEST.subtract(1, "day");
-    const giveawayStart = yesterdayAEST.startOf("day").toDate();
-    const giveawayEnd = yesterdayAEST.endOf("day").toDate();
+
+    // const campaignDateAEST = dayjs(campaign.date).tz("Australia/Sydney");
+    // console.log("campaignDateAEST:", campaignDateAEST)
+const giveawayStart = campaignDateAEST.startOf("day").toDate();
+const giveawayEnd = campaignDateAEST.endOf("day").toDate();
+    // const yesterdayAEST = nowAEST.subtract(1, "day");
+    // console.log("yesterdayAEST :", yesterdayAEST)
+    // const giveawayStart = yesterdayAEST.startOf("day").toDate();
+    // const giveawayEnd = yesterdayAEST.endOf("day").toDate();
 
     console.log("🎰 Giveaway window (YESTERDAY AEST):");
     console.log("   From:", giveawayStart);

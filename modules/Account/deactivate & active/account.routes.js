@@ -6,7 +6,6 @@ const { rateLimit } = require("./rateLimit.middleware");
 
 router.use(auth);
 
-
 // Deactivate account
 router.post("/deactivate", rateLimit("deactivate", 2, 60 * 60 * 24), controller.deactivateAccount);
 
@@ -18,20 +17,14 @@ router.delete(
   auth,
   controller.deleteAccount
 );
-
-router.post("/delete/request-otp", auth,
-  controller.requestDeleteAccountOtp)
-
+router.post("/delete/request-otp", auth,controller.requestDeleteAccountOtp)
 
 router.post("/delete/restore", auth, controller.restoreAccount);
-
-
 
 router.post(
   "/found-the-right-one",
   auth,
   controller.markAsMarried
 );
-
 
 module.exports = router;

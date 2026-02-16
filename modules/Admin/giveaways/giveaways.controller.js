@@ -257,6 +257,12 @@ module.exports.createCampaign = async (req, res) => {
   try {
     const { date, prizeId } = req.body;
 
+
+  //   const campaignDate = dayjs(date)
+  // .tz("Australia/Sydney")
+  // .startOf("day")
+  // .toDate();
+
     const campaignDate = new Date(date);
     campaignDate.setHours(0, 0, 0, 0);
 

@@ -4,7 +4,6 @@ const { invalidateUserFeedCache } = require("../../../common/utils/feedCache.uti
 
 
 
-
 // const mongoose = require('mongoose');
 
 
@@ -13,6 +12,7 @@ const Swipe = require("../../../modules/matches/swipe/swipe.model");
 const Message = require("../../../modules/matches/chat/chat.message.model");
 const ChatRoom = require("../../matches/chat/chat.room.model");
 const redis = require("../../../config/cache");
+const getFormattedUser = require("../../../common/utils/getFormattedUser");
 
 
 
@@ -128,19 +128,13 @@ exports.deleteAccount = async (req, res) => {
 
     ]);
 
+     const formattedUser = await getFormattedUser(userId, req);
+
     return res.json({
       success: true,
       message: "Account scheduled for deletion",
-         deletionDetails: {
-
-        reason: reason.trim(),
-
-        scheduledAt: now,
-
-        deletionDate: deletionDate,
-
-        daysRemaining: daysRemaining
-
+        data: {
+        user: formattedUser
       }
     });
 
@@ -229,110 +223,8 @@ exports.permanentDeleteAccounts = async () => {
 
 };
 
-
-
-
-
-// exports.deleteAccount = async (req, res) => {
-//   const userId = req.user._id;
-
-//   try {
-//     // Convert to ObjectId
-//     const userObjectId = mongoose.Types.ObjectId.isValid(userId) 
-//       ? new mongoose.Types.ObjectId(userId) 
-//       : userId;
-    
-//     console.log('🔍 Deleting account for userId:', userObjectId);
-
-//     // 1. Verify user exists
-//     const user = await User.findById(userObjectId);
-//     if (!user) {
-//       return res.status(404).json({
-//         success: false,
-//         message: "User not found"
-//       });
-//     }
-
-//     // 2. Delete matches - MongoDB shell mein jo query kaam kari wahi use karo
-//     const deletedMatches = await Match.deleteMany({
-//       users: userObjectId
-//     });
-
-//     console.log(`✅ Deleted ${deletedMatches.deletedCount} matches`);
-
-//     // 3. Delete swipes
-//     const deletedSwipes = await Swipe.deleteMany({
-//       $or: [
-//         { swiperId: userObjectId },
-//         { targetId: userObjectId }
-//       ]
-//     });
-    
-//     console.log(`✅ Deleted ${deletedSwipes.deletedCount} swipes`);
-
-//     // 4. Delete profile
-//     const deletedProfile = await Profile.deleteOne({ 
-//       userId: userObjectId 
-//     });
-    
-//     console.log(`✅ Deleted profile:`, deletedProfile.deletedCount);
-
-//     // 5. Delete user
-//     const deletedUser = await User.deleteOne({ 
-//       _id: userObjectId 
-//     });
-    
-//     console.log(`✅ Deleted user:`, deletedUser.deletedCount);
-
-//       if (redis) {
-//                  const CACHE_KEY = `feed:${userId.toString()}`;
-//                  await redis.del(CACHE_KEY);
-//                  console.log("Redis cache cleared for new filters");
-//              }
-
-//     // 6. Redis cleanup
-//     if (redis?.isOpen) {
-//       try {
-//         await redis.del(`feed:${userObjectId.toString()}`);
-//         await redis.del(`user:online:${userObjectId}`);
-//         await redis.del(`sockets:${userObjectId}`);
-//         console.log('✅ Redis cleanup done');
-//       } catch (redisErr) {
-//         console.error('⚠️ Redis cleanup error:', redisErr.message);
-//       }
-//     }
-
-//     return res.json({
-//       success: true,
-//       message: "Account deleted successfully",
-//       deletedData: {
-//         matches: deletedMatches.deletedCount,
-//         swipes: deletedSwipes.deletedCount,
-//         profile: deletedProfile.deletedCount,
-//         user: deletedUser.deletedCount
-//       }
-//     });
-
-//   } catch (err) {
-//     console.error("❌ Delete account error:", err);
-//     return res.status(500).json({
-//       success: false,
-//       message: "Failed to delete account",
-//       error: process.env.NODE_ENV === 'development' ? err.message : undefined
-//     });
-//   }
-// };
-
 exports.markAsMarried = async (req, res) => {
   const userId = req.user._id;
-    // const profile = await Profile.findOne({ userId });
-
-    // if (!profile) {
-    //   return res.status(404).json({
-    //     success: false,
-    //     message: "Profile not found"
-    //   });
-    // }
 
 
   try {
@@ -352,9 +244,13 @@ exports.markAsMarried = async (req, res) => {
       }
     );
 
+    const formattedUser = await getFormattedUser(userId, req);
     return res.json({
       success: true,
-      message: "Congratulations! Dating features are now disabled."
+      message: "Congratulations! Dating features are now disabled.",
+       data: {
+        user: formattedUser
+      }
     });
 
   } catch (err) {
@@ -443,9 +339,14 @@ exports.deactivateAccount = async (req, res) => {
       invalidateFeedPromise
     ]);
 
+    const formattedUser = await getFormattedUser(userId, req);
+
     return res.json({
       success: true,
-      message: "Account deactivated successfully"
+      message: "Account deactivated successfully",
+      data: {
+        user: formattedUser
+      }
     });
 
   } catch (error) {
@@ -522,9 +423,14 @@ exports.reactivateAccount = async (req, res) => {
       invalidateFeedPromise
     ]);
 
+     const formattedUser = await getFormattedUser(userId, req);
+
     return res.json({
       success: true,
-      message: "Account reactivated successfully"
+      message: "Account reactivated successfully",
+      data: {
+        user: formattedUser
+      }
     });
 
   } catch (error) {
@@ -586,11 +492,16 @@ exports.requestDeleteAccountOtp = async (req, res) => {
 
     console.log("Delete Account OTP:", otp);
 
+     const formattedUser = await getFormattedUser(userId, req);
+
     // 7️⃣ Response
     return res.json({
       success: true,
       message: "Delete account OTP sent successfully",
-      otp : `Your otp for account deletion is : ${otp}`
+      otp : `Your otp for account deletion is : ${otp}`,
+        data: {
+        user: formattedUser
+      }
     });
 
   } catch (error) {
@@ -675,10 +586,13 @@ exports.restoreAccount = async (req, res) => {
       redis?.del(`socket:${userId}`)
 
     ]);
-
+const formattedUser = await getFormattedUser(userId, req);
     return res.json({
       success: true,
-      message: "Account restored successfully"
+      message: "Account restored successfully",
+        data: {
+        user: formattedUser
+      }
     });
 
   } catch (error) {
