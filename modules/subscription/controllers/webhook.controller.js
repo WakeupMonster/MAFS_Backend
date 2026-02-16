@@ -1,29 +1,23 @@
-const { SubscriptionEvent } = require("../models/subscription_events");
+const SubscriptionEvent = require("../models/SubscriptionEvent");
 const appleService = require("../services/apple.service");
 const googleService = require("../services/google.service");
 const subscriptionService = require("../services/subscription.service");
 const { generatePayloadHash } = require("../utils/iap.helpers");
+const logger = require("../utils/logger");
 
-// ═══════════════════════════════
-//  APPLE WEBHOOK
-// ═══════════════════════════════
-exports.appleWebhook = async (req, res) => {
+// ─── APPLE WEBHOOK ───
+const appleWebhook = async (req, res) => {
   try {
     const hash = generatePayloadHash(req.body);
+    const decoded = appleService.decodeWebhookPayload(req.body.signedPayload);
 
-    // Decode
-    const decoded = appleService.decodeWebhookPayload(
-      req.body.signedPayload
-    );
-
-    // Save event
     let event;
     try {
       event = await SubscriptionEvent.create({
         platform: "ios",
         source: "WEBHOOK",
-        eventType: decoded.notificationType,
-        externalEventId: decoded.notificationUUID,
+        eventType: decoded.notificationType || "UNKNOWN",
+        externalEventId: decoded.notificationUUID || null,
         payloadHash: hash,
         rawPayload: req.body,
         processed: false,
@@ -31,23 +25,24 @@ exports.appleWebhook = async (req, res) => {
       });
     } catch (err) {
       if (err.code === 11000) {
+        logger.warn("Duplicate Apple webhook", { hash: hash });
         return res.status(200).send("Duplicate");
       }
       throw err;
     }
 
-    // Turant response
     res.status(200).send("OK");
 
-    // Background process
-    processAppleWebhook(decoded, event).catch(console.error);
+    _processAppleWebhook(decoded, event).catch((err) => {
+      logger.error("Apple webhook processing failed:", err.message);
+    });
   } catch (err) {
-    console.error("Apple webhook error:", err);
-    res.status(500).send("Error");
+    logger.error("Apple webhook error:", err.message);
+    return res.status(500).send("Error");
   }
 };
 
-async function processAppleWebhook(decoded, event) {
+async function _processAppleWebhook(decoded, event) {
   try {
     const txn = decoded.transactionInfo || {};
     const renewal = decoded.renewalInfo || {};
@@ -81,44 +76,45 @@ async function processAppleWebhook(decoded, event) {
         await subscriptionService.handleExpire(data);
         break;
       case "REFUND":
-        data.refundReason =
-          txn.revocationReason === 1 ? "APP_ISSUE" : "OTHER";
+        data.refundReason = txn.revocationReason === 1 ? "APP_ISSUE" : "OTHER";
         await subscriptionService.handleRefund(data);
         break;
       default:
-        console.log("Unhandled Apple event:", decoded.notificationType);
+        logger.info("Unhandled Apple event:", decoded.notificationType);
     }
 
     event.processed = true;
     event.processedAt = new Date();
     await event.save();
+
+    logger.info("Apple webhook processed", {
+      eventType: decoded.notificationType,
+      eventId: event._id,
+    });
   } catch (err) {
     event.error = {
       message: err.message,
       stack: err.stack,
-      retryCount: (event.error?.retryCount || 0) + 1,
+      retryCount: (event.error ? event.error.retryCount : 0) + 1,
     };
     await event.save();
+    logger.error("Apple webhook process error:", err.message);
   }
 }
 
-// ═══════════════════════════════
-//  GOOGLE WEBHOOK
-// ═══════════════════════════════
-exports.googleWebhook = async (req, res) => {
+// ─── GOOGLE WEBHOOK ───
+const googleWebhook = async (req, res) => {
   try {
     const message = req.body.message;
     const data = googleService.decodeWebhookPayload(message.data);
     const notification = data.subscriptionNotification;
 
     if (!notification) {
+      logger.info("Google webhook - not a subscription event");
       return res.status(200).send("Not subscription");
     }
 
-    const eventName = googleService.getEventName(
-      notification.notificationType
-    );
-
+    const eventName = googleService.getEventName(notification.notificationType);
     const hash = generatePayloadHash(data);
 
     let event;
@@ -127,7 +123,7 @@ exports.googleWebhook = async (req, res) => {
         platform: "android",
         source: "WEBHOOK",
         eventType: eventName,
-        externalEventId: message.messageId,
+        externalEventId: message.messageId || null,
         payloadHash: hash,
         rawPayload: req.body,
         processed: false,
@@ -135,6 +131,7 @@ exports.googleWebhook = async (req, res) => {
       });
     } catch (err) {
       if (err.code === 11000) {
+        logger.warn("Duplicate Google webhook", { hash: hash });
         return res.status(200).send("Duplicate");
       }
       throw err;
@@ -142,16 +139,16 @@ exports.googleWebhook = async (req, res) => {
 
     res.status(200).send("OK");
 
-    processGoogleWebhook(notification, eventName, event).catch(
-      console.error
-    );
+    _processGoogleWebhook(notification, eventName, event).catch((err) => {
+      logger.error("Google webhook processing failed:", err.message);
+    });
   } catch (err) {
-    console.error("Google webhook error:", err);
-    res.status(500).send("Error");
+    logger.error("Google webhook error:", err.message);
+    return res.status(500).send("Error");
   }
 };
 
-async function processGoogleWebhook(notification, eventName, event) {
+async function _processGoogleWebhook(notification, eventName, event) {
   try {
     const detail = await googleService.verifySubscription(
       notification.subscriptionId,
@@ -182,9 +179,7 @@ async function processGoogleWebhook(notification, eventName, event) {
         break;
       case "CANCELED":
         data.cancellationReason =
-          detail.cancelReason === 0
-            ? "USER_CANCELLED"
-            : "BILLING_ERROR";
+          detail.cancelReason === 0 ? "USER_CANCELLED" : "BILLING_ERROR";
         await subscriptionService.handleCancel(data);
         break;
       case "IN_GRACE_PERIOD":
@@ -201,18 +196,26 @@ async function processGoogleWebhook(notification, eventName, event) {
         await subscriptionService.handlePause(data);
         break;
       default:
-        console.log("Unhandled Google event:", eventName);
+        logger.info("Unhandled Google event:", eventName);
     }
 
     event.processed = true;
     event.processedAt = new Date();
     await event.save();
+
+    logger.info("Google webhook processed", {
+      eventType: eventName,
+      eventId: event._id,
+    });
   } catch (err) {
     event.error = {
       message: err.message,
       stack: err.stack,
-      retryCount: (event.error?.retryCount || 0) + 1,
+      retryCount: (event.error ? event.error.retryCount : 0) + 1,
     };
     await event.save();
+    logger.error("Google webhook process error:", err.message);
   }
 }
+
+module.exports = { appleWebhook, googleWebhook };

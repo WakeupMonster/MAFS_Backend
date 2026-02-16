@@ -1,45 +1,38 @@
-const mongoose = require("mongoose")
+const mongoose = require("mongoose");
+
 const SubscriptionTransactionSchema = new mongoose.Schema(
   {
     subscriptionId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "Subscription",
-      required: true,        // ← CHANGE: Required hona chahiye
+      required: true,
       index: true,
     },
-
-    userId: {                // ← ADD: Direct user lookup ke liye
+    userId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",
       required: true,
       index: true,
     },
-
     platform: {
       type: String,
       enum: ["ios", "android"],
       required: true,
     },
-
     transactionId: {
       type: String,
-      index: true,           // ← ADD: Index for lookup
+      index: true,
       sparse: true,
     },
-
     purchaseToken: {
       type: String,
       sparse: true,
     },
-
-    // ← ADD: Google Order ID
     orderId: String,
-
     productId: {
       type: String,
-      required: true,        // ← CHANGE: Required
+      required: true,
     },
-
     eventType: {
       type: String,
       enum: [
@@ -48,33 +41,26 @@ const SubscriptionTransactionSchema = new mongoose.Schema(
         "CANCEL",
         "REFUND",
         "EXPIRE",
-        "GRACE_PERIOD",      // ← ADD
-        "PAUSE",             // ← ADD: Google
-        "RESUME",            // ← ADD: Google
-        "PRICE_CHANGE",      // ← ADD
-        "BILLING_RETRY",     // ← ADD
-        "REVOKE",            // ← ADD
+        "GRACE_PERIOD",
+        "PAUSE",
+        "RESUME",
+        "PRICE_CHANGE",
+        "BILLING_RETRY",
+        "REVOKE",
       ],
       required: true,
     },
-
     amount: Number,
     currency: String,
-
-    // ← ADD: Refund specific
     refundReason: String,
     refundAmount: Number,
-
     rawResponse: {
       type: mongoose.Schema.Types.Mixed,
     },
-
     occurredAt: {
       type: Date,
-      required: true,        // ← CHANGE: Required
+      required: true,
     },
-
-    // ← ADD: Idempotency check
     idempotencyKey: {
       type: String,
       unique: true,
@@ -84,6 +70,10 @@ const SubscriptionTransactionSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
-// ← ADD: Compound index
 SubscriptionTransactionSchema.index({ subscriptionId: 1, eventType: 1 });
 SubscriptionTransactionSchema.index({ transactionId: 1, platform: 1 });
+
+module.exports = mongoose.model(
+  "SubscriptionTransaction",
+  SubscriptionTransactionSchema
+);

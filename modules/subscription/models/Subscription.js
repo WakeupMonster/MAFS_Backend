@@ -6,7 +6,7 @@ const SubscriptionSchema = new mongoose.Schema(
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",
       required: true,
-      // index: true,
+      index: true,
     },
     platform: {
       type: String,
@@ -46,7 +46,7 @@ const SubscriptionSchema = new mongoose.Schema(
     },
     expiresAt: {
       type: Date,
-      // index: true,
+      index: true,
     },
     gracePeriodEndsAt: Date,
     pausedAt: Date,
@@ -116,7 +116,7 @@ const SubscriptionSchema = new mongoose.Schema(
   }
 );
 
-SubscriptionSchema.index({ userId: 1, status: 1, platform: 1, expiresAt: 1 });
+SubscriptionSchema.index({ userId: 1, platform: 1, expiresAt: 1, status: 1 });
 
 SubscriptionSchema.pre("save", function (next) {
   if (this.platform === "ios" && !this.originalTransactionId && !this.isNew) {

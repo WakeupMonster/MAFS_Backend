@@ -1,5 +1,5 @@
-// routes/webhook.routes.js
-const router = require("express").Router();
+const express = require("express");
+const router = express.Router();
 const {
   appleWebhook,
   googleWebhook,
@@ -8,9 +8,16 @@ const {
   verifyAppleWebhook,
   verifyGoogleWebhook,
 } = require("../middlewares/webhookAuth.middleware");
+const { webhookLimiter } = require("../middlewares/rateLimiter.middleware");
 
-// NO USER AUTH - Store call karta hai
-router.post("/apple", verifyAppleWebhook, appleWebhook);
-router.post("/google", verifyGoogleWebhook, googleWebhook);
+router.post("/apple", webhookLimiter, verifyAppleWebhook, appleWebhook);
+router.post("/google", webhookLimiter, verifyGoogleWebhook, googleWebhook);
+
+const {
+  testAppleWebhook,
+  testGoogleWebhook,
+} = require("../controllers/webhookTest.controller");
+router.post("/test/apple", testAppleWebhook);
+router.post("/test/google", testGoogleWebhook);
 
 module.exports = router;

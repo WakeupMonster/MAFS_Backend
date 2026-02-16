@@ -1,56 +1,61 @@
 const Subscription = require("../models/Subscription");
-const SubscriptionTransaction = require("../models/subscription_transactions");
+const SubscriptionTransaction = require("../models/SubscriptionTransaction");
 const iapConfig = require("../config/iap.config");
 const { generateIdempotencyKey } = require("../utils/iap.helpers");
+const logger = require("../utils/logger");
 
 class SubscriptionService {
-  // ═══════════════════════════════
-  //  PURCHASE
-  // ═══════════════════════════════
+  // ─── PURCHASE ───
   async handlePurchase(data) {
-    // Pehle check - already exists?
-    const existing = await Subscription.findOne({
-      $or: [
-        data.originalTransactionId
-          ? { originalTransactionId: data.originalTransactionId }
-          : { _id: null },
-        data.purchaseToken
-          ? { purchaseToken: data.purchaseToken }
-          : { _id: null },
-      ].filter((q) => !q._id),
-    });
+    const orConditions = [];
+
+    if (data.originalTransactionId) {
+      orConditions.push({ originalTransactionId: data.originalTransactionId });
+    }
+    if (data.purchaseToken) {
+      orConditions.push({ purchaseToken: data.purchaseToken });
+    }
+
+    let existing = null;
+    if (orConditions.length > 0) {
+      existing = await Subscription.findOne({ $or: orConditions });
+    }
 
     if (existing) {
       existing.status = "ACTIVE";
       existing.expiresAt = new Date(data.expiresDate);
       existing.latestTransactionId =
         data.transactionId || existing.latestTransactionId;
+      existing.previousStatus = existing.status;
       await existing.save();
+
+      logger.info("Subscription updated (existing)", {
+        subscriptionId: existing._id,
+        userId: data.userId,
+      });
+
       return existing;
     }
 
-    // Product details
     const product = iapConfig.getProductDetails(data.productId);
 
-    // Create subscription
     const subscription = await Subscription.create({
       userId: data.userId,
       platform: data.platform,
       productId: data.productId,
-      planType: product?.planType || "monthly",
+      planType: product ? product.planType : "monthly",
       status: "ACTIVE",
       autoRenew: true,
       startedAt: new Date(data.purchaseDate || Date.now()),
       expiresAt: new Date(data.expiresDate),
-      originalTransactionId: data.originalTransactionId || null,
-      latestTransactionId: data.transactionId || null,
-      purchaseToken: data.purchaseToken || null,
-      orderId: data.orderId || null,
-      environment: data.environment || iapConfig.apple.environment,
+      originalTransactionId: data.originalTransactionId || undefined,
+      latestTransactionId: data.transactionId || undefined,
+      purchaseToken: data.purchaseToken || undefined,
+      orderId: data.orderId || undefined,
+      environment: iapConfig.apple.environment || "sandbox",
     });
 
-    // Transaction log
-    await this.logTransaction({
+    await this._logTransaction({
       subscriptionId: subscription._id,
       userId: data.userId,
       platform: data.platform,
@@ -58,60 +63,69 @@ class SubscriptionService {
       purchaseToken: data.purchaseToken,
       productId: data.productId,
       eventType: "PURCHASE",
-      amount: product?.price || 0,
-      currency: product?.currency || "USD",
+      amount: product ? product.price : 0,
+      currency: product ? product.currency : "USD",
       occurredAt: new Date(data.purchaseDate || Date.now()),
+    });
+
+    logger.info("New subscription created", {
+      subscriptionId: subscription._id,
+      userId: data.userId,
+      planType: subscription.planType,
     });
 
     return subscription;
   }
 
-  // ═══════════════════════════════
-  //  RENEW
-  // ═══════════════════════════════
+  // ─── RENEW ───
   async handleRenew(data) {
-    const sub = await this.findSubscription(data);
-    if (!sub) throw new Error("Subscription not found for renew");
+    const sub = await this._findSubscription(data);
+    if (!sub) {
+      logger.error("Subscription not found for renew", data);
+      throw new Error("Subscription not found for renew");
+    }
 
     const product = iapConfig.getProductDetails(sub.productId);
 
+    sub.previousStatus = sub.status;
     sub.status = "ACTIVE";
     sub.expiresAt = new Date(data.expiresDate);
     sub.latestTransactionId = data.transactionId || sub.latestTransactionId;
     sub.autoRenew = true;
     sub.retryCount = 0;
-    sub.previousStatus = sub.status;
     await sub.save();
 
-    await this.logTransaction({
+    await this._logTransaction({
       subscriptionId: sub._id,
       userId: sub.userId,
       platform: sub.platform,
       transactionId: data.transactionId,
       productId: sub.productId,
       eventType: "RENEW",
-      amount: product?.price || 0,
-      currency: product?.currency || "USD",
+      amount: product ? product.price : 0,
+      currency: product ? product.currency : "USD",
       occurredAt: new Date(),
     });
 
+    logger.info("Subscription renewed", { subscriptionId: sub._id });
     return sub;
   }
 
-  // ═══════════════════════════════
-  //  CANCEL
-  // ═══════════════════════════════
+  // ─── CANCEL ───
   async handleCancel(data) {
-    const sub = await this.findSubscription(data);
-    if (!sub) throw new Error("Subscription not found for cancel");
+    const sub = await this._findSubscription(data);
+    if (!sub) {
+      logger.error("Subscription not found for cancel", data);
+      throw new Error("Subscription not found for cancel");
+    }
 
+    sub.previousStatus = sub.status;
     sub.autoRenew = false;
     sub.cancellationReason = data.cancellationReason || "USER_CANCELLED";
     sub.cancelledAt = new Date();
-    // STATUS ACTIVE HI RAHEGA - period end tak access
     await sub.save();
 
-    await this.logTransaction({
+    await this._logTransaction({
       subscriptionId: sub._id,
       userId: sub.userId,
       platform: sub.platform,
@@ -120,24 +134,27 @@ class SubscriptionService {
       occurredAt: new Date(),
     });
 
+    logger.info("Subscription cancelled", { subscriptionId: sub._id });
     return sub;
   }
 
-  // ═══════════════════════════════
-  //  GRACE PERIOD
-  // ═══════════════════════════════
+  // ─── GRACE PERIOD ───
   async handleGracePeriod(data) {
-    const sub = await this.findSubscription(data);
-    if (!sub) throw new Error("Subscription not found for grace");
+    const sub = await this._findSubscription(data);
+    if (!sub) {
+      logger.error("Subscription not found for grace", data);
+      throw new Error("Subscription not found for grace period");
+    }
 
+    sub.previousStatus = sub.status;
     sub.status = "GRACE";
     sub.gracePeriodEndsAt = data.gracePeriodEndsAt
       ? new Date(data.gracePeriodEndsAt)
-      : new Date(Date.now() + 16 * 24 * 60 * 60 * 1000); // 16 days
+      : new Date(Date.now() + 16 * 24 * 60 * 60 * 1000);
     sub.retryCount = (sub.retryCount || 0) + 1;
     await sub.save();
 
-    await this.logTransaction({
+    await this._logTransaction({
       subscriptionId: sub._id,
       userId: sub.userId,
       platform: sub.platform,
@@ -146,21 +163,27 @@ class SubscriptionService {
       occurredAt: new Date(),
     });
 
+    logger.info("Subscription in grace period", {
+      subscriptionId: sub._id,
+      retryCount: sub.retryCount,
+    });
     return sub;
   }
 
-  // ═══════════════════════════════
-  //  EXPIRE
-  // ═══════════════════════════════
+  // ─── EXPIRE ───
   async handleExpire(data) {
-    const sub = await this.findSubscription(data);
-    if (!sub) throw new Error("Subscription not found for expire");
+    const sub = await this._findSubscription(data);
+    if (!sub) {
+      logger.error("Subscription not found for expire", data);
+      throw new Error("Subscription not found for expire");
+    }
 
+    sub.previousStatus = sub.status;
     sub.status = "EXPIRED";
     sub.autoRenew = false;
     await sub.save();
 
-    await this.logTransaction({
+    await this._logTransaction({
       subscriptionId: sub._id,
       userId: sub.userId,
       platform: sub.platform,
@@ -169,52 +192,58 @@ class SubscriptionService {
       occurredAt: new Date(),
     });
 
+    logger.info("Subscription expired", { subscriptionId: sub._id });
     return sub;
   }
 
-  // ═══════════════════════════════
-  //  REFUND
-  // ═══════════════════════════════
+  // ─── REFUND ───
   async handleRefund(data) {
-    const sub = await this.findSubscription(data);
-    if (!sub) throw new Error("Subscription not found for refund");
+    const sub = await this._findSubscription(data);
+    if (!sub) {
+      logger.error("Subscription not found for refund", data);
+      throw new Error("Subscription not found for refund");
+    }
 
     const product = iapConfig.getProductDetails(sub.productId);
 
+    sub.previousStatus = sub.status;
     sub.status = "REVOKED";
     sub.autoRenew = false;
     sub.cancellationReason = "REFUNDED";
     sub.cancelledAt = new Date();
     await sub.save();
 
-    await this.logTransaction({
+    await this._logTransaction({
       subscriptionId: sub._id,
       userId: sub.userId,
       platform: sub.platform,
       productId: sub.productId,
       eventType: "REFUND",
-      amount: product?.price || 0,
-      refundAmount: data.refundAmount || product?.price || 0,
+      amount: product ? product.price : 0,
+      refundAmount: data.refundAmount || (product ? product.price : 0),
       refundReason: data.refundReason || "UNKNOWN",
       occurredAt: new Date(),
     });
 
+    logger.info("Subscription refunded/revoked", { subscriptionId: sub._id });
     return sub;
   }
 
-  // ═══════════════════════════════
-  //  PAUSE (Google only)
-  // ═══════════════════════════════
+  // ─── PAUSE ───
   async handlePause(data) {
-    const sub = await this.findSubscription(data);
-    if (!sub) throw new Error("Subscription not found for pause");
+    const sub = await this._findSubscription(data);
+    if (!sub) {
+      logger.error("Subscription not found for pause", data);
+      throw new Error("Subscription not found for pause");
+    }
 
+    sub.previousStatus = sub.status;
     sub.status = "PAUSED";
     sub.pausedAt = new Date();
     sub.resumesAt = data.resumesAt ? new Date(data.resumesAt) : null;
     await sub.save();
 
-    await this.logTransaction({
+    await this._logTransaction({
       subscriptionId: sub._id,
       userId: sub.userId,
       platform: sub.platform,
@@ -223,22 +252,18 @@ class SubscriptionService {
       occurredAt: new Date(),
     });
 
+    logger.info("Subscription paused", { subscriptionId: sub._id });
     return sub;
   }
 
-  // ═══════════════════════════════
-  //  CHECK ACCESS
-  // ═══════════════════════════════
+  // ─── CHECK ACCESS ───
   async checkAccess(userId) {
     const sub = await Subscription.findOne({
-      userId,
+      userId: userId,
       status: { $in: ["ACTIVE", "GRACE"] },
       $or: [
         { expiresAt: { $gt: new Date() } },
-        {
-          status: "GRACE",
-          gracePeriodEndsAt: { $gt: new Date() },
-        },
+        { status: "GRACE", gracePeriodEndsAt: { $gt: new Date() } },
       ],
     });
 
@@ -257,50 +282,41 @@ class SubscriptionService {
     };
   }
 
-  // ═══════════════════════════════
-  //  GET USER SUBSCRIPTION
-  // ═══════════════════════════════
+  // ─── GET USER SUBSCRIPTION ───
   async getUserSubscription(userId) {
-    return Subscription.findOne({ userId }).sort({ createdAt: -1 });
+    return Subscription.findOne({ userId: userId }).sort({ createdAt: -1 });
   }
 
-  // ═══════════════════════════════
-  //  GET TRANSACTION HISTORY
-  // ═══════════════════════════════
-  async getTransactionHistory(userId, limit = 50) {
-    return SubscriptionTransaction.find({ userId })
+  // ─── GET TRANSACTION HISTORY ───
+  async getTransactionHistory(userId, limit) {
+    const safeLimit = limit || 50;
+    return SubscriptionTransaction.find({ userId: userId })
       .sort({ occurredAt: -1 })
-      .limit(limit);
+      .limit(safeLimit);
   }
 
-  // ═══════════════════════════════
-  //  HELPERS
-  // ═══════════════════════════════
-  async findSubscription(data) {
-    const query = [];
-
+  // ─── PRIVATE: Find subscription ───
+  async _findSubscription(data) {
     if (data.originalTransactionId) {
-      query.push({
+      return Subscription.findOne({
         originalTransactionId: data.originalTransactionId,
       });
     }
     if (data.purchaseToken) {
-      query.push({ purchaseToken: data.purchaseToken });
+      return Subscription.findOne({ purchaseToken: data.purchaseToken });
     }
     if (data.userId) {
-      query.push({ userId: data.userId });
+      return Subscription.findOne({ userId: data.userId }).sort({
+        createdAt: -1,
+      });
     }
-
-    if (query.length === 0) return null;
-
-    return Subscription.findOne(
-      query.length === 1 ? query[0] : { $or: query }
-    );
+    return null;
   }
 
-  async logTransaction(data) {
+  // ─── PRIVATE: Log transaction ───
+  async _logTransaction(data) {
     const identifier =
-      data.transactionId || data.purchaseToken || Date.now();
+      data.transactionId || data.purchaseToken || String(Date.now());
     const key = generateIdempotencyKey(
       data.platform,
       data.eventType,
@@ -309,13 +325,23 @@ class SubscriptionService {
 
     try {
       await SubscriptionTransaction.create({
-        ...data,
+        subscriptionId: data.subscriptionId,
+        userId: data.userId,
+        platform: data.platform,
+        transactionId: data.transactionId || undefined,
+        purchaseToken: data.purchaseToken || undefined,
+        productId: data.productId,
+        eventType: data.eventType,
+        amount: data.amount,
+        currency: data.currency,
+        refundReason: data.refundReason,
+        refundAmount: data.refundAmount,
         occurredAt: data.occurredAt || new Date(),
         idempotencyKey: key,
       });
     } catch (err) {
       if (err.code === 11000) {
-        console.log("Duplicate transaction, skipping");
+        logger.warn("Duplicate transaction, skipping", { key: key });
         return;
       }
       throw err;

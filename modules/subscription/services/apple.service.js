@@ -1,29 +1,23 @@
 const iapConfig = require("../config/iap.config");
-// eslint-disable-next-line no-unused-vars
-const { decodeBase64 } = require("../utils/iap.helpers");
+const logger = require("../utils/logger");
 
 class AppleService {
-  // ─── Check if Apple is configured ───
   isReady() {
     return iapConfig.apple.isConfigured();
   }
 
-  // ─── Generate API token ───
   generateToken() {
     if (!this.isReady()) {
-      console.warn("Apple not configured, using mock mode");
+      logger.warn("Apple not configured, using mock mode");
       return "MOCK_TOKEN";
     }
 
     const jwt = require("jsonwebtoken");
     const fs = require("fs");
 
-    const privateKey = fs.readFileSync(
-      iapConfig.apple.privateKeyPath,
-      "utf8"
-    );
+    const privateKey = fs.readFileSync(iapConfig.apple.privateKeyPath, "utf8");
 
-    return jwt.sign(
+    const token = jwt.sign(
       {
         iss: iapConfig.apple.issuerId,
         iat: Math.floor(Date.now() / 1000),
@@ -37,35 +31,31 @@ class AppleService {
         keyid: iapConfig.apple.keyId,
       }
     );
+
+    return token;
   }
 
-  // ─── Verify transaction with Apple ───
   async verifyTransaction(transactionId) {
-    // MOCK MODE - keys nahi hain
     if (!this.isReady()) {
-      console.warn("Apple MOCK MODE: Returning mock verification");
+      logger.warn("Apple MOCK MODE: Returning mock verification");
       return this.getMockTransactionData(transactionId);
     }
 
-    // REAL MODE - keys hain
     const axios = require("axios");
     const token = this.generateToken();
     const baseUrl = iapConfig.getAppleUrl();
 
     const response = await axios.get(
       `${baseUrl}/inApps/v1/transactions/${transactionId}`,
-      {
-        headers: { Authorization: `Bearer ${token}` },
-      }
+      { headers: { Authorization: `Bearer ${token}` } }
     );
 
     return this.decodeJWS(response.data.signedTransactionInfo);
   }
 
-  // ─── Get subscription status from Apple ───
   async getSubscriptionStatus(originalTransactionId) {
     if (!this.isReady()) {
-      console.warn("Apple MOCK MODE: Returning mock status");
+      logger.warn("Apple MOCK MODE: Returning mock status");
       return this.getMockSubscriptionStatus(originalTransactionId);
     }
 
@@ -75,56 +65,91 @@ class AppleService {
 
     const response = await axios.get(
       `${baseUrl}/inApps/v1/subscriptions/${originalTransactionId}`,
-      {
-        headers: { Authorization: `Bearer ${token}` },
-      }
+      { headers: { Authorization: `Bearer ${token}` } }
     );
 
     return response.data;
   }
 
-  // ─── Decode webhook payload ───
   decodeWebhookPayload(signedPayload) {
     const decoded = this.decodeJWS(signedPayload);
 
-    if (decoded.data?.signedTransactionInfo) {
+    if (decoded.data && decoded.data.signedTransactionInfo) {
       decoded.transactionInfo = this.decodeJWS(
         decoded.data.signedTransactionInfo
       );
     }
 
-    if (decoded.data?.signedRenewalInfo) {
-      decoded.renewalInfo = this.decodeJWS(
-        decoded.data.signedRenewalInfo
-      );
+    if (decoded.data && decoded.data.signedRenewalInfo) {
+      decoded.renewalInfo = this.decodeJWS(decoded.data.signedRenewalInfo);
     }
+
     return decoded;
   }
 
-  // ─── Decode JWS token ───
+  async verifyAndDecodeJWS(signedPayload) {
+    if (
+      !this.isReady() ||
+      iapConfig.getCurrentSettings().skipWebhookVerification
+    ) {
+      return this.decodeJWS(signedPayload);
+    }
+
+    try {
+      const { jwtVerify, importX509 } = require("jose");
+
+      const headerPart = signedPayload.split(".")[0];
+      const header = JSON.parse(
+        Buffer.from(headerPart, "base64").toString("utf8")
+      );
+
+      if (!header.x5c || header.x5c.length === 0) {
+        throw new Error("No certificates in JWS header");
+      }
+
+      const certPem =
+        "-----BEGIN CERTIFICATE-----\n" +
+        header.x5c[0] +
+        "\n-----END CERTIFICATE-----";
+
+      const publicKey = await importX509(certPem, "ES256");
+
+      const { payload } = await jwtVerify(signedPayload, publicKey, {
+        algorithms: ["ES256"],
+      });
+
+      return payload;
+    } catch (err) {
+      logger.error("Apple JWT verification failed:", err.message);
+      throw new Error("Invalid Apple signature");
+    }
+  }
+
   decodeJWS(token) {
     try {
       const parts = token.split(".");
+      if (parts.length !== 3) {
+        throw new Error("Invalid JWS format");
+      }
       const payload = JSON.parse(
         Buffer.from(parts[1], "base64").toString("utf8")
       );
       return payload;
     } catch (err) {
-      console.error("JWS decode error:", err.message);
+      logger.error("JWS decode error:", err.message);
       throw new Error("Invalid JWS token");
     }
   }
 
-  // ═══════════════════════════════
-  //  MOCK DATA (Testing ke liye)
-  // ═══════════════════════════════
   getMockTransactionData(transactionId) {
+    const productId =
+      process.env.PRODUCT_MONTHLY_IOS || "com.myapp.premium.monthly";
     return {
       transactionId: transactionId || "MOCK_TXN_001",
       originalTransactionId: "MOCK_ORIG_TXN_001",
-      productId: process.env.PRODUCT_MONTHLY_IOS || "com.myapp.premium.monthly",
+      productId: productId,
       purchaseDate: Date.now(),
-      expiresDate: Date.now() + 30 * 24 * 60 * 60 * 1000, // 30 days
+      expiresDate: Date.now() + 30 * 24 * 60 * 60 * 1000,
       type: "Auto-Renewable Subscription",
       inAppOwnershipType: "PURCHASED",
       environment: "Sandbox",
@@ -137,7 +162,7 @@ class AppleService {
         {
           lastTransactions: [
             {
-              status: 1, // 1 = active
+              status: 1,
               originalTransactionId:
                 originalTransactionId || "MOCK_ORIG_TXN_001",
             },
@@ -147,4 +172,5 @@ class AppleService {
     };
   }
 }
+
 module.exports = new AppleService();

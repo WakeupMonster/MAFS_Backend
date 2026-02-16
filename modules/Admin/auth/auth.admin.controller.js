@@ -1,7 +1,6 @@
 const User = require("../../auth/auth.model");
 const Profile = require("../../profile/profile.model");
 const utils = require("../../auth/auth.utils");
-const redis = require("../../../config/cache");
 const AppError = require("../../../common/errors/ApiError");
 const {
   adminRegisterSchema,
