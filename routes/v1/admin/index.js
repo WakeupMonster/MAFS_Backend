@@ -10,6 +10,7 @@ const {
 
 // Sub-Route Imports
 const authRoutes = require("../../../modules/Admin/auth/admin.auth.routes");
+const accountRoutes = require("../../../modules/Admin/account/account.routes");
 const userRoutes = require("../../../modules/Admin/usersManagement/user.management.route");
 const cmsRoutes = require("../../../modules/Admin/cms/content.routes");
 const dashboardRoutes = require("../../../modules/Admin/dashboard/dashboard.stats.routes");
@@ -28,6 +29,7 @@ router.use("/auth", authRoutes);
 router.use(auth);
 router.use(allowAdmin);
 
+router.use("/account", accountRoutes);
 router.use("/users", userRoutes); // Cleaned name from "user-management"
 router.use("/cms", cmsRoutes);
 router.use("/giveaway", giveawayRoutes);

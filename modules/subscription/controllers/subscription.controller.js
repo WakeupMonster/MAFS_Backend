@@ -896,11 +896,13 @@ const getCancellationAnalytics = async (req, res, next) => {
 
     return res.json({
       success: true,
-      total: totalCancelled,
-      byReason: byReason,
-      byPlan: byPlan,
-      byPlatform: byPlatform,
-      daily: daily,
+      data: {
+        total: totalCancelled,
+        byReason: byReason,
+        byPlan: byPlan,
+        byPlatform: byPlatform,
+        daily: daily,
+      },
     });
   } catch (err) {
     logger.error("Admin cancellation error:", err.message);
@@ -1034,12 +1036,12 @@ const getAllTransactions = async (req, res, next) => {
 
     return res.json({
       success: true,
-      transactions: transactions,
       pagination: {
         currentPage: parseInt(page),
         totalPages: Math.ceil(total / parseInt(limit)),
         totalItems: total,
       },
+      transactions: transactions,
     });
   } catch (err) {
     logger.error("Admin transactions error:", err.message);

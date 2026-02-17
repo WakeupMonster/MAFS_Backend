@@ -1337,7 +1337,6 @@ module.exports.getParticipants = async (req, res) => {
 
     return res.status(200).json({
       success: true,
-      data: participants,
       campaign: {
         _id: campaign._id,
         date: campaign.date,
@@ -1351,6 +1350,7 @@ module.exports.getParticipants = async (req, res) => {
         total,
         totalPages: Math.ceil(total / Number(limit)),
       },
+      data: participants,
     });
   } catch (error) {
     console.error("Get participants error:", error);

@@ -154,18 +154,18 @@ const handleMulterError = (err, req, res, next) => {
         message: "File too large. Max size is 5MB.",
       });
     }
-      if (err.code === "LIMIT_FILE_COUNT") {
-        return res.status(400).json({
-          success: false,
-          message: "Maximum 6 photo allowed.",
-        });
+    if (err.code === "LIMIT_FILE_COUNT") {
+      return res.status(400).json({
+        success: false,
+        message: "Maximum 6 photo allowed.",
+      });
     }
-      if (err.code === "LIMIT_UNEXPECTED_FILE") {
-    return res.status(400).json({
-      success: false,
-      message: "Unexpected field. Use 'photos' & max 6 files."
-    });
-  }
+    if (err.code === "LIMIT_UNEXPECTED_FILE") {
+      return res.status(400).json({
+        success: false,
+        message: "Unexpected field. Use 'photos' & max 6 files.",
+      });
+    }
     if (
       err.message === "Invalid file type. Only JPEG, PNG, and WebP are allowed."
     ) {
@@ -198,11 +198,12 @@ const uploadFWB = upload.fields([
 const uploadChatMedia = upload.array("media", 10);
 
 module.exports = {
+  upload,
   uploadPhotos, // This is the pre-configured middleware
   handleMulterError,
   uploadSingle,
   uploadFields,
   uploadFWB,
   // uploadMedia,
-  uploadChatMedia
+  uploadChatMedia,
 };
