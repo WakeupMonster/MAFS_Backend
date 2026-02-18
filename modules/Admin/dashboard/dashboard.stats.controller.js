@@ -126,8 +126,8 @@ exports.getKpiOverview = async (req, res) => {
         paidUsers: { value: paidUsers },
         pendingVerifications: { value: pendingVerifications, actionable: true },
         totalUsers: { value: totalUsers },
+        lastUpdatedAt: new Date(),
       },
-      lastUpdatedAt: new Date(),
     };
 
     return res.json({ success: true, data: response });

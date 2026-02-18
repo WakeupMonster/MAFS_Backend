@@ -305,7 +305,7 @@ module.exports.adminResetPassword = async (req, res, next) => {
     // 4. Success Response
     return res.status(200).json({
       success: true,
-      message: "Your password has been updated successfully.",
+      message: "Password updated successfully.",
       description: "Other sessions have been signed out.",
     });
   } catch (err) {
