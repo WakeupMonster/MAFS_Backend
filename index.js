@@ -25,7 +25,7 @@ require("./workers/notification.worker");
 
 const io = new Server(http, {
   cors: {
-    origin: process.env.FRONTEND_URL || "http://localhost:5173", // Ya specific: ["http://localhost:5173", "http://localhost:3000"]
+    origin: "*", // Ya specific: ["http://localhost:5173", "http://localhost:3000"]
     methods: ["GET", "POST"],
     credentials: true,
   },
