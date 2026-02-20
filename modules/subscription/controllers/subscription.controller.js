@@ -1,7 +1,11 @@
 const appleService = require("../services/apple.service");
 const googleService = require("../services/google.service");
+const mongoose = require("mongoose");
 const subscriptionService = require("../services/subscription.service");
 const logger = require("../utils/logger");
+const Subscription = require("../../../modules/subscription/models/Subscription");
+const SubscriptionTransaction = require("../../../modules/subscription/models/SubscriptionTransaction");
+const SubscriptionEvent = require("../../../modules/subscription/models/SubscriptionEvent");
 
 const verifyPurchase = async (req, res, next) => {
   try {
@@ -23,7 +27,10 @@ const verifyPurchase = async (req, res, next) => {
         expiresDate: result.expiresDate,
       };
     } else if (platform === "android") {
-      const result = await googleService.verifySubscription(productId, purchaseToken);
+      const result = await googleService.verifySubscription(
+        productId,
+        purchaseToken
+      );
 
       subscriptionData = {
         userId: userId,
@@ -38,7 +45,9 @@ const verifyPurchase = async (req, res, next) => {
       await googleService.acknowledgePurchase(productId, purchaseToken);
     }
 
-    const subscription = await subscriptionService.handlePurchase(subscriptionData);
+    const subscription = await subscriptionService.handlePurchase(
+      subscriptionData
+    );
 
     logger.info("Purchase verified", {
       userId: userId,
@@ -107,12 +116,6 @@ const getSubscription = async (req, res, next) => {
     return next(err);
   }
 };
-
-
-
-const Subscription = require("../../../modules/subscription/models/Subscription");
-const SubscriptionTransaction = require("../../../modules/subscription/models/SubscriptionTransaction");
-const SubscriptionEvent = require("../../../modules/subscription/models/SubscriptionEvent")
 
 const getStats = async (req, res, next) => {
   try {
@@ -196,7 +199,7 @@ const getStats = async (req, res, next) => {
 
     return res.json({
       success: true,
-      stats: {
+      statsKPI: {
         total: totalSubscribers,
         active: statusMap["ACTIVE"] || 0,
         grace: statusMap["GRACE"] || 0,
@@ -231,6 +234,77 @@ const getStats = async (req, res, next) => {
   }
 };
 
+// const getAllSubscriptions = async (req, res, next) => {
+//   try {
+//     const {
+//       status,
+//       plan,
+//       platform,
+//       page = 1,
+//       limit = 20,
+//       search,
+//       sortBy = "createdAt",
+//       sortOrder = "desc",
+//     } = req.query;
+
+//     const filter = {};
+
+//     if (status) {
+//       filter.status = status;
+//     }
+//     if (plan) {
+//       filter.planType = plan;
+//     }
+//     if (platform) {
+//       filter.platform = platform;
+//     }
+
+//     if (search) {
+//       filter.$or = [
+//         { originalTransactionId: { $regex: search, $options: "i" } },
+//         { purchaseToken: { $regex: search, $options: "i" } },
+//         { orderId: { $regex: search, $options: "i" } },
+//       ];
+
+//       if (search.match(/^[0-9a-fA-F]{24}$/)) {
+//         filter.$or.push({ userId: search });
+//       }
+//     }
+
+//     const pageNum = parseInt(page);
+//     const limitNum = parseInt(limit);
+//     const skip = (pageNum - 1) * limitNum;
+
+//     const sort = {};
+//     sort[sortBy] = sortOrder === "asc" ? 1 : -1;
+
+//     const [subscriptions, total] = await Promise.all([
+//       Subscription.find(filter)
+//         .populate("userId", "nickname email phone")
+//         .sort(sort)
+//         .skip(skip)
+//         .limit(limitNum)
+//         .lean(),
+//       Subscription.countDocuments(filter),
+//     ]);
+
+//     return res.json({
+//       success: true,
+//       subscriptions: subscriptions,
+//       pagination: {
+//         currentPage: pageNum,
+//         totalPages: Math.ceil(total / limitNum),
+//         totalItems: total,
+//         itemsPerPage: limitNum,
+//         hasNext: pageNum * limitNum < total,
+//         hasPrev: pageNum > 1,
+//       },
+//     });
+//   } catch (err) {
+//     logger.error("Admin get subscriptions error:", err.message);
+//     return next(err);
+//   }
+// };
 
 const getAllSubscriptions = async (req, res, next) => {
   try {
@@ -245,131 +319,357 @@ const getAllSubscriptions = async (req, res, next) => {
       sortOrder = "desc",
     } = req.query;
 
-    const filter = {};
-
-    if (status) {
-      filter.status = status;
-    }
-    if (plan) {
-      filter.planType = plan;
-    }
-    if (platform) {
-      filter.platform = platform;
-    }
-
-    if (search) {
-      filter.$or = [
-        { originalTransactionId: { $regex: search, $options: "i" } },
-        { purchaseToken: { $regex: search, $options: "i" } },
-        { orderId: { $regex: search, $options: "i" } },
-      ];
-
-      if (search.match(/^[0-9a-fA-F]{24}$/)) {
-        filter.$or.push({ userId: search });
-      }
-    }
-
     const pageNum = parseInt(page);
     const limitNum = parseInt(limit);
     const skip = (pageNum - 1) * limitNum;
 
-    const sort = {};
-    sort[sortBy] = sortOrder === "asc" ? 1 : -1;
+    // 1. Build the Match Filter (Direct Subscription Fields)
+    const matchStage = {};
+    if (status) matchStage.status = status;
+    if (plan) matchStage.planType = plan;
+    if (platform) matchStage.platform = platform;
 
-    const [subscriptions, total] = await Promise.all([
-      Subscription.find(filter)
-        .populate("userId", "nickname email phone")
-        .sort(sort)
-        .skip(skip)
-        .limit(limitNum)
-        .lean(),
-      Subscription.countDocuments(filter),
-    ]);
+    // 2. Aggregation Pipeline
+    const pipeline = [
+      { $match: matchStage },
+
+      // JOIN with Profiles model (assuming collection name is 'profiles')
+      {
+        $lookup: {
+          from: "profiles",
+          localField: "userId",
+          foreignField: "userId",
+          as: "profile",
+        },
+      },
+
+      // Flatten the userDetails array
+      { $unwind: { path: "$profile", preserveNullAndEmptyArrays: true } },
+      {
+        $lookup: {
+          from: "users", // Ensure this matches your collection name (usually plural)
+          localField: "userId",
+          foreignField: "_id", // Usually users join on _id unless userId is a custom field
+          as: "userDetails",
+        },
+      },
+      { $unwind: { path: "$userDetails", preserveNullAndEmptyArrays: true } },
+
+      // 3. Advanced Searching (Search across Subscriptions AND Profiles)
+      ...(search
+        ? [
+            {
+              $match: {
+                $or: [
+                  { originalTransactionId: { $regex: search, $options: "i" } },
+                  { orderId: { $regex: search, $options: "i" } },
+                  { "profile.nickname": { $regex: search, $options: "i" } },
+                  { "userDetails.email": { $regex: search, $options: "i" } },
+                  { "userDetails.phone": { $regex: search, $options: "i" } },
+                ],
+              },
+            },
+          ]
+        : []),
+
+      // 4. Multi-faceted Output (Data + Pagination in one query)
+      {
+        $facet: {
+          metadata: [{ $count: "total" }],
+          data: [
+            { $sort: { [sortBy]: sortOrder === "asc" ? 1 : -1 } },
+            { $skip: skip },
+            { $limit: limitNum },
+            {
+              $project: {
+                _id: 1,
+                autoRenew: 1,
+                user: {
+                  userId: "$userDetails._id",
+                  avatar: {
+                    $ifNull: [{ $arrayElemAt: ["$profile.photos", 0] }, null],
+                  },
+                  nickname: { $ifNull: ["$profile.nickname", "-"] },
+                  email: { $ifNull: ["$userDetails.email", "-"] },
+                  phone: { $ifNull: ["$userDetails.phone", "-"] },
+                },
+                platform: 1,
+                productId: 1,
+                planType: 1,
+                status: 1,
+                retryCount: 1,
+                statusHistory: 1,
+                startedAt: 1,
+                expiresAt: 1,
+                originalTransactionId: 1,
+                latestTransactionId: 1,
+                isInFamilySharing: 1,
+                offerType: 1,
+                previousStatus: 1,
+                orderId: 1,
+                environment: 1,
+                createdAt: 1,
+                updatedAt: 1,
+                // Flattened Data for Frontend
+              },
+            },
+          ],
+        },
+      },
+    ];
+
+    const result = await Subscription.aggregate(pipeline);
+
+    // 5. Cleanup Facet Results
+    const subscriptions = result[0].data;
+    const total = result[0].metadata[0]?.total || 0;
+    const totalPages = Math.ceil(total / limitNum);
 
     return res.json({
       success: true,
-      subscriptions: subscriptions,
       pagination: {
-        currentPage: pageNum,
-        totalPages: Math.ceil(total / limitNum),
-        totalItems: total,
-        itemsPerPage: limitNum,
+        page: pageNum,
+        limit: limitNum,
+        totalPages,
+        total,
         hasNext: pageNum * limitNum < total,
         hasPrev: pageNum > 1,
       },
+      subscriptions,
     });
   } catch (err) {
-    logger.error("Admin get subscriptions error:", err.message);
+    logger.error("Admin aggregation error:", err.message);
     return next(err);
   }
 };
 
+// const getUserSubscriptionDetail = async (req, res, next) => {
+//   try {
+//     const { userId } = req.params;
+
+//     const subscription = await Subscription.findOne({ userId: userId })
+//       .populate("userId", "name email phone profileImage")
+//       .sort({ createdAt: -1 })
+//       .lean();
+
+//     if (!subscription) {
+//       return res.json({
+//         success: true,
+//         subscription: null,
+//         transactions: [],
+//         events: [],
+//         message: "No subscription found for this user",
+//       });
+//     }
+
+//     const transactions = await SubscriptionTransaction.find({
+//       userId: userId,
+//     })
+//       .sort({ occurredAt: -1 })
+//       .lean();
+
+//     const events = await SubscriptionEvent.find({
+//       subscriptionId: subscription._id,
+//     })
+//       .sort({ receivedAt: -1 })
+//       .limit(50)
+//       .lean();
+
+//     return res.json({
+//       success: true,
+//       subscription: subscription,
+//       transactions: transactions,
+//       events: events,
+//       summary: {
+//         totalPaid: transactions
+//           .filter((t) => t.eventType === "PURCHASE" || t.eventType === "RENEW")
+//           .reduce((sum, t) => sum + (t.amount || 0), 0),
+//         totalRefunded: transactions
+//           .filter((t) => t.eventType === "REFUND")
+//           .reduce((sum, t) => sum + (t.refundAmount || 0), 0),
+//         totalTransactions: transactions.length,
+//         renewalCount: transactions.filter((t) => t.eventType === "RENEW")
+//           .length,
+//         daysSinceStart: Math.floor(
+//           (new Date() - new Date(subscription.startedAt)) /
+//             (1000 * 60 * 60 * 24)
+//         ),
+//       },
+//     });
+//   } catch (err) {
+//     logger.error("Admin user detail error:", err.message);
+//     return next(err);
+//   }
+// };
 
 const getUserSubscriptionDetail = async (req, res, next) => {
   try {
     const { userId } = req.params;
+    const userObjectId = new mongoose.Types.ObjectId(userId);
 
-    const subscription = await Subscription.findOne({ userId: userId })
-      .populate("userId", "name email phone profileImage")
-      .sort({ createdAt: -1 })
-      .lean();
+    const result = await Subscription.aggregate([
+      // 1. Find the latest subscription for this user
+      { $match: { userId: userObjectId } },
+      { $sort: { createdAt: -1 } },
+      { $limit: 1 },
 
-    if (!subscription) {
+      // 2. Lookup Profile data (for nickname and photos)
+      {
+        $lookup: {
+          from: "profiles",
+          localField: "userId",
+          foreignField: "userId",
+          as: "profileData",
+        },
+      },
+      { $unwind: { path: "$profileData", preserveNullAndEmptyArrays: true } },
+
+      // 3. Lookup User data (for email and phone)
+      {
+        $lookup: {
+          from: "users",
+          localField: "userId",
+          foreignField: "_id",
+          as: "userData",
+        },
+      },
+      { $unwind: { path: "$userData", preserveNullAndEmptyArrays: true } },
+
+      // 4. Lookup Transactions for the Summary
+      {
+        $lookup: {
+          from: "subscriptiontransactions", // Check your exact collection name
+          localField: "userId",
+          foreignField: "userId",
+          as: "transactions",
+        },
+      },
+
+      // 5. Lookup Events
+      {
+        $lookup: {
+          from: "subscriptionevents", // Check your exact collection name
+          let: { subId: "$_id" },
+          pipeline: [
+            { $match: { $expr: { $eq: ["$subscriptionId", "$$subId"] } } },
+            { $sort: { receivedAt: -1 } },
+            { $limit: 50 },
+          ],
+          as: "events",
+        },
+      },
+
+      // 6. Project and Structure the Output
+      {
+        $project: {
+          // All subscription fields
+          _id: 1,
+          platform: 1,
+          productId: 1,
+          planType: 1,
+          status: 1,
+          autoRenew: 1,
+          startedAt: 1,
+          expiresAt: 1,
+          originalTransactionId: 1,
+          latestTransactionId: 1,
+          retryCount: 1,
+          orderId: 1,
+          statusHistory: 1,
+          environment: 1,
+          isInFamilySharing: 1,
+          offerType: 1,
+          previousStatus: 1,
+          createdAt: 1,
+          updatedAt: 1,
+
+          // Custom nested user object
+          user: {
+            userId: "$userId",
+            nickname: { $ifNull: ["$profileData.nickname", "User"] },
+            avatar: { $arrayElemAt: ["$profileData.photos", 0] },
+            email: { $ifNull: ["$userData.email", "-"] },
+            phone: { $ifNull: ["$userData.phone", "-"] },
+          },
+
+          // Raw Lists
+          transactions: 1,
+          events: 1,
+
+          // Summary Calculations
+          summary: {
+            totalPaid: {
+              $reduce: {
+                input: {
+                  $filter: {
+                    input: "$transactions",
+                    as: "t",
+                    cond: { $in: ["$$t.eventType", ["PURCHASE", "RENEW"]] },
+                  },
+                },
+                initialValue: 0,
+                in: { $add: ["$$value", { $ifNull: ["$$this.amount", 0] }] },
+              },
+            },
+            totalRefunded: {
+              $reduce: {
+                input: {
+                  $filter: {
+                    input: "$transactions",
+                    as: "t",
+                    cond: { $eq: ["$$t.eventType", "REFUND"] },
+                  },
+                },
+                initialValue: 0,
+                in: {
+                  $add: ["$$value", { $ifNull: ["$$this.refundAmount", 0] }],
+                },
+              },
+            },
+            totalTransactions: { $size: "$transactions" },
+            renewalCount: {
+              $size: {
+                $filter: {
+                  input: "$transactions",
+                  as: "t",
+                  cond: { $eq: ["$$t.eventType", "RENEW"] },
+                },
+              },
+            },
+            daysSinceStart: {
+              $floor: {
+                $divide: [
+                  { $subtract: [new Date(), "$startedAt"] },
+                  1000 * 60 * 60 * 24,
+                ],
+              },
+            },
+          },
+        },
+      },
+    ]);
+
+    if (!result || result.length === 0) {
       return res.json({
         success: true,
-        subscription: null,
-        transactions: [],
-        events: [],
-        message: "No subscription found for this user",
+        data: null,
+        message: "No subscription found",
       });
     }
 
-    const transactions = await SubscriptionTransaction.find({
-      userId: userId,
-    })
-      .sort({ occurredAt: -1 })
-      .lean();
-
-    const events = await SubscriptionEvent.find({
-      subscriptionId: subscription._id,
-    })
-      .sort({ receivedAt: -1 })
-      .limit(50)
-      .lean();
-
     return res.json({
       success: true,
-      subscription: subscription,
-      transactions: transactions,
-      events: events,
-      summary: {
-        totalPaid: transactions
-          .filter((t) => t.eventType === "PURCHASE" || t.eventType === "RENEW")
-          .reduce((sum, t) => sum + (t.amount || 0), 0),
-        totalRefunded: transactions
-          .filter((t) => t.eventType === "REFUND")
-          .reduce((sum, t) => sum + (t.refundAmount || 0), 0),
-        totalTransactions: transactions.length,
-        renewalCount: transactions.filter((t) => t.eventType === "RENEW").length,
-        daysSinceStart: Math.floor(
-          (new Date() - new Date(subscription.startedAt)) / (1000 * 60 * 60 * 24)
-        ),
-      },
+      data: result[0],
     });
   } catch (err) {
-    logger.error("Admin user detail error:", err.message);
+    logger.error("Admin user detail aggregation error:", err.message);
     return next(err);
   }
 };
 
-
 const getRevenueAnalytics = async (req, res, next) => {
   try {
-    const {
-      period = "month",
-      startDate,
-      endDate,
-    } = req.query;
+    const { period = "month", startDate, endDate } = req.query;
 
     let start;
     let end = new Date();
@@ -492,34 +792,34 @@ const getRevenueAnalytics = async (req, res, next) => {
 
     return res.json({
       success: true,
-      period: { start: start, end: end },
-      revenue: {
-        total: totalRevenue,
-        net: netRevenue,
-        purchases: {
-          amount: purchases.totalAmount,
-          count: purchases.count,
+      data: {
+        period: { start: start, end: end },
+        revenue: {
+          total: totalRevenue,
+          net: netRevenue,
+          purchases: {
+            amount: purchases.totalAmount,
+            count: purchases.count,
+          },
+          renewals: {
+            amount: renewals.totalAmount,
+            count: renewals.count,
+          },
+          refunds: {
+            amount: refunds.totalRefund || 0,
+            count: refunds.count,
+          },
         },
-        renewals: {
-          amount: renewals.totalAmount,
-          count: renewals.count,
-        },
-        refunds: {
-          amount: refunds.totalRefund || 0,
-          count: refunds.count,
-        },
+        daily: dailyRevenue,
+        byPlan: revenueByPlan,
+        byPlatform: revenueByPlatform,
       },
-      daily: dailyRevenue,
-      byPlan: revenueByPlan,
-      byPlatform: revenueByPlatform,
     });
   } catch (err) {
     logger.error("Admin revenue error:", err.message);
     return next(err);
   }
 };
-
-
 
 const getCancellationAnalytics = async (req, res, next) => {
   try {
@@ -589,19 +889,19 @@ const getCancellationAnalytics = async (req, res, next) => {
 
     return res.json({
       success: true,
-      total: totalCancelled,
-      byReason: byReason,
-      byPlan: byPlan,
-      byPlatform: byPlatform,
-      daily: daily,
+      data: {
+        total: totalCancelled,
+        byReason: byReason,
+        byPlan: byPlan,
+        byPlatform: byPlatform,
+        daily: daily,
+      },
     });
   } catch (err) {
     logger.error("Admin cancellation error:", err.message);
     return next(err);
   }
 };
-
-
 
 const getAtRiskUsers = async (req, res, next) => {
   try {
@@ -620,9 +920,18 @@ const getAtRiskUsers = async (req, res, next) => {
       Subscription.countDocuments({ status: "GRACE" }),
     ]);
 
+    const pageNum = parseInt(page);
+    const limitNum = parseInt(limit);
+    const totalPages = Math.ceil(total / limitNum);
+
     return res.json({
       success: true,
-      total: total,
+      pagination: {
+        page: pageNum,
+        limit: limitNum,
+        totalPages,
+        total,
+      },
       atRiskUsers: users.map((u) => ({
         userId: u.userId,
         plan: u.planType,
@@ -631,15 +940,12 @@ const getAtRiskUsers = async (req, res, next) => {
         gracePeriodEndsAt: u.gracePeriodEndsAt,
         daysRemaining: Math.max(
           0,
-          Math.ceil((new Date(u.gracePeriodEndsAt) - new Date()) / (1000 * 60 * 60 * 24))
+          Math.ceil(
+            (new Date(u.gracePeriodEndsAt) - new Date()) / (1000 * 60 * 60 * 24)
+          )
         ),
         startedAt: u.startedAt,
       })),
-      pagination: {
-        currentPage: parseInt(page),
-        totalPages: Math.ceil(total / parseInt(limit)),
-        totalItems: total,
-      },
     });
   } catch (err) {
     logger.error("Admin at risk error:", err.message);
@@ -647,16 +953,9 @@ const getAtRiskUsers = async (req, res, next) => {
   }
 };
 
-
 const getWebhookEvents = async (req, res, next) => {
   try {
-    const {
-      platform,
-      eventType,
-      processed,
-      page = 1,
-      limit = 20,
-    } = req.query;
+    const { platform, eventType, processed, page = 1, limit = 20 } = req.query;
 
     const filter = {};
     if (platform) filter.platform = platform;
@@ -681,19 +980,20 @@ const getWebhookEvents = async (req, res, next) => {
 
     return res.json({
       success: true,
-      events: events,
       failedCount: failedCount,
       pagination: {
         currentPage: parseInt(page),
         totalPages: Math.ceil(total / parseInt(limit)),
         totalItems: total,
       },
+      events: events,
     });
   } catch (err) {
     logger.error("Admin webhook events error:", err.message);
     return next(err);
   }
 };
+
 const getAllTransactions = async (req, res, next) => {
   try {
     const {
@@ -729,12 +1029,12 @@ const getAllTransactions = async (req, res, next) => {
 
     return res.json({
       success: true,
-      transactions: transactions,
       pagination: {
         currentPage: parseInt(page),
         totalPages: Math.ceil(total / parseInt(limit)),
         totalItems: total,
       },
+      transactions: transactions,
     });
   } catch (err) {
     logger.error("Admin transactions error:", err.message);
@@ -742,5 +1042,17 @@ const getAllTransactions = async (req, res, next) => {
   }
 };
 
-
-module.exports = { verifyPurchase, getStatus, getHistory, getSubscription,getStats,getAllSubscriptions,getUserSubscriptionDetail, getRevenueAnalytics, getCancellationAnalytics, getAtRiskUsers, getWebhookEvents, getAllTransactions };
+module.exports = {
+  verifyPurchase,
+  getStatus,
+  getHistory,
+  getSubscription,
+  getStats,
+  getAllSubscriptions,
+  getUserSubscriptionDetail,
+  getRevenueAnalytics,
+  getCancellationAnalytics,
+  getAtRiskUsers,
+  getWebhookEvents,
+  getAllTransactions,
+};

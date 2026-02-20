@@ -15,7 +15,6 @@
 
 // const IST_TZ = "Asia/Kolkata";
 
-
 // module.exports = async function runGiveawayWorker() {
 //   console.log("🎯 Giveaway worker started at:", new Date().toISOString());
 
@@ -180,10 +179,10 @@
 
 //   } catch (error) {
 //     console.error("❌ Giveaway worker FAILED:", error.message);
-    
+
 //     try {
-//       const campaign = await GiveawayCampaign.findOne({ 
-//         drawStatus: "PROCESSING" 
+//       const campaign = await GiveawayCampaign.findOne({
+//         drawStatus: "PROCESSING"
 //       });
 //       if (campaign) {
 //         campaign.drawStatus = "PENDING";
@@ -196,14 +195,6 @@
 //   }
 // };
 
-
-
-
-
-
-
-
-
 // ============================================
 // giveaway.worker.js
 // ============================================
@@ -211,18 +202,18 @@ const dayjs = require("dayjs");
 const utc = require("dayjs/plugin/utc");
 const timezone = require("dayjs/plugin/timezone");
 
-const GiveawayCampaign = require("../../modules/giveaway/giveawayCampaign.model");
-const GiveawayWinHistory = require("../../modules/giveaway/giveawayWinHistory.model");
+const GiveawayCampaign = require("../../modules/Admin/giveaways/giveawayCampaign.model");
+const GiveawayWinHistory = require("../../modules/Admin/giveaways/giveawayWinHistory.model");
 const User = require("../../modules/auth/auth.model");
 const { Match } = require("../../modules/matches/swipe/swipe.model"); // ✅ Destructured
 const notificationService = require("../../modules/notifications/notification.service");
-const Prize = require("../../modules/giveaway/prize.model");
-const GiveawaySettings = require("../../modules/giveaway/giveawaySettings.model");
+const Prize = require("../../modules/Admin/giveaways/prize.model");
+const GiveawaySettings = require("../../modules/Admin/giveaways/giveawaySettings.model");
 
 dayjs.extend(utc);
 dayjs.extend(timezone);
 
-const AEST_TZ = "Australia/Sydney"; 
+const AEST_TZ = "Australia/Sydney";
 
 module.exports = async function runGiveawayWorker() {
   console.log("🎯 Giveaway worker started at:", new Date().toISOString());
@@ -240,8 +231,6 @@ module.exports = async function runGiveawayWorker() {
     const startOfTodayAEST = nowAEST.startOf("day").toDate();
     const endOfTodayAEST = nowAEST.endOf("day").toDate();
 
-    
-
     console.log("📅 Now AEST:", nowAEST.format("YYYY-MM-DD HH:mm:ss"));
 
     const settings = await GiveawaySettings.findOne();
@@ -250,15 +239,15 @@ module.exports = async function runGiveawayWorker() {
     const campaign = await GiveawayCampaign.findOne({
       $or: [
         { date: todayUTC },
-        { date: { $gte: startOfTodayAEST, $lt: endOfTodayAEST } }
+        { date: { $gte: startOfTodayAEST, $lt: endOfTodayAEST } },
       ],
       isActive: true,
-      drawStatus: "PENDING"
+      drawStatus: "PENDING",
     });
-     const campaignDateAEST = dayjs(campaign.date).tz("Australia/Sydney");
-    console.log("campaignDateAEST:", campaignDateAEST)
-      const yesterdayAEST = nowAEST.subtract(1, "day");
-    console.log("yesterdayAEST :", yesterdayAEST)
+    const campaignDateAEST = dayjs(campaign.date).tz("Australia/Sydney");
+    console.log("campaignDateAEST:", campaignDateAEST);
+    const yesterdayAEST = nowAEST.subtract(1, "day");
+    console.log("yesterdayAEST :", yesterdayAEST);
 
     if (!campaign) {
       console.log("ℹ️ No pending giveaway campaign today");
@@ -280,8 +269,8 @@ module.exports = async function runGiveawayWorker() {
 
     // const campaignDateAEST = dayjs(campaign.date).tz("Australia/Sydney");
     // console.log("campaignDateAEST:", campaignDateAEST)
-const giveawayStart = campaignDateAEST.startOf("day").toDate();
-const giveawayEnd = campaignDateAEST.endOf("day").toDate();
+    const giveawayStart = campaignDateAEST.startOf("day").toDate();
+    const giveawayEnd = campaignDateAEST.endOf("day").toDate();
     // const yesterdayAEST = nowAEST.subtract(1, "day");
     // console.log("yesterdayAEST :", yesterdayAEST)
     // const giveawayStart = yesterdayAEST.startOf("day").toDate();
@@ -297,11 +286,11 @@ const giveawayEnd = campaignDateAEST.endOf("day").toDate();
     const matchedUsers = await Match.aggregate([
       {
         $match: {
-          matchedAt: { $gte: giveawayStart, $lte: giveawayEnd }
-        }
+          matchedAt: { $gte: giveawayStart, $lte: giveawayEnd },
+        },
       },
       { $unwind: "$users" },
-      { $group: { _id: "$users" } }
+      { $group: { _id: "$users" } },
     ]);
 
     console.log("👥 Total matched users:", matchedUsers.length);
@@ -317,7 +306,7 @@ const giveawayEnd = campaignDateAEST.endOf("day").toDate();
       return;
     }
 
-    const matchedUserIds = matchedUsers.map(u => u._id);
+    const matchedUserIds = matchedUsers.map((u) => u._id);
 
     // ===============================
     // 5️⃣ Save participants
@@ -343,8 +332,8 @@ const giveawayEnd = campaignDateAEST.endOf("day").toDate();
           _id: { $in: matchedUserIds },
           isPremium: true,
           accountStatus: "active",
-          premiumExpiresAt: { $gt: new Date() } // Premium at DRAW time
-        }
+          premiumExpiresAt: { $gt: new Date() }, // Premium at DRAW time
+        },
       },
       {
         $lookup: {
@@ -356,22 +345,22 @@ const giveawayEnd = campaignDateAEST.endOf("day").toDate();
                 $expr: {
                   $and: [
                     { $eq: ["$userId", "$$userId"] },
-                    { $eq: ["$year", currentYear] }
-                  ]
-                }
-              }
-            }
+                    { $eq: ["$year", currentYear] },
+                  ],
+                },
+              },
+            },
           ],
-          as: "winsThisYear"
-        }
+          as: "winsThisYear",
+        },
       },
       {
         $match: {
-          $expr: { $lt: [{ $size: "$winsThisYear" }, yearlyLimit] }
-        }
+          $expr: { $lt: [{ $size: "$winsThisYear" }, yearlyLimit] },
+        },
       },
       { $sample: { size: 1 } },
-      { $project: { _id: 1 } }
+      { $project: { _id: 1 } },
     ]);
 
     console.log("🏆 Winner:", winner ? winner._id : "NONE");
@@ -390,7 +379,7 @@ const giveawayEnd = campaignDateAEST.endOf("day").toDate();
       userId: winner._id,
       campaignId: campaign._id,
       prizeId: campaign.prizeId,
-      year: currentYear
+      year: currentYear,
     });
 
     const prize = await Prize.findById(campaign.prizeId).select("title");
@@ -410,13 +399,12 @@ const giveawayEnd = campaignDateAEST.endOf("day").toDate();
     console.log("✅ Giveaway completed!");
     console.log("🏆 Winner:", winner._id);
     console.log("📊 Participants:", matchedUserIds.length);
-
   } catch (error) {
     console.error("❌ Giveaway worker FAILED:", error.message);
 
     try {
       const campaign = await GiveawayCampaign.findOne({
-        drawStatus: "PROCESSING"
+        drawStatus: "PROCESSING",
       });
       if (campaign) {
         campaign.drawStatus = "PENDING";

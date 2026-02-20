@@ -3,9 +3,9 @@ const router = express.Router();
 const adminController = require("./auth.admin.controller");
 // Middlewares
 const auth = require("../../../modules/auth/auth.middleware");
-// const {
-//   allowAdmin,
-// } = require("../../../common/middlewares/allowAdmin.middleware");
+const {
+  allowAdmin,
+} = require("../../../common/middlewares/allowAdmin.middleware");
 
 /** @section Public Auth Routes These are accessible without a token */
 router.post("/login", adminController.adminLogin);
@@ -21,7 +21,7 @@ router.patch("/forgot-password", adminController.adminForgotPassword);
  */
 // --- Protected Admin Routes ---
 router.use(auth);
-// router.use(allowAdmin);
+router.use(allowAdmin);
 
 /**
  * @section Protected Auth Routes

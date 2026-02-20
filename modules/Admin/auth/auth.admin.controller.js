@@ -1,7 +1,6 @@
 const User = require("../../auth/auth.model");
 const Profile = require("../../profile/profile.model");
 const utils = require("../../auth/auth.utils");
-const redis = require("../../../config/cache");
 const AppError = require("../../../common/errors/ApiError");
 const {
   adminRegisterSchema,
@@ -14,6 +13,9 @@ const REFRESH_TOKEN_TTL_MS = 30 * 24 * 60 * 60 * 1000;
 const MAX_REFRESH_TOKENS = 5;
 const ADMIN_EMAIL_OTP_TTL = 300; // 5 min
 
+/*==================================================
+  POST API 1: REGISTER FOR ADMIN [Note: Provide for admin]
+===================================================*/
 module.exports.adminRegister = async (req, res, next) => {
   try {
     const { error, value } = adminRegisterSchema.validate(req.body);
@@ -62,6 +64,9 @@ module.exports.adminRegister = async (req, res, next) => {
   }
 };
 
+/*==================================================
+  POST API 2: LOGIN FOR ADMIN
+===================================================*/
 module.exports.adminLogin = async (req, res, next) => {
   try {
     const { error, value } = adminLoginSchema.validate(req.body);
@@ -148,7 +153,7 @@ module.exports.adminLogin = async (req, res, next) => {
 };
 
 /*==================================================
-  POST API 1: REQUEST to Send OTP on Email Id
+  POST API 3: REQUEST to Send OTP on Email Id
 ===================================================*/
 module.exports.sendEmailOTP = async (req, res, next) => {
   try {
@@ -192,7 +197,7 @@ module.exports.sendEmailOTP = async (req, res, next) => {
 };
 
 /*==================================================
-  POST API 2: Verify Email OTP 
+  POST API 4: Verify Email OTP 
 ===================================================*/
 module.exports.verifyEmailOTP = async (req, res, next) => {
   try {
@@ -230,7 +235,7 @@ module.exports.verifyEmailOTP = async (req, res, next) => {
 };
 
 /*==================================================
-  POST API 3: ADMIN Forget Password
+  POST API 5: ADMIN Forget Password
 ===================================================*/
 module.exports.adminForgotPassword = async (req, res, next) => {
   try {
@@ -271,7 +276,7 @@ module.exports.adminForgotPassword = async (req, res, next) => {
 };
 
 /*==================================================
-  POST API 4: Reset Password. When admin already authenticate
+  POST API 6: Reset Password. When admin already authenticate
 ===================================================*/
 module.exports.adminResetPassword = async (req, res, next) => {
   try {
@@ -306,7 +311,7 @@ module.exports.adminResetPassword = async (req, res, next) => {
     // 4. Success Response
     return res.status(200).json({
       success: true,
-      message: "Your password has been updated successfully.",
+      message: "Password updated successfully.",
       description: "Other sessions have been signed out.",
     });
   } catch (err) {
