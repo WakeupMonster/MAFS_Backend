@@ -1,6 +1,6 @@
 const express = require("express");
 const router = express.Router();
-const adminController = require("./user.management");
+const adminController = require("./user.management.controller");
 
 // List all users
 router.get("/", adminController.SampleGETallUser);

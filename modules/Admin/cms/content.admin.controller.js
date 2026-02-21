@@ -16,45 +16,6 @@ const mongoose = require("mongoose");
  * Frequently Asked Question FAQ's
  * =========================================
  */
-
-// module.exports.createFAQ = async (req, res) => {
-//   try {
-//     const { error, value } = createFaq.validate(req.body);
-//     if (error) {
-//       return res
-//         .status(400)
-//         .json({ success: false, message: error.message.replace(/"/g, "") });
-//     }
-
-//     // 🔒 Prevent duplicate order
-//     const exists = await Faq.findOne({ order: value.order });
-//     if (exists) {
-//       return res.status(409).json({
-//         success: false,
-//         message: `FAQ with order ${value.order} already exists`,
-//       });
-//     }
-
-//     const faq = await Faq.create(value);
-
-//     await redis.del("faq:list");
-
-//     res.status(201).json({
-//       success: true,
-//       data: {
-//         id: faq._id,
-//         order: faq.order,
-//         question: faq.question,
-//         answer: faq.answer,
-//         createdAt: faq.createdAt,
-//         updatedAt: faq.updatedAt,
-//       },
-//     });
-//   } catch (err) {
-//     res.status(500).json({ success: false, message: "Failed to add FAQ" });
-//   }
-// };
-
 module.exports.createFAQ = async (req, res) => {
   try {
     const { error, value } = createFaq.validate(req.body);
@@ -107,51 +68,6 @@ module.exports.createFAQ = async (req, res) => {
     });
   }
 };
-
-// module.exports.updateFAQ = async (req, res) => {
-//   try {
-//     const { id } = req.query;
-
-//     const { error, value } = updateFaq.validate(req.body);
-//     if (error) {
-//       return res.status(400).json({
-//         success: false,
-//         message: error.message.replace(/"/g, ""),
-//       });
-//     }
-
-//     const faq = await Faq.findByIdAndUpdate(id, value, {
-//       new: true,
-//       runValidators: true,
-//     });
-
-//     if (!faq) {
-//       return res.status(404).json({
-//         success: false,
-//         message: "FAQ not found",
-//       });
-//     }
-
-//     // console.log("faq: ", faq);
-
-//     await redis.del("faq:list");
-
-//     res.status(200).json({
-//       success: true,
-//       message: "FAQ update successfully",
-//       data: {
-//         id: faq._id,
-//         order: faq.order,
-//         question: faq.question,
-//         answer: faq.answer,
-//         createdAt: faq.createdAt,
-//         updatedAt: faq.updatedAt,
-//       },
-//     });
-//   } catch (err) {
-//     res.status(500).json({ success: false, message: "Failed to update FAQ" });
-//   }
-// };
 
 module.exports.updateFAQ = async (req, res) => {
   try {

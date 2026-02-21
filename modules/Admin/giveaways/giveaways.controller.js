@@ -172,46 +172,6 @@ module.exports.updatePrize = async (req, res) => {
  * @route   DELETE /api/v1/admin/giveaway/prizes/:id
  * @access  Private/Admin
  */
-// module.exports.deletePrize = async (req, res, next) => {
-//   try {
-//     const { id } = req.params;
-
-//     // Find and delete the prize
-//     const prize = await Prize.findByIdAndDelete(id);
-
-//     if (!prize) {
-//       return res.status(404).json({
-//         success: false,
-//         message: "Prize not found",
-//       });
-//     }
-
-//     // Log the deletion
-//     // await GiveawayAudit.create({
-//     //   action: 'DELETE_PRIZE',
-//     //   admin: req.user._id,
-//     //   targetId: id,
-//     //   details: {
-//     //     prizeName: prize.name,
-//     //     prizeId: prize._id
-//     //   }
-//     // });
-
-//     res.status(200).json({
-//       success: true,
-//       message: "Prize deleted successfully",
-//       data: { id },
-//     });
-//   } catch (error) {
-//     console.error("Delete Prize Error:", error);
-//     res.status(500).json({
-//       success: false,
-//       message: "Failed to delete prize",
-//       error: error.message,
-//     });
-//   }
-// };
-
 module.exports.deletePrize = async (req, res, next) => {
   try {
     const { id } = req.params;

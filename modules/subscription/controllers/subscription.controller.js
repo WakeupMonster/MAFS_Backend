@@ -1,6 +1,6 @@
 const appleService = require("../services/apple.service");
-const mongoose = require("mongoose");
 const googleService = require("../services/google.service");
+const mongoose = require("mongoose");
 const subscriptionService = require("../services/subscription.service");
 const logger = require("../utils/logger");
 const Subscription = require("../../../modules/subscription/models/Subscription");
@@ -987,13 +987,13 @@ const getWebhookEvents = async (req, res, next) => {
 
     return res.json({
       success: true,
-      events: events,
       failedCount: failedCount,
       pagination: {
         currentPage: parseInt(page),
         totalPages: Math.ceil(total / parseInt(limit)),
         totalItems: total,
       },
+      events: events,
     });
   } catch (err) {
     logger.error("Admin webhook events error:", err.message);

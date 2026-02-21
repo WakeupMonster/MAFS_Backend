@@ -10,6 +10,7 @@ require("./jobs/giveaway/giveaway.cron"); // <-- cron auto starts
 require("./jobs/unsuspendUsers.job");
 require("./jobs/adminNotification/premiumExpiryReminder.cron");
 require("./workers/emailnotification.worker");
+require("./jobs/deletion.job");
 
 // ─── IAP Cron Jobs ───
 const {
@@ -30,6 +31,7 @@ app.use(express.urlencoded({ extended: true }));
 //   methods: ["GET", "POST", "PUT", "DELETE", "PATCH"]
 // }));
 
+// ─── CORS ───
 app.use(
   cors({
     origin: process.env.FRONTEND_URL || "http://localhost:5173", // Ya specific frontend URL
