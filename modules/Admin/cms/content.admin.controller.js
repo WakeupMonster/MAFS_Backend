@@ -1,10 +1,6 @@
 /* eslint-disable no-unused-vars */
 const redis = require("../../../config/cache");
-const {
-  Faq,
-  PrivacyPolicy,
-  TermsConditions,
-} = require("../../NewAdmin/cms/content.model");
+const { Faq, PrivacyPolicy, TermsConditions } = require("./content.model");
 const {
   createFaq,
   updateFaq,
@@ -409,6 +405,7 @@ module.exports.deletePrivacySection = async (req, res) => {
  * TERMS & CONDITIONS
  * =========================================
  */
+
 module.exports.updateTermsCondition = async (req, res) => {
   try {
     // 1. Validate the new structure (title, status, description)
