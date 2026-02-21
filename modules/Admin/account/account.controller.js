@@ -12,7 +12,7 @@ module.exports.getAdminAccount = async (req, res) => {
     const adminId = req.user.id;
 
     const adminData = await User.findById(adminId).select(
-      "email phone isEmailVerified isPhoneVerified role accountStatus authMethod createdAt"
+      "email phone isEmailVerified isPhoneVerified role lastLoginAt accountStatus authMethod createdAt"
     );
 
     if (!adminData || adminData.role !== "ADMIN") {
@@ -47,6 +47,7 @@ module.exports.getAdminAccount = async (req, res) => {
         },
         memberSince: adminData.createdAt,
         location: adminProfile.location,
+        lastLoginAt: adminData.lastLoginAt,
       },
     });
   } catch (error) {
