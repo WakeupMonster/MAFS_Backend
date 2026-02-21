@@ -116,7 +116,8 @@ module.exports.adminLogin = async (req, res, next) => {
       expiresAt: now + REFRESH_TOKEN_TTL_MS,
     });
 
-    await admin.save();
+    (admin.lastLoginAt = new Date()), // <--- Ye comma (,) yahan galat hai.
+      await admin.save();
 
     /* ------------------------------------
      * 7️⃣ Fetch Profile (lean & minimal)
@@ -144,6 +145,7 @@ module.exports.adminLogin = async (req, res, next) => {
           accessToken,
           refreshToken: refreshTokenRaw, // only sent once
           tokenType: "Bearer",
+          expiresIn: REFRESH_TOKEN_TTL_MS,
         },
       },
     });
