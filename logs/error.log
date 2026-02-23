@@ -110,3 +110,5 @@
 {"level":"error","message":"Admin user detail aggregation error:","service":"iap-service","timestamp":"2026-02-20 17:24:01"}
 {"level":"error","message":"Admin user detail aggregation error:","service":"iap-service","timestamp":"2026-02-20 17:24:14"}
 >>>>>>> 9735ac968bb7028dd9a9f0fddce3b4df9b16b8dd
+{"level":"error","message":"[CRON] Grace check error:","service":"iap-service","timestamp":"2026-02-23 16:20:03"}
+{"level":"error","message":"[CRON] Expire check error:","service":"iap-service","timestamp":"2026-02-23 16:20:03"}

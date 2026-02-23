@@ -62,7 +62,7 @@ const ProfileSchema = new mongoose.Schema({
       min: { type: Number, default: 18 },
       max: { type: Number, default: 60 }
     },
-    showMeGender: { type: String, default: null }, 
+    showMeGender: { type: [String], default: null }, 
     relationshipGoal: { type: String, default: null }, // Stored as ID String
     globalVisibility: { 
         type: String, 

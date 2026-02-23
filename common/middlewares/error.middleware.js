@@ -58,7 +58,6 @@ module.exports = (err, req, res,next) => {
 
   return res.status(500).json({
     success: false,
-    code: "INTERNAL_SERVER_ERROR",
     message: "Something went wrong. Please try again."
   });
 };
