@@ -502,7 +502,6 @@ exports.requestDeleteAccountOtp = async (req, res) => {
         user: formattedUser
       }
     });
-
   } catch (error) {
 
     console.error("Request delete OTP error:", error);
@@ -511,19 +510,14 @@ exports.requestDeleteAccountOtp = async (req, res) => {
       success: false,
       message: "Failed to send delete OTP"
     });
-
   }
-
 };
-
 
 exports.restoreAccount = async (req, res) => {
 
   try {
 
     const userId = req.user._id;
-
-    console.log("hy")
 
     // find user
     const user = await User.findById(userId);

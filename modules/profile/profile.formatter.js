@@ -11,12 +11,12 @@ const calculateAge = (dob) => {
 };
 
 const planNames = {
-    free: "MAFS Free",
-    plus: "MAFS Plus",
-    gold: "MAFS Gold",
-    platinum: "MAFS Platinum",
-    monthly : "MAFS PREMIUM"
-  };
+  free: "MAFS Free",
+  plus: "MAFS Plus",
+  gold: "MAFS Gold",
+  platinum: "MAFS Platinum",
+  monthly: "MAFS PREMIUM"
+};
 
 
 // Simple completion logic based on mandatory fields
@@ -25,18 +25,18 @@ const calculateCompletion = (profile) => {
 };
 
 
-const formatProfileResponse = async (user, profile,blockedContacts = [], blockedUser = [],subData = {},req) => {
+const formatProfileResponse = async (user, profile, blockedContacts = [], blockedUser = [], subData = {}, req) => {
   if (!user) return null;
   const p = profile || {}; // Agar profile nahi hai toh empty object
-const sub = subData || {}; // Hum subData (UserSubscription document) pass karenge
+  const sub = subData || {}; // Hum subData (UserSubscription document) pass karenge
 
   // Daily Limits define (Inhe aap helper se bhi la sakte hain)
   const MAX_LIKES = 30;
   const MAX_SUPERLIKES = 3;
-  
+
   const isPremium = ['plus', 'gold', 'platinum'].includes(sub.planId);
-const tonight = new Date();
-tonight.setHours(24, 0, 0, 0);
+  const tonight = new Date();
+  tonight.setHours(24, 0, 0, 0);
   return {
     // 1. ACCOUNT (Data from User Model)
     account: {
@@ -47,11 +47,11 @@ tonight.setHours(24, 0, 0, 0);
         bannedBy: user.banDetails?.bannedBy || null,
         bannedAt: user.banDetails?.bannedAt || null
       },
-      suspensionDetails : {
-        isSuspended : user.suspensionDetails?.isSuspended || false,
+      suspensionDetails: {
+        isSuspended: user.suspensionDetails?.isSuspended || false,
         reason: user.suspensionDetails?.reason || null,
-        suspendedAt : user.suspensionDetails?.suspendedAt || null,
-        suspendUntil : user.suspensionDetails?.suspendUntil || null
+        suspendedAt: user.suspensionDetails?.suspendedAt || null,
+        suspendUntil: user.suspensionDetails?.suspendUntil || null
       },
       deactivationDetails: {
         isDeactivated: user.deactivationDetails?.isDeactivated || false,
@@ -60,18 +60,18 @@ tonight.setHours(24, 0, 0, 0);
       },
       deletionDetails: {
         isScheduledForDeletion: user.deletionDetails?.isScheduledForDeletion || false,
-        reason : user.deletionDetails?.reason || null,
+        reason: user.deletionDetails?.reason || null,
         scheduledAt: user.deletionDetails?.scheduledAt || null,
-        deletionDate : user.deletionDetails?.deletionDate || null,
-        daysRemaining : user.deletionDetails?.daysRemaining || null
+        deletionDate: user.deletionDetails?.deletionDate || null,
+        daysRemaining: user.deletionDetails?.daysRemaining || null
       }
     },
     profile: {
-    id: profile?.userId || null,
+      id: profile?.userId || null,
       nickname: p.nickname || null,
       dob: profile?.dob
-  ? profile.dob.toISOString().split("T")[0]
-  : null,
+        ? profile.dob.toISOString().split("T")[0]
+        : null,
       age: profile?.age || calculateAge(profile?.dob),
       gender: p?.gender || null,
       height: p?.height || null,
@@ -80,7 +80,7 @@ tonight.setHours(24, 0, 0, 0);
       company: p.company || null,
       school: p.school || null,
       totalCompletion: calculateCompletion(profile)
-    //   totalCompletion: p.totalCompletion || 0
+      //   totalCompletion: p.totalCompletion || 0
     },
 
     // 4. ATTRIBUTES
@@ -118,21 +118,24 @@ tonight.setHours(24, 0, 0, 0);
       relationshipGoal: p.discovery?.relationshipGoal || null,
       globalVisibility: p.discovery?.globalVisibility || "everyone"
     },
-    discoveryFilters : {
-      interest : p.discovery?.preferredInterests || null,
-      relationshipGoal : p.discovery?.filterRelationshipGoal || null,
-      advancedFilters : {
-        zodiac :  p.discovery?.advancedFilters.zodiac || null,
-        education :  p.discovery?.advancedFilters.education || null,
-        pets :  p.discovery?.advancedFilters.pets || null,
-        drinking :  p.discovery?.advancedFilters.drinking || null,
-        smoking :  p.discovery?.advancedFilters.smoking || null
+    discoveryFilters: {
+      interest: p.discovery?.preferredInterests || null,
+      relationshipGoal: p.discovery?.filterRelationshipGoal || null,
+      advancedFilters: {
+        zodiac: p.discovery?.advancedFilters.zodiac || null,
+        education: p.discovery?.advancedFilters.education || null,
+        pets: p.discovery?.advancedFilters.pets || null,
+        drinking: p.discovery?.advancedFilters.drinking || null,
+        smoking: p.discovery?.advancedFilters.smoking || null,
+        familyPlans: p.discovery?.advancedFilters.familyPlans || null,
+        personalityType: p.discovery?.advancedFilters.personalityType || null,
+        communicationStyle: p.discovery?.advancedFilters.communicationStyle || null,
+        loveStyle: p.discovery?.advancedFilters.loveStyle || null,
+        workout: p.discovery?.advancedFilters.workout || null,
+        dietary: p.discovery?.advancedFilters.dietary || null,
+        socialMedia: p.discovery?.advancedFilters.socialMedia || null,
+        sleeping: p.discovery?.advancedFilters.sleeping || null,
       },
-    // distanceRange: p.discovery?.distanceRange || 50,
-    //   ageRange: {
-    //     min: p.discovery?.ageRange?.min || 18,
-    //     max: p.discovery?.ageRange?.max || 30
-    //   },
     },
 
     // 6. LOCATION
@@ -148,7 +151,7 @@ tonight.setHours(24, 0, 0, 0);
     photos: (p.photos || []).map(photo => ({
       id: photo._id || photo.id || null,
       url: photo.url || null,
-      publicId : photo.publicId || null,
+      publicId: photo.publicId || null,
       order: photo.order || 0
     })),
 
@@ -169,7 +172,7 @@ tonight.setHours(24, 0, 0, 0);
         source: p.subscription?.paymentSource || "google_play"
       },
       wallet: {
-            likes: {
+        likes: {
           used: sub.dailyLikesUsed || 0,
           limit: MAX_LIKES,
           remaining: Math.max(0, MAX_LIKES - (sub.dailyLikesUsed || 0)),
@@ -195,7 +198,7 @@ tonight.setHours(24, 0, 0, 0);
         //   remaining: sub.boostsCount || 0,
         //   resetAt: null
         // },
-      
+
       },
       benefits: {
         seeWhoLikesYou: ['gold', 'platinum'].includes(sub.planId),
@@ -213,8 +216,8 @@ tonight.setHours(24, 0, 0, 0);
         matches: p.settings?.notifications?.matches ?? true,
         messages: p.settings?.notifications?.messages ?? true
       },
-     blockedContacts: blockedContacts.map(bc => bc.blockedPhoneHash || bc),
-    blockedUsers: blockedUser.map(bu=>bu.blockedId || bu),
+      blockedContacts: blockedContacts.map(bc => bc.blockedPhoneHash || bc),
+      blockedUsers: blockedUser.map(bu => bu.blockedId || bu),
     },
     createdAt: user.createdAt,
     updatedAt: user.updatedAt,

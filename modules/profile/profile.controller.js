@@ -10,6 +10,7 @@ const { formatProfileResponse } = require("./profile.formatter");
 const UserSubscription = require("../auth/UserSubscription.model");
 const { formatPublictargetProfile } = require("./profile.userFormatter");
 const { buildOnboardingResponse } = require("../../common/utils/onBoardingSteps");
+const getFormattedUser = require("../../common/utils/getFormattedUser");
 
 async function getFullUserData(userId, existingProfile = null) {
   const [user, profile, blockedContacts, blockedUser, subData] = await Promise.all([
@@ -756,6 +757,63 @@ exports.getUserProfile = async (req, res) => {
 //   }
 // };
 
+
+exports.resetDiscoveryFilters = async (req, res) => {
+  try {
+    const userId = req.user._id;
+
+    const profile = await Profile.findOne({ userId });
+
+    if (!profile) {
+      return res.status(404).json({
+        success: false,
+        message: "Profile not found."
+      });
+    }
+
+    profile.discovery.preferredInterests = [];
+    profile.discovery.filterRelationshipGoal = null;
+    profile.discovery.showMeGender = "";
+    profile.discovery.ageRange = { min: 18, max: 60 };
+    profile.discovery.advancedFilters = {
+      zodiac: [],
+      education: [],
+      familyPlans: [],
+      personalityType: [],
+      communicationStyle: [],
+      loveStyle: [],
+      pets: [],
+      drinking: [],
+      smoking: [],
+      workout: [],
+      dietary: [],
+      socialMedia: [],
+      sleeping: []
+    };
+
+    await profile.save();
+
+    if (redis) await redis.del(`feed:${userId.toString()}`);
+
+    const formattedUser = await getFormattedUser(userId, req);
+
+    return res.json({
+      success: true,
+      message: "All discovery filters have been reset to defaults.",
+      data: { user: formattedUser }
+    });
+  } catch (err) {
+    console.log("RESET ERROR:", err.message); // ← ye add karo terminal mein dekhne ke liye
+    return res.status(500).json({
+      success: false,
+      message: "Something went wrong while resetting filters."
+    });
+  }
+};
+
+
+
+
 exports.updateDiscoveryFilters = async (req, res) => {
   try {
     const userId = req.user._id;
@@ -768,13 +826,19 @@ exports.updateDiscoveryFilters = async (req, res) => {
       if (discoveryFilters.ageRange) profile.discovery.ageRange = discoveryFilters.ageRange;
       if (discoveryFilters.advanced) {
         profile.discovery.advancedFilters = { ...profile.discovery.advancedFilters, ...discoveryFilters.advanced };
-      }
+      };  
+      if(discoveryFilters.showMeGender) profile.discovery.showMeGender = discoveryFilters.showMeGender
     }
 
     await profile.save();
-    if (redis) await redis.del(`feed:${userId.toString()}`);
 
-    return res.json({ success: true, message: "Filters applied! Feed is refreshing." });
+    if (redis) await redis.del(`feed:${userId.toString()}`);
+    
+     const formattedUser = await getFormattedUser(userId, req);
+
+    return res.json({ success: true, message: "Filters applied! Feed is refreshing." ,  data: {
+        user: formattedUser
+      }});
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
   }

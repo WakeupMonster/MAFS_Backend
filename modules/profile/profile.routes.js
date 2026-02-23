@@ -9,6 +9,8 @@ const userAction = require("./userActionController")
 // const ENUMS = require("../../config/enums");
 const  masterController  = require("./master.controller")
 
+const { validateDiscoveryFilters } = require("../../common/utils/validators");
+
 router.use(auth);
 
 // router.get("/upload-signature", controller.getUploadSignature);
@@ -20,8 +22,15 @@ router.patch(
 );
 
 router.patch(
+  "/discovery-preference/reset",
+  auth,
+  controller.resetDiscoveryFilters
+);
+
+router.patch(
   "/discovery-preference",
   auth,
+  validateDiscoveryFilters, 
   controller.updateDiscoveryFilters
 );
 

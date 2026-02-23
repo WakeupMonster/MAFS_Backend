@@ -87,3 +87,20 @@
 {"level":"error","message":"[CRON] Grace check error:","service":"iap-service","timestamp":"2026-02-14 14:00:31"}
 {"level":"error","message":"[CRON] Expire check error:","service":"iap-service","timestamp":"2026-02-14 14:25:31"}
 {"level":"error","message":"[CRON] Grace check error:","service":"iap-service","timestamp":"2026-02-14 14:25:32"}
+{"level":"error","message":"[CRON] Grace check error:","service":"iap-service","timestamp":"2026-02-16 19:50:21"}
+{"level":"error","message":"[CRON] Expire check error:","service":"iap-service","timestamp":"2026-02-16 19:50:24"}
+{"level":"error","message":"[CRON] Failed events check error:","service":"iap-service","timestamp":"2026-02-16 19:50:49"}
+{"level":"error","message":"[CRON] Expire check error:","service":"iap-service","timestamp":"2026-02-16 20:15:05"}
+{"level":"error","message":"[CRON] Grace check error:","service":"iap-service","timestamp":"2026-02-16 20:15:05"}
+{"level":"error","message":"[CRON] Expire check error:","service":"iap-service","timestamp":"2026-02-16 20:20:05"}
+{"level":"error","message":"[CRON] Grace check error:","service":"iap-service","timestamp":"2026-02-16 20:20:05"}
+{"level":"error","message":"[CRON] Failed events check error:","service":"iap-service","timestamp":"2026-02-16 20:20:05"}
+{"level":"error","message":"[CRON] Expire check error:","service":"iap-service","timestamp":"2026-02-16 20:25:02"}
+{"level":"error","message":"[CRON] Grace check error:","service":"iap-service","timestamp":"2026-02-16 20:25:02"}
+{"level":"error","message":"[CRON] Grace check error:","service":"iap-service","timestamp":"2026-02-16 20:30:00"}
+{"level":"error","message":"[CRON] Expire check error:","service":"iap-service","timestamp":"2026-02-16 20:30:00"}
+{"level":"error","message":"[CRON] Failed events check error:","service":"iap-service","timestamp":"2026-02-16 20:30:05"}
+{"level":"error","message":"[CRON] Grace check error:","service":"iap-service","timestamp":"2026-02-17 08:55:21"}
+{"level":"error","message":"[CRON] Grace check error:","service":"iap-service","timestamp":"2026-02-17 13:40:19"}
+{"level":"error","message":"[CRON] Expire check error:","service":"iap-service","timestamp":"2026-02-17 14:40:00"}
+{"level":"error","message":"[CRON] Grace check error:","service":"iap-service","timestamp":"2026-02-17 14:40:00"}

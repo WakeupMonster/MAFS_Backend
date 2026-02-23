@@ -30,5 +30,4 @@ module.exports = async function getFormattedUser(userId, req) {
     subData,
     req
   );
-
 };

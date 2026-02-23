@@ -28,24 +28,24 @@ const ProfileSchema = new mongoose.Schema({
 
   attributes: {
     // Basics
-    zodiac: { type: String, default: null },
-    education: { type: String, default: null },
-    familyPlans: { type: String, default: null },
-    personalityType: { type: String, default: null },
-    communicationStyle: { type: String, default: null },
-    loveStyle: { type: String, default: null },
-    bloodType: { type: String, default: null },
-    covidVaccine: { type: String, default: null },
-    religion: { type: String, default: null },
+    zodiac: { type: [String], default: [] },
+    education: { type: [String], default: [] },
+    familyPlans: { type: [String], default: [] },
+    personalityType: { type: [String], default: [] },
+    communicationStyle: { type: [String], default: [] },
+    loveStyle: { type: [String], default: [] },
+    bloodType: { type: [String], default: [] },
+    covidVaccine: { type: [String], default: [] },
+    religion: { type: [String], default: [] },
     
     // Lifestyle
-    pets: { type: String, default: null },
-    drinking: { type: String, default: null },
-    smoking: { type: String, default: null },
-    workout: { type: String, default: null },
-    dietary: { type: String, default: null },
-    sleeping: { type: String, default: null },
-    socialMedia: { type: String, default: null },
+    pets: { type: [String], default: [] },
+    drinking: { type: [String], default: [] },
+    smoking: { type: [String], default: [] },
+    workout: { type: [String], default: [] },
+    dietary: { type: [String], default: [] },
+    sleeping: { type: [String], default: [] },
+    socialMedia: { type: [String], default: [] },
     
     // Arrays (Store Meta IDs)
     languages: { type: [String], default: [] },
@@ -62,7 +62,7 @@ const ProfileSchema = new mongoose.Schema({
       min: { type: Number, default: 18 },
       max: { type: Number, default: 60 }
     },
-    showMeGender: { type: [String], default: [] }, 
+    showMeGender: { type: String, default: null }, 
     relationshipGoal: { type: String, default: null }, // Stored as ID String
     globalVisibility: { 
         type: String, 
@@ -76,17 +76,17 @@ const ProfileSchema = new mongoose.Schema({
   advancedFilters: {
     zodiac: [String],
     education: [String],
-    familyPlans: String,
-    personalityType: String,
-    communicationStyle: String,
-    loveStyle: String,
-    pets: String,
-    drinking: String,
-    smoking: String,
-    workout: String,
-    dietary: String,
-    socialMedia: String,
-    sleeping: String
+    familyPlans: [String],
+    personalityType: [String],
+    communicationStyle: [String],
+    loveStyle: [String],
+    pets: [String],
+    drinking: [String],
+    smoking: [String],
+    workout: [String],
+    dietary: [String],
+    socialMedia: [String],
+    sleeping: [String]
   }
   },
 
