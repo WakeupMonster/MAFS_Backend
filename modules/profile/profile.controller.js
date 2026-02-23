@@ -836,9 +836,10 @@ exports.updateDiscoveryFilters = async (req, res) => {
     
      const formattedUser = await getFormattedUser(userId, req);
 
-    return res.json({ success: true, message: "Filters applied! Feed is refreshing." ,  data: {
+    return res.json({ success: true, message: "Filterss applied! Feed is refreshing." ,  data: {
         user: formattedUser
       }});
+
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
   }
