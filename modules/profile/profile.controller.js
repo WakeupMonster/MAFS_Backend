@@ -69,7 +69,7 @@ exports.updateProfile = async (req, res) => {
 
       if (p.nickname) {
         const existing = await Profile.findOne({ nickname: p.nickname, userId: { $ne: userId } }).lean();
-        if (existing) return res.status(400).json({ success: false, code: "NICKNAME_TAKEN", message: "Nickname taken" });
+        if (existing) return res.status(400).json({ success: false, message: "Nickname taken" });
       }
     }
 
