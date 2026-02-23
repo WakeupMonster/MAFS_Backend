@@ -46,15 +46,15 @@ const validateDiscoveryFilters = (req, res, next) => {
     }
   }
 
-  // ─── 4. showMeGender must be string only ───
-  if (discoveryFilters.showMeGender !== undefined) {
-    if (typeof discoveryFilters.showMeGender !== "string") {
-      return sendError(res, "showMeGender must be a string.");
-    }
-    if (discoveryFilters.showMeGender.trim() === "") {
-      return sendError(res, "showMeGender cannot be empty.");
-    }
-  }
+  // // ─── 4. showMeGender must be string only ───
+  // if (discoveryFilters.showMeGender !== undefined) {
+  //   if (typeof discoveryFilters.showMeGender !== "string") {
+  //     return sendError(res, "showMeGender must be a string.");
+  //   }
+  //   if (discoveryFilters.showMeGender.trim() === "") {
+  //     return sendError(res, "showMeGender cannot be empty.");
+  //   }
+  // }
 
   // ─── 5. advanced filters validation ───
   if (discoveryFilters.advanced !== undefined) {
