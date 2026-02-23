@@ -28,24 +28,24 @@ const ProfileSchema = new mongoose.Schema({
 
   attributes: {
     // Basics
-    zodiac: { type: [String], default: [] },
-    education: { type: [String], default: [] },
-    familyPlans: { type: [String], default: [] },
-    personalityType: { type: [String], default: [] },
-    communicationStyle: { type: [String], default: [] },
-    loveStyle: { type: [String], default: [] },
-    bloodType: { type: [String], default: [] },
-    covidVaccine: { type: [String], default: [] },
-    religion: { type: [String], default: [] },
+    zodiac: { type: String, default: "" },
+    education: { type: String, default: "" },
+    familyPlans: { type: String, default: "" },
+    personalityType: { type: String, default: "" },
+    communicationStyle: { type: String, default: "" },
+    loveStyle: { type: String, default: "" },
+    bloodType: { type: String, default: "" },
+    covidVaccine: { type: String, default: "" },
+    religion: { type: String, default: "" },
     
     // Lifestyle
-    pets: { type: [String], default: [] },
-    drinking: { type: [String], default: [] },
-    smoking: { type: [String], default: [] },
-    workout: { type: [String], default: [] },
-    dietary: { type: [String], default: [] },
-    sleeping: { type: [String], default: [] },
-    socialMedia: { type: [String], default: [] },
+    pets: { type: String, default: "" },
+    drinking: { type: String, default: "" },
+    smoking: { type: String, default: "" },
+    workout: { type: String, default: ""},
+    dietary: { type: String, default: "" },
+    sleeping: { type: String, default: "" },
+    socialMedia: { type: String, default: "" },
     
     // Arrays (Store Meta IDs)
     languages: { type: [String], default: [] },

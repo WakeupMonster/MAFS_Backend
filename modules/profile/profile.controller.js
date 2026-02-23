@@ -773,22 +773,22 @@ exports.resetDiscoveryFilters = async (req, res) => {
 
     profile.discovery.preferredInterests = [];
     profile.discovery.filterRelationshipGoal = null;
-    profile.discovery.showMeGender = "";
+    // profile.discovery.showMeGender = "";
     profile.discovery.ageRange = { min: 18, max: 60 };
     profile.discovery.advancedFilters = {
-      zodiac: [],
-      education: [],
-      familyPlans: [],
-      personalityType: [],
-      communicationStyle: [],
-      loveStyle: [],
-      pets: [],
-      drinking: [],
-      smoking: [],
-      workout: [],
-      dietary: [],
-      socialMedia: [],
-      sleeping: []
+      zodiac: null,
+      education: null,
+      familyPlans: null,
+      personalityType: null,
+      communicationStyle: null,
+      loveStyle: null,
+      pets: null,
+      drinking: null,
+      smoking: null,
+      workout: null,
+      dietary: null,
+      socialMedia: null,
+      sleeping: null
     };
 
     await profile.save();
@@ -836,7 +836,7 @@ exports.updateDiscoveryFilters = async (req, res) => {
     
      const formattedUser = await getFormattedUser(userId, req);
 
-    return res.json({ success: true, message: "Filterss applied! Feed is refreshing." ,  data: {
+    return res.json({ success: true, message: "Filters applied! Feed is refreshing." ,  data: {
         user: formattedUser
       }});
 

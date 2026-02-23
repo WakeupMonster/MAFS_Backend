@@ -2570,3 +2570,11 @@
 {"level":"info","message":"[CRON] Subscription cron jobs initialized","service":"iap-service","timestamp":"2026-02-23 14:08:48"}
 {"level":"info","message":"[CRON] Subscription cron jobs initialized","service":"iap-service","timestamp":"2026-02-23 14:09:17"}
 {"level":"debug","message":"PATCH /api/v1/profile/discovery-preference","service":"iap-service","timestamp":"2026-02-23 14:10:19"}
+{"level":"info","message":"[CRON] Subscription cron jobs initialized","service":"iap-service","timestamp":"2026-02-23 14:11:04"}
+{"level":"info","message":"[CRON] Subscription cron jobs initialized","service":"iap-service","timestamp":"2026-02-23 14:44:37"}
+{"level":"info","message":"[CRON] Subscription cron jobs initialized","service":"iap-service","timestamp":"2026-02-23 16:02:16"}
+{"level":"info","message":"[CRON] Subscription cron jobs initialized","service":"iap-service","timestamp":"2026-02-23 16:02:41"}
+{"level":"info","message":"[CRON] Subscription cron jobs initialized","service":"iap-service","timestamp":"2026-02-23 16:03:44"}
+{"level":"info","message":"[CRON] Subscription cron jobs initialized","service":"iap-service","timestamp":"2026-02-23 16:04:41"}
+{"level":"info","message":"[CRON] Subscription cron jobs initialized","service":"iap-service","timestamp":"2026-02-23 16:06:00"}
+{"level":"info","message":"[CRON] Subscription cron jobs initialized","service":"iap-service","timestamp":"2026-02-23 16:06:44"}
