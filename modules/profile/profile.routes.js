@@ -5,9 +5,10 @@ const auth = require("../auth/auth.middleware");
 const uploadMiddleware = require("../upload/upload.middleware");
 const validation = require("./profile.validation");
 const controllerDis = require("../discovery/discovery.controller");
-const userAction = require("./userActionController")
+const userAction = require("./userActionController");
 // const ENUMS = require("../../config/enums");
-const  masterController  = require("./master.controller")
+const masterController = require("./master.controller");
+const { validateDiscoveryFilters } = require("../../common/utils/validators");
 
 router.use(auth);
 
@@ -20,18 +21,20 @@ router.patch(
 );
 
 router.patch(
+  "/discovery-preference/reset",
+  auth,
+  controller.resetDiscoveryFilters
+);
+
+router.patch(
   "/discovery-preference",
   auth,
+  validateDiscoveryFilters,
   controller.updateDiscoveryFilters
 );
 
 router.patch("/", controllerDis.updatePreference);
-router.post(
-  "/photos",
-  uploadMiddleware.uploadPhotos,
-  controller.uploadPhotos
-);
-
+router.post("/photos", uploadMiddleware.uploadPhotos, controller.uploadPhotos);
 
 // router.post(
 //   "/photos",
@@ -46,10 +49,8 @@ router.post(
 //   controller.uploadPhotos
 // );
 
-
 router.delete("/photos", controller.deletePhoto);
 router.patch("/photos/reorder", controller.reorderPhotos);
-
 
 router.post(
   "/selfie",
@@ -83,28 +84,26 @@ router.get("/status", controller.getStatus);
 
 router.get("/me", controller.getMyProfile);
 
-
 router.post("/bulk-add", masterController.bulkAddMasterData);
 
 router.get("/config", masterController.getAppConfig);
 
-
-router.get("/:userId",validation.validateUserIdParam, controller.getUserProfile);
-
-router.patch(
-  "/visibility",
-  auth,  
-  controller.updateVisibility
+router.get(
+  "/:userId",
+  validation.validateUserIdParam,
+  controller.getUserProfile
 );
+
+router.patch("/visibility", auth, controller.updateVisibility);
 
 router.get("/blocked/all", userAction.getBlockList);
 
-router.post("/block/:id",  userAction.blockUser);
-router.delete("/unblock/:id",  userAction.unblockUser);
-router.get("/block-list",  userAction.getBlockList);
+router.post("/block/:id", userAction.blockUser);
+router.delete("/unblock/:id", userAction.unblockUser);
+router.get("/block-list", userAction.getBlockList);
 
 // Report
 router.post("/report/:id", userAction.reportUser);
 
-router.post("/resetData",controller.resetTestData)
+router.post("/resetData", controller.resetTestData);
 module.exports = router;

@@ -9,23 +9,28 @@ const Block = require("../profile/user.block");
 const { formatProfileResponse } = require("./profile.formatter");
 const UserSubscription = require("../auth/UserSubscription.model");
 const { formatPublictargetProfile } = require("./profile.userFormatter");
-const { buildOnboardingResponse } = require("../../common/utils/onBoardingSteps");
+const {
+  buildOnboardingResponse,
+} = require("../../common/utils/onBoardingSteps");
 
 async function getFullUserData(userId, existingProfile = null) {
-  const [user, profile, blockedContacts, blockedUser, subData] = await Promise.all([
-    User.findById(userId).lean(),
-    existingProfile ? Promise.resolve(existingProfile) : Profile.findOne({ userId }),
-    BlockedContact.find({ userId }).lean(),
-    Block.find({ blockerId: userId }).lean(),
-    UserSubscription.findOne({ userId })
-  ]);
+  const [user, profile, blockedContacts, blockedUser, subData] =
+    await Promise.all([
+      User.findById(userId).lean(),
+      existingProfile
+        ? Promise.resolve(existingProfile)
+        : Profile.findOne({ userId }),
+      BlockedContact.find({ userId }).lean(),
+      Block.find({ blockerId: userId }).lean(),
+      UserSubscription.findOne({ userId }),
+    ]);
 
   let finalSub = subData;
   if (!finalSub) {
     finalSub = await UserSubscription.create({ userId });
   } else {
     // Agar lean use karte hain to methods work nahi karte, isliye instance logic check
-    if (typeof finalSub.resetIfNeeded === 'function') finalSub.resetIfNeeded();
+    if (typeof finalSub.resetIfNeeded === "function") finalSub.resetIfNeeded();
   }
 
   return { user, profile, blockedContacts, blockedUser, subData: finalSub };
@@ -36,7 +41,7 @@ async function getOrCreateProfile(userId) {
   if (!profile) {
     profile = await Profile.create({
       userId,
-      onboardingStartedAt: new Date()
+      onboardingStartedAt: new Date(),
     });
   }
   return profile;
@@ -46,7 +51,7 @@ async function clearProfileCache(userId) {
   try {
     await Promise.all([
       cache.del(`profile:${userId}`),
-      cache.del(`profile:status:${userId}`)
+      cache.del(`profile:status:${userId}`),
     ]);
   } catch (err) {
     console.log("Cache clear warning:", err.message);
@@ -59,44 +64,103 @@ exports.updateProfile = async (req, res) => {
     const updateData = req.body;
     let profile = await Profile.findOne({ userId });
 
-    if (!profile) return res.status(404).json({ success: false, message: "Profile not found" });
+    if (!profile)
+      return res
+        .status(404)
+        .json({ success: false, message: "Profile not found" });
 
     if (updateData.profile) {
       const p = updateData.profile;
-      const basicFields = ['nickname', 'dob', 'gender', 'height', 'about', 'jobTitle', 'company', 'school', 'pronouns', 'weight'];
-      basicFields.forEach(field => { if (p[field] !== undefined) profile[field] = p[field]; });
+      const basicFields = [
+        "nickname",
+        "dob",
+        "gender",
+        "height",
+        "about",
+        "jobTitle",
+        "company",
+        "school",
+        "pronouns",
+        "weight",
+      ];
+      basicFields.forEach((field) => {
+        if (p[field] !== undefined) profile[field] = p[field];
+      });
 
       if (p.nickname) {
-        const existing = await Profile.findOne({ nickname: p.nickname, userId: { $ne: userId } }).lean();
-        if (existing) return res.status(400).json({ success: false, code: "NICKNAME_TAKEN", message: "Nickname taken" });
+        const existing = await Profile.findOne({
+          nickname: p.nickname,
+          userId: { $ne: userId },
+        }).lean();
+        if (existing)
+          return res.status(400).json({
+            success: false,
+            code: "NICKNAME_TAKEN",
+            message: "Nickname taken",
+          });
       }
     }
 
     if (updateData.attributes) {
       const attr = updateData.attributes;
       profile.attributes = profile.attributes || {};
-      const traitFields = ['zodiac', 'education', 'familyPlans', 'personalityType', 'communicationStyle', 'loveStyle', 'bloodType', 'covidVaccine', 'religion', 'pets', 'drinking', 'smoking', 'workout', 'dietary', 'sleeping', 'socialMedia'];
-      traitFields.forEach(field => { if (attr[field] !== undefined) profile.attributes[field] = attr[field]; });
+      const traitFields = [
+        "zodiac",
+        "education",
+        "familyPlans",
+        "personalityType",
+        "communicationStyle",
+        "loveStyle",
+        "bloodType",
+        "covidVaccine",
+        "religion",
+        "pets",
+        "drinking",
+        "smoking",
+        "workout",
+        "dietary",
+        "sleeping",
+        "socialMedia",
+      ];
+      traitFields.forEach((field) => {
+        if (attr[field] !== undefined) profile.attributes[field] = attr[field];
+      });
 
-      const arrayTraits = ['languages', 'interests', 'music', 'movies', 'books', 'travel'];
-      arrayTraits.forEach(field => {
-        if (attr[field] !== undefined) profile.attributes[field] = Array.isArray(attr[field]) ? attr[field] : [attr[field]];
+      const arrayTraits = [
+        "languages",
+        "interests",
+        "music",
+        "movies",
+        "books",
+        "travel",
+      ];
+      arrayTraits.forEach((field) => {
+        if (attr[field] !== undefined)
+          profile.attributes[field] = Array.isArray(attr[field])
+            ? attr[field]
+            : [attr[field]];
       });
     }
 
     if (updateData.discovery) {
       const disc = updateData.discovery;
       profile.discovery = profile.discovery || {};
-      if (disc.distanceRange) profile.discovery.distanceRange = disc.distanceRange;
-      if (disc.relationshipGoal) profile.discovery.relationshipGoal = disc.relationshipGoal;
-      if (disc.globalVisibility) profile.discovery.globalVisibility = disc.globalVisibility;
+      if (disc.distanceRange)
+        profile.discovery.distanceRange = disc.distanceRange;
+      if (disc.relationshipGoal)
+        profile.discovery.relationshipGoal = disc.relationshipGoal;
+      if (disc.globalVisibility)
+        profile.discovery.globalVisibility = disc.globalVisibility;
       if (disc.ageRange) {
         profile.discovery.ageRange = {
           min: disc.ageRange.min || profile.discovery.ageRange.min,
-          max: disc.ageRange.max || profile.discovery.ageRange.max
+          max: disc.ageRange.max || profile.discovery.ageRange.max,
         };
       }
-      if (disc.showMeGender) profile.discovery.showMeGender = Array.isArray(disc.showMeGender) ? disc.showMeGender : [disc.showMeGender];
+      if (disc.showMeGender)
+        profile.discovery.showMeGender = Array.isArray(disc.showMeGender)
+          ? disc.showMeGender
+          : [disc.showMeGender];
     }
 
     profile.lastProfileUpdate = new Date();
@@ -107,10 +171,17 @@ exports.updateProfile = async (req, res) => {
       success: true,
       message: "Profile updated successfully",
       data: {
-        user: await  formatProfileResponse(data.user, profile, data.blockedContacts, data.blockedUser, data.subData,req),
-        
+        user: await formatProfileResponse(
+          data.user,
+          profile,
+          data.blockedContacts,
+          data.blockedUser,
+          data.subData,
+          req
+        ),
+
         // onboarding: buildOnboardingResponse(req)
-      }
+      },
     });
   } catch (error) {
     console.error("Update Error:", error);
@@ -121,32 +192,55 @@ exports.updateProfile = async (req, res) => {
 exports.getMyProfile = async (req, res) => {
   try {
     const data = await getFullUserData(req.user._id);
-    if (!data.profile) return res.status(404).json({ success: false, message: "Profile not found" });
+    if (!data.profile)
+      return res
+        .status(404)
+        .json({ success: false, message: "Profile not found" });
 
     res.json({
       success: true,
-      data: { user:await formatProfileResponse(data.user, data.profile, data.blockedContacts, data.blockedUser, data.subData,req) }
+      data: {
+        user: await formatProfileResponse(
+          data.user,
+          data.profile,
+          data.blockedContacts,
+          data.blockedUser,
+          data.subData,
+          req
+        ),
+      },
     });
   } catch (err) {
-    res.status(500).json({ success: false, message: "Failed to fetch profile" });
+    res
+      .status(500)
+      .json({ success: false, message: "Failed to fetch profile" });
   }
 };
-  
+
 exports.uploadPhotos = async (req, res) => {
   try {
     const userId = req.user._id;
     const files = req.files;
-    if (!files || files.length === 0) return res.status(400).json({ success: false, message: "No files uploaded" });
+    if (!files || files.length === 0)
+      return res
+        .status(400)
+        .json({ success: false, message: "No files uploaded" });
 
     let profile = await getOrCreateProfile(userId);
     if (profile.photos.length + files.length > 6) {
-      return res.status(400).json({ success: false, message: `Maximum 6 photos allowed.` });
+      return res
+        .status(400)
+        .json({ success: false, message: `Maximum 6 photos allowed.` });
     }
 
-    const uploadPromises = files.map(file => uploadStream(file.buffer, {
-      folder: `mafs/users/${userId}/photos`,
-      transformation: [{ width: 1080, height: 1350, crop: "fill", quality: "auto:good" }]
-    }));
+    const uploadPromises = files.map((file) =>
+      uploadStream(file.buffer, {
+        folder: `mafs/users/${userId}/photos`,
+        transformation: [
+          { width: 1080, height: 1350, crop: "fill", quality: "auto:good" },
+        ],
+      })
+    );
 
     const newPhotosResults = await Promise.all(uploadPromises);
 
@@ -160,24 +254,35 @@ exports.uploadPhotos = async (req, res) => {
         bytes: result.bytes,
         uploadedAt: new Date(),
         order: profile.photos.length + 1,
-        isPrimary: profile.photos.length === 0 && index === 0
+        isPrimary: profile.photos.length === 0 && index === 0,
       });
     });
 
     await profile.save();
-    const [data] = await Promise.all([getFullUserData(userId, profile), clearProfileCache(userId)]);
+    const [data] = await Promise.all([
+      getFullUserData(userId, profile),
+      clearProfileCache(userId),
+    ]);
 
     res.json({
       success: true,
       message: `${newPhotosResults.length} photo uploaded successfully`,
       data: {
-        user: await formatProfileResponse(data.user, profile, data.blockedContacts, data.blockedUser, data.subData,req),
+        user: await formatProfileResponse(
+          data.user,
+          profile,
+          data.blockedContacts,
+          data.blockedUser,
+          data.subData,
+          req
+        ),
         // onboarding: buildOnboardingResponse(req)
-
-      }
+      },
     });
   } catch (err) {
-    res.status(500).json({ success: false, message: "Failed to upload photos" });
+    res
+      .status(500)
+      .json({ success: false, message: "Failed to upload photos" });
   }
 };
 
@@ -187,8 +292,13 @@ exports.deletePhoto = async (req, res) => {
     const { publicId } = req.body;
     const profile = await Profile.findOne({ userId });
 
-    const photoIndex = profile?.photos.findIndex(p => p.publicId === publicId);
-    if (photoIndex === -1 || !profile) return res.status(404).json({ success: false, message: "Photo not found" });
+    const photoIndex = profile?.photos.findIndex(
+      (p) => p.publicId === publicId
+    );
+    if (photoIndex === -1 || !profile)
+      return res
+        .status(404)
+        .json({ success: false, message: "Photo not found" });
 
     await destroy(publicId);
     profile.photos.splice(photoIndex, 1);
@@ -198,12 +308,24 @@ exports.deletePhoto = async (req, res) => {
     });
 
     await profile.save();
-    const [data] = await Promise.all([getFullUserData(userId, profile), clearProfileCache(userId)]);
+    const [data] = await Promise.all([
+      getFullUserData(userId, profile),
+      clearProfileCache(userId),
+    ]);
 
     res.json({
       success: true,
       message: "photo deleted successfully",
-      data: { user: await formatProfileResponse(data.user, profile, data.blockedContacts, data.blockedUser, data.subData,req) }
+      data: {
+        user: await formatProfileResponse(
+          data.user,
+          profile,
+          data.blockedContacts,
+          data.blockedUser,
+          data.subData,
+          req
+        ),
+      },
     });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
@@ -276,7 +398,7 @@ exports.reorderPhotos = async (req, res) => {
     // ✅ 7. INSERT LOGIC — NIKALO aur DAALO
     const photosArray = [...profile.photos];
     const [movedPhoto] = photosArray.splice(currentIndex, 1); // NIKALO
-    photosArray.splice(newIndex, 0, movedPhoto);               // DAALO
+    photosArray.splice(newIndex, 0, movedPhoto); // DAALO
 
     // ✅ 8. Order aur isPrimary update karo
     const updatedPhotos = photosArray.map((photo, index) => ({
@@ -412,8 +534,6 @@ exports.reorderPhotos = async (req, res) => {
 //   }
 // };
 
-
-
 // exports.reorderPhotos = async (req, res) => {
 //   try {
 //     const userId = req.user._id;
@@ -452,7 +572,7 @@ exports.reorderPhotos = async (req, res) => {
 //   try {
 //     const userId = req.user._id;
 //     // Ab file buffer nahi, direct URL aayega frontend se
-//     const { selfieUrl } = req.body; 
+//     const { selfieUrl } = req.body;
 
 //     if (!selfieUrl) return res.status(400).json({ success: false, message: "Selfie URL required" });
 
@@ -462,11 +582,11 @@ exports.reorderPhotos = async (req, res) => {
 //     // Parallel processing: DB updates
 //     const [data] = await Promise.all([
 //       getFullUserData(userId, profile), // Metadata fetch
-//       Profile.updateOne({ userId }, { 
-//         $set: { 
-//           "verification.selfieUrl": selfieUrl, 
-//           "verification.status": "pending" 
-//         } 
+//       Profile.updateOne({ userId }, {
+//         $set: {
+//           "verification.selfieUrl": selfieUrl,
+//           "verification.status": "pending"
+//         }
 //       })
 //     ]);
 
@@ -485,7 +605,8 @@ exports.reorderPhotos = async (req, res) => {
 module.exports.uploadSelfie = async (req, res) => {
   try {
     const userId = req.user._id;
-    if (!req.file) return res.status(400).json({ success: false, message: "No file" });
+    if (!req.file)
+      return res.status(400).json({ success: false, message: "No file" });
 
     // Step 1: Pehle hi baki data fetch karlo parallel mein
     const data = await getFullUserData(userId);
@@ -496,32 +617,43 @@ module.exports.uploadSelfie = async (req, res) => {
       success: true,
       message: "Selfie upload started...",
       data: {
-        user: await  formatProfileResponse(data.user, data.profile, data.blockedContacts, data.blockedUser, data.subData,req),
+        user: await formatProfileResponse(
+          data.user,
+          data.profile,
+          data.blockedContacts,
+          data.blockedUser,
+          data.subData,
+          req
+        ),
         // onboarding: buildOnboardingResponse(req)
-      }
+      },
     });
 
     // Step 3: BACKGROUND PROCESSING (No 'await' for the response)
     // Ye line response bhejne ke BAAD execute hogi
     uploadStream(req.file.buffer, {
       folder: `mafs/users/${userId}/kyc`,
-      transformation: [{ width: 800, height: 800, crop: "fill", quality: "auto:best" }]
-    }).then(async (result) => {
-      await Profile.updateOne(
-        { userId },
-        {
-          $set: {
-            "verification.selfieUrl": result.secure_url,
-            "verification.status": "pending"
+      transformation: [
+        { width: 800, height: 800, crop: "fill", quality: "auto:best" },
+      ],
+    })
+      .then(async (result) => {
+        await Profile.updateOne(
+          { userId },
+          {
+            $set: {
+              "verification.selfieUrl": result.secure_url,
+              "verification.status": "pending",
+            },
           }
-        }
-      );
-      await cache.del(`profile:status:${userId}`);
-      console.log(`Selfie processed for ${userId}`);
-    }).catch(err => console.error("Background Upload Error:", err));
-
+        );
+        await cache.del(`profile:status:${userId}`);
+        console.log(`Selfie processed for ${userId}`);
+      })
+      .catch((err) => console.error("Background Upload Error:", err));
   } catch (err) {
-    if (!res.headersSent) res.status(500).json({ success: false, message: "Server Error" });
+    if (!res.headersSent)
+      res.status(500).json({ success: false, message: "Server Error" });
   }
 };
 
@@ -532,12 +664,17 @@ module.exports.uploadIDDocument = async (req, res) => {
 
     // Basic Validation - Ye turant check hoga
     if (!frontFile) {
-      return res.status(400).json({ success: false, message: "Document front image is required" });
+      return res
+        .status(400)
+        .json({ success: false, message: "Document front image is required" });
     }
 
     // 1. Parallel Context Fetching (Milli-seconds)
     const data = await getFullUserData(userId);
-    if (!data.profile) return res.status(404).json({ success: false, message: "Profile not found" });
+    if (!data.profile)
+      return res
+        .status(404)
+        .json({ success: false, message: "Profile not found" });
 
     // 2. IMMEDIATE RESPONSE
     // Frontend ko data turant mil jayega, loading spinner hat jayega
@@ -545,9 +682,16 @@ module.exports.uploadIDDocument = async (req, res) => {
       success: true,
       message: "ID upload started. We will notify you once verified.",
       data: {
-        user: await formatProfileResponse(data.user, data.profile, data.blockedContacts, data.blockedUser, data.subData,req),
+        user: await formatProfileResponse(
+          data.user,
+          data.profile,
+          data.blockedContacts,
+          data.blockedUser,
+          data.subData,
+          req
+        ),
         // onboarding: buildOnboardingResponse(req)
-      }
+      },
     });
 
     // 3. BACKGROUND PROCESSING (Network I/O)
@@ -556,13 +700,15 @@ module.exports.uploadIDDocument = async (req, res) => {
       try {
         const result = await uploadStream(frontFile.buffer, {
           folder: `mafs/users/${userId}/kyc`,
-          transformation: [{ width: 1200, height: 800, crop: "limit", quality: "auto:best" }]
+          transformation: [
+            { width: 1200, height: 800, crop: "limit", quality: "auto:best" },
+          ],
         });
 
         // Atomic update taaki pre-save hook skip ho aur speed mile
         const updateFields = {
           "verification.docUrl": result.secure_url,
-          "onboardingProgress.idDocumentUploaded": true
+          "onboardingProgress.idDocumentUploaded": true,
         };
 
         // Agar selfie pehle se hai, toh status pending kar do
@@ -578,11 +724,12 @@ module.exports.uploadIDDocument = async (req, res) => {
         console.error("ID Upload Background Error:", bgError);
       }
     })();
-
   } catch (err) {
     console.error("ID Upload Controller Error:", err);
     if (!res.headersSent) {
-      res.status(500).json({ success: false, message: "Failed to initiate ID upload" });
+      res
+        .status(500)
+        .json({ success: false, message: "Failed to initiate ID upload" });
     }
   }
 };
@@ -622,19 +769,41 @@ module.exports.uploadIDDocument = async (req, res) => {
 
 exports.getVerificationStatus = async (req, res) => {
   try {
-    const profile = await Profile.findOne({ userId: req.user._id }).select("verification").lean();
+    const profile = await Profile.findOne({ userId: req.user._id })
+      .select("verification")
+      .lean();
     if (!profile?.verification) {
-      return res.json({ success: true, data: { status: "not_started", selfieUploaded: false, documentUploaded: false, message: "Verification not started" } });
+      return res.json({
+        success: true,
+        data: {
+          status: "not_started",
+          selfieUploaded: false,
+          documentUploaded: false,
+          message: "Verification not started",
+        },
+      });
     }
 
     const { status, selfieUrl, docUrl, rejectionReason } = profile.verification;
-    let message = status === "pending" ? "Your verification is under review" :
-      status === "approved" ? "Your profile has been verified" :
-        status === "rejected" ? "Your verification was rejected" : "Verification not started";
+    let message =
+      status === "pending"
+        ? "Your verification is under review"
+        : status === "approved"
+        ? "Your profile has been verified"
+        : status === "rejected"
+        ? "Your verification was rejected"
+        : "Verification not started";
 
     res.json({
       success: true,
-      data: { status, selfieUploaded: !!selfieUrl, documentUploaded: !!docUrl, rejectionReason: status === "rejected" ? rejectionReason || "Failed" : null, message }
+      data: {
+        status,
+        selfieUploaded: !!selfieUrl,
+        documentUploaded: !!docUrl,
+        rejectionReason:
+          status === "rejected" ? rejectionReason || "Failed" : null,
+        message,
+      },
     });
   } catch (err) {
     res.status(500).json({ success: false, message: "Failed to fetch status" });
@@ -644,23 +813,42 @@ exports.getVerificationStatus = async (req, res) => {
 exports.updateLocation = async (req, res) => {
   try {
     const userId = req.user._id;
-    const { latitude, longitude, city, state, country, full_address } = req.body;
-    if (!latitude || !longitude) return res.status(400).json({ success: false, message: "Valid coordinates required" });
+    const { latitude, longitude, city, state, country, full_address } =
+      req.body;
+    if (!latitude || !longitude)
+      return res
+        .status(400)
+        .json({ success: false, message: "Valid coordinates required" });
 
     let profile = await getOrCreateProfile(userId);
     profile.location = {
       type: "Point",
       coordinates: [Number(longitude), Number(latitude)],
-      city: city || "", state: state || "", country: country || "", full_address: full_address || ""
+      city: city || "",
+      state: state || "",
+      country: country || "",
+      full_address: full_address || "",
     };
 
     await profile.save();
-    const [data] = await Promise.all([getFullUserData(userId, profile), clearProfileCache(userId)]);
+    const [data] = await Promise.all([
+      getFullUserData(userId, profile),
+      clearProfileCache(userId),
+    ]);
 
     res.json({
       success: true,
       message: "Location updated successfully",
-      data: { user: await formatProfileResponse(data.user, profile, data.blockedContacts, data.blockedUser, data.subData,req) }
+      data: {
+        user: await formatProfileResponse(
+          data.user,
+          profile,
+          data.blockedContacts,
+          data.blockedUser,
+          data.subData,
+          req
+        ),
+      },
     });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
@@ -673,10 +861,22 @@ exports.getStatus = async (req, res) => {
     const cacheKey = `profile:status:${userId}`;
 
     const cached = await cache.get(cacheKey);
-    if (cached) return res.json({ success: true, data: JSON.parse(cached), cached: true });
+    if (cached)
+      return res.json({
+        success: true,
+        data: JSON.parse(cached),
+        cached: true,
+      });
 
     const data = await getFullUserData(userId);
-    const formatted = await formatProfileResponse(data.user, data.profile, data.blockedContacts, data.blockedUser, data.subData,req);
+    const formatted = await formatProfileResponse(
+      data.user,
+      data.profile,
+      data.blockedContacts,
+      data.blockedUser,
+      data.subData,
+      req
+    );
 
     await cache.set(cacheKey, JSON.stringify(formatted), { EX: 30 });
     res.json({ success: true, data: formatted, cached: false });
@@ -695,12 +895,12 @@ exports.getUserProfile = async (req, res) => {
 
     // 1️⃣ Parallel Fetching: Sabse fast tareeka
     const [
-      viewerProfile,   // Viewer ke coordinates ke liye
-      targetProfile,   // Target ka pura data
-      swipeAction,     // Kya maine ise like/superlike kiya?
-      blockStatus,     // Blocked toh nahi hai?
-      matchRecord,     // Kya hum match hain?
-      isBoosted        // Kya target boosted hai (Redis)
+      viewerProfile, // Viewer ke coordinates ke liye
+      targetProfile, // Target ka pura data
+      swipeAction, // Kya maine ise like/superlike kiya?
+      blockStatus, // Blocked toh nahi hai?
+      matchRecord, // Kya hum match hain?
+      isBoosted, // Kya target boosted hai (Redis)
     ] = await Promise.all([
       Profile.findOne({ userId: viewerId }).select("location").lean(),
       Profile.findOne({ userId: targetUserId }).lean(),
@@ -708,17 +908,22 @@ exports.getUserProfile = async (req, res) => {
       Block.findOne({
         $or: [
           { blockerId: viewerId, blockedId: targetUserId },
-          { blockerId: targetUserId, blockedId: viewerId }
-        ]
+          { blockerId: targetUserId, blockedId: viewerId },
+        ],
       }).lean(),
       Match.findOne({ users: { $all: [viewerId, targetUserId] } }).lean(),
-      redis.get(`boost:${targetUserId}`)
+      redis.get(`boost:${targetUserId}`),
     ]);
 
     // 2️⃣ Edge Case Handlers
-    if (!targetProfile) return res.status(404).json({ success: false, message: "Profile not found" });
-    if (blockStatus) return res.status(403).json({ success: false, message: "Profile unavailable" });
-
+    if (!targetProfile)
+      return res
+        .status(404)
+        .json({ success: false, message: "Profile not found" });
+    if (blockStatus)
+      return res
+        .status(403)
+        .json({ success: false, message: "Profile unavailable" });
 
     const formattedData = await formatPublictargetProfile(
       viewerProfile,
@@ -731,7 +936,9 @@ exports.getUserProfile = async (req, res) => {
     res.json({ success: true, data: formattedData });
   } catch (err) {
     console.error("Profile Fetch Error:", err);
-    res.status(500).json({ success: false, message: "Failed to load profile details" });
+    res
+      .status(500)
+      .json({ success: false, message: "Failed to load profile details" });
   }
 };
 
@@ -763,18 +970,28 @@ exports.updateDiscoveryFilters = async (req, res) => {
     let profile = await Profile.findOne({ userId });
 
     if (discoveryFilters) {
-      if (discoveryFilters.interests) profile.discovery.preferredInterests = discoveryFilters.interests;
-      if (discoveryFilters.relationshipGoal) profile.discovery.filterRelationshipGoal = discoveryFilters.relationshipGoal;
-      if (discoveryFilters.ageRange) profile.discovery.ageRange = discoveryFilters.ageRange;
+      if (discoveryFilters.interests)
+        profile.discovery.preferredInterests = discoveryFilters.interests;
+      if (discoveryFilters.relationshipGoal)
+        profile.discovery.filterRelationshipGoal =
+          discoveryFilters.relationshipGoal;
+      if (discoveryFilters.ageRange)
+        profile.discovery.ageRange = discoveryFilters.ageRange;
       if (discoveryFilters.advanced) {
-        profile.discovery.advancedFilters = { ...profile.discovery.advancedFilters, ...discoveryFilters.advanced };
+        profile.discovery.advancedFilters = {
+          ...profile.discovery.advancedFilters,
+          ...discoveryFilters.advanced,
+        };
       }
     }
 
     await profile.save();
     if (redis) await redis.del(`feed:${userId.toString()}`);
 
-    return res.json({ success: true, message: "Filters applied! Feed is refreshing." });
+    return res.json({
+      success: true,
+      message: "Filters applied! Feed is refreshing.",
+    });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
   }
@@ -782,11 +999,75 @@ exports.updateDiscoveryFilters = async (req, res) => {
 
 exports.getDiscoveryPreference = async (req, res) => {
   try {
-    const profile = await Profile.findOne({ userId: req.user._id }).select('preferences discoveryFilters').lean();
-    if (!profile) return res.status(404).json({ success: false, message: "Profile not found" });
-    res.json({ success: true, data: { preferences: profile.preferences, discoveryFilters: profile.discoveryFilters } });
+    const profile = await Profile.findOne({ userId: req.user._id })
+      .select("preferences discoveryFilters")
+      .lean();
+    if (!profile)
+      return res
+        .status(404)
+        .json({ success: false, message: "Profile not found" });
+    res.json({
+      success: true,
+      data: {
+        preferences: profile.preferences,
+        discoveryFilters: profile.discoveryFilters,
+      },
+    });
   } catch (err) {
     res.status(400).json({ success: false, message: err.message });
+  }
+};
+
+exports.resetDiscoveryFilters = async (req, res) => {
+  try {
+    const userId = req.user._id;
+
+    const profile = await Profile.findOne({ userId });
+
+    if (!profile) {
+      return res.status(404).json({
+        success: false,
+        message: "Profile not found.",
+      });
+    }
+
+    profile.discovery.preferredInterests = [];
+    profile.discovery.filterRelationshipGoal = null;
+    profile.discovery.showMeGender = "";
+    profile.discovery.ageRange = { min: 18, max: 60 };
+    profile.discovery.advancedFilters = {
+      zodiac: [],
+      education: [],
+      familyPlans: [],
+      personalityType: [],
+      communicationStyle: [],
+      loveStyle: [],
+      pets: [],
+      drinking: [],
+      smoking: [],
+      workout: [],
+      dietary: [],
+      socialMedia: [],
+      sleeping: [],
+    };
+
+    await profile.save();
+
+    if (redis) await redis.del(`feed:${userId.toString()}`);
+
+    const formattedUser = await getFormattedUser(userId, req);
+
+    return res.json({
+      success: true,
+      message: "All discovery filters have been reset to defaults.",
+      data: { user: formattedUser },
+    });
+  } catch (err) {
+    console.log("RESET ERROR:", err.message); // ← ye add karo terminal mein dekhne ke liye
+    return res.status(500).json({
+      success: false,
+      message: "Something went wrong while resetting filters.",
+    });
   }
 };
 
@@ -795,12 +1076,20 @@ exports.updateVisibility = async (req, res) => {
     const userId = req.user._id;
     const { globalVisibility } = req.body;
     const allowed = ["everyone", "matches_only", "nobody"];
-    if (!allowed.includes(globalVisibility)) return res.status(400).json({ success: false, message: "Invalid value" });
+    if (!allowed.includes(globalVisibility))
+      return res.status(400).json({ success: false, message: "Invalid value" });
 
     const isDisc = globalVisibility !== "nobody";
     const profile = await Profile.findOneAndUpdate(
       { userId },
-      { $set: { "discovery.globalVisibility": globalVisibility, isDiscoverable: isDisc, canAccessSwipe: isDisc, lastProfileUpdate: new Date() } },
+      {
+        $set: {
+          "discovery.globalVisibility": globalVisibility,
+          isDiscoverable: isDisc,
+          canAccessSwipe: isDisc,
+          lastProfileUpdate: new Date(),
+        },
+      },
       { new: true }
     ).lean();
 
@@ -809,13 +1098,16 @@ exports.updateVisibility = async (req, res) => {
     res.json({
       success: true,
       message: "Visibility updated successfully",
-      data: { globalVisibility: profile.discovery.globalVisibility, isDiscoverable: profile.isDiscoverable, canAccessSwipe: profile.canAccessSwipe }
+      data: {
+        globalVisibility: profile.discovery.globalVisibility,
+        isDiscoverable: profile.isDiscoverable,
+        canAccessSwipe: profile.canAccessSwipe,
+      },
     });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
   }
 };
-
 
 // const cloudinary = require('cloudinary').v2;
 // const mongoose = require('mongoose');
@@ -859,9 +1151,7 @@ exports.updateVisibility = async (req, res) => {
 //   }
 // };
 
-
-
-const mongoose = require('mongoose');
+const mongoose = require("mongoose");
 
 exports.resetTestData = async (req, res) => {
   try {
@@ -872,15 +1162,12 @@ exports.resetTestData = async (req, res) => {
 
     // ✅ DELETE MATCHES WHERE ADMIN IS PART OF MATCH
     const matchResult = await Match.deleteMany({
-      users: userObjectId // array contains adminId
+      users: userObjectId, // array contains adminId
     });
 
     // ✅ DELETE SWIPES WHERE ADMIN IS INVOLVED
     const swipeResult = await Swipe.deleteMany({
-      $or: [
-        { swiperId: adminId },
-        { targetId: adminId }
-      ]
+      $or: [{ swiperId: adminId }, { targetId: adminId }],
     });
 
     res.json({
@@ -888,16 +1175,15 @@ exports.resetTestData = async (req, res) => {
       message: "Test data reset successfully",
       data: {
         matchesDeleted: matchResult.deletedCount,
-        swipesDeleted: swipeResult.deletedCount
-      }
+        swipesDeleted: swipeResult.deletedCount,
+      },
     });
-
   } catch (error) {
     console.error("Error resetting test data:", error);
     res.status(500).json({
       success: false,
       message: "Failed to reset test data",
-      error: error.message
+      error: error.message,
     });
   }
 };

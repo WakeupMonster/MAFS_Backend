@@ -1,4 +1,6 @@
-const { buildOnboardingResponse } = require("../../common/utils/onBoardingSteps");
+const {
+  buildOnboardingResponse,
+} = require("../../common/utils/onBoardingSteps");
 
 const calculateAge = (dob) => {
   if (!dob) return null;
@@ -11,32 +13,37 @@ const calculateAge = (dob) => {
 };
 
 const planNames = {
-    free: "MAFS Free",
-    plus: "MAFS Plus",
-    gold: "MAFS Gold",
-    platinum: "MAFS Platinum",
-    monthly : "MAFS PREMIUM"
-  };
-
+  free: "MAFS Free",
+  plus: "MAFS Plus",
+  gold: "MAFS Gold",
+  platinum: "MAFS Platinum",
+  monthly: "MAFS PREMIUM",
+};
 
 // Simple completion logic based on mandatory fields
 const calculateCompletion = (profile) => {
   return profile?.onboardingProgress?.totalCompletion || 0;
 };
 
-
-const formatProfileResponse = async (user, profile,blockedContacts = [], blockedUser = [],subData = {},req) => {
+const formatProfileResponse = async (
+  user,
+  profile,
+  blockedContacts = [],
+  blockedUser = [],
+  subData = {},
+  req
+) => {
   if (!user) return null;
   const p = profile || {}; // Agar profile nahi hai toh empty object
-const sub = subData || {}; // Hum subData (UserSubscription document) pass karenge
+  const sub = subData || {}; // Hum subData (UserSubscription document) pass karenge
 
   // Daily Limits define (Inhe aap helper se bhi la sakte hain)
   const MAX_LIKES = 30;
   const MAX_SUPERLIKES = 3;
-  
-  const isPremium = ['plus', 'gold', 'platinum'].includes(sub.planId);
-const tonight = new Date();
-tonight.setHours(24, 0, 0, 0);
+
+  const isPremium = ["plus", "gold", "platinum"].includes(sub.planId);
+  const tonight = new Date();
+  tonight.setHours(24, 0, 0, 0);
   return {
     // 1. ACCOUNT (Data from User Model)
     account: {
@@ -45,13 +52,13 @@ tonight.setHours(24, 0, 0, 0);
         isBanned: user.banDetails?.isBanned || false,
         reason: user.banDetails?.reason || null,
         bannedBy: user.banDetails?.bannedBy || null,
-        bannedAt: user.banDetails?.bannedAt || null
+        bannedAt: user.banDetails?.bannedAt || null,
       },
-      suspensionDetails : {
-        isSuspended : user.suspensionDetails?.isSuspended || false,
+      suspensionDetails: {
+        isSuspended: user.suspensionDetails?.isSuspended || false,
         reason: user.suspensionDetails?.reason || null,
-        suspendedAt : user.suspensionDetails?.suspendedAt || null,
-        suspendUntil : user.suspensionDetails?.suspendUntil || null
+        suspendedAt: user.suspensionDetails?.suspendedAt || null,
+        suspendUntil: user.suspensionDetails?.suspendUntil || null,
       },
       deactivationDetails: {
         isDeactivated: user.deactivationDetails?.isDeactivated || false,
@@ -59,19 +66,18 @@ tonight.setHours(24, 0, 0, 0);
         deactivatedAt: user.deactivationDetails?.deactivatedAt || null,
       },
       deletionDetails: {
-        isScheduledForDeletion: user.deletionDetails?.isScheduledForDeletion || false,
-        reason : user.deletionDetails?.reason || null,
+        isScheduledForDeletion:
+          user.deletionDetails?.isScheduledForDeletion || false,
+        reason: user.deletionDetails?.reason || null,
         scheduledAt: user.deletionDetails?.scheduledAt || null,
-        deletionDate : user.deletionDetails?.deletionDate || null,
-        daysRemaining : user.deletionDetails?.daysRemaining || null
-      }
+        deletionDate: user.deletionDetails?.deletionDate || null,
+        daysRemaining: user.deletionDetails?.daysRemaining || null,
+      },
     },
     profile: {
-    id: profile?.userId || null,
+      id: profile?.userId || null,
       nickname: p.nickname || null,
-      dob: profile?.dob
-  ? profile.dob.toISOString().split("T")[0]
-  : null,
+      dob: profile?.dob ? profile.dob.toISOString().split("T")[0] : null,
       age: profile?.age || calculateAge(profile?.dob),
       gender: p?.gender || null,
       height: p?.height || null,
@@ -79,8 +85,8 @@ tonight.setHours(24, 0, 0, 0);
       jobTitle: p.jobTitle || null,
       company: p.company || null,
       school: p.school || null,
-      totalCompletion: calculateCompletion(profile)
-    //   totalCompletion: p.totalCompletion || 0
+      totalCompletion: calculateCompletion(profile),
+      //   totalCompletion: p.totalCompletion || 0
     },
 
     // 4. ATTRIBUTES
@@ -104,7 +110,7 @@ tonight.setHours(24, 0, 0, 0);
       movies: p.attributes?.movies || [],
       books: p.attributes?.books || [],
       travel: p.attributes?.travel || [],
-      religion: p.attributes?.religion || null
+      religion: p.attributes?.religion || null,
     },
 
     // 5. DISCOVERY
@@ -112,27 +118,36 @@ tonight.setHours(24, 0, 0, 0);
       distanceRange: p.discovery?.distanceRange || 50,
       ageRange: {
         min: p.discovery?.ageRange?.min || 18,
-        max: p.discovery?.ageRange?.max || 30
+        max: p.discovery?.ageRange?.max || 30,
       },
       showMeGender: p.discovery?.showMeGender || [],
       relationshipGoal: p.discovery?.relationshipGoal || null,
-      globalVisibility: p.discovery?.globalVisibility || "everyone"
+      globalVisibility: p.discovery?.globalVisibility || "everyone",
     },
-    discoveryFilters : {
-      interest : p.discovery?.preferredInterests || null,
-      relationshipGoal : p.discovery?.filterRelationshipGoal || null,
-      advancedFilters : {
-        zodiac :  p.discovery?.advancedFilters.zodiac || null,
-        education :  p.discovery?.advancedFilters.education || null,
-        pets :  p.discovery?.advancedFilters.pets || null,
-        drinking :  p.discovery?.advancedFilters.drinking || null,
-        smoking :  p.discovery?.advancedFilters.smoking || null
+    discoveryFilters: {
+      interest: p.discovery?.preferredInterests || null,
+      relationshipGoal: p.discovery?.filterRelationshipGoal || null,
+      advancedFilters: {
+        zodiac: p.discovery?.advancedFilters.zodiac || null,
+        education: p.discovery?.advancedFilters.education || null,
+        pets: p.discovery?.advancedFilters.pets || null,
+        drinking: p.discovery?.advancedFilters.drinking || null,
+        smoking: p.discovery?.advancedFilters.smoking || null,
+        familyPlans: p.discovery?.advancedFilters.familyPlans || null,
+        personalityType: p.discovery?.advancedFilters.personalityType || null,
+        communicationStyle:
+          p.discovery?.advancedFilters.communicationStyle || null,
+        loveStyle: p.discovery?.advancedFilters.loveStyle || null,
+        workout: p.discovery?.advancedFilters.workout || null,
+        dietary: p.discovery?.advancedFilters.dietary || null,
+        socialMedia: p.discovery?.advancedFilters.socialMedia || null,
+        sleeping: p.discovery?.advancedFilters.sleeping || null,
       },
-    // distanceRange: p.discovery?.distanceRange || 50,
-    //   ageRange: {
-    //     min: p.discovery?.ageRange?.min || 18,
-    //     max: p.discovery?.ageRange?.max || 30
-    //   },
+      // distanceRange: p.discovery?.distanceRange || 50,
+      //   ageRange: {
+      //     min: p.discovery?.ageRange?.min || 18,
+      //     max: p.discovery?.ageRange?.max || 30
+      //   },
     },
 
     // 6. LOCATION
@@ -141,15 +156,15 @@ tonight.setHours(24, 0, 0, 0);
       coordinates: p.location?.coordinates || [0, 0],
       city: p.location?.city || null,
       country: p.location?.country || null,
-      full_address: p.location?.full_address || null
+      full_address: p.location?.full_address || null,
     },
 
     // 7. PHOTOS
-    photos: (p.photos || []).map(photo => ({
+    photos: (p.photos || []).map((photo) => ({
       id: photo._id || photo.id || null,
       url: photo.url || null,
-      publicId : photo.publicId || null,
-      order: photo.order || 0
+      publicId: photo.publicId || null,
+      order: photo.order || 0,
     })),
 
     // 8. VERIFICATION
@@ -157,7 +172,7 @@ tonight.setHours(24, 0, 0, 0);
       status: p.verification?.status || "pending",
       selfieUrl: p.verification?.selfieUrl || null,
       docUrl: p.verification?.docUrl || null,
-      rejectionReason: p.verification?.rejectionReason || null
+      rejectionReason: p.verification?.rejectionReason || null,
     },
     subscription: {
       plan: {
@@ -166,25 +181,30 @@ tonight.setHours(24, 0, 0, 0);
         isActive: p.subscription?.isActive || false,
         expiryDate: p.subscription?.expiryDate || null,
         isAutoRenew: p.subscription?.isAutoRenew || false,
-        source: p.subscription?.paymentSource || "google_play"
+        source: p.subscription?.paymentSource || "google_play",
       },
       wallet: {
-            likes: {
+        likes: {
           used: sub.dailyLikesUsed || 0,
           limit: MAX_LIKES,
           remaining: Math.max(0, MAX_LIKES - (sub.dailyLikesUsed || 0)),
-          isExhausted: (sub.dailyLikesUsed || 0) >= MAX_LIKES
+          isExhausted: (sub.dailyLikesUsed || 0) >= MAX_LIKES,
         },
         superLikes: {
           used: sub.dailySuperlikesUsed || 0,
           limit: MAX_SUPERLIKES,
-          remaining: Math.max(0, MAX_SUPERLIKES - (sub.dailySuperlikesUsed || 0)),
-          isExhausted: (sub.dailySuperlikesUsed || 0) >= MAX_SUPERLIKES && (sub.superlikeBalance || 0) <= 0
+          remaining: Math.max(
+            0,
+            MAX_SUPERLIKES - (sub.dailySuperlikesUsed || 0)
+          ),
+          isExhausted:
+            (sub.dailySuperlikesUsed || 0) >= MAX_SUPERLIKES &&
+            (sub.superlikeBalance || 0) <= 0,
         },
         rewinds: {
           remaining: isPremium ? 9999 : 0,
-          isUnlimited: isPremium
-        }
+          isUnlimited: isPremium,
+        },
         // rewinds: {
         //   used: sub.dailyRewindsUsed || 0,
         //   limit: sub.planId !== 'free' ? 999 : 0, // Premium users ko unlimited
@@ -195,14 +215,13 @@ tonight.setHours(24, 0, 0, 0);
         //   remaining: sub.boostsCount || 0,
         //   resetAt: null
         // },
-      
       },
       benefits: {
-        seeWhoLikesYou: ['gold', 'platinum'].includes(sub.planId),
+        seeWhoLikesYou: ["gold", "platinum"].includes(sub.planId),
         passportLocation: isPremium,
         turnOffAds: isPremium,
-        controlAgeDistance: isPremium
-      }
+        controlAgeDistance: isPremium,
+      },
     },
 
     // 10. SETTINGS
@@ -211,18 +230,17 @@ tonight.setHours(24, 0, 0, 0);
         push: p.settings?.notifications?.push ?? true,
         email: p.settings?.notifications?.email ?? false,
         matches: p.settings?.notifications?.matches ?? true,
-        messages: p.settings?.notifications?.messages ?? true
+        messages: p.settings?.notifications?.messages ?? true,
       },
-     blockedContacts: blockedContacts.map(bc => bc.blockedPhoneHash || bc),
-    blockedUsers: blockedUser.map(bu=>bu.blockedId || bu),
+      blockedContacts: blockedContacts.map((bc) => bc.blockedPhoneHash || bc),
+      blockedUsers: blockedUser.map((bu) => bu.blockedId || bu),
     },
     createdAt: user.createdAt,
     updatedAt: user.updatedAt,
     isPhoneVerified: user.isPhoneVerified || false,
     isEmailVerified: user.isEmailVerified || false,
     //  onboarding: buildOnboardingResponse(req)
-    onboarding: await buildOnboardingResponse(req, user._id)
-
+    onboarding: await buildOnboardingResponse(req, user._id),
   };
 };
 
