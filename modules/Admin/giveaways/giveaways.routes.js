@@ -31,7 +31,6 @@ router.get("/deliveries/pending", ctrl.getPendingDeliveries);
 router.get("/deliveries/completed", ctrl.getDeliveredPrizes);
 router.post("/mark-as-deliver", ctrl.markPrizeAsDelivered);
 router.get("/audit", ctrl.getGiveawayAuditReport);
-
-router.get("/campaigns/:campaignId/participants",ctrl.getParticipants)
+router.get("/campaigns/:campaignId/participants", ctrl.getParticipants);
 
 module.exports = router;

@@ -1,10 +1,8 @@
 const User = require("../../auth/auth.model");
 const Profile = require("../../profile/profile.model");
 const Report = require("../../profile/user.report");
-const UserSubscription = require("../../auth/UserSubscription.model");
 const SupportTicket = require("../../AppConfiguration/contactSupport/supportTicket.model");
-const GiveawayWinHistory = require("../../../modules/giveaway/giveawayWinHistory.model");
-const Redis = require("../../../config/cache");
+const GiveawayWinHistory = require("../../../modules/Admin/giveaways/giveawayWinHistory.model");
 
 // module.exports.getKpiOverview = async (req, res) => {
 //   try {
@@ -126,8 +124,8 @@ exports.getKpiOverview = async (req, res) => {
         paidUsers: { value: paidUsers },
         pendingVerifications: { value: pendingVerifications, actionable: true },
         totalUsers: { value: totalUsers },
+        lastUpdatedAt: new Date(),
       },
-      lastUpdatedAt: new Date(),
     };
 
     return res.json({ success: true, data: response });

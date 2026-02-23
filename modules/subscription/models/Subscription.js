@@ -6,7 +6,6 @@ const SubscriptionSchema = new mongoose.Schema(
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",
       required: true,
-      index: true,
     },
     platform: {
       type: String,
@@ -24,9 +23,16 @@ const SubscriptionSchema = new mongoose.Schema(
     },
     status: {
       type: String,
-      enum: ["ACTIVE", "GRACE", "EXPIRED", "CANCELLED", "PAUSED", "REVOKED", "PENDING"],
+      enum: [
+        "ACTIVE",
+        "GRACE",
+        "EXPIRED",
+        "CANCELLED",
+        "PAUSED",
+        "REVOKED",
+        "PENDING",
+      ],
       required: true,
-      index: true,
     },
     autoRenew: {
       type: Boolean,
@@ -38,7 +44,6 @@ const SubscriptionSchema = new mongoose.Schema(
     },
     expiresAt: {
       type: Date,
-      index: true,
     },
     gracePeriodEndsAt: Date,
     pausedAt: Date,
@@ -58,7 +63,14 @@ const SubscriptionSchema = new mongoose.Schema(
     orderId: String,
     cancellationReason: {
       type: String,
-      enum: ["USER_CANCELLED", "BILLING_ERROR", "PRICE_CHANGE", "PRODUCT_UNAVAILABLE", "REFUNDED", "UNKNOWN"],
+      enum: [
+        "USER_CANCELLED",
+        "BILLING_ERROR",
+        "PRICE_CHANGE",
+        "PRODUCT_UNAVAILABLE",
+        "REFUNDED",
+        "UNKNOWN",
+      ],
     },
     cancelledAt: Date,
     retryCount: {
@@ -101,9 +113,7 @@ const SubscriptionSchema = new mongoose.Schema(
   }
 );
 
-SubscriptionSchema.index({ userId: 1, status: 1 });
-SubscriptionSchema.index({ userId: 1, platform: 1 });
-SubscriptionSchema.index({ expiresAt: 1, status: 1 });
+SubscriptionSchema.index({ userId: 1, platform: 1, expiresAt: 1, status: 1 });
 
 SubscriptionSchema.pre("save", function (next) {
   if (this.platform === "ios" && !this.originalTransactionId && !this.isNew) {

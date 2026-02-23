@@ -50,9 +50,6 @@
 
 // module.exports = app;
 
-
-
-
 const express = require("express");
 const app = express();
 const cors = require("cors");
@@ -65,10 +62,12 @@ require("./jobs/giveaway/giveaway.cron");
 require("./jobs/unsuspendUsers.job");
 require("./jobs/adminNotification/premiumExpiryReminder.cron");
 require("./workers/emailnotification.worker");
-require("./jobs/deletion.job")
+require("./jobs/deletion.job");
 
 // ─── IAP Cron Jobs ───
-const { initCronJobs } = require("./modules/subscription/cron/subscriptionCron");
+const {
+  initCronJobs,
+} = require("./modules/subscription/cron/subscriptionCron");
 initCronJobs();
 
 // ─── Security ───
@@ -81,7 +80,7 @@ app.use(express.urlencoded({ extended: true }));
 // ─── CORS ───
 app.use(
   cors({
-    origin: "*",
+    origin: process.env.FRONTEND_URL || "http://localhost:5173", // Ya specific frontend URL
     credentials: true,
     methods: ["GET", "POST", "PUT", "DELETE", "PATCH"],
   })
@@ -94,7 +93,6 @@ if (process.env.NODE_ENV !== "production") {
     next();
   });
 }
-
 
 // ─── Existing V1 Routes ───
 

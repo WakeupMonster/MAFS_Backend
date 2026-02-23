@@ -87,6 +87,7 @@
 {"level":"error","message":"[CRON] Grace check error:","service":"iap-service","timestamp":"2026-02-14 14:00:31"}
 {"level":"error","message":"[CRON] Expire check error:","service":"iap-service","timestamp":"2026-02-14 14:25:31"}
 {"level":"error","message":"[CRON] Grace check error:","service":"iap-service","timestamp":"2026-02-14 14:25:32"}
+<<<<<<< HEAD
 {"level":"error","message":"[CRON] Grace check error:","service":"iap-service","timestamp":"2026-02-16 19:50:21"}
 {"level":"error","message":"[CRON] Expire check error:","service":"iap-service","timestamp":"2026-02-16 19:50:24"}
 {"level":"error","message":"[CRON] Failed events check error:","service":"iap-service","timestamp":"2026-02-16 19:50:49"}
@@ -104,3 +105,8 @@
 {"level":"error","message":"[CRON] Grace check error:","service":"iap-service","timestamp":"2026-02-17 13:40:19"}
 {"level":"error","message":"[CRON] Expire check error:","service":"iap-service","timestamp":"2026-02-17 14:40:00"}
 {"level":"error","message":"[CRON] Grace check error:","service":"iap-service","timestamp":"2026-02-17 14:40:00"}
+=======
+{"level":"error","message":"Admin user detail aggregation error:","service":"iap-service","timestamp":"2026-02-20 17:23:03"}
+{"level":"error","message":"Admin user detail aggregation error:","service":"iap-service","timestamp":"2026-02-20 17:24:01"}
+{"level":"error","message":"Admin user detail aggregation error:","service":"iap-service","timestamp":"2026-02-20 17:24:14"}
+>>>>>>> 9735ac968bb7028dd9a9f0fddce3b4df9b16b8dd

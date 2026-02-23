@@ -1,6 +1,6 @@
 const express = require("express");
 const router = express.Router();
-const adminController = require("./user.management");
+const adminController = require("./user.management.controller");
 
 // List all users
 router.get("/", adminController.SampleGETallUser);
@@ -20,12 +20,7 @@ router.get("/:userId", adminController.GETSingleUserDetails);
 // Update user profile/details
 router.patch("/:userId", adminController.UPDATESingleUserDetail);
 
-// router.delete("/:userId/photos/delete", adminController.DELETEPhoto);
-// In your admin routes file
-router.delete(
-  "/:userId/photos",
-  adminController.adminDeleteUserPhoto
-);
+router.delete("/:userId/photos/delete", adminController.DELETEPhoto);
 
 // Update user status (Ban, Deactivate, Activate)
 router.patch("/:userId/status", adminController.UPDATEUserStatus);

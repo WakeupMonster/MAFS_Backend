@@ -206,6 +206,7 @@ module.exports.SampleGETallUser = async (req, res) => {
       accountStatus,
       isPremium,
       isBanned,
+      last24Hours,
     } = req.query;
 
     // 1. Generate a unique cache key based on query params
@@ -241,6 +242,11 @@ module.exports.SampleGETallUser = async (req, res) => {
     if (isBanned !== undefined)
       baseMatch["banDetails.isBanned"] = isBanned === "true";
 
+    if (last24Hours === "true") {
+      const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
+      baseMatch.lastLoginAt = { $gte: twentyFourHoursAgo };
+    }
+
     const searchRegex = searchTrimmed
       ? new RegExp(searchTrimmed.replace(/[.*+?^${}()|[\\/]\\]/g, "\\$&"), "i")
       : null;
@@ -266,6 +272,85 @@ module.exports.SampleGETallUser = async (req, res) => {
         },
       },
       { $unwind: { path: "$account", preserveNullAndEmptyArrays: true } },
+      {
+        $lookup: {
+          from: "subscriptions", // Look up the main subscription record
+          localField: "_id",
+          foreignField: "userId",
+          as: "subscriptionInfo",
+        },
+      },
+      {
+        $addFields: {
+          // Get the most recent/active subscription
+          currentSubscription: {
+            $arrayElemAt: [
+              {
+                $filter: {
+                  input: "$subscriptionInfo",
+                  as: "sub",
+                  cond: { $eq: ["$$sub.status", "ACTIVE"] }, // Prioritize active ones
+                },
+              },
+              0,
+            ],
+          },
+          // If no active, just get the latest one by date
+          latestSubscription: {
+            $arrayElemAt: [
+              {
+                $sortArray: {
+                  input: "$subscriptionInfo",
+                  sortBy: { expiresAt: -1 },
+                },
+              },
+              0,
+            ],
+          },
+        },
+      },
+      // {
+      //   $lookup: {
+      //     from: "subscriptiontransactions",
+      //     // let: { userId: "$_id" },
+      //     // pipeline: [
+      //     //   { $match: { $expr: { $eq: ["$userId", "$$userId"] } } },
+      //     //   { $sort: { createdAt: -1 } },
+      //     // ],
+      //     localField: "_id",
+      //     foreignField: "userId",
+      //     as: "transactionHistory",
+      //   },
+      // },
+      // // 2. Sort the history array (Optional: newest first)
+      // {
+      //   $addFields: {
+      //     transactionHistory: {
+      //       $sortArray: {
+      //         input: "$transactionHistory",
+      //         sortBy: { createdAt: -1 },
+      //       },
+      //     },
+      //   },
+      // },
+      {
+        $lookup: {
+          from: "subscriptiontransactions",
+          localField: "_id",
+          foreignField: "userId",
+          as: "transactionHistory",
+        },
+      },
+      {
+        $addFields: {
+          transactionHistory: {
+            $sortArray: {
+              input: "$transactionHistory",
+              sortBy: { createdAt: -1 },
+            },
+          },
+        },
+      },
       ...(searchRegex
         ? [
             {
@@ -417,6 +502,7 @@ module.exports.SampleGETallUser = async (req, res) => {
                   totalLikes: { $ifNull: ["$swipeStats.likes", 0] },
                   totalSuperLikes: { $ifNull: ["$swipeStats.superLikes", 0] },
                   totalMatches: { $size: "$matchData" },
+                  totalTransactions: { $size: "$transactionHistory" }, // Useful stat
                 },
                 // Show only the 5 most recent matches in the array
                 recentMatches: { $slice: ["$matchData", 5] },
@@ -444,6 +530,56 @@ module.exports.SampleGETallUser = async (req, res) => {
                   totalCompletion:
                     "$profile.onboardingProgress.totalCompletion",
                 },
+                subscription: {
+                  _id: {
+                    $ifNull: [
+                      "$currentSubscription._id",
+                      "$latestSubscription._id",
+                    ],
+                  },
+                  status: {
+                    $ifNull: [
+                      "$currentSubscription.status",
+                      "$latestSubscription.status",
+                    ],
+                  },
+                  planType: {
+                    $ifNull: [
+                      "$currentSubscription.planType",
+                      "$latestSubscription.planType",
+                    ],
+                  },
+                  platform: {
+                    $ifNull: [
+                      "$currentSubscription.platform",
+                      "$latestSubscription.platform",
+                    ],
+                  },
+                  startedAt: {
+                    $ifNull: [
+                      "$currentSubscription.startedAt",
+                      "$latestSubscription.startedAt",
+                    ],
+                  },
+                  expiresAt: {
+                    $ifNull: [
+                      "$currentSubscription.expiresAt",
+                      "$latestSubscription.expiresAt",
+                    ],
+                  },
+                  isCurrentlyActive: {
+                    $and: [
+                      {
+                        $eq: [
+                          { $ifNull: ["$currentSubscription.status", ""] },
+                          "ACTIVE",
+                        ],
+                      },
+                      { $gt: ["$currentSubscription.expiresAt", new Date()] },
+                    ],
+                  },
+                },
+                transactions: "$transactionHistory",
                 attributes: {
                   zodiac: "$profile.attributes.zodiac",
                   education: "$profile.attributes.education",
@@ -477,8 +613,9 @@ module.exports.SampleGETallUser = async (req, res) => {
                 location: "$profile.location",
                 photos: "$profile.photos",
                 verification: "$profile.verification",
-                createdAt: 1,
                 lastProfileUpdate: "$profile.lastProfileUpdate",
+                createdAt: 1,
+                lastLoginAt: 1,
                 isPhoneVerified: 1,
                 isEmailVerified: 1,
               },
@@ -878,54 +1015,24 @@ module.exports.UPDATEUserStatus = async (req, res) => {
       message: "Failed to update status",
     });
   }
-
 };
 
-
-
-// ===== NEW ADMIN ROUTE =====
-// Route: DELETE /api/admin/users/:userId/photos
-// This is an ADMIN-specific endpoint
-
-module.exports.adminDeleteUserPhoto = async (req, res) => {
+module.exports.DELETEPhoto = async (req, res) => {
   try {
-    const { userId } = req.params;
+    const userId = req.user._id;
     const { publicId } = req.body;
-
-    if (!publicId) {
-      return res.status(400).json({
-        success: false,
-        message: "publicId is required",
-      });
-    }
-
     const profile = await Profile.findOne({ userId });
 
-    if (!profile) {
-      return res.status(404).json({
-        success: false,
-        message: "Profile not found",
-      });
-    }
-
-    const photoIndex = profile.photos.findIndex(
+    const photoIndex = profile?.photos.findIndex(
       (p) => p.publicId === publicId
     );
+    if (photoIndex === -1 || !profile)
+      return res
+        .status(404)
+        .json({ success: false, message: "Photo not found" });
 
-    if (photoIndex === -1) {
-      return res.status(404).json({
-        success: false,
-        message: "Photo not found",
-      });
-    }
-
-    // Delete from Cloudinary
     await destroy(publicId);
-
-    // Remove from array
     profile.photos.splice(photoIndex, 1);
-
-    // Re-order remaining photos
     profile.photos.forEach((photo, index) => {
       photo.order = index + 1;
       photo.isPrimary = index === 0;
@@ -937,53 +1044,13 @@ module.exports.adminDeleteUserPhoto = async (req, res) => {
       success: true,
       message: "Photo deleted successfully",
       data: {
-        profile: profile,
+        profile: profile, // This contains the updated photos array
       },
     });
   } catch (err) {
-    console.error("Admin delete photo error:", err);
     res.status(500).json({ success: false, message: err.message });
   }
 };
-
-
-
-
-
-// module.exports.DELETEPhoto = async (req, res) => {
-//   try {
-//     const userId = req.user._id;
-//     const { publicId } = req.body;
-//     const profile = await Profile.findOne({ userId });
-
-//     const photoIndex = profile?.photos.findIndex(
-//       (p) => p.publicId === publicId
-//     );
-//     if (photoIndex === -1 || !profile)
-//       return res
-//         .status(404)
-//         .json({ success: false, message: "Photo not found" });
-
-//     await destroy(publicId);
-//     profile.photos.splice(photoIndex, 1);
-//     profile.photos.forEach((photo, index) => {
-//       photo.order = index + 1;
-//       photo.isPrimary = index === 0;
-//     });
-
-//     await profile.save();
-
-//     res.json({
-//       success: true,
-//       message: "Photo deleted successfully",
-//       data: {
-//         profile: profile, // This contains the updated photos array
-//       },
-//     });
-//   } catch (err) {
-//     res.status(500).json({ success: false, message: err.message });
-//   }
-// };
 
 /* ============================================
  * For Bluk exports in csv file to get all Users Data:-

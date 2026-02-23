@@ -18,10 +18,10 @@
 // const kycAdminRoutes = require("../../../modules/Admin/moderation/moderation.routes")
 // // router.use("/auth",adminCredential)
 
-// router.use(auth);        
+// router.use(auth);
 // // router.use(allowAdminMiddleware);
 // router.use("/giveaway", giveawayAdminRoutes);
-// router.use("/users", userRoutes); 
+// router.use("/users", userRoutes);
 // router.use("/cms",cmsManagement)
 // router.use("/user-management",userManagement)
 // router.use("/moderation", kycAdminRoutes);
@@ -30,13 +30,8 @@
 // router.use("/chat-management",chatManagementRoutes)
 // router.use("/notification",notificationManagementRoutes)
 // router.use("/",require("../../../modules/admintester/admintest.route"))
-     
+
 // module.exports = router;
-
-
-
-
-
 
 // routes/v1/admin/index.js
 const express = require("express");
@@ -44,12 +39,13 @@ const router = express.Router();
 
 // Middlewares
 const auth = require("../../../modules/auth/auth.middleware");
-// const {
-//   allowAdmin,
-// } = require("../../../common/middlewares/allowAdmin.middleware");
+const {
+  allowAdmin,
+} = require("../../../common/middlewares/allowAdmin.middleware");
 
 // Sub-Route Imports
 const authRoutes = require("../../../modules/Admin/auth/admin.auth.routes");
+const accountRoutes = require("../../../modules/Admin/account/account.routes");
 const userRoutes = require("../../../modules/Admin/usersManagement/user.management.route");
 const cmsRoutes = require("../../../modules/Admin/cms/content.routes");
 const dashboardRoutes = require("../../../modules/Admin/dashboard/dashboard.stats.routes");
@@ -66,8 +62,9 @@ router.use("/auth", authRoutes);
 // --- Protected Admin Routes ---
 // Apply security to EVERYTHING below this line automatically
 router.use(auth);
-// router.use(allowAdmin);
+router.use(allowAdmin);
 
+router.use("/account", accountRoutes);
 router.use("/users", userRoutes); // Cleaned name from "user-management"
 router.use("/cms", cmsRoutes);
 router.use("/giveaway", giveawayRoutes);

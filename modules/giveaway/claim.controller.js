@@ -1,9 +1,7 @@
-const GiveawayCampaign = require("../giveawayCampaign.model");
-const GiveawayPrize = require("../prize.model")
-const Prize = require("../prize.model");
+const GiveawayCampaign = require("../Admin/giveaways/giveawayCampaign.model");
+const Prize = require("../Admin/giveaways/prize.model");
 
-
-exports.getSpinWheelConfig = async (req, res) => {
+module.exports.getSpinWheelConfig = async (req, res) => {
   try {
     const userId = req.user._id;
 
@@ -20,26 +18,26 @@ exports.getSpinWheelConfig = async (req, res) => {
     const campaign = await GiveawayCampaign.findOne({
       date: today,
       isActive: true,
-      drawStatus: "COMPLETED"
+      drawStatus: "COMPLETED",
     });
 
     const supportItem = await GiveawayPrize.findOne({
-      isActive : true
-    })
+      isActive: true,
+    });
 
     // Agar aaj koi campaign hi nahi
     if (!campaign) {
       return res.json({
         available: false,
         showSpin: false,
-        reason: "NO_CAMPAIGN_TODAY"
+        reason: "NO_CAMPAIGN_TODAY",
       });
     }
 
     /**
      * 3️⃣ Check karo: ye user winner hai ya nahi
      */
-    
+
     if (
       !campaign.winnerUserId ||
       campaign.winnerUserId.toString() !== userId.toString()
@@ -48,7 +46,7 @@ exports.getSpinWheelConfig = async (req, res) => {
       return res.json({
         available: true,
         showSpin: false,
-        message: "Better luck next time"
+        message: "Better luck next time",
       });
     }
 
@@ -75,11 +73,7 @@ exports.getSpinWheelConfig = async (req, res) => {
      * 7️⃣ Prize ka spin label
      * us random index par insert karo
      */
-    supportiveItems.splice(
-      winnerIndex,
-      0,
-      prize.spinWheelLabel
-    );
+    supportiveItems.splice(winnerIndex, 0, prize.spinWheelLabel);
 
     /**
      * 8️⃣ Final response frontend ko bhejo
@@ -89,7 +83,7 @@ exports.getSpinWheelConfig = async (req, res) => {
       showSpin: true,
 
       // Spin wheel ke saare labels
-      items: supportiveItems.map(label => ({ label })),
+      items: supportiveItems.map((label) => ({ label })),
 
       // Frontend isi index par wheel rokega
       winnerIndex,
@@ -98,49 +92,41 @@ exports.getSpinWheelConfig = async (req, res) => {
       prize: {
         title: prize.title,
         value: prize.value,
-        type: prize.type
-      }
+        type: prize.type,
+      },
     });
-
   } catch (error) {
     console.error("Spin wheel API error:", error);
     return res.status(500).json({
       success: false,
-      message: "Failed to load spin wheel"
+      message: "Failed to load spin wheel",
     });
   }
 };
 
-
-const GiveawayWinHistory = require("../giveawayWinHistory.model");
-
-
-
-exports.claimPrize = async (req, res) => {
+module.exports.claimPrize = async (req, res) => {
   try {
     const userId = req.user._id;
 
-  
     const today = new Date();
     today.setHours(0, 0, 0, 0);
 
     const campaign = await GiveawayCampaign.findOne({
       date: today,
-      drawStatus: "COMPLETED"
+      drawStatus: "COMPLETED",
     });
 
     if (!campaign) {
       return res.status(400).json({
         success: false,
-        message: "No active giveaway today"
+        message: "No active giveaway today",
       });
     }
 
-  
     if (campaign.winnerUserId.toString() !== userId.toString()) {
       return res.status(403).json({
         success: false,
-        message: "You are not the winner"
+        message: "You are not the winner",
       });
     }
 
@@ -149,13 +135,13 @@ exports.claimPrize = async (req, res) => {
      */
     const winHistory = await GiveawayWinHistory.findOne({
       userId,
-      campaignId: campaign._id
+      campaignId: campaign._id,
     });
 
     if (!winHistory) {
       return res.status(404).json({
         success: false,
-        message: "Win record not found"
+        message: "Win record not found",
       });
     }
 
@@ -165,7 +151,7 @@ exports.claimPrize = async (req, res) => {
     if (winHistory.claimedAt) {
       return res.status(400).json({
         success: false,
-        message: "Prize already claimed"
+        message: "Prize already claimed",
       });
     }
 
@@ -181,15 +167,14 @@ exports.claimPrize = async (req, res) => {
       message: "Prize claimed successfully",
       data: {
         claimedAt: winHistory.claimedAt,
-        deliveryStatus: winHistory.deliveryStatus
-      }
+        deliveryStatus: winHistory.deliveryStatus,
+      },
     });
-
   } catch (error) {
     console.error("Claim prize error:", error);
     return res.status(500).json({
       success: false,
-      message: "Failed to claim prize"
+      message: "Failed to claim prize",
     });
   }
 };
