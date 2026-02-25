@@ -54,6 +54,7 @@ const giveawayRoutes = require("../../../modules/Admin/giveaways/giveaways.route
 const profileReviewRoutes = require("../../../modules/Admin/profileReview/profileReview.routes");
 const chatRoutes = require("../../../modules/Admin/chat/adminChat.routes");
 const notificationRoutes = require("../../../modules/Admin/adminNotificationCampaigns/adminNotification.routes");
+const fakeProfileRoutes = require("../../../modules/Admin/fakeProfiles/fakeProfile.routes");
 
 // --- Public Admin Routes ---
 // Login and Forget Password shouldn't require an Auth token
@@ -73,5 +74,6 @@ router.use("/moderation", moderationRoutes);
 router.use("/profile-review", profileReviewRoutes);
 router.use("/chat", chatRoutes); // Cleaned name from "chat-management"
 router.use("/notification", notificationRoutes);
+router.use("/fake-profiles", fakeProfileRoutes);
 
 module.exports = router;

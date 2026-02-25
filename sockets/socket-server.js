@@ -1,184 +1,425 @@
-// socket-server.js
-const { Match } = require("../modules/matches/swipe/swipe.model");
-const ChatRoom = require("../modules/matches/chat/chat.room.model");
-const ChatMessage = require("../modules/matches/chat/chat.message.model");
-const messageQueue = require("../queues/message.queue");
-const Block = require("../modules/matches/swipe/block.model");
+// const ChatMessage = require("../modules/matches/chat/chat.message.model");
+// const { Match } = require("../modules/matches/swipe/swipe.model");
+// const notificationService = require("../modules/notifications/notification.service");
+// const { isBlocked } = require("../modules/profile/block.service")
+// module.exports = function chatSocket(io, redisClient) {
+//   io.on("connection", async (socket) => {
+//     const currentUserId = socket.user._id.toString();
 
-module.exports = (io, redis) => {
-  // connection build after match
-  io.on("connection", (socket) => {
-    console.log("socket connected", socket.id, socket.user._id);
+//     console.log("✅ SOCKET CONNECTED:", socket.id, "USER:", currentUserId);
 
-    // client -> server events
-    // Join chat room for a match
-    socket.on("join_chat", async ({ matchId }) => {
-      try {
-        if (!matchId) return;
+//     /* ------------------------------------------------------------------ */
+//     /* 🔹 USER LEVEL ROOM (VERY IMPORTANT) */
+//     /* ------------------------------------------------------------------ */
+//     socket.join(`user:${currentUserId}`);
 
-        const senderUid = socket.user._id;
-        const isBlocked = await Block.exists({
-          blocker: { $ne: senderUid },
-          blocked: senderUid,
-        });
+//     await redisClient.set(`user:online:${currentUserId}`, "true");
+//     await redisClient.sAdd(`user:sockets:${currentUserId}`, socket.id);
 
-        if (isBlocked) return;
+//     /* ------------------------------------------------------------------ */
+//     /* 1️⃣ JOIN CHAT ROOM */
+//     /* ------------------------------------------------------------------ */
+//     socket.on("join_chat", async ({ matchId }) => {
+//       try {
+//         if (!matchId) return;
 
-        // 1️⃣ Validate match exists & belongs to user
-        const match = await Match.findById(matchId).lean();
+//         const match = await Match.findById(matchId).lean();
+//         if (!match) return;
 
-        if (!match) return;
-        if (!match.users.some((u) => u.toString() === senderUid.toString())) {
-          return; // not part of match
-        }
+//         const otherUserId = match.users.find(
+//           (u) => u.toString() !== currentUserId
+//         );
 
-        // 2️⃣ Create or update chat room
-        const chatRoom = await ChatRoom.findOneAndUpdate(
-          { matchId },
-          { $addToSet: { participants: senderUid } }, // add only if not exists
-          { upsert: true, new: true }
-        );
+//         const blocked = await isBlocked(currentUserId, otherUserId);
+//         if (blocked) {
+//   //           socket.emit("message_error", {
+//   //   clientMessageId,
+//   //   error: "BLOCKED",
+//   //   message: "You cannot send messages to this user"
+//   // });
+//           return
+//         }
 
-        // 3️⃣ Join socket room
-        const room = `chat:${matchId}`;
-        if (socket.rooms.has(room)) return; // 👈 anti-spam
-        socket.join(room);
+//         const room = `chat:${matchId}`;
+//         socket.join(room);
 
-        // 4️⃣ Notify other participant
-        socket.to(`chat:${matchId}`).emit("user_joined", {
-          senderUid,
-          roomId: chatRoom._id,
-        });
-      } catch (err) {
-        console.error("join_chat error:", err);
-      }
-    });
+//         // Mark pending messages as DELIVERED
+//         await ChatMessage.updateMany(
+//           {
+//             matchId,
+//             receiver: currentUserId,
+//             status: "SENT"
+//           },
+//           {
+//             status: "DELIVERED",
+//             deliveredAt: new Date()
+//           }
+//         );
 
-    // Leave chat room
-    socket.on("leave_chat", ({ matchId }) => {
-      if (!matchId) return;
-      const room = `chat:${matchId}`;
-      socket.leave(room);
-    });
+//         console.log(`🎉 USER ${currentUserId} JOINED ROOM`, room);
+//       } catch (err) {
+//         console.error("❌ join_chat error:", err);
+//       }
+//     });
 
-    // start typing indicators
-    socket.on("typing", ({ matchId }) => {
-      // Without matchId → server crashes
-      if (!matchId) return;
+//     /* ------------------------------------------------------------------ */
+//     /* 2️⃣ SEND MESSAGE */
+//     /* ------------------------------------------------------------------ */
+//     socket.on("send_message", async ({ matchId, text, clientMessageId }) => {
+//       try {
+//         if (!matchId || !text?.trim()) return;
 
-      // This typing:start event trigger when both users are activly and chat 1:1 or instantly or real-time
-      socket
-        .to(`chat:${matchId}`)
-        .emit("typing", { sender: socket.user._id, matchId });
-    });
+//         /* 1️⃣ Match validation */
+//         const match = await Match.findById(matchId).lean();
+//         if (!match) return;
 
-    // stop typing indicators
-    socket.on("stop_typing", ({ matchId }) => {
-      if (!matchId) return;
-      // This typing:stop event trigger. jab user A typing stop kr dega then user B receive side se remove hojaye ga indicator.
-      socket
-        .to(`chat:${matchId}`)
-        .emit("stop_typing", { sender: socket.user._id, matchId });
-    });
+//         const isParticipant = match.users.some(
+//           (u) => u.toString() === currentUserId
+//         );
+//         if (!isParticipant) return;
 
-    // send message  // tempry id // Apply Ack for Acknowledge
-    socket.on("send_message", async (payload, ack) => {
-      try {
-        const sender = socket.user._id;
-        const { matchId, receiver, text, media = [], clientTempId } = payload;
+//         const receiverId = match.users.find(
+//           (u) => u.toString() !== currentUserId
+//         );
 
-        // validate match id and reveive id
-        if (!matchId || !receiver) {
-          return ack({
-            success: false,
-            error: "Invalid payload",
-          });
-        }
+//         const blocked = await isBlocked(currentUserId, receiverId);
+//         if (blocked) {
+//           return; 
+//         }
 
-        // 1️⃣ 🔐 sender + receiver match dono match users hai ya nhi hn
-        const match = await Match.findById(matchId).lean();
 
-        if (
-          !match ||
-          !match.users.some((u) => u.toString() === sender.toString()) ||
-          !match.users.some((u) => u.toString() === receiver.toString())
-        ) {
-          if (typeof ack === "function") {
-            return ack({
-              success: false,
-              error: "Unauthorized message",
-            });
-          }
-          return;
-        }
+//         /* 2️⃣ Save message (DB = SOURCE OF TRUTH) */
+//         const msg = await ChatMessage.create({
+//           matchId,
+//           sender: currentUserId,
+//           receiver: receiverId,
+//           text: text.trim(),
+//           status: "SENT",
+//           clientMessageId
+//         });
 
-        // 2️⃣ 🔥 BLOCK CHECK (CRITICAL) -> check user block hn ya nhi hn
-        const isBlocked = await Block.exists({
-          blocker: receiver, // User A
-          blocked: sender, // User B
-        });
+//         /* 3️⃣ Update conversation metadata (CHAT LIST ORDER) */
+//         await Match.findByIdAndUpdate(matchId, {
+//           lastMessage: msg.text,
+//           lastMessageAt: msg.createdAt,
+//           lastMessageBy: currentUserId
+//         });
 
-        if (isBlocked) {
-          if (typeof ack === "function") {
-            return ack({
-              success: false,
-              error: "You cannot message this user",
-              code: "USER_BLOCKED",
-            });
-          }
-          return;
-        }
+//         /* 4️⃣ Emit message to chat room */
+//         io.to(`chat:${matchId}`).emit("new_message", msg);
 
-        // 3️⃣ Save message krega DB me
-        const msg = await ChatMessage.create({
-          matchId,
-          sender,
-          receiver,
-          text: text || "",
-          media: Array.isArray(media) ? media : [],
-          status: "sent",
-        });
+//         /* 5️⃣ 🔥 CHAT LIST TOP REORDER EVENT (USER LEVEL) */
+//         io.to(`user:${receiverId}`).emit("chat_list_update", {
+//           matchId,
+//           lastMessage: msg.text,
+//           lastMessageAt: msg.createdAt,
+//           from: currentUserId
+//         });
 
-        // 4️⃣ Update match -> last message ko match me update krega
-        await Match.findByIdAndUpdate(matchId, {
-          lastMessageAt: new Date(),
-        });
+//         /* 6️⃣ DELIVERY CHECK (NO fetchSockets ❌) */
+//         const receiverOnline = await redisClient.exists(
+//           `user:online:${receiverId}`
+//         );
 
-        // 5️⃣ Stop typing indicator
-        socket.to(`chat:${matchId}`).emit("stop_typing", {
-          sender,
-          matchId,
-        });
+//         if (receiverOnline) {
+//           await ChatMessage.findByIdAndUpdate(msg._id, {
+//             status: "DELIVERED",
+//             deliveredAt: new Date()
+//           });
 
-        // 6️⃣ Push job into queue 🔥 -> Bullq or Havily task ke liye mesg que me push kr dega
-        await messageQueue.add("deliver-message", {
-          msgId: msg._id.toString(),
-          matchId: matchId.toString(),
-          receiver: receiver.toString(),
-        });
+//           socket.emit("message_delivered", {
+//             messageId: msg._id,
+//             matchId
+//           });
+//         }
 
-        // 7️⃣ ACK to sender success response 🔥
-        ack({
-          success: true,
-          clientTempId, // map temp → real
-          data: msg,
-        });
-      } catch (err) {
-        console.error("send_message error:", err);
+//         /* 7️⃣ BACKGROUND WORK (WORKER) */
+//         await notificationService.add("new_message", {
+//           senderId: currentUserId,
+//           receiverId,
+//           matchId,
+//           messageId: msg._id,
+//           text: msg.text
+//         });
+//       } catch (err) {
+//         console.error("❌ send_message error:", err);
+//       }
+//     });
 
-        // 8️⃣ ACK failure response
-        ack({
-          success: false,
-          error: "Message send failed",
-        });
-      }
-    });
 
-    // Server to client events
-    // match: creation; chat: message; chat: delivered; chat:read, chat: pending messages;
-    socket.on("disconnect", async () => {
-      // remove socket id from redis set
-      await redis.sRem(`sockets:${socket.user._id}`, socket.id);
-    });
-  });
-};
+//     /* ------------------------------------------------------------------ */
+//     /* 3️⃣ MESSAGE READ */
+//     /* ------------------------------------------------------------------ */
+//     socket.on("messages_read", async ({ matchId }) => {
+//       try {
+//         await ChatMessage.updateMany(
+//           {
+//             matchId,
+//             receiver: currentUserId,
+//             status: { $ne: "READ" }
+//           },
+//           {
+//             status: "READ",
+//             // read : "true",
+//             readAt: new Date()
+//           }
+//         );
+
+//         io.to(`chat:${matchId}`).emit("messages_read", {
+//           matchId,
+//           reader: currentUserId
+//         });
+//       } catch (err) {
+//         console.error("❌ messages_read error:", err);
+//       }
+//     });
+
+//     socket.on("typing", ({ matchId, isTyping }) => {
+//       if (!matchId) return;
+
+//       const room = `chat:${matchId}`;
+
+//       // sender ko chhod ke sabko bhejo
+//       socket.to(room).emit("user_typing", {
+//         userId: socket.user._id.toString(),
+//         isTyping
+//       });
+//     });
+
+//     /* ------------------------------------------------------------------ */
+//     /* 5️⃣ DELETE MESSAGE (DELETE FOR ME) */
+//     /* ------------------------------------------------------------------ */
+//     socket.on("delete_message", async ({ messageId, matchId }) => {
+//       try {
+//         if (!messageId || !matchId) return;
+
+//         // 1️⃣ Mark message deleted for current user
+//         await ChatMessage.findByIdAndUpdate(messageId, {
+//           $addToSet: { deletedFor: currentUserId }
+//         });
+
+//         // 2️⃣ Notify ONLY this user to remove message from UI
+//         io.to(`user:${currentUserId}`).emit("message_deleted", {
+//           messageId,
+//           matchId
+//         });
+
+//         // 3️⃣ Recalculate last visible message for this user
+//         const lastVisibleMessage = await ChatMessage.findOne({
+//           matchId,
+//           deletedFor: { $ne: currentUserId }
+//         }).sort({ createdAt: -1 });
+
+//         // 4️⃣ Update chat list preview (only for this user)
+//         io.to(`user:${currentUserId}`).emit("chat_list_update", {
+//           matchId,
+//           lastMessage: lastVisibleMessage?.text || null,
+//           lastMessageAt: lastVisibleMessage?.createdAt || null
+//         });
+
+//       } catch (err) {
+//         console.error("❌ delete_message error:", err);
+//       }
+//     });
+
+
+//     /* ------------------------------------------------------------------ */
+//     /* 6️⃣ DELETE FOR EVERYONE */
+//     /* ------------------------------------------------------------------ */
+//     socket.on("delete_for_everyone", async ({ messageId, matchId }) => {
+//       try {
+//         if (!messageId || !matchId) return;
+
+//         const msg = await ChatMessage.findById(messageId);
+//         if (!msg) return;
+
+//         // 1️⃣ Only sender allowed
+//         if (msg.sender.toString() !== currentUserId) return;
+
+//         // 2️⃣ Optional: Time limit check (e.g. 10 min)
+//         const TEN_MIN = 10 * 60 * 1000;
+//         if (Date.now() - msg.createdAt.getTime() > TEN_MIN) return;
+
+//         // 3️⃣ Mark deleted for everyone
+//         await ChatMessage.findByIdAndUpdate(messageId, {
+//           isDeletedForEveryone: true,
+//           text: null,
+//           media: []
+//         });
+
+//         // 4️⃣ Notify BOTH users (chat room)
+//         io.to(`chat:${matchId}`).emit("message_deleted_everyone", {
+//           messageId,
+//           matchId
+//         });
+
+//         // 5️⃣ Update chat list preview for both users
+
+//         const lastMsg = await ChatMessage.findOne({
+//           matchId,
+//           isDeletedForEveryone: false
+//         }).sort({ createdAt: -1 });
+
+//         await Match.findByIdAndUpdate(matchId, {
+//           lastMessage: lastMsg?.text || "Message deleted",
+//           lastMessageAt: lastMsg?.createdAt || new Date()
+//         });
+
+//         const matchDoc = await Match.findById(matchId).lean();
+//         if (!matchDoc) return;
+
+//         matchDoc.users.forEach((uid) => {
+//           io.to(`user:${uid}`).emit("chat_list_update", {
+//             matchId,
+//             lastMessage: lastMsg?.text || "Message deleted",
+//             lastMessageAt: lastMsg?.createdAt || new Date()
+//           });
+//         });
+
+//       } catch (err) {
+//         console.error("❌ delete_for_everyone error:", err);
+//       }
+//     });
+
+
+//     // io.to(`chat:${matchId}`).emit("new_message", message);
+
+//     // io.to(`user:${receiverId}`).emit("chat_list_update", {
+//     //   matchId,
+//     //   lastMessage: "📷 Photo",
+//     //   lastMessageAt: message.createdAt,
+//     //   from: senderId
+//     // });
+
+
+
+// socket.on("leave_chat", ({ matchId }) => {
+//   if (!matchId) return;
+//   socket.leave(`chat:${matchId}`);
+//   console.log(`👋 USER ${currentUserId} LEFT ROOM chat:${matchId}`);
+// });
+
+
+
+
+
+//     /* ------------------------------------------------------------------ */
+//     /* 4️⃣ DISCONNECT */
+//     /* ------------------------------------------------------------------ */
+//     socket.on("disconnect", async () => {
+//       await redisClient.sRem(`user:sockets:${currentUserId}`, socket.id);
+
+//       const remaining = await redisClient.sCard(
+//         `user:sockets:${currentUserId}`
+//       );
+
+//       if (remaining === 0) {
+//         await redisClient.del(`user:online:${currentUserId}`);
+//       }
+
+//       console.log("🔌 SOCKET DISCONNECTED:", currentUserId);
+//     });
+//   });
+// };
+
+
+
+
+// // if (text.length > 5000) {
+// //   socket.emit("message_error", {
+// //     error: "TEXT_TOO_LONG",
+// //     message: "Message exceeds 5000 characters"
+// //   });
+// //   return;
+// // }
+
+
+
+
+// // socket.on("send_message", async ({
+// //   matchId,
+// //   text = "",
+// //   type = "text",   // "text" | "media"
+// //   messageId       // 🔥 ONLY for media (DB already created)
+// // }) => {
+// //   try {
+// //     if (!matchId) return;
+
+// //     /* 1️⃣ Match validation */
+// //     const match = await Match.findById(matchId).lean();
+// //     if (!match) return;
+
+// //     const isParticipant = match.users.some(
+// //       (u) => u.toString() === currentUserId
+// //     );
+// //     if (!isParticipant) return;
+
+// //     const receiverId = match.users.find(
+// //       (u) => u.toString() !== currentUserId
+// //     );
+
+// //     let msg;
+
+// //     /* ======================================================
+// //        🟢 TEXT MESSAGE → DB + SOCKET
+// //     ====================================================== */
+// //     if (type === "text") {
+// //       if (!text.trim()) return;
+
+// //       msg = await ChatMessage.create({
+// //         matchId,
+// //         sender: currentUserId,
+// //         receiver: receiverId,
+// //         text: text.trim(),
+// //         status: "SENT"
+// //       });
+// //     }
+
+// //     /* ======================================================
+// //        🔵 MEDIA MESSAGE → DB ALREADY EXISTS (FROM UPLOAD API)
+// //     ====================================================== */
+// //     if (type === "media") {
+// //       if (!messageId) return;
+
+// //       msg = await ChatMessage.findById(messageId).lean();
+// //       if (!msg) return;
+// //     }
+
+// //     /* 3️⃣ Emit real-time message */
+// //     io.to(`chat:${matchId}`).emit("new_message", msg);
+
+// //     /* 4️⃣ Chat list reorder (receiver only) */
+// //     io.to(`user:${receiverId}`).emit("chat_list_update", {
+// //       matchId,
+// //       lastMessage: msg.media?.length ? "📷 Photo" : msg.text,
+// //       lastMessageAt: msg.createdAt,
+// //       from: currentUserId
+// //     });
+
+// //     /* 5️⃣ Delivery check */
+// //     const receiverOnline = await redisClient.exists(
+// //       `user:online:${receiverId}`
+// //     );
+
+// //     if (receiverOnline) {
+// //       await ChatMessage.findByIdAndUpdate(msg._id, {
+// //         status: "DELIVERED",
+// //         deliveredAt: new Date()
+// //       });
+
+// //       socket.emit("message_delivered", {
+// //         messageId: msg._id,
+// //         matchId
+// //       });
+// //     }
+
+// //   } catch (err) {
+// //     console.error("❌ send_message error:", err);
+// //   }
+// // });
+
+
+
+
+
+

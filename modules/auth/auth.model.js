@@ -94,6 +94,17 @@ const userSchema = new mongoose.Schema(
       index: true,
     },
 
+    isFake: {
+      type: Boolean,
+      default: false,
+      index: true,
+    },
+
+    fakeProfileMeta: {
+      createdByAdmin: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
+      batchId: { type: String, index: true },
+    },
+
     banDetails: {
       isBanned: {
         type: Boolean,

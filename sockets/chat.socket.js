@@ -1,423 +1,11 @@
-// // const ChatMessage = require("../modules/matches/chat/chat.message.model");
-// // const { Match } = require("../modules/matches/swipe/swipe.model");
-// // const User = require("../modules/auth/auth.model");
-// // const { sendNotification } = require("../modules/notifications/firebase-admin");
-// // module.exports = function chatSocket(io,redisClient) {
-// //   io.on("connection", (socket) => {
-// //     console.log("✅ SOCKET CONNECTED:", socket.id, "USER:", socket.user._id);
-
-
-// //     // --------------------------
-// //     // 1️⃣ JOIN CHAT ROOM
-// //     // --------------------------
-
-// //     socket.on("join_chat", async ({ matchId  }) => {
-// //       try {
-// //         console.log("➡️ join_chat called by:", socket.user._id, "match:", matchId);
-
-// //         const userId = socket.user._id;
-// //         const match = await Match.findById(matchId).lean();
-// //         if (!match) return console.log("❌ Match not found");
-
-// //         // check user belongs to match
-// //         if (!match.users.some((u) => u.toString() === userId.toString())) {
-// //           return console.log("❌ User not part of match");
-// //         }
-
-// //         // join socket room
-// //         const room = `chat:${matchId}`;
-// //         socket.join(room);
-// //         // ✅ MARK pending messages as delivered
-// // await ChatMessage.updateMany(
-// //   {
-// //     matchId,
-// //     receiver: socket.user._id,
-// //     delivered: false,
-// //   },
-// //   {
-// //     delivered: true,
-// //     deliveredAt: new Date(),
-// //   }
-// // );
-
-// // console.log("📦 PENDING MESSAGES DELIVERED for", socket.user._id);
-
-// //         console.log(`🎉 USER ${userId} JOINED ROOM`, room);
-
-// //         io.to(room).emit("user_joined", { userId, matchId });
-// //       } catch (err) {
-// //         console.error("join_chat error:", err);
-// //       }
-// //     });
-
-// // socket.on("messages_read", async ({ matchId }) => {
-// //   try {
-// //     const userId = socket.user._id;
-
-// //     await ChatMessage.updateMany(
-// //       {
-// //         matchId,
-// //         receiver: userId,
-// //         read: false,
-// //       },
-// //       {
-// //         read: true,
-// //         readAt: new Date(),
-// //       }
-// //     );
-
-// //     // sender ko notify
-// //     io.to(`chat:${matchId}`).emit("messages_read", {
-// //       matchId,
-// //       reader: userId,
-// //     });
-
-// //     console.log("👁️ MESSAGES READ by", userId);
-// //   } catch (err) {
-// //     console.error("messages_read error", err);
-// //   }
-// // });
-
-
-// // // --------------------------
-// // // 2️⃣ SEND MESSAGE (FINAL)
-// // // --------------------------
-// // socket.on("send_message", async ({ matchId, text }) => {
-// //   try {
-// //     const sender = socket.user._id;
-
-// //     console.log("➡️ send_message called by:", sender, "match:", matchId);
-
-// //     // basic validation
-// //     if (!matchId || !text || !text.trim()) {
-// //       return console.log("❌ matchId or text missing");
-// //     }
-
-// //     // 1️⃣ fetch match
-// //     const match = await Match.findById(matchId).lean();
-// //     if (!match) {
-// //       return console.log("❌ Match not found");
-// //     }
-
-// //     // 2️⃣ check sender belongs to match
-// //     const isParticipant = match.users.some(
-// //       (u) => u.toString() === sender.toString()
-// //     );
-
-// //     if (!isParticipant) {
-// //       return console.log("❌ Sender not part of match");
-// //     }
-
-// //     // 3️⃣ find receiver (other user)
-// //     const receiver = match.users.find(
-// //       (u) => u.toString() !== sender.toString()
-// //     );
-
-// //     if (!receiver) {
-// //       return console.log("❌ Receiver not found");
-// //     }
-
-// //     // 4️⃣ save message in DB
-// //     const msg = await ChatMessage.create({
-// //       matchId,
-// //       sender,
-// //       receiver,
-// //       text: text.trim(),
-// //     });
-
-// //     console.log("💾 MESSAGE SAVED:", msg._id.toString());
-
-// //     // 5️⃣ broadcast to chat room
-// //     const room = `chat:${matchId}`;
-// //     io.to(room).emit("new_message", msg);
-
-// //     console.log("📡 BROADCASTED to room:", room);
-
-// //     // 6️⃣ check if receiver is present in room
-// //     const socketsInRoom = await io.in(room).fetchSockets();
-
-// //     const isReceiverPresent = socketsInRoom.some(
-// //       (s) => s.user?._id?.toString() === receiver.toString()
-// //     );
-
-// //     // 7️⃣ if receiver is online → mark delivered
-// //     if (isReceiverPresent) {
-// //       await ChatMessage.findByIdAndUpdate(msg._id, {
-// //         delivered: true,
-// //         deliveredAt: new Date(),
-// //       });
-
-// //       // notify sender
-// //       socket.emit("message_delivered", {
-// //         messageId: msg._id,
-// //       });
-
-// //       console.log("✅ MESSAGE DELIVERED:", msg._id.toString());
-// //     }
-// //     const isOnline = await redisClient.get(
-// //   `user:online:${receiver.toString()}`
-// // );
-
-// // if (isOnline) {
-// //   console.log("🟢 Receiver ONLINE");
-// // } else {
-// //   console.log("🔴 Receiver OFFLINE");
-// // }
-
-
-// //     // 8️⃣ if receiver offline → send push notification
-// //     if (!isReceiverPresent) {
-// //       console.log("📨 RECEIVER OFFLINE — sending push");
-
-// //       const recipient = await User.findById(receiver).lean();
-
-// //       if (recipient?.fcmTokens?.length) {
-// //         for (let tk of recipient.fcmTokens) {
-// //           await sendNotification(
-// //             tk.token,
-// //             {
-// //               title: "New Message",
-// //               body: text,
-// //             },
-// //             {
-// //               type: "NEW_MESSAGE",
-// //               matchId: matchId.toString(),
-// //               senderId: sender.toString(),
-// //             }
-// //           );
-// //         }
-// //       }
-// //     }
-
-// //   } catch (err) {
-// //     console.error("❌ send_message error:", err);
-// //   }
-// // });
-
-
-// //     // --------------------------
-// //     // 2️⃣ SEND MESSAGE
-// //     // --------------------------
-// //     // socket.on("send_message", async (payload) => {
-// //     //   try {
-// //     //     const sender = socket.user._id;
-// //     //     const { matchId, receiver, text } = payload;
-
-// //     //     console.log("➡️ send_message by:", sender, "payload:", payload);
-
-// //     //     if (!matchId || !receiver) {
-// //     //       return console.log("❌ matchId/receiver missing");
-// //     //     }
-
-// //     //     // save message
-// //     //     const msg = await ChatMessage.create({
-// //     //       matchId,
-// //     //       sender,
-// //     //       receiver,
-// //     //       text: text || "",
-// //     //     });
-
-// //     //     console.log("💾 MESSAGE SAVED:", msg._id);
-
-// //     //     // broadcast to room
-// //     //     const room = `chat:${matchId}`;
-// //     //     io.to(room).emit("new_message", msg);
-// //     //     console.log("📡 BROADCASTED to room", room);
-
-// //     //     // if receiver NOT inside chat room → send push
-// //     //     const socketsInRoom = await io.in(room).fetchSockets();
-// //     //     const isReceiverPresent = socketsInRoom.some(
-// //     //       (s) => s.user._id.toString() === receiver.toString()
-// //     //     );
-// //     //         if (isReceiverPresent) {
-// //     //   await ChatMessage.findByIdAndUpdate(msg._id, {
-// //     //     delivered: true,
-// //     //     deliveredAt: new Date(),
-// //     //   });
-
-// //     //   // sender ko notify
-// //     //   socket.emit("message_delivered", {
-// //     //     messageId: msg._id,
-// //     //   });
-
-// //     //   console.log("✅ MESSAGE DELIVERED:", msg._id);
-// //     // }
-
-
-// //     //     if (!isReceiverPresent) {
-// //     //       console.log("📨 RECEIVER OFFLINE — Sending push notification...");
-
-// //     //       const recipient = await User.findById(receiver).lean();
-// //     //       if (recipient?.fcmTokens?.length) {
-// //     //         for (let tk of recipient.fcmTokens) {
-// //     //           await sendNotification(
-// //     //             tk.token,
-// //     //             { title: "New Message", body: text },
-// //     //             { type: "NEW_MESSAGE", matchId: matchId.toString() }
-// //     //           );
-// //     //         }
-// //     //       }
-// //     //     }
-// //     //   } catch (err) {
-// //     //     console.error("send_message error:", err);
-// //     //   }
-// //     // });
-
-// //     // --------------------------
-// //     // 3️⃣ DISCONNECT
-// //     // --------------------------
-// //     socket.on("disconnect", async() => {
-// //         const userId = socket.user._id.toString();
-// //         await redisClient.sRem(`user:sockets:${userId}`, socket.id);
-
-// // // check if any socket left
-// // const socketsLeft = await redisClient.sCard(`user:sockets:${userId}`);
-
-// // if (socketsLeft === 0) {
-// //   await redisClient.del(`user:online:${userId}`);
-// //   console.log("🔴 USER OFFLINE:", userId);
-// // }
-// //       console.log("🔌 USER DISCONNECTED:", socket.user._id, "socket:", socket.id);
-// //     });
-// //   });
-// // };
-
-
-
-
-
-// const ChatMessage = require("../modules/matches/chat/chat.message.model");
-// const { Match } = require("../modules/matches/swipe/swipe.model");
-// // const User = require("../../auth/auth.model");
-// const notificationService = require("../modules/notifications/notification.service");
-// // const mongoose = require("mongoose");
-
-// module.exports = function chatSocket(io, redisClient) {
-//   io.on("connection", (socket) => {
-//     const currentUserId = socket.user._id.toString();
-//     console.log("✅ SOCKET CONNECTED:", socket.id, "USER:", currentUserId);
-
-//     // Online Status Set Karo
-//     redisClient.set(`user:online:${currentUserId}`, "true");
-//     redisClient.sAdd(`user:sockets:${currentUserId}`, socket.id);
-
-//     // 1️⃣ JOIN CHAT ROOM
-//     socket.on("join_chat", async ({ matchId }) => {
-//       try {
-//         if (!matchId) return;
-//         const room = `chat:${matchId}`;
-//         socket.join(room);
-
-//         // Mark messages as delivered when joining
-//         await ChatMessage.updateMany(
-//           { matchId, receiver: socket.user._id, delivered: false },
-//           { delivered: true, deliveredAt: new Date() }
-//         );
-
-//         console.log(`🎉 USER ${currentUserId} JOINED ROOM`, room);
-//         io.to(room).emit("user_joined", { userId: currentUserId, matchId });
-//       } catch (err) {
-//         console.error("join_chat error:", err);
-//       }
-//     });
-
-//     // 2️⃣ SEND MESSAGE
-//     socket.on("send_message", async ({ matchId, text }) => {
-//       try {
-//         if (!matchId || !text || !text.trim()) return;
-
-//         // 1. Match check & Find Receiver
-//         const match = await Match.findById(matchId).lean();
-//         if (!match) return console.log("❌ Match not found");
-
-//         const isParticipant = match.users.some(u => u.toString() === currentUserId);
-//         if (!isParticipant) return console.log("❌ Not authorized");
-
-//         // FIX: Receiver define kar rahe hain yahan
-//         const receiverId = match.users.find(u => u.toString() !== currentUserId);
-
-//         // 2. Save Message
-//         const msg = await ChatMessage.create({
-//           matchId,
-//           sender: currentUserId,
-//           receiver: receiverId,
-//           text: text.trim(),
-//         });
-
-//         // 3. Update Match for Latest Message (VVIP for UI)
-//         await Match.findByIdAndUpdate(matchId, {
-//           lastMessage: text.trim(),
-//           lastMessageAt: new Date(),
-//           lastMessageBy: currentUserId
-//         });
-// // The Broadcast
-//         const room = `chat:${matchId}`;
-//         io.to(room).emit("new_message", msg);
-
-//         // 4. Delivery Status & Push Logic
-//         const socketsInRoom = await io.in(room).fetchSockets();
-//         const isReceiverPresent = socketsInRoom.some(s => s.user._id.toString() === receiverId.toString());
-
-//         if (isReceiverPresent) {
-//           await ChatMessage.findByIdAndUpdate(msg._id, { delivered: true, deliveredAt: new Date() });
-//           socket.emit("message_delivered", { messageId: msg._id });
-//         } else {
-//           // Send Push Notification if receiver is not in room
-//           await notificationService.sendNewMessageNotification(currentUserId, receiverId, text);
-
-
-//   //         const isOnlineSomewhere = await redisClient.get(`user:online:${receiverId.toString()}`);
-
-//   // if (isOnlineSomewhere) {
-//   //   // ✅ Case 2: User online hai par kisi aur screen par hai (e.g. Profile dekh raha hai)
-//   //   // Hum usey sirf socket emit karenge (Notification pop-up ke liye)
-//   //   io.to(`user:room:${receiverId}`).emit("new_message_popup", msg);
-//   //   console.log("🟢 User online somewhere else, socket popup sent");
-//   // } else {
-//   //   // ❌ Case 3: User bilkul offline hai (Redis mein key nahi mili)
-//   //   // Ab hum bhejenge Push Notification (Firebase)
-//   //   console.log("📨 User is totally offline, sending Firebase Push...");
-//   //   await notificationService.sendNewMessageNotification(currentUserId, receiverId, text);
-//   // }
-//         }
-
-//       } catch (err) {
-//         console.error("❌ send_message error:", err);
-//       }
-//     });
-
-//     // 3️⃣ MESSAGES READ
-//     socket.on("messages_read", async ({ matchId }) => {
-//       try {
-//         await ChatMessage.updateMany(
-//           { matchId, receiver: currentUserId, read: false },
-//           { read: true, readAt: new Date() }
-//         );
-//         io.to(`chat:${matchId}`).emit("messages_read", { matchId, reader: currentUserId });
-//       } catch (err) {
-//         console.error("messages_read error", err);
-//       }
-//     });
-
-//     // 4️⃣ DISCONNECT
-//     socket.on("disconnect", async () => {
-//       await redisClient.sRem(`user:sockets:${currentUserId}`, socket.id);
-//       const remainingSockets = await redisClient.sCard(`user:sockets:${currentUserId}`);
-//       if (remainingSockets === 0) {
-//         await redisClient.del(`user:online:${currentUserId}`);
-//       }
-//       console.log("🔌 DISCONNECTED:", currentUserId);
-//     });
-//   });
-// };
-
-
-
-
 const ChatMessage = require("../modules/matches/chat/chat.message.model");
 const { Match } = require("../modules/matches/swipe/swipe.model");
 const notificationService = require("../modules/notifications/notification.service");
-const { isBlocked } = require("../modules/profile/block.service")
+const { isBlocked } = require("../modules/profile/block.service");
+
+// TODO: Uncomment after verifying correct import path
+// const { destroy } = require("../modules/upload/cloudinary.service");
+
 module.exports = function chatSocket(io, redisClient) {
   io.on("connection", async (socket) => {
     const currentUserId = socket.user._id.toString();
@@ -425,15 +13,73 @@ module.exports = function chatSocket(io, redisClient) {
     console.log("✅ SOCKET CONNECTED:", socket.id, "USER:", currentUserId);
 
     /* ------------------------------------------------------------------ */
-    /* 🔹 USER LEVEL ROOM (VERY IMPORTANT) */
+    /* 🔹 USER LEVEL ROOM                                                 */
     /* ------------------------------------------------------------------ */
     socket.join(`user:${currentUserId}`);
 
-    await redisClient.set(`user:online:${currentUserId}`, "true");
-    await redisClient.sAdd(`user:sockets:${currentUserId}`, socket.id);
+    /* ------------------------------------------------------------------ */
+    /* 🔹 REDIS ONLINE STATUS + PENDING DELIVERY ON CONNECT               */
+    /* ------------------------------------------------------------------ */
+    /*
+     * Redis operations wrapped in try-catch because:
+     * 1. Redis temporarily down ho sakta hai (network blip, restart)
+     * 2. Bina try-catch ke error throw hoga → socket connect nahi hoga
+     * 3. Chat functionality Redis ke bina bhi kaam karni chahiye
+     *    (sirf online status miss hoga, messages toh DB se aate hain)
+     */
+    try {
+      await redisClient.set(`user:online:${currentUserId}`, "true");
+      await redisClient.sAdd(`user:sockets:${currentUserId}`, socket.id);
+    } catch (redisErr) {
+      console.error("❌ Redis online status error:", redisErr);
+    }
+
+    /*
+     * PENDING DELIVERY: Jab user offline tha, uske liye aaye SENT messages
+     * ko DELIVERED mark karo. Bina iske sender ko kabhi delivery tick nahi
+     * dikhta jab tak receiver specific chat room join na kare.
+     *
+     * .select() se sirf zaroori fields laao — poore documents ki zaroorat nahi.
+     * .limit(500) se ek baar mein zyada load nahi aayega.
+     */
+    try {
+      const pendingMessages = await ChatMessage.find({
+        receiver: currentUserId,
+        status: "SENT",
+      })
+        .select("sender matchId")
+        .limit(500)
+        .lean();
+
+      if (pendingMessages.length > 0) {
+        await ChatMessage.updateMany(
+          { receiver: currentUserId, status: "SENT" },
+          { status: "DELIVERED", deliveredAt: new Date() }
+        );
+
+        /*
+         * Unique senders ko notify karo per match.
+         * Set use kiya taaki same sender:match pair ke liye
+         * duplicate events na jayein.
+         */
+        const notified = new Set();
+        pendingMessages.forEach((m) => {
+          const key = `${m.sender}:${m.matchId}`;
+          if (!notified.has(key)) {
+            notified.add(key);
+            io.to(`user:${m.sender}`).emit("messages_delivered", {
+              matchId: m.matchId,
+              deliveredAt: new Date(),
+            });
+          }
+        });
+      }
+    } catch (err) {
+      console.error("❌ Pending delivery error:", err);
+    }
 
     /* ------------------------------------------------------------------ */
-    /* 1️⃣ JOIN CHAT ROOM */
+    /* 1️⃣ JOIN CHAT ROOM                                                  */
     /* ------------------------------------------------------------------ */
     socket.on("join_chat", async ({ matchId }) => {
       try {
@@ -442,30 +88,59 @@ module.exports = function chatSocket(io, redisClient) {
         const match = await Match.findById(matchId).lean();
         if (!match) return;
 
+        /*
+         * Participant validation: Bina iske koi bhi random matchId bhej ke
+         * doosron ki private chat room join kar sakta hai — security risk.
+         */
+        const isParticipant = match.users.some(
+          (u) => u.toString() === currentUserId
+        );
+        if (!isParticipant) return;
+
         const otherUserId = match.users.find(
           (u) => u.toString() !== currentUserId
         );
 
         const blocked = await isBlocked(currentUserId, otherUserId);
         if (blocked) {
-          return
+          /*
+           * Blocked user ko feedback: Bina iske user confused hota hai
+           * ki chat kyun kaam nahi kar rahi.
+           */
+          socket.emit("chat_error", {
+            type: "BLOCKED",
+            matchId,
+            message: "You cannot access this chat",
+          });
+          return;
         }
 
         const room = `chat:${matchId}`;
         socket.join(room);
 
         // Mark pending messages as DELIVERED
-        await ChatMessage.updateMany(
+        const deliveryResult = await ChatMessage.updateMany(
           {
             matchId,
             receiver: currentUserId,
-            status: "SENT"
+            status: "SENT",
           },
           {
             status: "DELIVERED",
-            deliveredAt: new Date()
+            deliveredAt: new Date(),
           }
         );
+
+        /*
+         * Sender ko delivery notification: Bina iske sender ke screen pe
+         * single tick rehta hai jabki messages actually deliver ho chuke hain.
+         */
+        if (deliveryResult.modifiedCount > 0) {
+          io.to(`user:${otherUserId}`).emit("messages_delivered", {
+            matchId,
+            deliveredAt: new Date(),
+          });
+        }
 
         console.log(`🎉 USER ${currentUserId} JOINED ROOM`, room);
       } catch (err) {
@@ -474,13 +149,281 @@ module.exports = function chatSocket(io, redisClient) {
     });
 
     /* ------------------------------------------------------------------ */
-    /* 2️⃣ SEND MESSAGE */
+    /* 2️⃣ SEND MESSAGE (TEXT + MEDIA UNIFIED)                             */
     /* ------------------------------------------------------------------ */
-    socket.on("send_message", async ({ matchId, text, clientMessageId }) => {
-      try {
-        if (!matchId || !text?.trim()) return;
+    /*
+     * FLOW EXPLAINED:
+     *
+     * TEXT MESSAGE (type = "text"):
+     *   Flutter emits → Server creates ChatMessage in DB → Emits to room
+     *
+     * MEDIA MESSAGE (type = "media"):
+     *   Flutter calls POST /upload-media → Server saves ChatMessage in DB
+     *   → Returns messageId → Flutter emits send_message with messageId
+     *   → Server fetches existing message → Emits to room
+     *
+     * Kyu do steps media ke liye?
+     *   Kyunki file upload heavy operation hai (Cloudinary upload, multipart parsing)
+     *   Ye REST API se hona chahiye, socket se nahi (socket lightweight events ke liye hai)
+     *   Lekin real-time notification socket se jaani chahiye
+     */
+    socket.on(
+      "send_message",
+      async (
+        {
+          matchId,
+          text = "",
+          type = "text",
+          messageId: mediaMessageId,
+          clientMessageId,
+        },
+        ack
+      ) => {
+        try {
+          /* ── Common: matchId required ── */
+          if (!matchId) {
+            if (typeof ack === "function") {
+              ack({ success: false, error: "matchId is required" });
+            }
+            return;
+          }
 
-        /* 1️⃣ Match validation */
+          /* ── Common: Match validation ── */
+          const match = await Match.findById(matchId).lean();
+          if (!match) {
+            if (typeof ack === "function") {
+              ack({ success: false, error: "Match not found" });
+            }
+            return;
+          }
+
+          /* ── Common: Participant check ── */
+          const isParticipant = match.users.some(
+            (u) => u.toString() === currentUserId
+          );
+          if (!isParticipant) {
+            if (typeof ack === "function") {
+              ack({ success: false, error: "Not authorized" });
+            }
+            return;
+          }
+
+          /* ── Common: Get receiverId from match (NOT from client) ── */
+          const receiverId = match.users.find(
+            (u) => u.toString() !== currentUserId
+          );
+
+          /* ── Common: Block check ── */
+          const blocked = await isBlocked(currentUserId, receiverId);
+          if (blocked) {
+            socket.emit("chat_error", {
+              type: "BLOCKED",
+              matchId,
+              clientMessageId,
+              message: "You cannot send messages to this user",
+            });
+            if (typeof ack === "function") {
+              ack({ success: false, error: "Cannot send message" });
+            }
+            return;
+          }
+
+          let msg;
+
+          /* ============================================================
+             🟢 TEXT MESSAGE → Create new message in DB
+          ============================================================ */
+          if (type === "text") {
+            if (!text.trim()) {
+              if (typeof ack === "function") {
+                ack({ success: false, error: "Text is required" });
+              }
+              return;
+            }
+
+            /*
+             * Text length limit: Bina iske koi 1 lakh character ka message
+             * bhej ke DB aur bandwidth waste kar sakta hai.
+             */
+            const trimmedText = text.trim();
+            if (trimmedText.length > 5000) {
+              if (typeof ack === "function") {
+                ack({
+                  success: false,
+                  error: "Message too long (max 5000 characters)",
+                });
+              }
+              return;
+            }
+
+            const msgData = {
+              matchId,
+              sender: currentUserId,
+              receiver: receiverId,
+              text: trimmedText,
+              status: "SENT",
+            };
+
+            if (clientMessageId) {
+              msgData.clientMessageId = clientMessageId;
+            }
+
+            msg = await ChatMessage.create(msgData);
+          }
+
+          /* ============================================================
+             🔵 MEDIA MESSAGE → Message already exists in DB (from upload API)
+                 Sirf real-time notification bhejni hai
+          ============================================================ */
+          if (type === "media") {
+            if (!mediaMessageId) {
+              if (typeof ack === "function") {
+                ack({
+                  success: false,
+                  error: "messageId is required for media type",
+                });
+              }
+              return;
+            }
+
+            msg = await ChatMessage.findById(mediaMessageId).lean();
+            if (!msg) {
+              if (typeof ack === "function") {
+                ack({ success: false, error: "Media message not found" });
+              }
+              return;
+            }
+
+            /*
+             * Security: Verify current user is actually the sender of this message.
+             * Bina iske koi doosre ka messageId bhej ke uske message ko
+             * apne naam se emit karwa sakta hai.
+             */
+            if (msg.sender.toString() !== currentUserId) {
+              if (typeof ack === "function") {
+                ack({ success: false, error: "Not authorized" });
+              }
+              return;
+            }
+
+            /*
+             * Verify message belongs to this match.
+             * Bina iske koi match A ka media message match B mein emit karwa sakta hai.
+             */
+            if (msg.matchId.toString() !== matchId) {
+              if (typeof ack === "function") {
+                ack({
+                  success: false,
+                  error: "Message does not belong to this match",
+                });
+              }
+              return;
+            }
+          }
+
+          /* ============================================================
+             🔥 COMMON OPERATIONS (Text + Media dono ke liye)
+          ============================================================ */
+
+          /*
+           * Last message preview: Media ke liye "📷 Media" dikhega chat list mein,
+           * text ke liye actual text.
+           * Upload API Match.lastMessage update NAHI karti — yahan karna zaroori hai.
+           */
+          const lastMessagePreview =
+            msg.media && msg.media.length > 0 ? "📷 Media" : msg.text;
+
+          /* Update conversation metadata (Chat list ordering) */
+          await Match.findByIdAndUpdate(matchId, {
+            lastMessage: lastMessagePreview,
+            lastMessageAt: msg.createdAt,
+            lastMessageBy: currentUserId,
+          });
+
+          /* Emit message to chat room (dono users ko milega agar room mein hain) */
+          io.to(`chat:${matchId}`).emit("new_message", msg);
+
+          /* Chat list reorder for receiver (chahe kisi bhi screen pe ho) */
+          io.to(`user:${receiverId}`).emit("chat_list_update", {
+            matchId,
+            lastMessage: lastMessagePreview,
+            lastMessageAt: msg.createdAt,
+            from: currentUserId,
+          });
+
+          /*
+           * ACK to sender: Flutter ko turant confirmation milti hai ki
+           * message process ho gaya. Bina iske message "sending" state mein
+           * atak jaata hai aur Flutter ko timeout guess karna padta.
+           *
+           * typeof check zaroori hai kyunki agar Flutter normal emit use kare
+           * bina callback ke, toh ack undefined hoga — error aayega.
+           */
+          if (typeof ack === "function") {
+            ack({
+              success: true,
+              messageId: msg._id,
+              createdAt: msg.createdAt,
+            });
+          }
+
+          /*
+           * Delivery check: Redis se check karo receiver online hai ya nahi.
+           * try-catch mein hai kyunki Redis down hone pe message toh bhej chuke,
+           * sirf delivery status miss hoga — acceptable fallback.
+           */
+          try {
+            const receiverOnline = await redisClient.exists(
+              `user:online:${receiverId}`
+            );
+
+            if (receiverOnline) {
+              await ChatMessage.findByIdAndUpdate(msg._id, {
+                status: "DELIVERED",
+                deliveredAt: new Date(),
+              });
+
+              socket.emit("message_delivered", {
+                messageId: msg._id,
+                matchId,
+              });
+            }
+          } catch (redisErr) {
+            console.error("❌ Redis delivery check error:", redisErr);
+          }
+
+          /* Push notification (background worker) */
+          try {
+            await notificationService.add("new_message", {
+              senderId: currentUserId,
+              receiverId: receiverId.toString(),
+              matchId,
+              messageId: msg._id,
+              text: lastMessagePreview,
+            });
+          } catch (notifErr) {
+            console.error("❌ Notification queue error:", notifErr);
+          }
+        } catch (err) {
+          console.error("❌ send_message error:", err);
+          if (typeof ack === "function") {
+            ack({ success: false, error: "Failed to send message" });
+          }
+        }
+      }
+    );
+
+    /* ------------------------------------------------------------------ */
+    /* 3️⃣ MESSAGE READ                                                    */
+    /* ------------------------------------------------------------------ */
+    socket.on("messages_read", async ({ matchId }) => {
+      try {
+        if (!matchId) return;
+
+        /*
+         * Match + Participant validation: Bina iske koi bhi random matchId bhej ke
+         * doosron ke messages read mark kar sakta hai — security issue.
+         */
         const match = await Match.findById(matchId).lean();
         if (!match) return;
 
@@ -489,325 +432,274 @@ module.exports = function chatSocket(io, redisClient) {
         );
         if (!isParticipant) return;
 
-        const receiverId = match.users.find(
-          (u) => u.toString() !== currentUserId
-        );
-
-        const blocked = await isBlocked(currentUserId, receiverId);
-        if (blocked) {
-          return; 
-        }
-
-
-        /* 2️⃣ Save message (DB = SOURCE OF TRUTH) */
-        const msg = await ChatMessage.create({
-          matchId,
-          sender: currentUserId,
-          receiver: receiverId,
-          text: text.trim(),
-          status: "SENT",
-          clientMessageId
-        });
-
-        /* 3️⃣ Update conversation metadata (CHAT LIST ORDER) */
-        await Match.findByIdAndUpdate(matchId, {
-          lastMessage: msg.text,
-          lastMessageAt: msg.createdAt,
-          lastMessageBy: currentUserId
-        });
-
-        /* 4️⃣ Emit message to chat room */
-        io.to(`chat:${matchId}`).emit("new_message", msg);
-
-        /* 5️⃣ 🔥 CHAT LIST TOP REORDER EVENT (USER LEVEL) */
-        io.to(`user:${receiverId}`).emit("chat_list_update", {
-          matchId,
-          lastMessage: msg.text,
-          lastMessageAt: msg.createdAt,
-          from: currentUserId
-        });
-
-        /* 6️⃣ DELIVERY CHECK (NO fetchSockets ❌) */
-        const receiverOnline = await redisClient.exists(
-          `user:online:${receiverId}`
-        );
-
-        if (receiverOnline) {
-          await ChatMessage.findByIdAndUpdate(msg._id, {
-            status: "DELIVERED",
-            deliveredAt: new Date()
-          });
-
-          socket.emit("message_delivered", {
-            messageId: msg._id,
-            matchId
-          });
-        }
-
-        /* 7️⃣ BACKGROUND WORK (WORKER) */
-        await notificationService.add("new_message", {
-          senderId: currentUserId,
-          receiverId,
-          matchId,
-          messageId: msg._id,
-          text: msg.text
-        });
-      } catch (err) {
-        console.error("❌ send_message error:", err);
-      }
-    });
-
-
-    /* ------------------------------------------------------------------ */
-    /* 3️⃣ MESSAGE READ */
-    /* ------------------------------------------------------------------ */
-    socket.on("messages_read", async ({ matchId }) => {
-      try {
-        await ChatMessage.updateMany(
+        const result = await ChatMessage.updateMany(
           {
             matchId,
             receiver: currentUserId,
-            status: { $ne: "READ" }
+            status: { $ne: "READ" },
           },
           {
             status: "READ",
-            // read : "true",
-            readAt: new Date()
+            readAt: new Date(),
           }
         );
 
-        io.to(`chat:${matchId}`).emit("messages_read", {
-          matchId,
-          reader: currentUserId
-        });
+        /*
+         * Sirf tab emit karo jab actually kuch update hua.
+         * Bina iske har baar chat open karne pe unnecessary event jaata hai
+         * aur Flutter mein useless re-render hota hai.
+         */
+        if (result.modifiedCount > 0) {
+          io.to(`chat:${matchId}`).emit("messages_read", {
+            matchId,
+            reader: currentUserId,
+            readAt: new Date(),
+          });
+        }
       } catch (err) {
         console.error("❌ messages_read error:", err);
       }
     });
 
+    /* ------------------------------------------------------------------ */
+    /* 🔹 TYPING INDICATOR                                                 */
+    /* ------------------------------------------------------------------ */
     socket.on("typing", ({ matchId, isTyping }) => {
       if (!matchId) return;
 
-      const room = `chat:${matchId}`;
+      /*
+       * Room membership check: Sirf usi room mein typing event bhejo
+       * jismein user actually joined hai. Bina iske koi bhi kisi bhi
+       * matchId ke liye fake typing indicator cause kar sakta hai.
+       */
+      if (!socket.rooms.has(`chat:${matchId}`)) return;
 
-      // sender ko chhod ke sabko bhejo
-      socket.to(room).emit("user_typing", {
-        userId: socket.user._id.toString(),
-        isTyping
+      socket.to(`chat:${matchId}`).emit("user_typing", {
+        userId: currentUserId,
+        /*
+         * matchId include karo payload mein: Flutter dev ko pata hona chahiye
+         * typing indicator kaunsi chat ke liye hai — future mein multiple
+         * chat windows support karne pe ye zaroori hoga.
+         */
+        matchId,
+        isTyping,
       });
     });
 
     /* ------------------------------------------------------------------ */
-    /* 5️⃣ DELETE MESSAGE (DELETE FOR ME) */
+    /* 5️⃣ DELETE MESSAGE (DELETE FOR ME)                                   */
     /* ------------------------------------------------------------------ */
     socket.on("delete_message", async ({ messageId, matchId }) => {
       try {
         if (!messageId || !matchId) return;
 
-        // 1️⃣ Mark message deleted for current user
+        /*
+         * Message validation: Bina iske:
+         * 1. Invalid messageId se null update hota hai — waste DB operation
+         * 2. User kisi ka bhi message delete kar sakta hai apne liye
+         * 3. Match-message mismatch ho sakta hai
+         */
+        const msg = await ChatMessage.findById(messageId).lean();
+        if (!msg) {
+          socket.emit("chat_error", {
+            type: "NOT_FOUND",
+            messageId,
+            message: "Message not found",
+          });
+          return;
+        }
+
+        // User is sender ya receiver hona chahiye — doosre ka message nahi delete kar sakte
+        if (
+          msg.sender.toString() !== currentUserId &&
+          msg.receiver.toString() !== currentUserId
+        ) {
+          return;
+        }
+
+        // Message usi match ka hona chahiye
+        if (msg.matchId.toString() !== matchId) return;
+
+        // Soft delete for current user
         await ChatMessage.findByIdAndUpdate(messageId, {
-          $addToSet: { deletedFor: currentUserId }
+          $addToSet: { deletedFor: currentUserId },
         });
 
-        // 2️⃣ Notify ONLY this user to remove message from UI
+        // Notify only this user
         io.to(`user:${currentUserId}`).emit("message_deleted", {
           messageId,
-          matchId
+          matchId,
         });
 
-        // 3️⃣ Recalculate last visible message for this user
+        /*
+         * Last visible message query mein isDeletedForEveryone filter:
+         * Bina iske jo message everyone ke liye delete ho chuka hai
+         * wo bhi chat list preview mein aa sakta hai.
+         */
         const lastVisibleMessage = await ChatMessage.findOne({
           matchId,
-          deletedFor: { $ne: currentUserId }
-        }).sort({ createdAt: -1 });
+          deletedFor: { $ne: currentUserId },
+          isDeletedForEveryone: { $ne: true },
+        })
+          .sort({ createdAt: -1 })
+          .lean();
 
-        // 4️⃣ Update chat list preview (only for this user)
+        // Chat list preview update (sirf is user ke liye)
         io.to(`user:${currentUserId}`).emit("chat_list_update", {
           matchId,
           lastMessage: lastVisibleMessage?.text || null,
-          lastMessageAt: lastVisibleMessage?.createdAt || null
+          lastMessageAt: lastVisibleMessage?.createdAt || null,
         });
-
       } catch (err) {
         console.error("❌ delete_message error:", err);
       }
     });
 
-
     /* ------------------------------------------------------------------ */
-    /* 6️⃣ DELETE FOR EVERYONE */
+    /* 6️⃣ DELETE FOR EVERYONE                                             */
     /* ------------------------------------------------------------------ */
     socket.on("delete_for_everyone", async ({ messageId, matchId }) => {
       try {
         if (!messageId || !matchId) return;
 
         const msg = await ChatMessage.findById(messageId);
-        if (!msg) return;
+        if (!msg) {
+          socket.emit("chat_error", {
+            type: "NOT_FOUND",
+            messageId,
+            message: "Message not found",
+          });
+          return;
+        }
 
-        // 1️⃣ Only sender allowed
-        if (msg.sender.toString() !== currentUserId) return;
+        // Only sender can delete for everyone
+        if (msg.sender.toString() !== currentUserId) {
+          socket.emit("chat_error", {
+            type: "FORBIDDEN",
+            messageId,
+            matchId,
+            message: "Only sender can delete for everyone",
+          });
+          return;
+        }
 
-        // 2️⃣ Optional: Time limit check (e.g. 10 min)
+        // Time limit check (10 min)
         const TEN_MIN = 10 * 60 * 1000;
-        if (Date.now() - msg.createdAt.getTime() > TEN_MIN) return;
+        if (Date.now() - msg.createdAt.getTime() > TEN_MIN) {
+          /*
+           * Error feedback: Bina iske user delete button dabata hai,
+           * kuch nahi hota — sochta hai bug hai ya network issue.
+           */
+          socket.emit("chat_error", {
+            type: "TIME_EXPIRED",
+            messageId,
+            matchId,
+            message: "Cannot delete after 10 minutes",
+          });
+          return;
+        }
 
-        // 3️⃣ Mark deleted for everyone
+        /*
+         * TODO: Cloudinary se media delete karo BEFORE clearing DB.
+         *
+         * Current problem: media: [] set ho jaata hai DB mein but actual files
+         * Cloudinary pe PERMANENTLY orphaned reh jaati hain — storage cost
+         * badhti rahegi har delete ke saath.
+         *
+         * Uncomment below AFTER verifying cloudinary import path at top:
+         *
+         * if (msg.media && msg.media.length > 0) {
+         *   try {
+         *     await Promise.all(
+         *       msg.media.map((m) => (m.publicId ? destroy(m.publicId) : null))
+         *     );
+         *   } catch (cloudErr) {
+         *     console.error("❌ Cloudinary cleanup error:", cloudErr);
+         *   }
+         * }
+         */
+
+        // Mark deleted for everyone
         await ChatMessage.findByIdAndUpdate(messageId, {
           isDeletedForEveryone: true,
           text: null,
-          media: []
+          media: [],
         });
 
-        // 4️⃣ Notify BOTH users (chat room)
+        // Notify both users (chat room)
         io.to(`chat:${matchId}`).emit("message_deleted_everyone", {
           messageId,
-          matchId
+          matchId,
         });
 
-        // 5️⃣ Update chat list preview for both users
-
+        // Find last valid message for chat list preview
         const lastMsg = await ChatMessage.findOne({
           matchId,
-          isDeletedForEveryone: false
-        }).sort({ createdAt: -1 });
+          isDeletedForEveryone: { $ne: true },
+        })
+          .sort({ createdAt: -1 })
+          .lean();
 
+        // Update Match model (chat list ordering)
         await Match.findByIdAndUpdate(matchId, {
           lastMessage: lastMsg?.text || "Message deleted",
-          lastMessageAt: lastMsg?.createdAt || new Date()
+          lastMessageAt: lastMsg?.createdAt || new Date(),
         });
 
-        const matchDoc = await Match.findById(matchId).lean();
-        if (!matchDoc) return;
+        /*
+         * Dono users ko chat list update.
+         *
+         * msg.sender aur msg.receiver se IDs nikal rahe hain — pehle
+         * Match.findById dobara call hoti thi sirf IDs ke liye.
+         * Ye extra DB query eliminate hui.
+         */
+        const senderIdStr = msg.sender.toString();
+        const receiverIdStr = msg.receiver.toString();
 
-        matchDoc.users.forEach((uid) => {
+        [senderIdStr, receiverIdStr].forEach((uid) => {
           io.to(`user:${uid}`).emit("chat_list_update", {
             matchId,
             lastMessage: lastMsg?.text || "Message deleted",
-            lastMessageAt: lastMsg?.createdAt || new Date()
+            lastMessageAt: lastMsg?.createdAt || new Date(),
           });
         });
-
       } catch (err) {
         console.error("❌ delete_for_everyone error:", err);
       }
     });
 
-
-    // io.to(`chat:${matchId}`).emit("new_message", message);
-
-    // io.to(`user:${receiverId}`).emit("chat_list_update", {
-    //   matchId,
-    //   lastMessage: "📷 Photo",
-    //   lastMessageAt: message.createdAt,
-    //   from: senderId
-    // });
-
-
-
-
-
-
+    /* ------------------------------------------------------------------ */
+    /* 🔹 LEAVE CHAT ROOM                                                  */
+    /* ------------------------------------------------------------------ */
+    socket.on("leave_chat", ({ matchId }) => {
+      if (!matchId) return;
+      socket.leave(`chat:${matchId}`);
+      console.log(`👋 USER ${currentUserId} LEFT ROOM chat:${matchId}`);
+    });
 
     /* ------------------------------------------------------------------ */
-    /* 4️⃣ DISCONNECT */
+    /* 4️⃣ DISCONNECT                                                      */
     /* ------------------------------------------------------------------ */
     socket.on("disconnect", async () => {
-      await redisClient.sRem(`user:sockets:${currentUserId}`, socket.id);
+      /*
+       * try-catch: Redis down hone pe bina iske unhandled error aayega
+       * aur user permanently "online" dikhega kyunki cleanup nahi hogi.
+       */
+      try {
+        await redisClient.sRem(`user:sockets:${currentUserId}`, socket.id);
 
-      const remaining = await redisClient.sCard(
-        `user:sockets:${currentUserId}`
-      );
+        const remaining = await redisClient.sCard(
+          `user:sockets:${currentUserId}`
+        );
 
-      if (remaining === 0) {
-        await redisClient.del(`user:online:${currentUserId}`);
+        if (remaining === 0) {
+          await redisClient.del(`user:online:${currentUserId}`);
+        }
+
+        console.log("🔌 SOCKET DISCONNECTED:", currentUserId);
+      } catch (err) {
+        console.error("❌ Disconnect cleanup error:", err);
       }
-
-      console.log("🔌 SOCKET DISCONNECTED:", currentUserId);
     });
   });
 };
-
-
-
-
-// socket.on("send_message", async ({
-//   matchId,
-//   text = "",
-//   type = "text",   // "text" | "media"
-//   messageId       // 🔥 ONLY for media (DB already created)
-// }) => {
-//   try {
-//     if (!matchId) return;
-
-//     /* 1️⃣ Match validation */
-//     const match = await Match.findById(matchId).lean();
-//     if (!match) return;
-
-//     const isParticipant = match.users.some(
-//       (u) => u.toString() === currentUserId
-//     );
-//     if (!isParticipant) return;
-
-//     const receiverId = match.users.find(
-//       (u) => u.toString() !== currentUserId
-//     );
-
-//     let msg;
-
-//     /* ======================================================
-//        🟢 TEXT MESSAGE → DB + SOCKET
-//     ====================================================== */
-//     if (type === "text") {
-//       if (!text.trim()) return;
-
-//       msg = await ChatMessage.create({
-//         matchId,
-//         sender: currentUserId,
-//         receiver: receiverId,
-//         text: text.trim(),
-//         status: "SENT"
-//       });
-//     }
-
-//     /* ======================================================
-//        🔵 MEDIA MESSAGE → DB ALREADY EXISTS (FROM UPLOAD API)
-//     ====================================================== */
-//     if (type === "media") {
-//       if (!messageId) return;
-
-//       msg = await ChatMessage.findById(messageId).lean();
-//       if (!msg) return;
-//     }
-
-//     /* 3️⃣ Emit real-time message */
-//     io.to(`chat:${matchId}`).emit("new_message", msg);
-
-//     /* 4️⃣ Chat list reorder (receiver only) */
-//     io.to(`user:${receiverId}`).emit("chat_list_update", {
-//       matchId,
-//       lastMessage: msg.media?.length ? "📷 Photo" : msg.text,
-//       lastMessageAt: msg.createdAt,
-//       from: currentUserId
-//     });
-
-//     /* 5️⃣ Delivery check */
-//     const receiverOnline = await redisClient.exists(
-//       `user:online:${receiverId}`
-//     );
-
-//     if (receiverOnline) {
-//       await ChatMessage.findByIdAndUpdate(msg._id, {
-//         status: "DELIVERED",
-//         deliveredAt: new Date()
-//       });
-
-//       socket.emit("message_delivered", {
-//         messageId: msg._id,
-//         matchId
-//       });
-//     }
-
-//   } catch (err) {
-//     console.error("❌ send_message error:", err);
-//   }
-// });

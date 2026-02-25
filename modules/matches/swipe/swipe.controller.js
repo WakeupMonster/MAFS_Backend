@@ -200,10 +200,10 @@ exports.getKeenData = async (req, res, actionType) => {
     const keens = await Swipe.find({
       targetId: userId,
       action: actionType,
-      // swiperId: { $nin: mySwipedIds }
-       swiperId: {
-    $nin: [...mySwipedIds, ...matchedUserIds]
-  }
+      swiperId: { $nin: mySwipedIds }
+  //      swiperId: {
+  //   $nin: [...mySwipedIds, ...matchedUserIds]
+  // }
     })
     .sort({ createdAt: -1 })
     .skip(skip)
@@ -265,7 +265,7 @@ exports.getKeenData = async (req, res, actionType) => {
         total, 
         page: pageNum, 
         limit: limitNum,
-        hasMore: hasMore // ✅ Frontend check karega: if(hasMore) loadNextPage()
+        hasMore: hasMore 
       }
     });
 

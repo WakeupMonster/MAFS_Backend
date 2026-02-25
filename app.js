@@ -45,10 +45,10 @@
 //     message: "API endpoint not found"
 //   });
 // });
-
 // app.use(errorHandling);
-
 // module.exports = app;
+
+
 
 const express = require("express");
 const app = express();
@@ -80,7 +80,8 @@ app.use(express.urlencoded({ extended: true }));
 // ─── CORS ───
 app.use(
   cors({
-    origin: process.env.FRONTEND_URL || "http://localhost:5173", // Ya specific frontend URL
+    // origin: process.env.FRONTEND_URL || "http://localhost:5174",
+    origin : "*",
     credentials: true,
     methods: ["GET", "POST", "PUT", "DELETE", "PATCH"],
   })
