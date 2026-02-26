@@ -2956,3 +2956,13 @@
 {"level":"debug","message":"GET /api/v1/admin/moderation/pending-verifications?page=1&limit=10","service":"iap-service","timestamp":"2026-02-25 10:24:40"}
 {"level":"debug","message":"GET /api/v1/admin/users?page=1&limit=10","service":"iap-service","timestamp":"2026-02-25 10:25:09"}
 {"level":"debug","message":"GET /api/v1/admin/users?page=1&limit=10","service":"iap-service","timestamp":"2026-02-25 11:28:31"}
+{"level":"info","message":"[CRON] Subscription cron jobs initialized","service":"iap-service","timestamp":"2026-02-25 11:34:55"}
+{"level":"info","message":"[CRON] Subscription cron jobs initialized","service":"iap-service","timestamp":"2026-02-25 15:38:42"}
+{"level":"debug","message":"GET /api/v1/profile/me","service":"iap-service","timestamp":"2026-02-25 15:39:29"}
+{"level":"debug","message":"POST /api/v1/contacts/block","service":"iap-service","timestamp":"2026-02-25 15:40:02"}
+{"level":"debug","message":"GET /api/v1/profile/me","service":"iap-service","timestamp":"2026-02-25 15:40:09"}
+{"level":"error","message":"[CRON] Expire check error:","service":"iap-service","timestamp":"2026-02-25 16:15:05"}
+{"level":"error","message":"[CRON] Grace check error:","service":"iap-service","timestamp":"2026-02-25 16:15:05"}
+{"level":"info","message":"[CRON] Subscription cron jobs initialized","service":"iap-service","timestamp":"2026-02-26 16:16:02"}
+{"level":"info","message":"[CRON] Subscription cron jobs initialized","service":"iap-service","timestamp":"2026-02-26 16:19:37"}
+{"level":"info","message":"[CRON] Subscription cron jobs initialized","service":"iap-service","timestamp":"2026-02-26 16:20:13"}
