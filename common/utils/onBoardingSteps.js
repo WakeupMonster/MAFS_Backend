@@ -71,6 +71,19 @@ async function buildOnboardingResponse(req = {}, userId) {
     );
   }
 
+
+
+    const existingProfile = await Profile.findOne(
+    { userId },
+    { onboarding: 1 }
+  ).lean();
+
+  if (existingProfile?.onboarding?.isComplete) {
+    return existingProfile.onboarding;
+  }
+
+
+
   // ✅ VALID onboarding aaya hai → SAVE to DB
   const updatedProfile = await Profile.findOneAndUpdate(
     { userId },
@@ -78,7 +91,7 @@ async function buildOnboardingResponse(req = {}, userId) {
       $set: {
         onboarding: {
           ...onboarding,
-          // updatedAt: new Date()
+          updatedAt: new Date()
         }
       }
     },

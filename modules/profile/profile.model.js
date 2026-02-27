@@ -1,5 +1,15 @@
 const mongoose = require('mongoose');
 
+const GENDER_OPTIONS = [
+  "men", 
+  "women", 
+  "non-binary", 
+  "trans-man", 
+  "trans-women", 
+  "genderqueer", 
+  "everyone"
+];
+
 const ProfileSchema = new mongoose.Schema({
   userId: { 
     type: mongoose.Schema.Types.ObjectId, 
@@ -16,7 +26,15 @@ const ProfileSchema = new mongoose.Schema({
   nickname: { type: String, trim: true, index: true },
   dob: { type: Date },
   age: { type: Number }, 
-  gender: { type: String },
+  // gender: { type: String },
+    gender: { 
+    type: String, 
+    enum: {
+      values: GENDER_OPTIONS,
+      message: '{VALUE} is not a valid gender option'
+    },
+    index: true 
+  },
   pronouns: { type: String, default: null },
   height: { type: Number, default: null },
   weight: { type: Number, default: null },
@@ -62,7 +80,15 @@ const ProfileSchema = new mongoose.Schema({
       min: { type: Number, default: 18 },
       max: { type: Number, default: 60 }
     },
-    showMeGender: { type: [String], default: null }, 
+    // showMeGender: { type: [String], default: null }, 
+    showMeGender: { 
+    type: [String], // Array of Strings
+    enum: {
+        values: GENDER_OPTIONS,
+        message: '{VALUE} is not a valid option for showMeGender' 
+    },
+    default: [] // ✅ BEST PRACTICE: Array ka default [] rakhein, null nahi.
+}, 
     relationshipGoal: { type: String, default: null }, // Stored as ID String
     globalVisibility: { 
         type: String, 

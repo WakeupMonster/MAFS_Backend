@@ -150,5 +150,3 @@ exports.profileUpdateSchema = Joi.object({
 exports.userIdParamSchema = Joi.object({
   userId: objectId.required()
 });
-
-

@@ -113,8 +113,18 @@ exports.updateProfile = async (req, res) => {
         // onboarding: buildOnboardingResponse(req)
       }
     });
-  } catch (error) {
-    console.error("Update Error:", error);
+  } catch (err) {
+    console.error("Update Error:", err);
+      if (err.name === 'ValidationError') {
+      // Mongoose saare errors ka object deta hai, humein pehla message chahiye
+      const message = Object.values(err.errors).map(val => val.message)[0];
+      
+      return res.status(400).json({
+        success: false,
+        message: message // Ye bhejega: "Woman is not a valid gender option"
+      });
+    }
+
     res.status(500).json({ success: false, message: "Internal server error" });
   }
 };
@@ -164,6 +174,14 @@ exports.uploadPhotos = async (req, res) => {
         isPrimary: profile.photos.length === 0 && index === 0
       });
     });
+
+    //  if (!profile.onboarding.isComplete) {
+    //   const { nextstep, currentScreenSlug } = req.body;
+    //   profile.onboarding.nextstep = nextstep;
+    //   profile.onboarding.currentScreenSlug = currentScreenSlug;
+    //   profile.onboarding.updatedAt = new Date();
+    // }
+
 
     await profile.save();
     const [data] = await Promise.all([getFullUserData(userId, profile), clearProfileCache(userId)]);
