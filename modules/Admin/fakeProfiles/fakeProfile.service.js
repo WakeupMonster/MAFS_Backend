@@ -28,8 +28,8 @@ const bulkCreateFakeProfiles = async ({ count, gender, ageRange, city, adminId }
 
     // 1. Fetch names from randomuser.me (Fastest way to get realistic names/DOBs)
     // Map gender for randomuser API names
-    const apiGender = (gender === "Men" || gender === "Trans Man") ? "male" :
-        (gender === "Women" || gender === "Trans Women") ? "female" : "";
+    const apiGender = (gender === "men" || gender === "trans-man") ? "men" :
+        (gender === "women" || gender === "trans-women") ? "women" : "";
 
     const response = await axios.get(`https://randomuser.me/api/?results=${count}&gender=${apiGender}&nat=au`);
     const apiUsers = response.data.results;
@@ -94,7 +94,7 @@ const bulkCreateFakeProfiles = async ({ count, gender, ageRange, city, adminId }
             discovery: {
                 globalVisibility: "everyone",
                 relationshipGoal: getRandom(RELATIONSHIP_GOALS),
-                showMeGender: [gender === "Men" ? "Women" : "Everyone"],
+                showMeGender: [gender === "men" ? "women" : "everyone"],
             },
             attributes: {
                 ...getRandomAttributes(),

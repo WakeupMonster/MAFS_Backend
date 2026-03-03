@@ -19,7 +19,7 @@ exports.getFeed = async (req, res) => {
       success: true,
       message : "Feed fetched successfully",
       count: feedResult.data.length,  
-       cached: feedResult.cached,
+      //  cached: feedResult.cached,
   //       data: {
   //   count: feedResult.data.length,
   //    pagination: {

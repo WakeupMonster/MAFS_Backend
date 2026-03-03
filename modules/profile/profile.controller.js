@@ -67,10 +67,11 @@ exports.updateProfile = async (req, res) => {
       const basicFields = ['nickname', 'dob', 'gender', 'height', 'about', 'jobTitle', 'company', 'school', 'pronouns', 'weight'];
       basicFields.forEach(field => { if (p[field] !== undefined) profile[field] = p[field]; });
 
-      if (p.nickname) {
-        const existing = await Profile.findOne({ nickname: p.nickname, userId: { $ne: userId } }).lean();
-        if (existing) return res.status(400).json({ success: false, message: "Nickname taken" });
-      }
+      // if (p.nickname) {
+      //   const existing = await Profile.findOne({ nickname: p.nickname, userId: { $ne: userId } }).lean();
+      //   if (existing) return res.status(400).json({ success: false, message: "Nickname taken" });
+      // }
+      
     }
 
     if (updateData.attributes) {
