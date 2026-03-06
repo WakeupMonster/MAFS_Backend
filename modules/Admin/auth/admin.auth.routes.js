@@ -30,3 +30,4 @@ router.use(allowAdmin);
 router.post("/reset-password", adminController.adminResetPassword);
 
 module.exports = router;
+// Just for testing push

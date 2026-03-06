@@ -7555,3 +7555,9 @@
 {"level":"debug","message":"GET /api/v1/admin/users?page=1&limit=10&search=rajdeep","service":"iap-service","timestamp":"2026-03-06 11:10:25"}
 {"level":"debug","message":"POST /api/v1/admin/moderation/users/69820c4e918a791aea4f55b4/verify","service":"iap-service","timestamp":"2026-03-06 11:10:40"}
 {"level":"debug","message":"POST /api/v1/admin/moderation/users/69820c4e918a791aea4f55b4/verify","service":"iap-service","timestamp":"2026-03-06 11:11:43"}
+{"level":"info","message":"[CRON] Subscription cron jobs initialized","service":"iap-service","timestamp":"2026-03-06 11:57:46"}
+{"level":"debug","message":"GET /","service":"iap-service","timestamp":"2026-03-06 11:57:51"}
+{"level":"debug","message":"GET /favicon.ico","service":"iap-service","timestamp":"2026-03-06 11:57:52"}
+{"level":"debug","message":"POST /api/v1/admin/moderation/users/697bb30d2b138f5f0c1f698f/verify","service":"iap-service","timestamp":"2026-03-06 11:59:58"}
+{"level":"info","message":"[CRON] Subscription cron jobs initialized","service":"iap-service","timestamp":"2026-03-06 12:03:50"}
+{"level":"info","message":"[CRON] Subscription cron jobs initialized","service":"iap-service","timestamp":"2026-03-06 12:04:02"}
