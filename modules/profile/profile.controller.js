@@ -1,5 +1,6 @@
 /* eslint-disable no-unused-vars */
 const Profile = require("./profile.model");
+const mongoose = require("mongoose");
 const cache = require("../../config/cache");
 const { uploadStream, destroy } = require("../upload/cloudinary.service");
 const redis = require("../../config/cache");
@@ -12,6 +13,8 @@ const { formatPublictargetProfile } = require("./profile.userFormatter");
 const {
   buildOnboardingResponse,
 } = require("../../common/utils/onBoardingSteps");
+const Swipe = require("../matches/swipe/swipe.model");
+const { Match } = require("../matches/swipe/swipe.model");
 
 async function getFullUserData(userId, existingProfile = null) {
   const [user, profile, blockedContacts, blockedUser, subData] =
@@ -381,41 +384,6 @@ module.exports.reorderPhotos = async (req, res) => {
   }
 };
 
-// Function name vahi hai, bas logic change kiya hai file handle karne ka
-// module.exports.uploadSelfie = async (req, res) => {
-//   try {
-//     const userId = req.user._id;
-//     // Ab file buffer nahi, direct URL aayega frontend se
-//     const { selfieUrl } = req.body;
-
-//     if (!selfieUrl) return res.status(400).json({ success: false, message: "Selfie URL required" });
-
-//     const profile = await getOrCreateProfile(userId);
-//     if (profile.verification?.status === "approved") return res.status(400).json({ success: false, message: "Already approved" });
-
-//     // Parallel processing: DB updates
-//     const [data] = await Promise.all([
-//       getFullUserData(userId, profile), // Metadata fetch
-//       Profile.updateOne({ userId }, {
-//         $set: {
-//           "verification.selfieUrl": selfieUrl,
-//           "verification.status": "pending"
-//         }
-//       })
-//     ]);
-
-//     await clearProfileCache(userId);
-
-//     res.json({
-//       success: true,
-//       message: "Selfie verified and updated",
-//       data: { user: formatProfileResponse(data.user, profile, data.blockedContacts, data.blockedUser, data.subData) }
-//     });
-//   } catch (err) {
-//     res.status(500).json({ success: false, message: "Sync failed" });
-//   }
-// };
-
 module.exports.uploadSelfie = async (req, res) => {
   try {
     const userId = req.user._id;
@@ -544,40 +512,6 @@ module.exports.uploadIDDocument = async (req, res) => {
   }
 };
 
-// module.exports.uploadIDDocument = async (req, res) => {
-//   try {
-//     const userId = req.user._id;
-//     const frontFile = req.files?.front?.[0];
-//     if (!frontFile) return res.status(400).json({ success: false, message: "Document front image is required" });
-
-//     const profile = await Profile.findOne({ userId });
-//     if (!profile) return res.status(404).json({ success: false, message: "Profile not found" });
-
-//     const [uploadResult, data] = await Promise.all([
-//       uploadStream(frontFile.buffer, {
-//         folder: `mafs/users/${userId}/kyc`,
-//         transformation: [{ width: 1200, height: 800, crop: "limit", quality: "auto:best" }]
-//       }),
-//       getFullUserData(userId, profile)
-//     ]);
-
-//     if (!profile.verification) profile.verification = {};
-//     profile.verification.docUrl = uploadResult.secure_url;
-//     profile.verification.status = profile.verification.selfieUrl ? "pending" : "not_started";
-
-//     await profile.save();
-//     await clearProfileCache(userId);
-
-//     res.json({
-//       success: true,
-//       message: "ID document uploaded successfully.",
-//       data: { user: formatProfileResponse(data.user, profile, data.blockedContacts, data.blockedUser, data.subData) }
-//     });
-//   } catch (err) {
-//     res.status(500).json({ success: false, message: "Failed to upload ID document" });
-//   }
-// };
-
 module.exports.getVerificationStatus = async (req, res) => {
   try {
     const profile = await Profile.findOne({ userId: req.user._id })
@@ -694,9 +628,6 @@ module.exports.getStatus = async (req, res) => {
   }
 };
 
-const Swipe = require("../matches/swipe/swipe.model");
-const { Match } = require("../matches/swipe/swipe.model");
-
 module.exports.getUserProfile = async (req, res) => {
   try {
     const { userId: targetUserId } = req.params;
@@ -750,27 +681,6 @@ module.exports.getUserProfile = async (req, res) => {
       .json({ success: false, message: "Failed to load profile details" });
   }
 };
-
-// module.exports.getUserProfile = async (req, res) => {
-//   try {
-//     const { userId: targetUserId } = req.params;
-//     const viewer = req.user;
-
-//     const [targetProfile, swipeAction, blockStatus] = await Promise.all([
-//       Profile.findOne({ userId: targetUserId }).lean(),
-//       swipeModel.findOne({ swiperId: viewer._id, targetId: targetUserId }).lean(),
-//       Block.findOne({ $or: [{ blockerId: viewer._id, blockedId: targetUserId }, { blockerId: targetUserId, blockedId: viewer._id }] }).lean()
-//     ]);
-
-//     if (!targetProfile) return res.status(404).json({ success: false, message: "User profile not found" });
-//     if (blockStatus) return res.status(403).json({ success: false, message: "Profile is private or unavailable" });
-
-//     const formattedData = await formatPublicProfile(viewer, targetProfile, swipeAction);
-//     res.json({ success: true, data: formattedData });
-//   } catch (err) {
-//     res.status(500).json({ success: false, message: "Failed to load profile details" });
-//   }
-// };
 
 module.exports.updateDiscoveryFilters = async (req, res) => {
   try {
@@ -864,50 +774,6 @@ module.exports.updateVisibility = async (req, res) => {
     res.status(500).json({ success: false, message: err.message });
   }
 };
-
-// const cloudinary = require('cloudinary').v2;
-// const mongoose = require('mongoose');
-
-// module.exports.getUploadSignature = async (req, res) => {
-//   try {
-//     // 1. Check karein ki user authenticated hai aur ID valid hai
-//     if (!req.user || !req.user._id) {
-//       retrn res.status(401).json({ success: false, message: "User not authenticated" });
-//     }
-
-//     const userId = req.user._id.toString();
-
-//     // 2. Mongoose ID check (Safety layer)
-//     if (!mongoose.Types.ObjectId.isValid(userId)) {
-//       return res.status(400).json({ success: false, message: "Invalid ID format" });
-//     }
-
-//     const timestamp = Math.round(new Date().getTime() / 1000);
-//     const folder = `mafs/users/${userId}/photos`;
-
-//     // 3. Signature generate karna
-//     const signature = cloudinary.utils.api_sign_request(
-//       { timestamp, folder },
-//       process.env.CLOUDINARY_API_SECRET
-//     );
-
-//     res.json({
-//       success: true,
-//       data: {
-//         signature,
-//         timestamp,
-//         cloudName: process.env.CLOUDINARY_CLOUD_NAME,
-//         apiKey: process.env.CLOUDINARY_API_KEY,
-//         folder,
-//         uploadUrl: `https://api.cloudinary.com/v1_1/${process.env.CLOUDINARY_CLOUD_NAME}/image/upload`
-//       }
-//     });
-//   } catch (err) {
-//     res.status(500).json({ success: false, message: err.message });
-//   }
-// };
-
-const mongoose = require("mongoose");
 
 module.exports.resetTestData = async (req, res) => {
   try {
