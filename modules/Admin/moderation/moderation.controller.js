@@ -1,3 +1,4 @@
+/* eslint-disable no-undef */
 /* eslint-disable no-unused-vars */
 // controllers/admin/admin.kpi.controller.js
 
@@ -431,43 +432,6 @@ module.exports.suspendUser = async (req, res) => {
       success: false,
       message: "Failed to suspend user",
     });
-  }
-};
-// Backend Controller
-
-module.exports.unsuspendUser = async (req, res) => {
-  try {
-    const userId = req.params.userId || req.params.id;
-
-    console.log("Unsuspend userId:", userId);
-
-    const user = await User.findById(userId);
-    if (!user) {
-      return res.status(404).json({
-        success: false,
-        message: "User not found",
-      });
-    }
-
-    user.accountStatus = "active";
-
-    user.suspensionDetails = {
-      isSuspended: false,
-      reason: null,
-      suspendedBy: null,
-      suspendedAt: null,
-      suspendUntil: null,
-    };
-
-    await user.save();
-
-    res.json({
-      success: true,
-      message: "Suspension lifted successfully",
-    });
-  } catch (err) {
-    console.error("UNSUSPEND ERROR:", err);
-    res.status(500).json({ success: false, message: err.message });
   }
 };
 

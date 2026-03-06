@@ -81,8 +81,8 @@ async function getFeedService(userId, limit, page) {
   }
 
   // 4. Gather Exclusion IDs (Always Excluded)
-  const [swipes, matches, myBlocked, blockedMe, myReports, superlikes, nonActiveUsers] = await Promise.all([
-    Swipe.find({ swiperId: userId, action: { $in: ["like", "pass"] } }).distinct("targetId"),
+  const [swipes, matches, myBlocked, blockedMe, myReports, receivedSuperlikes, nonActiveUsers] = await Promise.all([
+    Swipe.find({ swiperId: userId, action: { $in: ["like", "pass", "superlike"] } }).distinct("targetId"),
     Match.find({ users: userId }).distinct("users"),
     Block.find({ blockerId: userId }).distinct("blockedId"),
     Block.find({ blockedId: userId }).distinct("blockerId"),
@@ -111,7 +111,6 @@ async function getFeedService(userId, limit, page) {
     ])
   ];
 
-  // For Page 1, we also exclude 'seenProfiles' to ensure the user gets fresh data every hit
   const excludeIds = page === 1
     ? [...new Set([...baseExclude, ...seenProfiles])]
     : baseExclude;
@@ -144,12 +143,35 @@ async function getFeedService(userId, limit, page) {
   // 6. Execute Query
   async function runQuery(q) {
     let pq = Profile.find(q);
+    // Prioritize superlikers at the DB level by sorting them first if not using $near
+    // If using $near, we have to handle prioritization manually after fetching or use an aggregation
     if (!q.location) pq = pq.sort({ createdAt: -1 });
-    // IMPORTANT: If we are on Page 1 and excludeIds has seenProfiles, skip=0
+
     return pq.skip(skip).limit(limit).lean();
   }
 
-  let profiles = await runQuery(queryFilters);
+  // SPECIAL CASE FOR PAGE 1: Fetch Superlikers explicitly to ensure they are at the top
+  let profiles = [];
+  if (page === 1) {
+    const superlikersToFetch = receivedSuperlikes.filter(id => !baseExclude.includes(id.toString()));
+    if (superlikersToFetch.length > 0) {
+      const superlikerProfiles = await Profile.find({
+        userId: { $in: superlikersToFetch },
+        isMandatoryComplete: true,
+        "discovery.globalVisibility": "everyone"
+      }).limit(5).lean(); // Limit initial superlikers to avoid overcrowding
+      profiles = [...superlikerProfiles];
+    }
+  }
+
+  // Fetch remaining profiles
+  const remainingLimit = limit - profiles.length;
+  if (remainingLimit > 0) {
+    const currentExclude = [...new Set([...excludeIds, ...profiles.map(p => p.userId.toString())])];
+    queryFilters.userId = { $nin: currentExclude };
+    const additionalProfiles = await runQuery(queryFilters);
+    profiles = [...profiles, ...additionalProfiles];
+  }
 
   // 7. HANDLE EXHAUSTION (RETRY)
   if (profiles.length === 0 && seenProfiles.length > 0 && page === 1) {
@@ -157,7 +179,6 @@ async function getFeedService(userId, limit, page) {
     if (redis) await redis.del(SEEN_KEY);
     seenProfiles = [];
 
-    // Remove seenProfiles from exclusion list and retry
     queryFilters.userId = { $nin: baseExclude };
     profiles = await runQuery(queryFilters);
   }
@@ -169,7 +190,7 @@ async function getFeedService(userId, limit, page) {
   // 8. Transformation & Scoring
   const boostKeys = profiles.map(p => `boost:${p.userId.toString()}`);
   const boostResults = (redis && profiles.length) ? await redis.mGet(boostKeys) : [];
-  const superlikeSet = new Set(superlikes.map(id => id.toString()));
+  const superlikeSet = new Set(receivedSuperlikes.map(id => id.toString()));
 
   const myInterests = myProfile.attributes?.interests || myProfile.interests || [];
   const myPreferredInterests = discovery.preferredInterests || [];
@@ -507,6 +528,7 @@ async function doSwipe(swiperId, targetId, action) {
       // 10. Cache Clearing (Transaction ke andar ya bahar)
       if (redis) {
         await redis.del(`feed:${swiperId.toString()}`);
+        await redis.del(`feed:${targetId.toString()}`); // Clear recipient's cache too
         if (result.match) {
           await Promise.all([
             redis.del(`matches:${swiperId}`),

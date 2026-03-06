@@ -325,3 +325,50 @@ exports.unblockByPhone = async (req, res) => {
 
   res.json({ success: true, message: "Contact unblocked successfully" });
 };
+
+
+
+
+const mongoose = require("mongoose");
+
+exports.unblockUser = async (req, res) => {
+  try {
+
+    // 2️⃣ Expect the ID of the user to unblock in the request body
+    const { blockedId } = req.body;
+
+    // ---------------------------------------------------------
+    // 3️⃣ Validate the incoming blockedId
+    // ---------------------------------------------------------
+    if (!blockedId || !mongoose.Types.ObjectId.isValid(blockedId)) {
+      return res.status(400).json({
+        success: false,
+        message: "Valid blockedId is required"
+      });
+    }
+
+  
+    const result = await BlockedContact.deleteOne({
+      _id : blockedId    // who should be unblocked
+    });
+
+   
+    if (result.deletedCount === 0) {
+      return res.json({
+        success: true,
+        message: "Contact is not blocked"
+      });
+    }
+
+    res.json({
+      success: true,
+      message: "User unblocked successfully"
+    });
+  } catch (err) {
+    console.error("[UNBLOCK BY PHONE] Error:", err);
+    res.status(500).json({
+      success: false,
+      message: "Server error while unblocking user"
+    });
+  }
+};

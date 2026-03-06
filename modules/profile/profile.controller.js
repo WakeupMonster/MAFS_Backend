@@ -71,7 +71,7 @@ exports.updateProfile = async (req, res) => {
       //   const existing = await Profile.findOne({ nickname: p.nickname, userId: { $ne: userId } }).lean();
       //   if (existing) return res.status(400).json({ success: false, message: "Nickname taken" });
       // }
-      
+
     }
 
     if (updateData.attributes) {
@@ -109,17 +109,17 @@ exports.updateProfile = async (req, res) => {
       success: true,
       message: "Profile updated successfully",
       data: {
-        user: await  formatProfileResponse(data.user, profile, data.blockedContacts, data.blockedUser, data.subData,req),
-        
+        user: await formatProfileResponse(data.user, profile, data.blockedContacts, data.blockedUser, data.subData, req),
+
         // onboarding: buildOnboardingResponse(req)
       }
     });
   } catch (err) {
     console.error("Update Error:", err);
-      if (err.name === 'ValidationError') {
+    if (err.name === 'ValidationError') {
       // Mongoose saare errors ka object deta hai, humein pehla message chahiye
       const message = Object.values(err.errors).map(val => val.message)[0];
-      
+
       return res.status(400).json({
         success: false,
         message: message // Ye bhejega: "Woman is not a valid gender option"
@@ -137,13 +137,13 @@ exports.getMyProfile = async (req, res) => {
 
     res.json({
       success: true,
-      data: { user:await formatProfileResponse(data.user, data.profile, data.blockedContacts, data.blockedUser, data.subData,req) }
+      data: { user: await formatProfileResponse(data.user, data.profile, data.blockedContacts, data.blockedUser, data.subData, req) }
     });
   } catch (err) {
     res.status(500).json({ success: false, message: "Failed to fetch profile" });
   }
 };
-  
+
 exports.uploadPhotos = async (req, res) => {
   try {
     const userId = req.user._id;
@@ -191,7 +191,7 @@ exports.uploadPhotos = async (req, res) => {
       success: true,
       message: `${newPhotosResults.length} photo uploaded successfully`,
       data: {
-        user: await formatProfileResponse(data.user, profile, data.blockedContacts, data.blockedUser, data.subData,req),
+        user: await formatProfileResponse(data.user, profile, data.blockedContacts, data.blockedUser, data.subData, req),
         // onboarding: buildOnboardingResponse(req)
 
       }
@@ -223,7 +223,7 @@ exports.deletePhoto = async (req, res) => {
     res.json({
       success: true,
       message: "photo deleted successfully",
-      data: { user: await formatProfileResponse(data.user, profile, data.blockedContacts, data.blockedUser, data.subData,req) }
+      data: { user: await formatProfileResponse(data.user, profile, data.blockedContacts, data.blockedUser, data.subData, req) }
     });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
@@ -516,7 +516,7 @@ module.exports.uploadSelfie = async (req, res) => {
       success: true,
       message: "Selfie upload started...",
       data: {
-        user: await  formatProfileResponse(data.user, data.profile, data.blockedContacts, data.blockedUser, data.subData,req),
+        user: await formatProfileResponse(data.user, data.profile, data.blockedContacts, data.blockedUser, data.subData, req),
         // onboarding: buildOnboardingResponse(req)
       }
     });
@@ -565,7 +565,7 @@ module.exports.uploadIDDocument = async (req, res) => {
       success: true,
       message: "ID upload started. We will notify you once verified.",
       data: {
-        user: await formatProfileResponse(data.user, data.profile, data.blockedContacts, data.blockedUser, data.subData,req),
+        user: await formatProfileResponse(data.user, data.profile, data.blockedContacts, data.blockedUser, data.subData, req),
         // onboarding: buildOnboardingResponse(req)
       }
     });
@@ -665,27 +665,117 @@ exports.updateLocation = async (req, res) => {
   try {
     const userId = req.user._id;
     const { latitude, longitude, city, state, country, full_address } = req.body;
-    if (!latitude || !longitude) return res.status(400).json({ success: false, message: "Valid coordinates required" });
+
+    // Extra safety check (validation already handles this, but just in case)
+    if (latitude === undefined || longitude === undefined) {
+      return res.status(400).json({
+        success: false,
+        message: "Valid coordinates required (latitude and longitude)"
+      });
+    }
+
+    // Sanity check — catch swapped coordinates
+    if (Math.abs(latitude) > 90) {
+      return res.status(400).json({
+        success: false,
+        message: `Invalid latitude: ${latitude}. Latitude must be between -90 and 90. Did you swap latitude and longitude?`
+      });
+    }
+
+    if (Math.abs(longitude) > 180) {
+      return res.status(400).json({
+        success: false,
+        message: `Invalid longitude: ${longitude}. Longitude must be between -180 and 180.`
+      });
+    }
 
     let profile = await getOrCreateProfile(userId);
+
+    // MongoDB GeoJSON format: [longitude, latitude]
     profile.location = {
       type: "Point",
       coordinates: [Number(longitude), Number(latitude)],
-      city: city || "", state: state || "", country: country || "", full_address: full_address || ""
+      city: city || "",
+      state: state || "",
+      country: country || "",
+      full_address: full_address || ""
     };
 
     await profile.save();
-    const [data] = await Promise.all([getFullUserData(userId, profile), clearProfileCache(userId)]);
+
+    const [data] = await Promise.all([
+      getFullUserData(userId, profile),
+      clearProfileCache(userId)
+    ]);
 
     res.json({
       success: true,
       message: "Location updated successfully",
-      data: { user: await formatProfileResponse(data.user, profile, data.blockedContacts, data.blockedUser, data.subData,req) }
+      data: {
+        user: await formatProfileResponse(
+          data.user,
+          profile,
+          data.blockedContacts,
+          data.blockedUser,
+          data.subData,
+          req
+        )
+      }
     });
   } catch (err) {
-    res.status(500).json({ success: false, message: err.message });
+    console.error("Location Update Error:", err);
+
+    // Parse MongoDB geo errors into readable messages
+    let message = "Failed to update location. Please try again.";
+
+    if (err.message && err.message.includes("geo keys")) {
+      message =
+        "Invalid coordinates detected. Latitude must be between -90 and 90, " +
+        "and Longitude must be between -180 and 180. " +
+        "Please make sure you haven't swapped latitude and longitude.";
+    } else if (err.name === "ValidationError") {
+      // Mongoose validation error
+      const firstError = Object.values(err.errors)[0];
+      message = firstError?.message || "Invalid profile data provided.";
+    } else if (err.code === 16755) {
+      // MongoDB GeoJSON validation error code
+      message =
+        "Invalid geographic coordinates. Please check your latitude and longitude values.";
+    }
+
+    res.status(400).json({
+      success: false,
+      message
+    });
   }
 };
+
+// exports.updateLocation = async (req, res) => {
+//   try {
+//     const userId = req.user._id;
+//     const { latitude, longitude, city, state, country, full_address } = req.body;
+//     if (!latitude || !longitude) return res.status(400).json({ success: false, message: "Valid coordinates required" });
+
+//     let profile = await getOrCreateProfile(userId);
+//     profile.location = {
+//       type: "Point",
+//       coordinates: [Number(longitude), Number(latitude)],
+//       city: city || "", state: state || "", country: country || "", full_address: full_address || ""
+//     };
+
+//     await profile.save();
+//     const [data] = await Promise.all([getFullUserData(userId, profile), clearProfileCache(userId)]);
+
+//     res.json({
+//       success: true,
+//       message: "Location updated successfully",
+//       data: { user: await formatProfileResponse(data.user, profile, data.blockedContacts, data.blockedUser, data.subData, req) }
+//     });
+//   } catch (err) {
+//     console.error("Location Update Error:", err);
+//     res.status(400).json({ success: false, message: "Invalid location data or coordinates out of bounds" });
+//   }
+// };
 
 exports.getStatus = async (req, res) => {
   try {
@@ -696,7 +786,7 @@ exports.getStatus = async (req, res) => {
     if (cached) return res.json({ success: true, data: JSON.parse(cached), cached: true });
 
     const data = await getFullUserData(userId);
-    const formatted = await formatProfileResponse(data.user, data.profile, data.blockedContacts, data.blockedUser, data.subData,req);
+    const formatted = await formatProfileResponse(data.user, data.profile, data.blockedContacts, data.blockedUser, data.subData, req);
 
     await cache.set(cacheKey, JSON.stringify(formatted), { EX: 30 });
     res.json({ success: true, data: formatted, cached: false });
@@ -838,26 +928,29 @@ exports.updateDiscoveryFilters = async (req, res) => {
     const userId = req.user._id;
     const { discoveryFilters } = req.body;
     let profile = await Profile.findOne({ userId });
-
+console.log(discoveryFilters.distanceRange,"dis")
     if (discoveryFilters) {
       if (discoveryFilters.interests) profile.discovery.preferredInterests = discoveryFilters.interests;
       if (discoveryFilters.relationshipGoal) profile.discovery.filterRelationshipGoal = discoveryFilters.relationshipGoal;
       if (discoveryFilters.ageRange) profile.discovery.ageRange = discoveryFilters.ageRange;
+      if(discoveryFilters.distanceRange) profile.discovery.distanceRange = discoveryFilters.distanceRange
       if (discoveryFilters.advanced) {
         profile.discovery.advancedFilters = { ...profile.discovery.advancedFilters, ...discoveryFilters.advanced };
-      };  
-      if(discoveryFilters.showMeGender) profile.discovery.showMeGender = discoveryFilters.showMeGender
+      };
+      if (discoveryFilters.showMeGender) profile.discovery.showMeGender = discoveryFilters.showMeGender
     }
 
     await profile.save();
 
     if (redis) await redis.del(`feed:${userId.toString()}`);
-    
-     const formattedUser = await getFormattedUser(userId, req);
 
-    return res.json({ success: true, message: "Filters applied! Feed is refreshing." ,  data: {
+    const formattedUser = await getFormattedUser(userId, req);
+
+    return res.json({
+      success: true, message: "Filters applied! Feed is refreshing.", data: {
         user: formattedUser
-      }});
+      }
+    });
 
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });

@@ -247,9 +247,9 @@ module.exports.SampleGETallUser = async (req, res) => {
       baseMatch.lastLoginAt = { $gte: twentyFourHoursAgo };
     }
 
-    const searchRegex = searchTrimmed
-      ? new RegExp(searchTrimmed.replace(/[.*+?^${}()|[\\/]\\]/g, "\\$&"), "i")
-      : null;
+    // const searchRegex = searchTrimmed
+    //   ? new RegExp(searchTrimmed.replace(/[.*+?^${}()|[\\/]\\]/g, "\\$&"), "i")
+    //   : null;
 
     // Your Pipeline (Keeping your existing pipeline structure)
     const pipeline = [
@@ -263,6 +263,50 @@ module.exports.SampleGETallUser = async (req, res) => {
         },
       },
       { $unwind: { path: "$profile", preserveNullAndEmptyArrays: true } },
+      ...(searchTrimmed
+        ? [
+            {
+              $match: {
+                $or: [
+                  {
+                    email: new RegExp(
+                      searchTrimmed.replace(/[.*+?^${}()|[\\/]\\]/g, "\\$&"),
+                      "i"
+                    ),
+                  },
+                  {
+                    phone: new RegExp(
+                      searchTrimmed.replace(/[.*+?^${}()|[\\/]\\]/g, "\\$&"),
+                      "i"
+                    ),
+                  },
+                  {
+                    "profile.nickname": new RegExp(
+                      searchTrimmed.replace(/[.*+?^${}()|[\\/]\\]/g, "\\$&"),
+                      "i"
+                    ),
+                  },
+                  {
+                    "profile.gender": new RegExp(
+                      searchTrimmed.replace(/[.*+?^${}()|[\\/]\\]/g, "\\$&"),
+                      "i"
+                    ),
+                  },
+                  {
+                    "profile.location.address": new RegExp(
+                      searchTrimmed.replace(/[.*+?^${}()|[\\/]\\]/g, "\\$&"),
+                      "i"
+                    ),
+                  },
+                  // Exact match for Age if search is a number
+                  ...(!isNaN(parseInt(searchTrimmed))
+                    ? [{ "profile.age": parseInt(searchTrimmed) }]
+                    : []),
+                ],
+              },
+            },
+          ]
+        : [{ $sort: { createdAt: -1 } }]),
       {
         $lookup: {
           from: "accounts",
@@ -309,30 +353,6 @@ module.exports.SampleGETallUser = async (req, res) => {
           },
         },
       },
-      // {
-      //   $lookup: {
-      //     from: "subscriptiontransactions",
-      //     // let: { userId: "$_id" },
-      //     // pipeline: [
-      //     //   { $match: { $expr: { $eq: ["$userId", "$$userId"] } } },
-      //     //   { $sort: { createdAt: -1 } },
-      //     // ],
-      //     localField: "_id",
-      //     foreignField: "userId",
-      //     as: "transactionHistory",
-      //   },
-      // },
-      // // 2. Sort the history array (Optional: newest first)
-      // {
-      //   $addFields: {
-      //     transactionHistory: {
-      //       $sortArray: {
-      //         input: "$transactionHistory",
-      //         sortBy: { createdAt: -1 },
-      //       },
-      //     },
-      //   },
-      // },
       {
         $lookup: {
           from: "subscriptiontransactions",
@@ -351,63 +371,63 @@ module.exports.SampleGETallUser = async (req, res) => {
           },
         },
       },
-      ...(searchRegex
-        ? [
-            {
-              $match: {
-                $or: [
-                  { email: searchRegex },
-                  { "profile.nickname": searchRegex },
-                ],
-              },
-            }, // Simplified for brevity, use your full list
-            {
-              $addFields: {
-                searchScore: {
-                  $sum: [
-                    {
-                      $cond: [
-                        {
-                          $regexMatch: {
-                            input: { $ifNull: ["$profile.nickname", ""] },
-                            regex: searchRegex,
-                          },
-                        },
-                        10,
-                        0,
-                      ],
-                    },
-                    {
-                      $cond: [
-                        {
-                          $regexMatch: {
-                            input: { $ifNull: ["$account.email", ""] },
-                            regex: searchRegex,
-                          },
-                        },
-                        8,
-                        0,
-                      ],
-                    },
-                    {
-                      $cond: [
-                        {
-                          $regexMatch: {
-                            input: { $ifNull: ["$profile.jobTitle", ""] },
-                            regex: searchRegex,
-                          },
-                        },
-                        5,
-                        0,
-                      ],
-                    },
-                  ],
-                },
-              },
-            },
-            { $sort: { searchScore: -1, createdAt: -1 } },
-          ]
-        : [{ $sort: { createdAt: -1 } }]),
+      // ...(searchRegex
+      //   ? [
+      //       {
+      //         $match: {
+      //           $or: [
+      //             { "account.email": searchRegex },
+      //             { "profile.nickname": searchRegex },
+      //           ],
+      //         },
+      //       }, // Simplified for brevity, use your full list
+      //       {
+      //         $addFields: {
+      //           searchScore: {
+      //             $sum: [
+      //               {
+      //                 $cond: [
+      //                   {
+      //                     $regexMatch: {
+      //                       input: { $ifNull: ["$profile.nickname", ""] },
+      //                       regex: searchRegex,
+      //                     },
+      //                   },
+      //                   10,
+      //                   0,
+      //                 ],
+      //               },
+      //               {
+      //                 $cond: [
+      //                   {
+      //                     $regexMatch: {
+      //                       input: { $ifNull: ["$account.email", ""] },
+      //                       regex: searchRegex,
+      //                     },
+      //                   },
+      //                   8,
+      //                   0,
+      //                 ],
+      //               },
+      //               {
+      //                 $cond: [
+      //                   {
+      //                     $regexMatch: {
+      //                       input: { $ifNull: ["$profile.jobTitle", ""] },
+      //                       regex: searchRegex,
+      //                     },
+      //                   },
+      //                   5,
+      //                   0,
+      //                 ],
+      //               },
+      //             ],
+      //           },
+      //         },
+      //       },
+      //       { $sort: { searchScore: -1, createdAt: -1 } },
+      //     ]
+      //   : [{ $sort: { createdAt: -1 } }]),
       {
         $facet: {
           data: [

@@ -111,6 +111,7 @@ module.exports = function chatSocket(io, redisClient) {
             type: "BLOCKED",
             matchId,
             message: "You cannot access this chat",
+            isBlockedByMe : blocked.blockedByMe
           });
           return;
         }
@@ -221,6 +222,7 @@ module.exports = function chatSocket(io, redisClient) {
               matchId,
               clientMessageId,
               message: "You cannot send messages to this user",
+              isBlockedByMe: blocked.blockedByMe
             });
             if (typeof ack === "function") {
               ack({ success: false, error: "Cannot send message" });

@@ -112,7 +112,7 @@ exports.profileUpdateSchema = Joi.object({
   profile: Joi.object({
     nickname: Joi.string().min(2).max(30).label("Nickname"),
     dob: Joi.date().iso().label("Date of Birth"),
-    gender: Joi.string().valid("man", "woman", "non-binary","trans-man","trans-woman","genderqueer","everyone").label("Gender"),
+    gender: Joi.string().valid("man", "woman", "non-binary", "trans-man", "trans-woman", "genderqueer", "everyone").label("Gender"),
     height: Joi.number().min(100).max(250).label("Height"),
     about: Joi.string().max(500).label("About"),
     jobTitle: Joi.string().max(50).label("Job Title"),
@@ -122,18 +122,18 @@ exports.profileUpdateSchema = Joi.object({
     weight: Joi.number().min(30).max(300).label("Weight")
   }).required(),
   attributes: attributesSchema,
-   discovery: discoverySchema
+  discovery: discoverySchema
 });
 
 // exports.locationSchema = Joi.object({
-//   latitude: Joi.number().min(-90).max(90).required() .label("Latitude")
+//   latitude: Joi.number().min(-90).max(90).required().label("Latitude")
 //     .messages({
 //       "any.required": "Latitude is required",
 //       "number.base": "Latitude must be a number",
 //       "number.min": "Latitude must be between -90 and 90",
 //       "number.max": "Latitude must be between -90 and 90"
 //     }),
-//   longitude: Joi.number().min(-180).max(180).required() .label("Longitude")
+//   longitude: Joi.number().min(-180).max(180).required().label("Longitude")
 //     .messages({
 //       "any.required": "Longitude is required",
 //       "number.base": "Longitude must be a number",
@@ -146,6 +146,40 @@ exports.profileUpdateSchema = Joi.object({
 //   country: Joi.string().allow("", null).label("Country"),
 //   full_address: Joi.string().allow("", null).label("Full Address")
 // });
+
+
+
+// profile.schema.js
+
+exports.locationSchema = Joi.object({
+  latitude: Joi.number()
+    .min(-90)
+    .max(90)
+    .required()
+    .label("Latitude")
+    .messages({
+      "any.required": "Latitude is required",
+      "number.base": "Latitude must be a number",
+      "number.min": "Latitude must be between -90 and 90",
+      "number.max": "Latitude must be between -90 and 90"
+    }),
+  longitude: Joi.number()
+    .min(-180)
+    .max(180)
+    .required()
+    .label("Longitude")
+    .messages({
+      "any.required": "Longitude is required",
+      "number.base": "Longitude must be a number",
+      "number.min": "Longitude must be between -180 and 180",
+      "number.max": "Longitude must be between -180 and 180"
+    }),
+
+  city: Joi.string().allow("", null).label("City"),
+  state: Joi.string().allow("", null).label("State"),
+  country: Joi.string().allow("", null).label("Country"),
+  full_address: Joi.string().allow("", null).label("Full Address")
+});
 
 exports.userIdParamSchema = Joi.object({
   userId: objectId.required()

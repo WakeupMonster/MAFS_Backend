@@ -7,7 +7,7 @@ const validate = require("../../common/middlewares/validate");
 // const {importContacts,blockContacts,getBlockedContacts,unblockContact} = require("./contacts.controller");
 
 const {importContactsSchema} = require("./contacts.validation");
-const { importContacts, blockContacts, getBlockedContacts, unblockByPhone } = require("./contacts.controller");
+const { importContacts, blockContacts, getBlockedContacts, unblockByPhone , unblockUser } = require("./contacts.controller");
 
 router.post("/import",auth,validate(importContactsSchema),importContacts);
 
@@ -17,5 +17,7 @@ router.get("/blocked", auth, getBlockedContacts);
 
 router.delete("/unblock", auth, unblockByPhone
 );
+
+router.delete("/unblock/user", auth, unblockUser);
 
 module.exports = router;

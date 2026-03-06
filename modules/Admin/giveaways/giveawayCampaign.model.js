@@ -52,27 +52,6 @@ const giveawayCampaignSchema = new mongoose.Schema(
     isActive: {
       type: Boolean,
       default: true
-    },
-    participants: [
-      {
-        type: mongoose.Schema.Types.ObjectId,
-        ref: "User"
-      }
-    ],
-    
-    totalParticipants: {
-      type: Number,
-      default: 0
-    },
-
-    matchWindowStart: {
-      type: Date,
-      default: null
-    },
-
-    matchWindowEnd : {
-      type: Date,
-      default: null
     }
   },
   {

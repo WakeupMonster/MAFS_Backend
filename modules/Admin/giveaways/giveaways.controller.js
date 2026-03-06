@@ -5,6 +5,7 @@ const notificationService = require("../../notifications/notification.service");
 const User = require("../../../modules/auth/auth.model");
 const Prize = require("./prize.model");
 const utils = require("../../auth/auth.utils");
+const Profile = require("../../profile/profile.model"); // adjust path
 
 module.exports.getAllPrizes = async (req, res) => {
   try {
@@ -216,11 +217,6 @@ module.exports.deletePrize = async (req, res, next) => {
 module.exports.createCampaign = async (req, res) => {
   try {
     const { date, prizeId } = req.body;
-
-    //   const campaignDate = dayjs(date)
-    // .tz("Australia/Sydney")
-    // .startOf("day")
-    // .toDate();
 
     const campaignDate = new Date(date);
     campaignDate.setHours(0, 0, 0, 0);
@@ -1208,8 +1204,6 @@ exports.deleteCampaign = async (req, res, next) => {
   }
 };
 
-const Profile = require("../../profile/profile.model"); // adjust path
-
 module.exports.getParticipants = async (req, res) => {
   try {
     const { campaignId } = req.params;
@@ -1304,7 +1298,6 @@ module.exports.getParticipants = async (req, res) => {
 
     return res.status(200).json({
       success: true,
-      data: participants,
       campaign: {
         _id: campaign._id,
         date: campaign.date,
@@ -1318,6 +1311,7 @@ module.exports.getParticipants = async (req, res) => {
         total,
         totalPages: Math.ceil(total / Number(limit)),
       },
+      data: participants,
     });
   } catch (error) {
     console.error("Get participants error:", error);
