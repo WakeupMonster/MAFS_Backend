@@ -13,7 +13,7 @@ const GiveawaySettings = require("../../modules/Admin/giveaways/giveawaySettings
 dayjs.extend(utc);
 dayjs.extend(timezone);
 
-const IST_TZ = "Asia/Kolkata";  ``
+const IST_TZ = "Asia/Kolkata";  
 
 module.exports = async function runGiveawayWorker() {
   console.log("🎯 Giveaway worker started at:", new Date().toISOString());
@@ -59,8 +59,11 @@ module.exports = async function runGiveawayWorker() {
     // ===============================
     // 3️⃣ Match window = TODAY (IST)
     // ===============================
-    const giveawayStart = nowIST.startOf("day").toDate();
-    const giveawayEnd = nowIST.endOf("day").toDate();
+    // const giveawayStart = nowIST.startOf("day").toDate();
+    // const giveawayEnd = nowIST.endOf("day").toDate();
+
+    const giveawayStart = dayjs().tz(IST_TZ).subtract(1, "day").startOf("day").toDate();
+const giveawayEnd = dayjs().tz(IST_TZ).subtract(1, "day").endOf("day").toDate();
 
     console.log("🎰 Match window:", giveawayStart, "→", giveawayEnd);
 

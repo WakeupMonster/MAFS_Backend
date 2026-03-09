@@ -1,5 +1,6 @@
 const GiveawayCampaign = require("../Admin/giveaways/giveawayCampaign.model");
 const Prize = require("../Admin/giveaways/prize.model");
+const GiveawayWinHistory = require("../Admin/giveaways/giveawayWinHistory.model")
 
 module.exports.getSpinWheelConfig = async (req, res) => {
   try {
@@ -21,7 +22,7 @@ module.exports.getSpinWheelConfig = async (req, res) => {
       drawStatus: "COMPLETED",
     });
 
-    const supportItem = await GiveawayPrize.findOne({
+    const supportItem = await Prize.findOne({
       isActive: true,
     });
 
@@ -61,6 +62,10 @@ module.exports.getSpinWheelConfig = async (req, res) => {
      */
     let supportiveItems = [...supportItem.supportiveItems];
 
+      let wheelItems = prize.supportiveItems.map((item) => ({
+      label: item,
+    }));
+
     /**
      * 6️⃣ Random index decide karo
      * (sirf UI ke liye, winner already decided hai)
@@ -75,15 +80,20 @@ module.exports.getSpinWheelConfig = async (req, res) => {
      */
     supportiveItems.splice(winnerIndex, 0, prize.spinWheelLabel);
 
+      wheelItems.splice(winnerIndex, 0, {
+      label: prize.spinWheelLabel,
+    });
+
     /**
      * 8️⃣ Final response frontend ko bhejo
      */
     return res.json({
       available: true,
       showSpin: true,
-
+ items: wheelItems,
       // Spin wheel ke saare labels
-      items: supportiveItems.map((label) => ({ label })),
+      // items: supportiveItems.map((label) => ({ label })),
+        supportiveItems: prize.supportiveItems,
 
       // Frontend isi index par wheel rokega
       winnerIndex,

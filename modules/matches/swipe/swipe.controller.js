@@ -13,22 +13,22 @@ exports.getFeed = async (req, res) => {
     const limit = Number(req.query.limit) || 20;
     const page = Number(req.query.page) || 1;
 
-    const feedResult = await service.getFeedService(userId, limit,page);
-    
+    const feedResult = await service.getFeedService(userId, limit, page);
+
     return res.json({
       success: true,
-      message : "Feed fetched successfully",
-      count: feedResult.data.length,  
+      message: "Feed fetched successfully",
+      count: feedResult.data.length,
       //  cached: feedResult.cached,
-  //       data: {
-  //   count: feedResult.data.length,
-  //    pagination: {
-  //   limit,
-  //   nextCursor: null,
-  //   hasNextPage: false
-  // },
-  // list: feedResult.data
-  // },
+      //       data: {
+      //   count: feedResult.data.length,
+      //    pagination: {
+      //   limit,
+      //   nextCursor: null,
+      //   hasNextPage: false
+      // },
+      // list: feedResult.data
+      // },
       data: feedResult.data,
       userQuota: feedResult.userQuota
     });
@@ -66,7 +66,7 @@ exports.unmatchUser = async (req, res) => {
     await session.withTransaction(async () => {
       // 1. Match dhundo aur check karo ki user us match ka part hai
       const match = await Match.findOne({ _id: matchId, users: userId }).session(session);
-      
+
       if (!match) {
         throw new Error("Match not found or already unmatched");
       }
@@ -85,10 +85,10 @@ exports.unmatchUser = async (req, res) => {
         ]
       }).session(session);
     });
- if (redis) {
-        const CACHE_KEY = `feed:${userId.toString()}`;
-        await redis.del(CACHE_KEY);
-        console.log("Redis cache cleared for new filters");
+    if (redis) {
+      const CACHE_KEY = `feed:${userId.toString()}`;
+      await redis.del(CACHE_KEY);
+      console.log("Redis cache cleared for new filters");
     }
 
     session.endSession();
@@ -163,24 +163,37 @@ exports.getMatches = async (req, res) => {
   }
 };
 function calculateDistance(lat1, lon1, lat2, lon2) {
-    const R = 6371; 
-    const dLat = (lat2 - lat1) * (Math.PI / 180);
-    const dLon = (lon2 - lon1) * (Math.PI / 180);
-    const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-              Math.cos(lat1 * (Math.PI / 180)) * Math.cos(lat2 * (Math.PI / 180)) *
-              Math.sin(dLon / 2) * Math.sin(dLon / 2);
-    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-    return Math.round(R * c); 
+  const R = 6371;
+  const dLat = (lat2 - lat1) * (Math.PI / 180);
+  const dLon = (lon2 - lon1) * (Math.PI / 180);
+  const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos(lat1 * (Math.PI / 180)) * Math.cos(lat2 * (Math.PI / 180)) *
+    Math.sin(dLon / 2) * Math.sin(dLon / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return Math.round(R * c);
 }
 function calculateAge(dob) {
-    if (!dob) return 0;
-    const diff = Date.now() - new Date(dob).getTime();
-    return Math.floor(diff / 31557600000); // Years in ms
+  if (!dob) return 0;
+  const diff = Date.now() - new Date(dob).getTime();
+  return Math.floor(diff / 31557600000); // Years in ms
 }
 
 exports.getKeenData = async (req, res, actionType) => {
   try {
     const userId = req.user._id;
+
+    // 1. Premium Check for normal likes (v3 Requirements)
+    if (actionType === 'like') {
+      const usageStatus = await UsageService.getUsageStatus(userId);
+      if (!usageStatus.data.features.canSeeWhoLiked) {
+        return res.status(403).json({
+          success: false,
+          code: "PREMIUM_REQUIRED",
+          message: "See who liked you is a premium feature."
+        });
+      }
+    }
+
     const { page = 1, limit = 20 } = req.query;
     const skip = (parseInt(page) - 1) * parseInt(limit);
 
@@ -188,12 +201,12 @@ exports.getKeenData = async (req, res, actionType) => {
     const mySwipedIds = await Swipe.find({ swiperId: userId }).distinct("targetId");
 
     const matchedUserIds = await Match.find({ users: userId })
-  .lean()
-  .then(matches =>
-    matches.map(m =>
-      m.users.find(u => u.toString() !== userId.toString())
-    )
-  );
+      .lean()
+      .then(matches =>
+        matches.map(m =>
+          m.users.find(u => u.toString() !== userId.toString())
+        )
+      );
 
 
     // 2. Swipes dhundna (Populate ko Profile collection par point kar rahe hain)
@@ -201,33 +214,33 @@ exports.getKeenData = async (req, res, actionType) => {
       targetId: userId,
       action: actionType,
       swiperId: { $nin: mySwipedIds }
-  //      swiperId: {
-  //   $nin: [...mySwipedIds, ...matchedUserIds]
-  // }
+      //      swiperId: {
+      //   $nin: [...mySwipedIds, ...matchedUserIds]
+      // }
     })
-    .sort({ createdAt: -1 })
-    .skip(skip)
-    .limit(parseInt(limit))
-    .populate({
-      path: 'swiperId',
-      model: 'Profile',   // <--- YE SABSE IMPORTANT HAI (Profile collection se data lega)
-      foreignField: 'userId', // <--- Profile model mein userId se match karega
-      select: 'nickname dob photos location about'
-    });
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(parseInt(limit))
+      .populate({
+        path: 'swiperId',
+        model: 'Profile',   // <--- YE SABSE IMPORTANT HAI (Profile collection se data lega)
+        foreignField: 'userId', // <--- Profile model mein userId se match karega
+        select: 'nickname dob photos location about'
+      });
 
 
     const total = await Swipe.countDocuments({
       targetId: userId,
       action: actionType,
       // swiperId: { $nin: mySwipedIds }
-       swiperId: {
-    $nin: [...mySwipedIds, ...matchedUserIds]
-  }
+      swiperId: {
+        $nin: [...mySwipedIds, ...matchedUserIds]
+      }
     });
 
 
     const formattedData = keens.map(item => {
-      const profile = item.swiperId; 
+      const profile = item.swiperId;
 
       if (!profile || !profile.nickname) return null;
 
@@ -242,10 +255,10 @@ exports.getKeenData = async (req, res, actionType) => {
 
       // 🔥 EXACT MANAGER RESPONSE FORMAT
       return {
-        userId: profile.userId, 
+        userId: profile.userId,
         nickname: profile.nickname,
         age: age,
-        mainPhotoUrl: profile.photos?.sort((a,b) => a.order - b.order)[0]?.url || "",
+        mainPhotoUrl: profile.photos?.sort((a, b) => a.order - b.order)[0]?.url || "",
         distanceText: distance <= 1 ? "1 km away" : `${distance} km away`,
         city: profile.location?.city || "Nearby",
         action: item.action, // 'like' or 'superlike'
@@ -261,11 +274,11 @@ exports.getKeenData = async (req, res, actionType) => {
     return res.json({
       success: true,
       data: formattedData,
-      meta: { 
-        total, 
-        page: pageNum, 
+      meta: {
+        total,
+        page: pageNum,
         limit: limitNum,
-        hasMore: hasMore 
+        hasMore: hasMore
       }
     });
 
@@ -280,11 +293,28 @@ exports.getSuperKeen = (req, res) => exports.getKeenData(req, res, "superlike");
 
 
 
+const UsageService = require("../../subscription/services/usage.service");
+
 exports.undo = async (req, res) => {
   const session = await mongoose.startSession();
 
   try {
     const userId = req.user._id;
+
+    // 1️⃣ REWIND QUOTA CHECK (v3 Requirements)
+    try {
+      await UsageService.useItem(userId, 'REWIND');
+    } catch (error) {
+      if (error.message === 'LIMIT_REACHED') {
+        return res.status(403).json({
+          success: false,
+          code: "LIMIT_REACHED",
+          message: "You've reached your daily Rewind limit! Upgrade to Premium for unlimited rewinds."
+        });
+      }
+      throw error;
+    }
+
     let undone = null;
 
     await session.withTransaction(async () => {

@@ -12,10 +12,10 @@ const Block = require("../../../modules/profile/user.block");
 const Report = require("../../../modules/profile/user.report");
 const redis = require("../../../config/cache");
 const BlockedContact = require("../../BlockedContact/blockedContacts.model");
-const { checkUserQuota } = require("../../../common/utils/quotaHelper")
-const UserSubscription = require("../../auth/UserSubscription.model")
 const { canUserAccessFeed } = require("../../../common/utils/profileAccess");
 const { addNotificationJob } = require('../../../queues/notification.queue');
+const UsageService = require("../../subscription/services/usage.service");
+const Subscription = require("../../subscription/models/Subscription");
 
 function calculateDistance(lat1, lon1, lat2, lon2) {
   const R = 6371;
@@ -37,12 +37,11 @@ async function getFeedService(userId, limit, page) {
 
   // 1. Setup Subscription and Profile
   let [sub, myProfile] = await Promise.all([
-    UserSubscription.findOne({ userId }),
+    Subscription.findOne({ userId, status: 'ACTIVE', expiresAt: { $gt: new Date() } }).lean(),
     Profile.findOne({ userId }).lean()
   ]);
 
-  if (!sub) sub = await UserSubscription.create({ userId });
-  sub.resetIfNeeded();
+  const isPremium = !!sub;
   if (!myProfile) throw new Error("Profile not found");
 
   const discovery = myProfile.discovery || {};
@@ -366,9 +365,13 @@ function calculateAge(dob) {
 }
 
 async function doSwipe(swiperId, targetId, action) {
-  // 1. Initial Self-Swipe Check
+  // 1. Initial Checks
   if (swiperId.toString() === targetId.toString()) {
     throw new Error("Cannot swipe on your own profile");
+  }
+
+  if (!mongoose.Types.ObjectId.isValid(targetId) || !/^[0-9a-fA-F]{24}$/.test(targetId.toString())) {
+    throw new Error("Invalid target user ID format. ID must be a 24-character hex string.");
   }
 
   const session = await mongoose.startSession();
@@ -379,45 +382,10 @@ async function doSwipe(swiperId, targetId, action) {
     // Sab kuch ek hi transaction block mein
     await session.withTransaction(async () => {
 
-      // 2. Fetch Subscription (Session ke saath)
-      let sub = await UserSubscription.findOne({ userId: swiperId }).session(session);
-      if (!sub) {
-        [sub] = await UserSubscription.create([{ userId: swiperId }], { session });
-      }
+      // 2. Determine Usage Type
+      const usageType = action === 'superlike' ? 'SUPER_KEEN' : 'LIKE';
 
-      // 3. Reset daily counters if it's a new day
-      sub.resetIfNeeded();
-
-      // 4. GATEKEEPER CHECK
-      const quota = checkUserQuota(sub, action);
-      if (!quota.allowed) {
-        const now = new Date();
-        const tonight = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
-
-        // Return structured error for Frontend
-        result = {
-          success: false,
-          error: "LIMIT_REACHED",
-          message: action === 'like' ? "Daily likes limit reached!" : "No Superlikes left for today!",
-          data: {
-            quotaStatus: {
-              used: action === 'like' ? sub.dailyLikesUsed : sub.dailySuperlikesUsed,
-              limit: quota.total,
-              remaining: 0,
-              resetAt: tonight
-            },
-            upsell: {
-              title: "Don't stop swiping!",
-              description: "Upgrade now to get unlimited likes and more superlikes.",
-              action: "SHOW_PREMIUM_MODAL"
-            }
-          }
-        };
-        // Yahan se bahar nikal jao (Transaction abort nahi hogi, bas update nahi hoga)
-        return;
-      }
-
-      // 5. Target Profile aur Block Check
+      // 3. Target Profile aur Block Check
       const [targetProfile, blockExists] = await Promise.all([
         Profile.findOne({ userId: targetId }).session(session),
         Block.findOne({
@@ -431,20 +399,42 @@ async function doSwipe(swiperId, targetId, action) {
       if (!targetProfile) throw new Error('Target profile not found');
       if (blockExists) throw new Error("Action not allowed. User interaction is blocked.");
 
-      // 6. Avoid Duplicates
+      // 4. Avoid Duplicates
       const existingSwipe = await Swipe.findOne({ swiperId, targetId }).session(session);
       if (existingSwipe) {
         result = { success: true, already: true, message: "Already swiped", match: false };
         return;
       }
 
-      // 7. 🔥 UPDATE COUNTER & SAVE (Ye line DB update karegi)
-      if (action === 'like') {
-        sub.dailyLikesUsed += 1;
-      } else if (action === 'superlike') {
-        sub.dailySuperlikesUsed += 1;
+      // 5. GATEKEEPER CHECK (v3)
+      let usageResult;
+      try {
+        if (action !== 'pass') {
+          // Note: UsageService is not part of the transaction because it needs to persist 
+          // across failed transactions and manages its own atomic operations.
+          usageResult = await UsageService.useItem(swiperId, usageType);
+        }
+      } catch (error) {
+        if (error.message === 'LIMIT_REACHED') {
+          // Fetch current status for rich error response
+          const status = await UsageService.getUsageStatus(swiperId);
+          result = {
+            success: false,
+            error: "LIMIT_REACHED",
+            message: action === 'like' ? "Daily likes limit reached!" : "No Super Keens left!",
+            data: {
+              quotaStatus: status.data.quotas[usageType === 'LIKE' ? 'likes' : 'superKeens'],
+              upsell: {
+                title: "Don't stop swiping!",
+                description: "Upgrade now to get unlimited likes and more super keens.",
+                action: "SHOW_PREMIUM_MODAL"
+              }
+            }
+          };
+          return; // Exit transaction block gracefully
+        }
+        throw error; // Other errors
       }
-      await sub.save({ session }); // Ab ye save hoga because of clean session
 
       // 8. Create Swipe Record
       await Swipe.create([{ swiperId, targetId, action, createdAt: new Date() }], { session });
@@ -482,31 +472,23 @@ async function doSwipe(swiperId, targetId, action) {
                 },
                 myPhotoUrl: myProfile?.photos?.[0]?.url || null
               },
-              // 🔥 Wallet Section (Calculated from updated 'sub')
-              wallet: {
-                likesRemaining: Math.max(0, 30 - sub.dailyLikesUsed),
-                superLikesRemaining: Math.max(0, 3 - sub.dailySuperlikesUsed) + (sub.superlikeBalance || 0),
-                rewindsRemaining: sub.planId !== 'free' ? 999 : 0
-              }
+              // 🔥 Wallet Section (v3)
+              wallet: (await UsageService.getUsageStatus(swiperId)).data.wallet
             }
           };
           addNotificationJob('NEW_MATCH', { userId1: swiperId, userId2: targetId });
         } else {
           // 🔥 CASE 2: NO MATCH (Manager's exact request)
           // Ye response dikhega jab user swipe karega par samne wale ne abhi like nahi kiya
+          const status = await UsageService.getUsageStatus(swiperId);
           result = {
             success: true,
             data: {
               isMatch: false,
               matchDetails: null,
-              wallet: {
-                likesRemaining: Math.max(0, 30 - sub.dailyLikesUsed),
-                superLikesRemaining: Math.max(0, 3 - sub.dailySuperlikesUsed) + (sub.superlikeBalance || 0),
-                rewindsRemaining: sub.planId !== 'free' ? 5 : 0
-              }
-
+              wallet: status.data.wallet,
+              quotas: status.data.quotas
             }
-
           }
           if (action === 'like' || action === 'superlike') {
             addNotificationJob('NEW_LIKE', { senderId: swiperId, receiverId: targetId });
@@ -549,6 +531,15 @@ async function doSwipe(swiperId, targetId, action) {
 }
 
 async function undoSwipe(swiperId, targetId) {
+  // 1. Quota Check (v3) 
+  try {
+    await UsageService.useItem(swiperId, 'REWIND');
+  } catch (error) {
+    if (error.message === 'LIMIT_REACHED') {
+      throw new Error("No Rewinds left for today!");
+    }
+    throw error;
+  }
 
   const lastSwipe = await Swipe.findOne({ swiperId, targetId })
     .sort({ createdAt: -1 });
@@ -556,6 +547,9 @@ async function undoSwipe(swiperId, targetId) {
   if (!lastSwipe) throw new Error("No swipe to undo");
 
   if (lastSwipe.action === "superlike") {
+    // Note: Guide says super keens can be undone? 
+    // Usually Super Keens are high value, some apps block undo. 
+    // Keeping existing behavior unless asked.
     throw new Error("Superlike undo not allowed");
   }
 
@@ -569,7 +563,6 @@ async function undoSwipe(swiperId, targetId) {
   if (redis) {
     await Promise.all([
       redis.sRem(`swiped:${swiperId}`, targetId.toString()),
-      redis.lPush(`queue:${swiperId}`, targetId.toString()),
       redis.del(`feed:${swiperId}`)
     ]);
   }

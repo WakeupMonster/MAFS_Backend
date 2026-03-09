@@ -184,13 +184,6 @@
 
 
 
-
-
-
-
-
-
-
 const User = require("../auth/auth.model");
 const BlockedContact = require("./blockedContacts.model");
 const { normalizePhone, hashPhone } = require("../../common/utils/phone.util");

@@ -358,18 +358,18 @@ const getAllSubscriptions = async (req, res, next) => {
       // 3. Advanced Searching (Search across Subscriptions AND Profiles)
       ...(search
         ? [
-            {
-              $match: {
-                $or: [
-                  { originalTransactionId: { $regex: search, $options: "i" } },
-                  { orderId: { $regex: search, $options: "i" } },
-                  { "profile.nickname": { $regex: search, $options: "i" } },
-                  { "userDetails.email": { $regex: search, $options: "i" } },
-                  { "userDetails.phone": { $regex: search, $options: "i" } },
-                ],
-              },
+          {
+            $match: {
+              $or: [
+                { originalTransactionId: { $regex: search, $options: "i" } },
+                { orderId: { $regex: search, $options: "i" } },
+                { "profile.nickname": { $regex: search, $options: "i" } },
+                { "userDetails.email": { $regex: search, $options: "i" } },
+                { "userDetails.phone": { $regex: search, $options: "i" } },
+              ],
             },
-          ]
+          },
+        ]
         : []),
 
       // 4. Multi-faceted Output (Data + Pagination in one query)
@@ -1042,6 +1042,33 @@ const getAllTransactions = async (req, res, next) => {
   }
 };
 
+const makeMePremiumTemp = async (req, res, next) => {
+  try {
+    const userId = req.user._id;
+
+    // Purane agar koi hain toh unko expire kardo
+    await Subscription.updateMany({ userId }, { status: 'EXPIRED' });
+
+    const oneMonthFromNow = new Date();
+    oneMonthFromNow.setMonth(oneMonthFromNow.getMonth() + 1);
+
+    const subscription = await Subscription.create({
+      userId: userId,
+      platform: "admin_granted",
+      productId: "test_premium_plan_1",
+      planType: "monthly",
+      status: "ACTIVE",
+      startedAt: new Date(),
+      expiresAt: oneMonthFromNow,
+      environment: "sandbox",
+    });
+
+    return res.json({ success: true, message: "Aap ab 1 mahine ke liye premium hain!", data: subscription });
+  } catch (err) {
+    return next(err);
+  }
+};
+
 module.exports = {
   verifyPurchase,
   getStatus,
@@ -1055,4 +1082,5 @@ module.exports = {
   getAtRiskUsers,
   getWebhookEvents,
   getAllTransactions,
+  makeMePremiumTemp
 };

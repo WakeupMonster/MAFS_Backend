@@ -13,6 +13,7 @@ const {
   getAtRiskUsers,
   getWebhookEvents,
   getAllTransactions,
+  makeMePremiumTemp
 } = require("../controllers/subscription.controller");
 const { apiLimiter } = require("../middlewares/rateLimiter.middleware");
 const {
@@ -41,4 +42,7 @@ router.get("/risk", apiLimiter, protect, getAtRiskUsers);
 router.get("/webhook", apiLimiter, protect, getWebhookEvents);
 router.get("/alltransection", apiLimiter, protect, getAllTransactions);
 
+router.post("/test-premium", protect, makeMePremiumTemp);
+
 module.exports = router;
+
