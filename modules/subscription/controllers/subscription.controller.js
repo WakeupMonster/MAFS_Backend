@@ -309,7 +309,7 @@ const getStats = async (req, res, next) => {
 //   }
 // };
 
-const getAllSubscriptions = async (req, res, next) => {
+const  getAllSubscriptions = async (req, res, next) => {
   try {
     const {
       status,
