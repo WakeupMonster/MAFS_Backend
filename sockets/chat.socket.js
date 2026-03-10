@@ -102,7 +102,7 @@ module.exports = function chatSocket(io, redisClient) {
         );
 
         const blocked = await isBlocked(currentUserId, otherUserId);
-        if (blocked) {
+        if (blocked.isBlocked) {
           /*
            * Blocked user ko feedback: Bina iske user confused hota hai
            * ki chat kyun kaam nahi kar rahi.
@@ -111,7 +111,8 @@ module.exports = function chatSocket(io, redisClient) {
             type: "BLOCKED",
             matchId,
             message: "You cannot access this chat",
-            isBlockedByMe : blocked.blockedByMe
+            isBlockedByMe : blocked.blockedByMe,
+            blockedBy: blocked.blockedBy  
           });
           return;
         }
@@ -216,13 +217,14 @@ module.exports = function chatSocket(io, redisClient) {
 
           /* ── Common: Block check ── */
           const blocked = await isBlocked(currentUserId, receiverId);
-          if (blocked) {
+          if (blocked.isBlocked) {
             socket.emit("chat_error", {
               type: "BLOCKED",
               matchId,
               clientMessageId,
               message: "You cannot send messages to this user",
-              isBlockedByMe: blocked.blockedByMe
+              isBlockedByMe: blocked.blockedByMe,
+              blockedBy: blocked.blockedBy  
             });
             if (typeof ack === "function") {
               ack({ success: false, error: "Cannot send message" });

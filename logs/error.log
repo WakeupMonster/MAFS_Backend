@@ -153,3 +153,6 @@
 {"level":"error","message":"[CRON] Expire check error:","service":"iap-service","timestamp":"2026-03-09 13:45:05"}
 {"level":"error","message":"[CRON] Grace check error:","service":"iap-service","timestamp":"2026-03-09 13:45:05"}
 {"level":"error","message":"Verify purchase error:","service":"iap-service","timestamp":"2026-03-09 16:48:42"}
+{"cancellationReason":"USER_CANCELLED","expiresDate":1775719280462,"level":"error","message":"Subscription not found for cancel","orderId":"GPA.MOCK-1111-2222-3333","platform":"android","productId":"com.keenasmustard.premium.1month","purchaseDate":1773127280462,"purchaseToken":"MEDIUM_TEST_TOKEN_123","service":"iap-service","timestamp":"2026-03-10 12:51:20"}
+{"level":"error","message":"Google webhook process error:","service":"iap-service","timestamp":"2026-03-10 12:51:21"}
+{"level":"error","message":"Google webhook error:","service":"iap-service","timestamp":"2026-03-10 13:16:03"}

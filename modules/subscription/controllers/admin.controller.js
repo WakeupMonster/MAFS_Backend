@@ -1,4 +1,5 @@
 /* eslint-disable no-unused-vars */
+const mongoose = require("mongoose");
 const SubscriptionConfig = require("../models_v3/SubscriptionConfig");
 const Product = require("../models_v3/Product");
 const Subscription = require("../models/Subscription"); // Base subscription records
@@ -8,7 +9,6 @@ const UserConsumableBalance = require("../models_v3/UserConsumableBalance");
 const subscriptionService = require("../services/subscription.service");
 const UsageService = require("../services/usage.service");
 const logger = require("../utils/logger");
-const { default: mongoose } = require("mongoose");
 
 /**
  * 1. CONFIGURATION APIs
@@ -125,11 +125,21 @@ exports.listSubscribers = async (req, res, next) => {
             .limit(Number(limit))
             .lean();
 
+        // Enhance subscriptions with 'displayStatus' if needed
+        const enhancedSubs = subscriptions.map(sub => {
+            const isActuallyExpired = new Date(sub.expiresAt) < new Date();
+            return {
+                ...sub,
+                isExpired: isActuallyExpired,
+                // Status remains what is in DB (ACTIVE or CANCELLED)
+            };
+        });
+
         const total = await Subscription.countDocuments(filter);
 
         return res.json({
             success: true,
-            data: subscriptions,
+            data: enhancedSubs,
             pagination: {
                 total,
                 page: Number(page),

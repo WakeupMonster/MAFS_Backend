@@ -81,7 +81,8 @@ exports.getChatMessages = async (req, res) => {
         success: false,
         message: "You cannot view messages",
         errorType: "BLOCKED",                    // ✅ NEW
-        isBlockedByMe: blockStatus.blockedByMe   // ✅ NEW — frontend needs this
+        isBlockedByMe: blockStatus.blockedByMe,   // ✅ NEW — frontend needs this
+          blockedBy: blockStatus.blockedBy  
       });
     }
 

@@ -99,9 +99,9 @@ class UsageService {
                 },
 
                 features: {
-                    canSeeWhoLiked: isPremium || config.premiumFeatures.seeWhoLikedYou,
-                    canPassport: isPremium || config.premiumFeatures.passport,
-                    canAdvancedFilter: isPremium || config.premiumFeatures.advancedFilters,
+                    canSeeWhoLiked: isPremium && config.premiumFeatures.seeWhoLikedYou,
+                    canPassport: isPremium && config.premiumFeatures.passport,
+                    canAdvancedFilter: isPremium && config.premiumFeatures.advancedFilters,
                     showAds: !isPremium && config.premiumFeatures.noAds
                 }
             }

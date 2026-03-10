@@ -29,6 +29,11 @@ exports.isBlocked = async (currentUserId, otherUserId) => {
   return {
     isBlocked: !!(blockedByMe || blockedByThem),  // koi bhi block hai toh true
     blockedByMe: !!blockedByMe,                    // MAIN ne block kiya
-    blockedByThem: !!blockedByThem                 // USNE mujhe block kiya
+    blockedByThem: !!blockedByThem,                 // USNE mujhe block kiya
+     blockedBy: blockedByMe 
+    ? currentUserId      // maine block kiya → meri ID
+    : blockedByThem 
+      ? otherUserId      // usne block kiya → uski ID  
+      : null  
   };
 };
