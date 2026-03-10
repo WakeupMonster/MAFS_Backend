@@ -1,5 +1,9 @@
 const Subscription = require("../models/Subscription");
 const SubscriptionTransaction = require("../models/SubscriptionTransaction");
+const Product = require("../models_v3/Product");
+const UserConsumableBalance = require("../models_v3/UserConsumableBalance");
+const SubscriptionConfig = require("../models_v3/SubscriptionConfig");
+const UsageService = require("./usage.service");
 const iapConfig = require("../config/iap.config");
 const { generateIdempotencyKey } = require("../utils/iap.helpers");
 const logger = require("../utils/logger");
@@ -11,18 +15,20 @@ class SubscriptionService {
 
   async _syncProfile(subscription) {
     try {
-      
-    console.log("🔄 Syncing Profile for User:", subscription.userId); // Debug 1
+
+      console.log("🔄 Syncing Profile for User:", subscription.userId); // Debug 1
       if (!subscription || !subscription.userId) {
-         console.log("❌ Subscription or UserId missing"); // Debug 2
+        console.log("❌ Subscription or UserId missing"); // Debug 2
         return;
       }
 
+      const isActive = ["ACTIVE", "CANCELLED"].includes(subscription.status) && subscription.expiresAt > new Date();
+
       const profileUpdate = {
         "subscription.planId": subscription.planType || "free",
-        "subscription.isActive": subscription.status === "ACTIVE" || subscription.status === "GRACE",
+        "subscription.isActive": isActive,
         "subscription.expiryDate": subscription.expiresAt,
-        "subscription.isTrial": false, // Logic add kar sakte ho agar trial ho
+        "subscription.isTrial": false
       };
 
       // Agar expired/cancelled hai toh free pe set karo?
@@ -32,7 +38,7 @@ class SubscriptionService {
         profileUpdate["subscription.isActive"] = false;
       }
 
-       console.log("📝 Update Payload:", profileUpdate); // Debug 3
+      console.log("📝 Update Payload:", profileUpdate); // Debug 3
 
       await Profile.findOneAndUpdate(
         { userId: subscription.userId },
@@ -46,8 +52,89 @@ class SubscriptionService {
   }
 
 
-  
+
+  /**
+   * v3 Purchase Router: Determines if the purchase is a SUBSCRIPTION or CONSUMABLE
+   * and routes to the correct handler.
+   */
   async handlePurchase(data) {
+    // Step 1: Check our Product catalog (v3 dynamic store) first
+    const catalogProduct = await Product.findOne({
+      $or: [
+        { appleProductId: data.productId },
+        { googleProductId: data.productId },
+        { productKey: data.productId }
+      ],
+      isActive: true
+    }).lean();
+
+    // Step 2: THE FORK — Route based on product type
+    if (catalogProduct && catalogProduct.type === 'CONSUMABLE') {
+      return this._handleConsumablePurchase(data, catalogProduct);
+    }
+
+    // Step 3: SUBSCRIPTION flow (original logic, unchanged)
+    return this._handleSubscriptionPurchase(data);
+  }
+
+  /**
+   * Handles Consumable purchases (Super Keens, Boosts packs).
+   * Adds items directly to the user's Wallet (UserConsumableBalance).
+   */
+  async _handleConsumablePurchase(data, catalogProduct) {
+    // Determine which wallet field to increment
+    const incrementField = {};
+    if (catalogProduct.consumableType === 'SUPER_KEEN') {
+      incrementField.superKeensBalance = catalogProduct.quantity;
+    } else if (catalogProduct.consumableType === 'BOOST') {
+      incrementField.boostsBalance = catalogProduct.quantity;
+    } else {
+      throw new Error(`Unknown consumable type: ${catalogProduct.consumableType}`);
+    }
+
+    // Atomic wallet update (upsert: creates wallet if first purchase)
+    const updatedWallet = await UserConsumableBalance.findOneAndUpdate(
+      { userId: data.userId },
+      { $inc: incrementField },
+      { upsert: true, new: true }
+    );
+
+    // Log the transaction for audit trail
+    await this._logTransaction({
+      userId: data.userId,
+      platform: data.platform,
+      transactionId: data.transactionId,
+      purchaseToken: data.purchaseToken,
+      productId: data.productId,
+      eventType: "CONSUMABLE_PURCHASE",
+      amount: parseFloat(String(catalogProduct.displayPrice).replace(/[^0-9.]/g, '')) || 0,
+      currency: catalogProduct.currency || "AUD",
+      occurredAt: new Date(data.purchaseDate || Date.now()),
+    });
+
+    logger.info("Consumable purchase processed", {
+      userId: data.userId,
+      type: catalogProduct.consumableType,
+      quantity: catalogProduct.quantity,
+      newBalance: updatedWallet
+    });
+
+    return {
+      type: 'CONSUMABLE',
+      consumableType: catalogProduct.consumableType,
+      quantity: catalogProduct.quantity,
+      wallet: {
+        superKeens: updatedWallet.superKeensBalance,
+        boosts: updatedWallet.boostsBalance
+      }
+    };
+  }
+
+  /**
+   * Handles Subscription purchases (Premium Plans).
+   * Creates or updates a Subscription record with expiresAt.
+   */
+  async _handleSubscriptionPurchase(data) {
     const orConditions = [];
 
     if (data.originalTransactionId) {
@@ -69,16 +156,19 @@ class SubscriptionService {
       existing.previousStatus = existing.status;
       await existing.save();
 
-       await this._syncProfile(existing); 
+      // v3 Sync: Use UsageService for consistent premium state
+      UsageService._syncPremiumState(existing.userId, true).catch(err => logger.error('Sync Error:', err));
+      await this._syncProfile(existing);
 
       logger.info("Subscription updated (existing)", {
         subscriptionId: existing._id,
         userId: data.userId,
       });
 
-      return existing;
+      return { type: 'SUBSCRIPTION', subscription: existing };
     }
 
+    // Fallback: Check iapConfig for legacy product details
     const product = iapConfig.getProductDetails(data.productId);
 
     const subscription = await Subscription.create({
@@ -116,9 +206,11 @@ class SubscriptionService {
       planType: subscription.planType,
     });
 
+    // v3 Sync: Use UsageService for consistent premium state
+    UsageService._syncPremiumState(subscription.userId, true).catch(err => logger.error('Sync Error:', err));
     await this._syncProfile(subscription);
 
-    return subscription;
+    return { type: 'SUBSCRIPTION', subscription: subscription };
   }
 
   // ─── RENEW ───
@@ -184,39 +276,6 @@ class SubscriptionService {
     return sub;
   }
 
-  // ─── GRACE PERIOD ───
-  async handleGracePeriod(data) {
-    const sub = await this._findSubscription(data);
-    if (!sub) {
-      logger.error("Subscription not found for grace", data);
-      throw new Error("Subscription not found for grace period");
-    }
-
-    sub.previousStatus = sub.status;
-    sub.status = "GRACE";
-    sub.gracePeriodEndsAt = data.gracePeriodEndsAt
-      ? new Date(data.gracePeriodEndsAt)
-      : new Date(Date.now() + 16 * 24 * 60 * 60 * 1000);
-    sub.retryCount = (sub.retryCount || 0) + 1;
-    await sub.save();
-
-    await this._syncProfile(sub);
-
-    await this._logTransaction({
-      subscriptionId: sub._id,
-      userId: sub.userId,
-      platform: sub.platform,
-      productId: sub.productId,
-      eventType: "GRACE_PERIOD",
-      occurredAt: new Date(),
-    });
-
-    logger.info("Subscription in grace period", {
-      subscriptionId: sub._id,
-      retryCount: sub.retryCount,
-    });
-    return sub;
-  }
 
   // ─── EXPIRE ───
   async handleExpire(data) {
@@ -230,7 +289,7 @@ class SubscriptionService {
     sub.status = "EXPIRED";
     sub.autoRenew = false;
     await sub.save();
-     await this._syncProfile(sub);
+    await this._syncProfile(sub);
 
     await this._logTransaction({
       subscriptionId: sub._id,
@@ -307,13 +366,11 @@ class SubscriptionService {
 
   // ─── CHECK ACCESS ───
   async checkAccess(userId) {
+    // v3: No Grace Period. CANCELLED users still have access until expiresAt.
     const sub = await Subscription.findOne({
       userId: userId,
-      status: { $in: ["ACTIVE", "GRACE"] },
-      $or: [
-        { expiresAt: { $gt: new Date() } },
-        { status: "GRACE", gracePeriodEndsAt: { $gt: new Date() } },
-      ],
+      status: { $in: ["ACTIVE", "CANCELLED"] },
+      expiresAt: { $gt: new Date() },
     });
 
     if (!sub) {
@@ -387,6 +444,62 @@ class SubscriptionService {
         return;
       }
       throw err;
+    }
+  }
+  /**
+   * Milestone Grant: Automatically grants premium to the first X users.
+   * Called during registration/onboarding.
+   */
+  async handleMilestoneGrant(userId) {
+    try {
+      const config = await SubscriptionConfig.getOrCreate();
+
+      // 1. Is milestone active?
+      if (!config.milestone || !config.milestone.isActive) return null;
+
+      // 2. Already premium? Check if any subscription exists for this user
+      const existingSub = await Subscription.findOne({ userId });
+      if (existingSub) return null;
+
+      // 3. User limit check
+      const User = require("../../auth/auth.model");
+      const userCount = await User.countDocuments({ isFake: false });
+
+      if (userCount > config.milestone.targetUserCount) {
+        // Auto-disable milestone if limit reached
+        config.milestone.isActive = false;
+        await config.save();
+        logger.info("Milestone target reached, auto-disabled milestone grant.");
+        return null;
+      }
+
+      // 4. Grant Premium (30 days)
+      const duration = config.milestone.grantDurationDays || 30;
+      const expiresAt = new Date();
+      expiresAt.setDate(expiresAt.getDate() + duration);
+
+      const subscription = await Subscription.create({
+        userId,
+        platform: "admin_granted",
+        productId: "milestone_premium_v3",
+        planType: "MILESTONE",
+        status: "ACTIVE",
+        autoRenew: false,
+        startedAt: new Date(),
+        expiresAt: expiresAt,
+        grantReason: "milestone_first_1000",
+        environment: "production"
+      });
+
+      // 5. Sync Premium State (User/Profile flags)
+      await UsageService._syncPremiumState(userId, true);
+      await this._syncProfile(subscription);
+
+      logger.info(`Milestone premium granted to user ${userId} (Rank: ${userCount})`);
+      return subscription;
+    } catch (err) {
+      logger.error("Milestone grant failed:", err.message);
+      return null;
     }
   }
 }

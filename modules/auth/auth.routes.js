@@ -3,9 +3,7 @@
 // const controller = require("./auth.controller");
 // const validation = require("./auth.validation");
 // // const socialRoutes = require("./social/social.routes");
-
 // //
-
 
 // // const { checkPhoneVerified, checkEmailVerified } = require("./verification.middleware");
 
@@ -23,15 +21,16 @@
 // // router.post("/social/google", controller.googleLogin);
 // // router.post("/social/facebook", controller.facebookLogin);
 // // router.post("/social/apple", controller.appleLogin);
-
 // // // Token flows
 // router.post("/refresh", controller.refreshToken);
 // router.post("/logout", controller.logout);
-
 // // Optional: resend OTP endpoint (by type)
 // router.post("/resend/phone", validation.validatePhone, controller.registerPhone);
 // router.post("/resend/email", controller.registerEmail);
 // module.exports = router;
+
+
+
 
 
 const express = require("express");
@@ -45,7 +44,6 @@ router.post("/verify", controller.verifyOtp);
 
 router.post("/phonetest",validation.validateSendPhoneOtp, controller.sendTestOtp);
 router.post("/verifytestotp", controller.verifyTestOtp);
-
 
 router.post("/register/email", validation.validateRegisterEmail, controller.registerEmail);
 router.post("/verify/email", controller.verifyEmail);

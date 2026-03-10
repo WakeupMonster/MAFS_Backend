@@ -6,18 +6,19 @@ const logger = require("../utils/logger");
 const Subscription = require("../../../modules/subscription/models/Subscription");
 const SubscriptionTransaction = require("../../../modules/subscription/models/SubscriptionTransaction");
 const SubscriptionEvent = require("../../../modules/subscription/models/SubscriptionEvent");
+const Product = require("../models_v3/Product");
 
 const verifyPurchase = async (req, res, next) => {
   try {
     const { platform, productId, transactionId, purchaseToken } = req.body;
     const userId = req.user._id;
 
-    let subscriptionData;
+    let purchaseData;
 
     if (platform === "ios") {
       const result = await appleService.verifyTransaction(transactionId);
 
-      subscriptionData = {
+      purchaseData = {
         userId: userId,
         platform: "ios",
         productId: result.productId || productId,
@@ -32,7 +33,7 @@ const verifyPurchase = async (req, res, next) => {
         purchaseToken
       );
 
-      subscriptionData = {
+      purchaseData = {
         userId: userId,
         platform: "android",
         productId: productId,
@@ -45,24 +46,36 @@ const verifyPurchase = async (req, res, next) => {
       await googleService.acknowledgePurchase(productId, purchaseToken);
     }
 
-    const subscription = await subscriptionService.handlePurchase(
-      subscriptionData
-    );
+    // v3: handlePurchase now returns { type: 'SUBSCRIPTION' | 'CONSUMABLE', ... }
+    const result = await subscriptionService.handlePurchase(purchaseData);
 
     logger.info("Purchase verified", {
       userId: userId,
       platform: platform,
-      subscriptionId: subscription._id,
+      purchaseType: result.type,
     });
 
+    // v3: Different response based on purchase type
+    if (result.type === 'CONSUMABLE') {
+      return res.json({
+        success: true,
+        purchaseType: "CONSUMABLE",
+        message: `${result.quantity} ${result.consumableType}(s) added to your wallet!`,
+        wallet: result.wallet
+      });
+    }
+
+    // SUBSCRIPTION response (backwards compatible)
+    const sub = result.subscription;
     return res.json({
       success: true,
+      purchaseType: "SUBSCRIPTION",
       subscription: {
-        id: subscription._id,
-        status: subscription.status,
-        planType: subscription.planType,
-        expiresAt: subscription.expiresAt,
-        autoRenew: subscription.autoRenew,
+        id: sub._id,
+        status: sub.status,
+        planType: sub.planType,
+        expiresAt: sub.expiresAt,
+        autoRenew: sub.autoRenew,
       },
     });
   } catch (err) {
@@ -71,16 +84,108 @@ const verifyPurchase = async (req, res, next) => {
   }
 };
 
+const restorePurchases = async (req, res, next) => {
+  try {
+    const { platform, purchases } = req.body;
+    const userId = req.user._id;
+    const restoredItems = [];
+
+    for (const item of purchases) {
+      try {
+        let purchaseData;
+
+        if (platform === "ios") {
+          const result = await appleService.verifyTransaction(item.transactionId);
+          purchaseData = {
+            userId,
+            platform: "ios",
+            productId: result.productId || item.productId,
+            originalTransactionId: result.originalTransactionId,
+            transactionId: result.transactionId,
+            purchaseDate: result.purchaseDate,
+            expiresDate: result.expiresDate,
+          };
+        } else {
+          const result = await googleService.verifySubscription(
+            item.productId,
+            item.purchaseToken
+          );
+          purchaseData = {
+            userId,
+            platform: "android",
+            productId: item.productId,
+            purchaseToken: item.purchaseToken,
+            orderId: result.orderId,
+            purchaseDate: parseInt(result.startTimeMillis),
+            expiresDate: parseInt(result.expiryTimeMillis),
+          };
+        }
+
+        const result = await subscriptionService.handlePurchase(purchaseData);
+
+        if (result.type === 'SUBSCRIPTION') {
+          restoredItems.push({
+            productId: item.productId,
+            status: result.subscription.status,
+            expiresAt: result.subscription.expiresAt
+          });
+        }
+      } catch (err) {
+        logger.warn(`Failed to restore item ${item.productId}: ${err.message}`);
+      }
+    }
+
+    return res.json({
+      success: true,
+      restoredCount: restoredItems.length,
+      items: restoredItems
+    });
+  } catch (err) {
+    logger.error("Restore purchases error:", err.message);
+    return next(err);
+  }
+};
+
 const getStatus = async (req, res, next) => {
   try {
+    const UsageService = require("../services/usage.service");
+
+    // v3: Full status with quotas, wallet, features, and subscription info
+    const usageStatus = await UsageService.getUsageStatus(req.user._id);
+
+    // Also get subscription details for backward compatibility
     const access = await subscriptionService.checkAccess(req.user._id);
 
     return res.json({
       success: true,
       ...access,
+      showAds: !access.isPremium,  // v3: AdMob control flag
+      ...usageStatus.data          // quotas, wallet, features
     });
   } catch (err) {
     logger.error("Get status error:", err.message);
+    return next(err);
+  }
+};
+
+const getCatalog = async (req, res, next) => {
+  try {
+    const products = await Product.find({ isActive: true }).sort({ sortOrder: 1 });
+
+    // Separate into categories for easier frontend consumption
+    const subscriptions = products.filter(p => p.type === 'SUBSCRIPTION');
+    const consumables = products.filter(p => p.type === 'CONSUMABLE');
+
+    return res.json({
+      success: true,
+      catalog: {
+        subscriptions,
+        consumables,
+        all: products
+      }
+    });
+  } catch (err) {
+    logger.error("Get catalog error:", err.message);
     return next(err);
   }
 };
@@ -1082,5 +1187,7 @@ module.exports = {
   getAtRiskUsers,
   getWebhookEvents,
   getAllTransactions,
-  makeMePremiumTemp
+  makeMePremiumTemp,
+  getCatalog,
+  restorePurchases
 };

@@ -1,12 +1,26 @@
 const cron = require("node-cron");
 const Subscription = require("../models/Subscription");
 const SubscriptionEvent = require("../models/SubscriptionEvent");
+const UsageService = require("../services/usage.service");
+const User = require("../../auth/auth.model");
+const Profile = require("../../profile/profile.model");
 const logger = require("../utils/logger");
 
 const initCronJobs = () => {
-  // Har 5 min: Expired subscriptions
+  // ─── CRON 1: Expire ACTIVE subscriptions (autoRenew off + date passed) ───
+  // Runs every 5 minutes
   cron.schedule("*/5 * * * *", async () => {
     try {
+      // Find subscriptions that need expiring BEFORE updating (for sync)
+      const toExpire = await Subscription.find({
+        status: "ACTIVE",
+        autoRenew: false,
+        expiresAt: { $lte: new Date() },
+      }).select('userId').lean();
+
+      if (toExpire.length === 0) return;
+
+      // Bulk update status to EXPIRED
       const result = await Subscription.updateMany(
         {
           status: "ACTIVE",
@@ -16,34 +30,56 @@ const initCronJobs = () => {
         { $set: { status: "EXPIRED" } }
       );
 
-      if (result.modifiedCount > 0) {
-        logger.info("[CRON] Expired subscriptions: " + result.modifiedCount);
+      // v3 Sync: Update isPremium flags for all affected users
+      const userIds = toExpire.map(s => s.userId);
+      for (const uid of userIds) {
+        UsageService._syncPremiumState(uid, false).catch(err =>
+          logger.error("[CRON] Sync error for user:", uid, err.message)
+        );
       }
+
+      logger.info("[CRON] Expired ACTIVE subscriptions: " + result.modifiedCount);
     } catch (err) {
       logger.error("[CRON] Expire check error:", err.message);
     }
   });
 
-  // Har 5 min: Grace period expired
+  // ─── CRON 2: Expire CANCELLED subscriptions (date passed) ───
+  // v3: CANCELLED means auto-renew is off, but user still has access until expiresAt.
+  // Once expiresAt passes, we move them to EXPIRED.
   cron.schedule("*/5 * * * *", async () => {
     try {
+      const toExpire = await Subscription.find({
+        status: "CANCELLED",
+        expiresAt: { $lte: new Date() },
+      }).select('userId').lean();
+
+      if (toExpire.length === 0) return;
+
       const result = await Subscription.updateMany(
         {
-          status: "GRACE",
-          gracePeriodEndsAt: { $lte: new Date() },
+          status: "CANCELLED",
+          expiresAt: { $lte: new Date() },
         },
-        { $set: { status: "EXPIRED", autoRenew: false } }
+        { $set: { status: "EXPIRED" } }
       );
 
-      if (result.modifiedCount > 0) {
-        logger.info("[CRON] Grace expired: " + result.modifiedCount);
+      // v3 Sync: Update isPremium flags for all affected users
+      const userIds = toExpire.map(s => s.userId);
+      for (const uid of userIds) {
+        UsageService._syncPremiumState(uid, false).catch(err =>
+          logger.error("[CRON] Sync error for user:", uid, err.message)
+        );
       }
+
+      logger.info("[CRON] Expired CANCELLED subscriptions: " + result.modifiedCount);
     } catch (err) {
-      logger.error("[CRON] Grace check error:", err.message);
+      logger.error("[CRON] Cancelled expire check error:", err.message);
     }
   });
 
-  // Har 10 min: Failed events count
+  // ─── CRON 3: Failed webhook events monitor ───
+  // Runs every 10 minutes
   cron.schedule("*/10 * * * *", async () => {
     try {
       const failedCount = await SubscriptionEvent.countDocuments({
@@ -59,7 +95,7 @@ const initCronJobs = () => {
     }
   });
 
-  logger.info("[CRON] Subscription cron jobs initialized");
+  logger.info("[CRON] Subscription cron jobs initialized (v3 - No Grace Period)");
 };
 
 module.exports = { initCronJobs };

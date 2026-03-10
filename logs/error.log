@@ -150,3 +150,6 @@
 {"level":"error","message":"[CRON] Expire check error:","service":"iap-service","timestamp":"2026-03-09 10:15:05"}
 {"level":"error","message":"[CRON] Expire check error:","service":"iap-service","timestamp":"2026-03-09 12:35:24"}
 {"level":"error","message":"[CRON] Grace check error:","service":"iap-service","timestamp":"2026-03-09 12:35:24"}
+{"level":"error","message":"[CRON] Expire check error:","service":"iap-service","timestamp":"2026-03-09 13:45:05"}
+{"level":"error","message":"[CRON] Grace check error:","service":"iap-service","timestamp":"2026-03-09 13:45:05"}
+{"level":"error","message":"Verify purchase error:","service":"iap-service","timestamp":"2026-03-09 16:48:42"}

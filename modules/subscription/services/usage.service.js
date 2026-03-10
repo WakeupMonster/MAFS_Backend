@@ -13,11 +13,7 @@ const dateHelpers = require("../utils/dateHelpers");
  * Implements the "Two-Bucket" system (Free Quota vs. Wallet) with AEST timezone compliance.
  */
 class UsageService {
-    /**
-     * Main Router for any item usage action.
-     * @param {string} userId
-     * @param {string} type - 'LIKE', 'SUPER_KEEN', 'REWIND', 'BOOST'
-     */
+
     async useItem(userId, type) {
         const config = await SubscriptionConfig.getOrCreate();
 
@@ -116,10 +112,7 @@ class UsageService {
      * Syncs isPremium flag across User and Profile models.
      */
     async _syncPremiumState(userId, isPremium) {
-        await Promise.all([
-            User.updateOne({ _id: userId, isPremium: { $ne: isPremium } }, { isPremium }),
-            Profile.updateOne({ userId, isPremium: { $ne: isPremium } }, { isPremium })
-        ]);
+        await User.updateOne({ _id: userId, isPremium: { $ne: isPremium } }, { isPremium });
     }
 
     // --- Helpers ---
