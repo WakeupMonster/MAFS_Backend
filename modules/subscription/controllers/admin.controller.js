@@ -5,6 +5,7 @@ const Product = require("../models_v3/Product");
 const Subscription = require("../models/Subscription"); // Base subscription records
 const SubscriptionTransaction = require("../models/SubscriptionTransaction");
 const User = require("../../auth/auth.model");
+const Profile = require("../../profile/profile.model");
 const UserConsumableBalance = require("../models_v3/UserConsumableBalance");
 const subscriptionService = require("../services/subscription.service");
 const UsageService = require("../services/usage.service");
@@ -156,7 +157,9 @@ exports.getUserSubscriptionDetail = async (req, res, next) => {
     try {
         const { userId } = req.params;
 
-        const [subscription, transactions, wallet] = await Promise.all([
+        const [user, profile, subscription, transactions, wallet] = await Promise.all([
+            User.findById(userId).select("phone email role accountStatus").lean(),
+            Profile.findOne({ userId }).select("fullName nickname photos").lean(),
             Subscription.findOne({ userId }).sort({ createdAt: -1 }).lean(),
             SubscriptionTransaction.find({ userId }).sort({ occurredAt: -1 }).limit(10).lean(),
             UserConsumableBalance.findOne({ userId }).lean()
@@ -165,6 +168,12 @@ exports.getUserSubscriptionDetail = async (req, res, next) => {
         return res.json({
             success: true,
             data: {
+                user: {
+                    ...user,
+                    fullName: profile?.fullName,
+                    nickname: profile?.nickname,
+                    photo: profile?.photos?.[0]?.url || null
+                },
                 subscription,
                 recentTransactions: transactions,
                 wallet
