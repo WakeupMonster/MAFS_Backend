@@ -63,9 +63,7 @@ class GoogleService {
   }
 
   decodeWebhookPayload(messageData) {
-    const decoded = JSON.parse(
-      Buffer.from(messageData, "base64").toString("utf8")
-    );
+    const decoded = JSON.parse(Buffer.from(messageData, "base64").toString("utf8"));
     return decoded;
   }
 

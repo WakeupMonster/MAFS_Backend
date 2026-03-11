@@ -2,6 +2,7 @@ const SubscriptionEvent = require("../models/SubscriptionEvent");
 const appleService = require("../services/apple.service");
 const googleService = require("../services/google.service");
 const subscriptionService = require("../services/subscription.service");
+const UsageService = require("../services/usage.service");
 const { generatePayloadHash } = require("../utils/iap.helpers");
 const logger = require("../utils/logger");
 
@@ -45,7 +46,7 @@ const appleWebhook = async (req, res) => {
 async function _processAppleWebhook(decoded, event) {
   try {
     const txn = decoded.transactionInfo || {};
-    const renewal = decoded.renewalInfo || {};
+    // const renewal = decoded.renewalInfo || {};   
 
     const data = {
       originalTransactionId: txn.originalTransactionId,
@@ -69,8 +70,8 @@ async function _processAppleWebhook(decoded, event) {
         }
         break;
       case "DID_FAIL_TO_RENEW":
-        data.gracePeriodEndsAt = renewal.gracePeriodExpiresDate;
-        await subscriptionService.handleGracePeriod(data);
+        // v3: No Grace Period! Treat as immediate expiry.
+        await subscriptionService.handleExpire(data);
         break;
       case "EXPIRED":
         await subscriptionService.handleExpire(data);
@@ -86,6 +87,15 @@ async function _processAppleWebhook(decoded, event) {
     event.processed = true;
     event.processedAt = new Date();
     await event.save();
+
+    // v3 Sync: Ensure User/Profile flags are updated after any webhook event
+    if (data.originalTransactionId) {
+      const sub = await require("../models/Subscription").findOne({ originalTransactionId: data.originalTransactionId });
+      if (sub) {
+        const isActive = ["ACTIVE", "CANCELLED"].includes(sub.status) && sub.expiresAt > new Date();
+        UsageService._syncPremiumState(sub.userId, isActive).catch(err => logger.error('Webhook Sync Error:', err));
+      }
+    }
 
     logger.info("Apple webhook processed", {
       eventType: decoded.notificationType,
@@ -184,7 +194,8 @@ async function _processGoogleWebhook(notification, eventName, event) {
         break;
       case "IN_GRACE_PERIOD":
       case "ON_HOLD":
-        await subscriptionService.handleGracePeriod(data);
+        // v3: No Grace Period! Treat as immediate expiry.
+        await subscriptionService.handleExpire(data);
         break;
       case "EXPIRED":
         await subscriptionService.handleExpire(data);
@@ -202,6 +213,15 @@ async function _processGoogleWebhook(notification, eventName, event) {
     event.processed = true;
     event.processedAt = new Date();
     await event.save();
+
+    // v3 Sync: Ensure User/Profile flags are updated after any webhook event
+    if (data.purchaseToken) {
+      const sub = await require("../models/Subscription").findOne({ purchaseToken: data.purchaseToken });
+      if (sub) {
+        const isActive = ["ACTIVE", "CANCELLED"].includes(sub.status) && sub.expiresAt > new Date();
+        UsageService._syncPremiumState(sub.userId, isActive).catch(err => logger.error('Webhook Sync Error:', err));
+      }
+    }
 
     logger.info("Google webhook processed", {
       eventType: eventName,

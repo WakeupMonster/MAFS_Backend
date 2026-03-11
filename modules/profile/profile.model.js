@@ -1,4 +1,14 @@
-const mongoose = require("mongoose");
+const mongoose = require('mongoose');
+
+const GENDER_OPTIONS = [
+  "men", 
+  "women", 
+  "non-binary", 
+  "trans-man", 
+  "trans-women", 
+  "genderqueer", 
+  "everyone"
+];
 
 const ProfileSchema = new mongoose.Schema(
   {
@@ -10,88 +20,102 @@ const ProfileSchema = new mongoose.Schema(
       index: true,
     },
 
-    nickname: { type: String, trim: true, index: true },
-    dob: { type: Date },
-    age: { type: Number },
-    gender: { type: String },
-    pronouns: { type: String, default: null },
-    height: { type: Number, default: null },
-    weight: { type: Number, default: null },
-    about: { type: String, maxlength: 500 },
-    jobTitle: { type: String, default: null },
-    company: { type: String, default: null },
-    school: { type: String, default: null },
-    livingIn: { type: String, default: null },
-
-    attributes: {
-      // Basics
-      zodiac: { type: String, default: null },
-      education: { type: String, default: null },
-      familyPlans: { type: String, default: null },
-      personalityType: { type: String, default: null },
-      communicationStyle: { type: String, default: null },
-      loveStyle: { type: String, default: null },
-      bloodType: { type: String, default: null },
-      covidVaccine: { type: String, default: null },
-      religion: { type: String, default: null },
-
-      // Lifestyle
-      pets: { type: String, default: null },
-      drinking: { type: String, default: null },
-      smoking: { type: String, default: null },
-      workout: { type: String, default: null },
-      dietary: { type: String, default: null },
-      sleeping: { type: String, default: null },
-      socialMedia: { type: String, default: null },
-
-      // Arrays (Store Meta IDs)
-      languages: { type: [String], default: [] },
-      interests: { type: [String], default: [] },
-      music: { type: [String], default: [] },
-      movies: { type: [String], default: [] },
-      books: { type: [String], default: [] },
-      travel: { type: [String], default: [] },
+  //admin name
+  fullName : {
+    type: String
+  },
+  nickname: { type: String, trim: true, index: true },
+  dob: { type: Date },
+  age: { type: Number }, 
+  // gender: { type: String },
+    gender: { 
+    type: String, 
+    enum: {
+      values: GENDER_OPTIONS,
+      message: '{VALUE} is not a valid gender option'
     },
+    index: true 
+  },
+  pronouns: { type: String, default: null },
+  height: { type: Number, default: null },
+  weight: { type: Number, default: null },
+  about: { type: String, maxlength: 500 }, 
+  jobTitle: { type: String, default: null },
+  company: { type: String, default: null },
+  school: { type: String, default: null },
+  livingIn: { type: String, default: null },
 
-    discovery: {
-      distanceRange: { type: Number, default: 50, min: 1, max: 500 }, // in km
+  attributes: {
+    // Basics
+    zodiac: { type: String, default: "" },
+    education: { type: String, default: "" },
+    familyPlans: { type: String, default: "" },
+    personalityType: { type: String, default: "" },
+    communicationStyle: { type: String, default: "" },
+    loveStyle: { type: String, default: "" },
+    bloodType: { type: String, default: "" },
+    covidVaccine: { type: String, default: "" },
+    religion: { type: String, default: "" },
+    
+    // Lifestyle
+    pets: { type: String, default: "" },
+    drinking: { type: String, default: "" },
+    smoking: { type: String, default: "" },
+    workout: { type: String, default: ""},
+    dietary: { type: String, default: "" },
+    sleeping: { type: String, default: "" },
+    socialMedia: { type: String, default: "" },
+    
+    // Arrays (Store Meta IDs)
+    languages: { type: [String], default: [] },
+    interests: { type: [String], default: [] },
+    music: { type: [String], default: [] },
+    movies: { type: [String], default: [] },
+    books: { type: [String], default: [] },
+    travel: { type: [String], default: [] }
+  },
 
-      ageRange: {
-        min: { type: Number, default: 18 },
-        max: { type: Number, default: 60 },
-      },
-
-      showMeGender: { type: [String], default: [] },
-
-      relationshipGoal: { type: String, default: null }, // Stored as ID String
-
-      globalVisibility: {
-        type: String,
-        enum: ["everyone", "matches_only", "nobody"],
-        default: "everyone",
-      },
-
-      filterRelationshipGoal: String,
-
-      preferredInterests: [String],
-
-      // Advanced Scoring Filters
-      advancedFilters: {
-        zodiac: [String],
-        education: [String],
-        familyPlans: [String],
-        personalityType: [String],
-        communicationStyle: [String],
-        loveStyle: [String],
-        pets: [String],
-        drinking: [String],
-        smoking: [String],
-        workout: [String],
-        dietary: [String],
-        socialMedia: [String],
-        sleeping: [String],
-      },
+  discovery: {
+    distanceRange: { type: Number, default: 50 , min: 1, max: 500}, // in km
+    ageRange: {
+      min: { type: Number, default: 18 },
+      max: { type: Number, default: 60 }
     },
+    // showMeGender: { type: [String], default: null }, 
+    showMeGender: { 
+    type: [String], // Array of Strings
+    enum: {
+        values: GENDER_OPTIONS,
+        message: '{VALUE} is not a valid option for showMeGender' 
+    },
+    default: [] // ✅ BEST PRACTICE: Array ka default [] rakhein, null nahi.
+}, 
+    relationshipGoal: { type: String, default: null }, // Stored as ID String
+    globalVisibility: { 
+        type: String, 
+        enum: ["everyone", "matches_only", "nobody"], 
+        default: "everyone" 
+    },
+    filterRelationshipGoal: String,
+    preferredInterests: [String],
+  
+  // Advanced Scoring Filters
+  advancedFilters: {
+    zodiac: [String],
+    education: [String],
+    familyPlans: [String],
+    personalityType: [String],
+    communicationStyle: [String],
+    loveStyle: [String],
+    pets: [String],
+    drinking: [String],
+    smoking: [String],
+    workout: [String],
+    dietary: [String],
+    socialMedia: [String],
+    sleeping: [String]
+  }
+  },
 
     photos: [
       {
@@ -135,43 +159,65 @@ const ProfileSchema = new mongoose.Schema(
       },
     },
 
-    subscription: {
-      planId: { type: String, default: "free" },
-      isActive: { type: Boolean, default: false },
-      expiryDate: Date,
-      isTrial: { type: Boolean, default: false },
-      superLikesCount: { type: Number, default: 0 },
-      boostsCount: { type: Number, default: 0 },
-      rewindsCount: { type: Number, default: 0 },
-    },
+  subscription: {
+    planId: { type: String, default: "free" },
+    isActive: { type: Boolean, default: false },
+    expiryDate: Date,
+    isTrial: { type: Boolean, default: false },
+    superLikesCount: { type: Number, default: 0 },
+    boostsCount: { type: Number, default: 0 },
+    rewindsCount: { type: Number, default: 0 }
+  },
+  onboardingProgress: {
+    phoneVerified: { type: Boolean, default: false },
+    emailVerified: { type: Boolean, default: false },
+    nicknameSet: { type: Boolean, default: false },
+    dobSet: { type: Boolean, default: false },
+    genderSet: { type: Boolean, default: false },
+    relationshipGoalSet: { type: Boolean, default: false },
+    genderPreferenceSet: { type: Boolean, default: false },
+    ageRangeSet: { type: Boolean, default: false },
+    distanceRangeSet: { type: Boolean, default: false },
+    interestsSet: { type: Boolean, default: false },
+    photosUploaded: { type: Boolean, default: false },
+    selfieUploaded: { type: Boolean, default: false },
+    idDocumentUploaded: { type: Boolean, default: false },
+    locationSet: { type: Boolean, default: false },
+    
+    bioSet: { type: Boolean, default: false },
+    lifestyleSet: { type: Boolean, default: false },
+    languagesSet: { type: Boolean, default: false },
+    educationSet: { type: Boolean, default: false },
+    
+    mandatoryCompletion: { type: Number, default: 0 },
+    optionalCompletion: { type: Number, default: 0 },
+    totalCompletion: { type: Number, default: 0 },
+    currentStep: { type: String, default: "nickname" },
+    lastCompletedStep: { type: String }
+  },
 
-    onboardingProgress: {
-      phoneVerified: { type: Boolean, default: false },
-      emailVerified: { type: Boolean, default: false },
-      nicknameSet: { type: Boolean, default: false },
-      dobSet: { type: Boolean, default: false },
-      genderSet: { type: Boolean, default: false },
-      relationshipGoalSet: { type: Boolean, default: false },
-      genderPreferenceSet: { type: Boolean, default: false },
-      ageRangeSet: { type: Boolean, default: false },
-      distanceRangeSet: { type: Boolean, default: false },
-      interestsSet: { type: Boolean, default: false },
-      photosUploaded: { type: Boolean, default: false },
-      selfieUploaded: { type: Boolean, default: false },
-      idDocumentUploaded: { type: Boolean, default: false },
-      locationSet: { type: Boolean, default: false },
 
-      bioSet: { type: Boolean, default: false },
-      lifestyleSet: { type: Boolean, default: false },
-      languagesSet: { type: Boolean, default: false },
-      educationSet: { type: Boolean, default: false },
+  onboarding: {
+  nextstep: {
+    type: Number,
+    default: 1,
+    min: 1
+  },
+  currentScreenSlug: {
+    type: String,
+    default: "welcome_screen",
+    index: true
+  },
+  isComplete: {
+    type: Boolean,
+    default: false
+  },
+  updatedAt: {
+    type: Date,
+    default: Date.now
+  }
+},
 
-      mandatoryCompletion: { type: Number, default: 0 },
-      optionalCompletion: { type: Number, default: 0 },
-      totalCompletion: { type: Number, default: 0 },
-      currentStep: { type: String, default: "nickname" },
-      lastCompletedStep: { type: String },
-    },
 
     settings: {
       notifications: {

@@ -8,6 +8,7 @@ const jwt = require("jsonwebtoken");
 const User = require("./modules/auth/auth.model"); // Path check kar lena
 
 // Redis Client
+
 const redis = require("./config/cache");
 const {
   connectWithRetry,
@@ -24,7 +25,7 @@ require("./workers/notification.worker");
 
 const io = new Server(http, {
   cors: {
-    origin: process.env.FRONTEND_URL || "http://localhost:5173", // Ya specific: ["http://localhost:5173", "http://localhost:3000"]
+    origin: "*", // Ya specific: ["http://localhost:5173", "http://localhost:3000"]
     methods: ["GET", "POST"],
     credentials: true,
   },
@@ -77,6 +78,34 @@ io.use(async (socket, next) => {
     await connectWithRetry(MONGODB_URI);
     registerGracefulShutdown();
     await redis.connectRedis();
+
+    // v3: Auto-seed Product catalog & SubscriptionConfig on startup
+    try {
+      const Product = require("./modules/subscription/models_v3/Product");
+      const SubscriptionConfig = require("./modules/subscription/models_v3/SubscriptionConfig");
+
+      const productCount = await Product.countDocuments();
+      if (productCount === 0) {
+        const initialProducts = [
+          { productKey: "premium_1month", type: "SUBSCRIPTION", planType: "1_MONTH", durationDays: 30, displayName: "1 Month Premium", displayPrice: "$9.95", currency: "AUD", appleProductId: "com.keenasmustard.premium.1month", googleProductId: "com.keenasmustard.premium.1month", sortOrder: 1, isActive: true },
+          { productKey: "premium_3month", type: "SUBSCRIPTION", planType: "3_MONTH", durationDays: 90, displayName: "3 Months Premium", displayPrice: "$24.00", currency: "AUD", appleProductId: "com.keenasmustard.premium.3month", googleProductId: "com.keenasmustard.premium.3month", sortOrder: 2, isActive: true },
+          { productKey: "superkeen_1", type: "CONSUMABLE", consumableType: "SUPER_KEEN", quantity: 1, displayName: "1 Super Keen", displayPrice: "$1.00", currency: "AUD", appleProductId: "com.keenasmustard.superkeen.1", googleProductId: "com.keenasmustard.superkeen.1", sortOrder: 3, isActive: true },
+          { productKey: "superkeen_5", type: "CONSUMABLE", consumableType: "SUPER_KEEN", quantity: 5, displayName: "5 Super Keens", displayPrice: "$3.50", currency: "AUD", appleProductId: "com.keenasmustard.superkeen.5", googleProductId: "com.keenasmustard.superkeen.5", sortOrder: 4, isActive: true },
+          { productKey: "superkeen_10", type: "CONSUMABLE", consumableType: "SUPER_KEEN", quantity: 10, displayName: "10 Super Keens", displayPrice: "$6.00", currency: "AUD", appleProductId: "com.keenasmustard.superkeen.10", googleProductId: "com.keenasmustard.superkeen.10", sortOrder: 5, isActive: true },
+          { productKey: "boost_1", type: "CONSUMABLE", consumableType: "BOOST", quantity: 1, displayName: "1 Boost", displayPrice: "$3.00", currency: "AUD", appleProductId: "com.keenasmustard.boost.1", googleProductId: "com.keenasmustard.boost.1", sortOrder: 6, isActive: true },
+          { productKey: "boost_5", type: "CONSUMABLE", consumableType: "BOOST", quantity: 5, displayName: "5 Boosts", displayPrice: "$12.50", currency: "AUD", appleProductId: "com.keenasmustard.boost.5", googleProductId: "com.keenasmustard.boost.5", sortOrder: 7, isActive: true },
+          { productKey: "boost_10", type: "CONSUMABLE", consumableType: "BOOST", quantity: 10, displayName: "10 Boosts", displayPrice: "$20.00", currency: "AUD", appleProductId: "com.keenasmustard.boost.10", googleProductId: "com.keenasmustard.boost.10", sortOrder: 8, isActive: true },
+        ];
+        await Product.insertMany(initialProducts);
+        console.log("✅ [SEED] Product catalog seeded with", initialProducts.length, "items");
+      }
+
+      // Ensure SubscriptionConfig singleton exists
+      await SubscriptionConfig.getOrCreate();
+      console.log("✅ [SEED] SubscriptionConfig ready");
+    } catch (seedErr) {
+      console.error("⚠️ [SEED] Auto-seed warning:", seedErr.message);
+    }
 
     // Initialize Chat Socket
     chatSocket(io, redis.redisClient);

@@ -3,11 +3,13 @@ const redis = require("../../config/cache");
 const profileModel = require("../profile/profile.model");
 const User = require("./auth.model");
 const utils = require("./auth.utils");
-const { formatUserProfile } = require("./auth.formatter");
+// const { formatUserProfile } = require("./auth.formatter");
 const BlockedContact = require("../BlockedContact/blockedContacts.model");
 const Block = require("../profile/user.block");
 const { normalizePhone, hashPhone } = require("../../common/utils/phone.util");
 const UserSubscription = require("../auth/UserSubscription.model");
+const { formatProfileResponse } = require("../profile/profile.formatter");
+const subscriptionService = require("../subscription/services/subscription.service");
 const EMAIL_OTP_TTL_MS = Number(1000 * 60 * 10); // 10 min
 const OTP_TTL = 300; // 5 minutes
 const RATE_LIMIT_MAX = 2; // max OTP requests allowed
@@ -36,7 +38,7 @@ async function sendPhoneOtp(phone) {
   return { ok: true };
 }
 
-async function verifyPhoneOtpUnified(phone, otp) {
+async function verifyPhoneOtpUnified(phone, otp, req) {
   const normalizedPhone = normalizePhone(phone);
   if (!normalizedPhone) throw new Error("Invalid phone number");
 
@@ -60,6 +62,7 @@ async function verifyPhoneOtpUnified(phone, otp) {
   const phoneHash = hashPhone(normalizedPhone);
 
   let user = await User.findOne({ phoneHash });
+  const isFirstVerification = !user || !user.isPhoneVerified; // Milestone logic fix
   const isNewUser = !user;
 
   if (!user) {
@@ -106,7 +109,8 @@ async function verifyPhoneOtpUnified(phone, otp) {
         },
       },
     },
-    { new: true }
+    { new: true },
+
   );
 
   const profile = await profileModel
@@ -128,21 +132,32 @@ async function verifyPhoneOtpUnified(phone, otp) {
   }
   subData.resetIfNeeded();
 
+  // v3 Milestone: Grant premium to first 1000 users
+  if (isFirstVerification) {
+    await subscriptionService.handleMilestoneGrant(user._id).catch(err => console.error("Milestone Error:", err));
+  }
+
   return {
     accessToken,
     refreshToken: refreshTokenRaw,
     isNewUser,
-    user: formatUserProfile(
-      user,
-      profile,
-      blockedContacts,
-      blockedUser,
-      subData
-    ),
+    // user: formatUserProfile(
+    //   user,
+    //   profile,
+    //   blockedContacts,
+    //   blockedUser,
+    //   subData
+    // )
+    data: {
+      user: await formatProfileResponse(user, profile, blockedContacts, blockedUser, subData, req),
+
+      // onboarding: buildOnboardingResponse(req)
+    }
   };
 }
 
-async function verifyPhoneTestOtpUnified(phone, otp) {
+
+async function verifyPhoneTestOtpUnified(phone, otp, req) {
   // 1️⃣ Normalize phone (VERY IMPORTANT)
   const normalizedPhone = normalizePhone(phone);
   if (!normalizedPhone) throw new Error("Invalid phone number");
@@ -157,24 +172,29 @@ async function verifyPhoneTestOtpUnified(phone, otp) {
   const phoneHash = hashPhone(normalizedPhone);
 
   let user = await User.findOne({ phone: normalizedPhone });
+  const isFirstVerification = !user || !user.isPhoneVerified; // Milestone logic fix
+  // const isNewUser = !user;
+
   if (!user) {
     user = await User.create({
       phone: normalizedPhone,
-      phoneHash: phoneHash,
+      phoneHash: phoneHash
     });
   }
+
+
   // ACCOUNT STATE CHECK (CRITICAL)
-  if (user.banDetails?.isBanned) {
-    throw new Error("Your account has been banned. Please contact support.");
-  }
-  if (
-    user.suspensionDetails?.isSuspended &&
-    user.suspensionDetails.suspendUntil > new Date()
-  ) {
-    throw new Error(
-      `Your account is suspended until ${user.suspensionDetails.suspendUntil.toISOString()}`
-    );
-  }
+  // if (user.banDetails?.isBanned) {
+  //   throw new Error("Your account has been banned. Please contact support.");
+  // }
+  // if (
+  //   user.suspensionDetails?.isSuspended &&
+  //   user.suspensionDetails.suspendUntil > new Date()
+  // ) {
+  //   throw new Error(
+  //     `Your account is suspended until ${user.suspensionDetails.suspendUntil.toISOString()}`
+  //   );
+  // }
 
   const accessToken = utils.generateAccessToken(user);
   const refreshTokenRaw = utils.generateRefreshToken();
@@ -189,7 +209,7 @@ async function verifyPhoneTestOtpUnified(phone, otp) {
         phoneHash: phoneHash,
         isPhoneVerified: true,
         isNewUser: false,
-        lastLoginAt: new Date(),
+        lastLoginAt: new Date()
       },
       $push: {
         refreshTokens: {
@@ -218,20 +238,20 @@ async function verifyPhoneTestOtpUnified(phone, otp) {
   if (!subData) {
     subData = await UserSubscription.create({ userId: user._id });
   }
-  subData.resetIfNeeded();
+  subData.resetIfNeeded()
+
+  // v3 Milestone: Grant premium to first 1000 users (Test mode)
+  if (isFirstVerification) {
+    await subscriptionService.handleMilestoneGrant(user._id).catch(err => console.error("Milestone Error:", err));
+  }
   await redis.del(redisKey);
 
   return {
     accessToken,
     refreshToken: refreshTokenRaw,
     isNewUser: !user.firstName,
-    user: formatUserProfile(
-      user,
-      profile,
-      blockedContacts,
-      blockedUser,
-      subData
-    ),
+    // user: formatUserProfile(user, profile, blockedContacts, blockedUser,subData)
+    user: await formatProfileResponse(user, profile, blockedContacts, blockedUser, req)
   };
 }
 
@@ -262,7 +282,75 @@ async function verifyPhoneOtp(phone, otp) {
   return user;
 }
 
-async function verifyEmailOtp(token, otp) {
+
+
+
+// async function sendEmailOtp(token, email) {
+
+//   const decoded = utils.verifyToken(token);
+//   const user = await User.findById(decoded.userId);
+
+//   if (!user) throw new Error("User not found");
+//   if (!user.isPhoneVerified) {
+//     throw new Error("Phone must be verified before email verification");
+//   }
+
+//   const existing = await User.findOne({ email, _id: { $ne: user._id } });
+//   if (existing) {
+//     throw new Error("Email already in use");
+//   }
+
+//   user.email = email;
+//   await user.save();
+
+//   const otp = utils.generateOtp();
+
+//   const redisKey = `user:email:otp:${user._id.toString()}`;
+//   console.log("SETTING OTP IN REDIS:", redisKey);
+//   await redis.set(redisKey, {otp}, { EX: EMAIL_OTP_TTL_MS / 1000 });
+
+
+//   const subject = "Your verification code";
+//   const text = `Your email verification code is ${otp}`;
+//   await utils.sendEmail(email, subject, text);
+
+//   return { ok: true };
+// }
+
+// async function verifyEmailOtp(token, otp) {
+//   const decoded = utils.verifyToken(token);
+//   const user = await User.findById(decoded.userId);
+
+//   if (!user) throw new Error("User not found");
+
+//   const redisKey = `user:email:otp:${user._id}`;
+// console.log("🔥 GETTING OTP IN REDIS:", redisKey);
+//   const storedOtp = await redis.get(redisKey);
+//   if (!storedOtp) throw new Error("OTP expired");
+//   if (String(otp) !== String(storedOtp)) throw new Error("Invalid OTP");
+
+//   user.isEmailVerified = true;
+//   await user.save();
+
+//   await redis.del(redisKey);
+
+//   const [profile, blockedContacts, blockedUser] = await Promise.all([
+//     profileModel.findOneAndUpdate(
+//       { userId: user._id },
+//       { $set: { "onboardingProgress.emailVerified": true } },
+//       { upsert: true, new: true, lean: true }
+//     ),
+//     BlockedContact.find({ userId: user._id }).lean(),
+//     Block.find({ blockerId: user._id }).lean()
+//   ]);
+
+//   return {
+//     user: formatUserProfile(user, profile, blockedContacts, blockedUser)
+//   };
+// }
+
+
+async function verifyEmailOtp(token, otp, req) {
   const decoded = utils.verifyToken(token);
 
   const user = await User.findById(decoded.userId);
@@ -289,7 +377,8 @@ async function verifyEmailOtp(token, otp) {
 
   return {
     // Return the formatted user including block lists
-    user: formatUserProfile(user, profile, blockedContacts, blockedUser),
+    // user: formatUserProfile(user, profile, blockedContacts, blockedUser)
+    user: await formatProfileResponse(user, profile, blockedContacts, blockedUser, req)
   };
 }
 
@@ -399,7 +488,7 @@ async function loginVerifyOtp(phone, otp) {
   return { user, accessToken, refreshToken: refreshTokenRaw };
 }
 
-async function refreshAccessToken(refreshTokenRaw) {
+async function refreshAccessToken(refreshTokenRaw, req) {
   // 1. Hash incoming token to compare with DB
 
   if (!refreshTokenRaw) {
@@ -457,7 +546,7 @@ async function refreshAccessToken(refreshTokenRaw) {
   return {
     accessToken,
     refreshToken: refreshTokenRaw,
-    user: formatUserProfile(user, profile, blockedContacts, blockedUser),
+    user: await formatProfileResponse(user, profile, blockedContacts, blockedUser, req)
   };
 }
 
@@ -495,12 +584,7 @@ async function sendPhoneOtpTest(phone, testMode = false) {
 
   // Store in Redis with TTL
   await redis.set(redisKey, otp, "EX", 3000);
-  console.log(
-    `🔑 mobile OTP saved in Redis (${redisKey}):`,
-    otp,
-    "redisKey",
-    redisKey
-  );
+  console.log(`🔑 mobile OTP saved in Redis (${redisKey}):`, otp, "redisKey", redisKey);
 
   if (!testMode) {
     await utils.sendSms(normalizedPhone, `Your MAFS OTP is ${otp}`);
@@ -511,7 +595,7 @@ async function sendPhoneOtpTest(phone, testMode = false) {
   return {
     success: true,
     otp,
-    message: testMode ? "OTP generated (test mode)" : "OTP sent successfully",
+    message: testMode ? "OTP generated (test mode)" : "OTP sent successfully"
   };
 }
 
@@ -527,7 +611,7 @@ module.exports = {
   loginVerifyOtp,
   refreshAccessToken,
   logout,
-  sendPhoneOtpTest,
+  sendPhoneOtpTest
   // socialAuthHandler
 };
 

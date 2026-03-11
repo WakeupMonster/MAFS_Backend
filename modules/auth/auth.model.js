@@ -25,7 +25,10 @@ const userSchema = new mongoose.Schema(
   {
     // ============ PHONE AUTHENTICATION ============
     phone: { type: String, unique: true, sparse: true },
-    phoneHash: { type: String, index: true },
+    phoneHash: {
+      type: String,
+      index: true,
+    },
     isPhoneVerified: { type: Boolean, default: false },
     phoneOtp: { type: String },
     phoneOtpExpires: { type: Date },
@@ -35,16 +38,6 @@ const userSchema = new mongoose.Schema(
     isEmailVerified: { type: Boolean, default: false },
     emailOtp: { type: String },
     emailOtpExpires: { type: Date },
-
-    // This password field for Admin only
-    password: { type: String },
-
-    // This forgot Password is for Admin only
-    forgotPassword: {
-      otpHash: String,
-      expiresAt: Number,
-      verified: { type: Boolean, default: false },
-    },
 
     // ============ SOCIAL AUTHENTICATION ============
     social: {
@@ -101,43 +94,98 @@ const userSchema = new mongoose.Schema(
       index: true,
     },
 
+    isFake: {
+      type: Boolean,
+      default: false,
+      index: true,
+    },
+
+    fakeProfileMeta: {
+      createdByAdmin: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
+      batchId: { type: String, index: true },
+    },
+
     banDetails: {
       isBanned: {
         type: Boolean,
         default: false,
         index: true,
       },
-      reason: { type: String, default: null },
+      reason: {
+        type: String,
+        default: null,
+      },
       bannedBy: {
         type: mongoose.Schema.Types.ObjectId,
         ref: "User",
         default: null,
       },
-
-      bannedAt: { type: Date, default: null },
-      unbannedBy: {
-        type: mongoose.Schema.Types.ObjectId,
-        ref: "User",
+      bannedAt: {
+        type: Date,
         default: null,
       },
-      unbannedAt: { type: Date, default: null },
     },
 
     deactivationDetails: {
-      isDeactivated: { type: Boolean, default: false },
-      reason: { type: String, default: null },
-      deactivatedAt: { type: Date, default: null },
+      isDeactivated: {
+        type: Boolean,
+        default: false,
+      },
+      reason: {
+        type: String,
+        default: null,
+      },
+      deactivatedAt: {
+        type: Date,
+        default: null,
+      },
     },
 
     deletionDetails: {
-      isScheduledForDeletion: { type: Boolean, default: false },
-      scheduledAt: { type: Date, default: null },
+      isScheduledForDeletion: {
+        type: Boolean,
+        default: false,
+      },
+      reason: {
+        type: String,
+        default: null,
+      },
+      scheduledAt: {
+        type: Date,
+        default: null,
+      },
+      deletionDate: {
+        type: Date,
+        default: null,
+      },
+      daysRemaining: {
+        type: Number,
+        default: null,
+      },
     },
 
-    suspensionDetails: {
-      isSuspended: { type: Boolean, default: false, index: true },
+    deleteAccountOtp: {
+      type: String,
+      default: null,
+      select: false,
+    },
 
-      reason: { type: String, default: null },
+    deleteAccountOtpExpires: {
+      type: Date,
+      default: null,
+      select: false,
+    },
+    suspensionDetails: {
+      isSuspended: {
+        type: Boolean,
+        default: false,
+        index: true,
+      },
+
+      reason: {
+        type: String,
+        default: null,
+      },
 
       suspendedBy: {
         type: mongoose.Schema.Types.ObjectId,
@@ -145,34 +193,62 @@ const userSchema = new mongoose.Schema(
         default: null,
       },
 
-      suspendedAt: { type: Date, default: null },
+      suspendedAt: {
+        type: Date,
+        default: null,
+      },
 
-      suspendUntil: { type: Date, default: null, index: true },
+      suspendUntil: {
+        type: Date,
+        default: null,
+        index: true,
+      },
     },
 
     onboarding: {
-      isComplete: { type: Boolean, default: false },
-
+      isComplete: {
+        type: Boolean,
+        default: false,
+      },
       // nextstep: {
       //   type: Number,
       //   default: 7
       // },
-
-      currentScreenSlug: { type: String, default: "" },
+      currentScreenSlug: {
+        type: String,
+        default: "",
+      },
     },
 
-    isPremium: { type: Boolean, default: false },
+    isPremium: {
+      type: Boolean,
+      default: false,
+    },
 
-    premiumExpiresAt: { type: Date, default: null },
+    premiumExpiresAt: {
+      type: Date,
+      default: null,
+    },
 
-    lastLoginAt: { type: Date, default: null, index: true },
+    lastLoginAt: {
+      type: Date,
+      default: null,
+      index: true,
+    },
 
     // ============ PASSWORD (ADMIN ONLY) ============
-    password: { type: String, select: false, minlength: 8 },
+    password: {
+      type: String,
+      select: false,
+      minlength: 8,
+    },
+    passwordChangedAt: {
+      type: Date,
+    },
 
-    passwordChangedAt: { type: Date },
-
-    lastPasswordResetAt: { type: Date },
+    lastPasswordResetAt: {
+      type: Date,
+    },
 
     authMethod: {
       type: String,
@@ -183,9 +259,6 @@ const userSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
-// ============ INDEXES ============
-// userSchema.index({ phone: 1 });
-// userSchema.index({ email: 1 });
 userSchema.index({ "social.google.id": 1 });
 userSchema.index({ "social.facebook.id": 1 });
 userSchema.index({ "social.apple.id": 1 });

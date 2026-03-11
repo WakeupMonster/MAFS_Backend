@@ -5,7 +5,7 @@ const SubscriptionTransactionSchema = new mongoose.Schema(
     subscriptionId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "Subscription",
-      required: true,
+      required: false,  // v3: Not required for consumable purchases
       index: true,
     },
     userId: {
@@ -37,11 +37,11 @@ const SubscriptionTransactionSchema = new mongoose.Schema(
       type: String,
       enum: [
         "PURCHASE",
+        "CONSUMABLE_PURCHASE",
         "RENEW",
         "CANCEL",
         "REFUND",
         "EXPIRE",
-        "GRACE_PERIOD",
         "PAUSE",
         "RESUME",
         "PRICE_CHANGE",
@@ -73,7 +73,4 @@ const SubscriptionTransactionSchema = new mongoose.Schema(
 SubscriptionTransactionSchema.index({ subscriptionId: 1, eventType: 1 });
 SubscriptionTransactionSchema.index({ transactionId: 1, platform: 1 });
 
-module.exports = mongoose.model(
-  "SubscriptionTransaction",
-  SubscriptionTransactionSchema
-);
+module.exports = mongoose.model("SubscriptionTransaction", SubscriptionTransactionSchema);

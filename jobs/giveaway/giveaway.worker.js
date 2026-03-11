@@ -5,7 +5,7 @@ const timezone = require("dayjs/plugin/timezone");
 const GiveawayCampaign = require("../../modules/Admin/giveaways/giveawayCampaign.model");
 const GiveawayWinHistory = require("../../modules/Admin/giveaways/giveawayWinHistory.model");
 const User = require("../../modules/auth/auth.model");
-const { Match } = require("../../modules/matches/swipe/swipe.model");
+const {Match} = require("../../modules/matches/swipe/swipe.model");
 const notificationService = require("../../modules/notifications/notification.service");
 const Prize = require("../../modules/Admin/giveaways/prize.model");
 const GiveawaySettings = require("../../modules/Admin/giveaways/giveawaySettings.model");
@@ -13,188 +13,409 @@ const GiveawaySettings = require("../../modules/Admin/giveaways/giveawaySettings
 dayjs.extend(utc);
 dayjs.extend(timezone);
 
-const AEST_TZ = "Australia/Sydney";
+const IST_TZ = "Asia/Kolkata";  
 
-/**
- * Main Worker Function
- */
 module.exports = async function runGiveawayWorker() {
-  console.log(`[${new Date().toISOString()}] 🎯 Giveaway worker initiated.`);
+  console.log("🎯 Giveaway worker started at:", new Date().toISOString());
 
   try {
-    const campaign = await findAndLockPendingCampaign();
-    if (!campaign) {
-      console.log("ℹ️ No pending giveaway campaign found for today.");
-      return;
-    }
+    // ===============================
+    // 1️⃣ Find today's campaign
+    // ===============================
+    const todayUTC = new Date();
+    todayUTC.setUTCHours(0, 0, 0, 0);
 
-    const { start, end } = getMatchWindow(campaign.date);
-    const participantIds = await getMatchedUserIds(start, end);
-
-    if (participantIds.length === 0) {
-      await finalizeCampaign(campaign, {
-        status: "COMPLETED",
-        reason: "No matches in giveaway window",
-        participants: [],
-      });
-      return;
-    }
-
-    // Update campaign with participant data before drawing
-    campaign.participants = participantIds;
-    campaign.totalParticipants = participantIds.length;
-    campaign.matchWindowStart = start;
-    campaign.matchWindowEnd = end;
-    await campaign.save();
+    const startOfTodayIST = dayjs().tz(IST_TZ).startOf("day").toDate();
+    const endOfTodayIST = dayjs().tz(IST_TZ).endOf("day").toDate();
 
     const settings = await GiveawaySettings.findOne();
-    const winner = await pickEligibleWinner(
-      participantIds,
-      settings?.yearlyWinLimitPerUser || 2
-    );
+    const yearlyLimit = settings?.yearlyWinLimitPerUser || 2;
 
-    if (!winner) {
-      await finalizeCampaign(campaign, {
-        status: "COMPLETED",
-        reason: "No eligible premium users",
-      });
+    const campaign = await GiveawayCampaign.findOne({
+      $or: [
+        { date: todayUTC },
+        { date: { $gte: startOfTodayIST, $lt: endOfTodayIST } }
+      ],
+      isActive: true,
+      drawStatus: "PENDING"
+    });
+
+    if (!campaign) {
+      console.log("ℹ️ No pending giveaway campaign today");
       return;
     }
 
-    await recordWinAndNotify(campaign, winner);
-    console.log(`✅ Giveaway finished. Winner: ${winner._id}`);
+    console.log("✅ Campaign found:", campaign._id);
+
+    // ===============================
+    // 2️⃣ Lock campaign
+    // ===============================
+    campaign.drawStatus = "PROCESSING";
+    await campaign.save();
+
+    const nowIST = dayjs().tz(IST_TZ);
+    const currentYear = nowIST.year();
+
+    // ===============================
+    // 3️⃣ Match window = TODAY (IST)
+    // ===============================
+    // const giveawayStart = nowIST.startOf("day").toDate();
+    // const giveawayEnd = nowIST.endOf("day").toDate();
+
+    const giveawayStart = dayjs().tz(IST_TZ).subtract(1, "day").startOf("day").toDate();
+const giveawayEnd = dayjs().tz(IST_TZ).subtract(1, "day").endOf("day").toDate();
+
+    console.log("🎰 Match window:", giveawayStart, "→", giveawayEnd);
+
+    // ===============================
+    // 4️⃣ ALL matched users in window
+    // ===============================
+    const matchedUsers = await Match.aggregate([
+      {
+        $match: {
+          matchedAt: { $gte: giveawayStart, $lte: giveawayEnd }
+        }
+      },
+      { $unwind: "$users" },
+      { $group: { _id: "$users" } }
+    ]);
+
+    console.log("👥 Total matched users:", matchedUsers.length);
+
+    if (!matchedUsers.length) {
+      campaign.drawStatus = "COMPLETED";
+      campaign.failureReason = "No matches in giveaway window";
+      campaign.matchWindowStart = giveawayStart;
+      campaign.matchWindowEnd = giveawayEnd;
+      await campaign.save();
+      return;
+    }
+
+    const matchedUserIds = matchedUsers.map(u => u._id);
+
+    // ===============================
+    // ✅ 5️⃣ Save ALL participants in campaign
+    // ===============================
+    campaign.participants = matchedUserIds;
+    campaign.totalParticipants = matchedUserIds.length;
+    campaign.matchWindowStart = giveawayStart;
+    campaign.matchWindowEnd = giveawayEnd;
+    await campaign.save();
+
+    console.log("📋 Participants saved:", matchedUserIds.length);
+
+    // ===============================
+    // 6️⃣ Pick winner (Premium + yearly limit)
+    // ===============================
+    const [winner] = await User.aggregate([
+      {
+        $match: {
+          _id: { $in: matchedUserIds },
+          isPremium: true,
+          accountStatus: "active",
+          // premiumExpiresAt: { $gt: new Date() }
+        }
+      },
+      {
+        $lookup: {
+          from: "giveawaywinhistories",
+          let: { userId: "$_id" },
+          pipeline: [
+            {
+              $match: {
+                $expr: {
+                  $and: [
+                    { $eq: ["$userId", "$$userId"] },
+                    { $eq: ["$year", currentYear] }
+                  ]
+                }
+              }
+            }
+          ],
+          as: "winsThisYear"
+        }
+      },
+      {
+        $match: {
+          $expr: { $lt: [{ $size: "$winsThisYear" }, yearlyLimit] }
+        }
+      },
+      { $sample: { size: 1 } },
+      { $project: { _id: 1 } }
+    ]);
+
+    console.log("🏆 Winner:", winner ? winner._id : "NONE");
+
+    if (!winner) {
+      campaign.drawStatus = "COMPLETED";
+      campaign.failureReason = "No eligible premium users";
+      await campaign.save();
+      return;
+    }
+
+    // ===============================
+    // 7️⃣ Save win + complete
+    // ===============================
+    await GiveawayWinHistory.create({
+      userId: winner._id,
+      campaignId: campaign._id,
+      prizeId: campaign.prizeId,
+      year: currentYear
+    });
+
+    const prize = await Prize.findById(campaign.prizeId).select("title");
+
+    campaign.winnerUserId = winner._id;
+    campaign.drawStatus = "COMPLETED";
+    campaign.drawAt = new Date();
+    await campaign.save();
+
+    if (prize) {
+      await notificationService.sendGiveawayWinnerNotification(
+        winner._id,
+        prize.title
+      );
+    }
+
+    console.log("✅ Giveaway completed! Winner:", winner._id);
+    console.log("📊 Total participants:", matchedUserIds.length);
+
   } catch (error) {
     console.error("❌ Giveaway worker FAILED:", error.message);
-    await rollbackProcessingCampaign(error.message);
+
+    try {
+      const campaign = await GiveawayCampaign.findOne({
+        drawStatus: "PROCESSING"
+      });
+      if (campaign) {
+        campaign.drawStatus = "PENDING";
+        campaign.failureReason = error.message;
+        await campaign.save();
+      }
+    } catch (resetErr) {
+      console.error("❌ Reset failed:", resetErr);
+    }
   }
 };
 
-// --- Helper Functions ---
 
-/**
- * Finds a PENDING campaign for today and moves it to PROCESSING atomically
- */
-async function findAndLockPendingCampaign() {
-  const nowAEST = dayjs().tz(AEST_TZ);
-  const startOfDay = nowAEST.startOf("day").toDate();
-  const endOfDay = nowAEST.endOf("day").toDate();
 
-  return await GiveawayCampaign.findOneAndUpdate(
-    {
-      date: { $gte: startOfDay, $lte: endOfDay },
-      isActive: true,
-      drawStatus: "PENDING",
-    },
-    { drawStatus: "PROCESSING" },
-    { new: true }
-  );
-}
 
-/**
- * Calculates the 24h window for matches (Yesterday AEST)
- */
-function getMatchWindow(campaignDate) {
-  const baseDate = dayjs(campaignDate).tz(AEST_TZ);
-  return {
-    start: baseDate.startOf("day").toDate(),
-    end: baseDate.endOf("day").toDate(),
-  };
-}
+// const dayjs = require("dayjs");
+// const utc = require("dayjs/plugin/utc");
+// const timezone = require("dayjs/plugin/timezone");
 
-/**
- * Gets unique user IDs who had a match within the window
- */
-async function getMatchedUserIds(start, end) {
-  const matches = await Match.aggregate([
-    { $match: { matchedAt: { $gte: start, $lte: end } } },
-    { $unwind: "$users" },
-    { $group: { _id: "$users" } },
-  ]);
-  return matches.map((m) => m._id);
-}
+// const GiveawayCampaign = require("../../modules/Admin/giveaways/giveawayCampaign.model");
+// const GiveawayWinHistory = require("../../modules/Admin/giveaways/giveawayWinHistory.model");
+// const User = require("../../modules/auth/auth.model");
+// const { Match } = require("../../modules/matches/swipe/swipe.model"); // ✅ Destructured
+// const notificationService = require("../../modules/notifications/notification.service");
+// const Prize = require("../../modules/Admin/giveaways/prize.model");
+// const GiveawaySettings = require("../../modules/Admin/giveaways/giveawaySettings.model");
 
-/**
- * Complex aggregation to find a random eligible winner
- */
-async function pickEligibleWinner(userIds, yearlyLimit) {
-  const currentYear = dayjs().tz(AEST_TZ).year();
+// dayjs.extend(utc);
+// dayjs.extend(timezone);
 
-  const [winner] = await User.aggregate([
-    {
-      $match: {
-        _id: { $in: userIds },
-        isPremium: true,
-        accountStatus: "active",
-        premiumExpiresAt: { $gt: new Date() },
-      },
-    },
-    {
-      $lookup: {
-        from: "giveawaywinhistories",
-        let: { userId: "$_id" },
-        pipeline: [
-          {
-            $match: {
-              $expr: {
-                $and: [
-                  { $eq: ["$userId", "$$userId"] },
-                  { $eq: ["$year", currentYear] },
-                ],
-              },
-            },
-          },
-        ],
-        as: "wins",
-      },
-    },
-    { $match: { $expr: { $lt: [{ $size: "$wins" }, yearlyLimit] } } },
-    { $sample: { size: 1 } },
-    { $project: { _id: 1 } },
-  ]);
+// const AEST_TZ = "Australia/Sydney";
 
-  return winner;
-}
+// module.exports = async function runGiveawayWorker() {
+//   console.log("🎯 Giveaway worker started at:", new Date().toISOString());
 
-/**
- * Handles the final DB updates, history creation, and push notifications
- */
-async function recordWinAndNotify(campaign, winner) {
-  const currentYear = dayjs().tz(AEST_TZ).year();
+//   try {
+//     // ===============================
+//     // 1️⃣ Find today's campaign
+//     // ===============================
+//     const nowAEST = dayjs().tz(AEST_TZ);
+//     const currentYear = nowAEST.year();
 
-  await GiveawayWinHistory.create({
-    userId: winner._id,
-    campaignId: campaign._id,
-    prizeId: campaign.prizeId,
-    year: currentYear,
-  });
+//     const todayUTC = new Date();
+//     todayUTC.setUTCHours(0, 0, 0, 0);
 
-  campaign.winnerUserId = winner._id;
-  campaign.drawStatus = "COMPLETED";
-  campaign.drawAt = new Date();
-  await campaign.save();
+//     const startOfTodayAEST = nowAEST.startOf("day").toDate();
+//     const endOfTodayAEST = nowAEST.endOf("day").toDate();
 
-  const prize = await Prize.findById(campaign.prizeId).select("title");
-  if (prize) {
-    await notificationService.sendGiveawayWinnerNotification(
-      winner._id,
-      prize.title
-    );
-  }
-}
+//     console.log("📅 Now AEST:", nowAEST.format("YYYY-MM-DD HH:mm:ss"));
 
-async function finalizeCampaign(campaign, { status, reason, participants }) {
-  campaign.drawStatus = status;
-  if (reason) campaign.failureReason = reason;
-  if (participants) {
-    campaign.participants = participants;
-    campaign.totalParticipants = participants.length;
-  }
-  await campaign.save();
-}
+//     const settings = await GiveawaySettings.findOne();
+//     const yearlyLimit = settings?.yearlyWinLimitPerUser || 2;
 
-async function rollbackProcessingCampaign(errorMessage) {
-  await GiveawayCampaign.updateOne(
-    { drawStatus: "PROCESSING" },
-    { drawStatus: "PENDING", failureReason: errorMessage }
-  );
-}
+//     const campaign = await GiveawayCampaign.findOne({
+//       $or: [
+//         { date: todayUTC },
+//         { date: { $gte: startOfTodayAEST, $lt: endOfTodayAEST } },
+//       ],
+//       isActive: true,
+//       drawStatus: "PENDING",
+//     });
+//     const campaignDateAEST = dayjs(campaign.date).tz("Australia/Sydney");
+//     console.log("campaignDateAEST:", campaignDateAEST);
+//     const yesterdayAEST = nowAEST.subtract(1, "day");
+//     console.log("yesterdayAEST :", yesterdayAEST);
+
+//     if (!campaign) {
+//       console.log("ℹ️ No pending giveaway campaign today");
+//       return;
+//     }
+
+//     console.log("✅ Campaign found:", campaign._id);
+
+//     // ===============================
+//     // 2️⃣ Lock campaign
+//     // ===============================
+//     campaign.drawStatus = "PROCESSING";
+//     await campaign.save();
+
+//     // ===============================
+//     // 3️⃣ Match window = YESTERDAY 00:00 - 23:59 AEST
+//     //    (Draw is NEXT DAY at 7PM)
+//     // ===============================
+
+//     // const campaignDateAEST = dayjs(campaign.date).tz("Australia/Sydney");
+//     // console.log("campaignDateAEST:", campaignDateAEST)
+//     const giveawayStart = campaignDateAEST.startOf("day").toDate();
+//     const giveawayEnd = campaignDateAEST.endOf("day").toDate();
+//     // const yesterdayAEST = nowAEST.subtract(1, "day");
+//     // console.log("yesterdayAEST :", yesterdayAEST)
+//     // const giveawayStart = yesterdayAEST.startOf("day").toDate();
+//     // const giveawayEnd = yesterdayAEST.endOf("day").toDate();
+
+//     console.log("🎰 Giveaway window (YESTERDAY AEST):");
+//     console.log("   From:", giveawayStart);
+//     console.log("   To:  ", giveawayEnd);
+
+//     // ===============================
+//     // 4️⃣ All matched users in window
+//     // ===============================
+//     const matchedUsers = await Match.aggregate([
+//       {
+//         $match: {
+//           matchedAt: { $gte: giveawayStart, $lte: giveawayEnd },
+//         },
+//       },
+//       { $unwind: "$users" },
+//       { $group: { _id: "$users" } },
+//     ]);
+
+//     console.log("👥 Total matched users:", matchedUsers.length);
+
+//     if (!matchedUsers.length) {
+//       campaign.drawStatus = "COMPLETED";
+//       campaign.failureReason = "No matches in giveaway window";
+//       campaign.matchWindowStart = giveawayStart;
+//       campaign.matchWindowEnd = giveawayEnd;
+//       campaign.participants = [];
+//       campaign.totalParticipants = 0;
+//       await campaign.save();
+//       return;
+//     }
+
+//     const matchedUserIds = matchedUsers.map((u) => u._id);
+
+//     // ===============================
+//     // 5️⃣ Save participants
+//     // ===============================
+//     campaign.participants = matchedUserIds;
+//     campaign.totalParticipants = matchedUserIds.length;
+//     campaign.matchWindowStart = giveawayStart;
+//     campaign.matchWindowEnd = giveawayEnd;
+//     await campaign.save();
+
+//     console.log("📋 Participants saved:", matchedUserIds.length);
+
+//     // ===============================
+//     // 6️⃣ Pick winner
+//     //    - Must have match in window ✅
+//     //    - Must be Premium at DRAW TIME ✅
+//     //    - Must not have won 2+ times this year ✅
+//     //    - Random selection ✅
+//     // ===============================
+//     const [winner] = await User.aggregate([
+//       {
+//         $match: {
+//           _id: { $in: matchedUserIds },
+//           isPremium: true,
+//           accountStatus: "active",
+//           premiumExpiresAt: { $gt: new Date() }, // Premium at DRAW time
+//         },
+//       },
+//       {
+//         $lookup: {
+//           from: "giveawaywinhistories",
+//           let: { userId: "$_id" },
+//           pipeline: [
+//             {
+//               $match: {
+//                 $expr: {
+//                   $and: [
+//                     { $eq: ["$userId", "$$userId"] },
+//                     { $eq: ["$year", currentYear] },
+//                   ],
+//                 },
+//               },
+//             },
+//           ],
+//           as: "winsThisYear",
+//         },
+//       },
+//       {
+//         $match: {
+//           $expr: { $lt: [{ $size: "$winsThisYear" }, yearlyLimit] },
+//         },
+//       },
+//       { $sample: { size: 1 } },
+//       { $project: { _id: 1 } },
+//     ]);
+
+//     console.log("🏆 Winner:", winner ? winner._id : "NONE");
+
+//     if (!winner) {
+//       campaign.drawStatus = "COMPLETED";
+//       campaign.failureReason = "No eligible premium users";
+//       await campaign.save();
+//       return;
+//     }
+
+//     // ===============================
+//     // 7️⃣ Save win + complete
+//     // ===============================
+//     await GiveawayWinHistory.create({
+//       userId: winner._id,
+//       campaignId: campaign._id,
+//       prizeId: campaign.prizeId,
+//       year: currentYear,
+//     });
+
+//     const prize = await Prize.findById(campaign.prizeId).select("title");
+
+//     campaign.winnerUserId = winner._id;
+//     campaign.drawStatus = "COMPLETED";
+//     campaign.drawAt = new Date();
+//     await campaign.save();
+
+//     if (prize) {
+//       await notificationService.sendGiveawayWinnerNotification(
+//         winner._id,
+//         prize.title
+//       );
+//     }
+
+//     console.log("✅ Giveaway completed!");
+//     console.log("🏆 Winner:", winner._id);
+//     console.log("📊 Participants:", matchedUserIds.length);
+//   } catch (error) {
+//     console.error("❌ Giveaway worker FAILED:", error.message);
+
+//     try {
+//       const campaign = await GiveawayCampaign.findOne({
+//         drawStatus: "PROCESSING",
+//       });
+//       if (campaign) {
+//         campaign.drawStatus = "PENDING";
+//         campaign.failureReason = error.message;
+//         await campaign.save();
+//       }
+//     } catch (resetErr) {
+//       console.error("❌ Reset failed:", resetErr);
+//     }
+//   }
+// };

@@ -19,7 +19,7 @@ module.exports.getFeed = async (req, res) => {
       success: true,
       message: "Feed fetched successfully",
       count: feedResult.data.length,
-      cached: feedResult.cached,
+      //  cached: feedResult.cached,
       //       data: {
       //   count: feedResult.data.length,
       //    pagination: {
@@ -67,10 +67,7 @@ module.exports.unmatchUser = async (req, res) => {
 
     await session.withTransaction(async () => {
       // 1. Match dhundo aur check karo ki user us match ka part hai
-      const match = await Match.findOne({
-        _id: matchId,
-        users: userId,
-      }).session(session);
+      const match = await Match.findOne({ _id: matchId, users: userId }).session(session);
 
       if (!match) {
         throw new Error("Match not found or already unmatched");
@@ -173,12 +170,9 @@ function calculateDistance(lat1, lon1, lat2, lon2) {
   const R = 6371;
   const dLat = (lat2 - lat1) * (Math.PI / 180);
   const dLon = (lon2 - lon1) * (Math.PI / 180);
-  const a =
-    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-    Math.cos(lat1 * (Math.PI / 180)) *
-      Math.cos(lat2 * (Math.PI / 180)) *
-      Math.sin(dLon / 2) *
-      Math.sin(dLon / 2);
+  const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos(lat1 * (Math.PI / 180)) * Math.cos(lat2 * (Math.PI / 180)) *
+    Math.sin(dLon / 2) * Math.sin(dLon / 2);
   const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
   return Math.round(R * c);
 }
@@ -192,6 +186,19 @@ function calculateAge(dob) {
 module.exports.getKeenData = async (req, res, actionType) => {
   try {
     const userId = req.user._id;
+
+    // 1. Premium Check for normal likes (v3 Requirements)
+    if (actionType === 'like') {
+      const usageStatus = await UsageService.getUsageStatus(userId);
+      if (!usageStatus.data.features.canSeeWhoLiked) {
+        return res.status(403).json({
+          success: false,
+          code: "PREMIUM_REQUIRED",
+          message: "See who liked you is a premium feature."
+        });
+      }
+    }
+
     const { page = 1, limit = 20 } = req.query;
     const skip = (parseInt(page) - 1) * parseInt(limit);
 
@@ -202,43 +209,45 @@ module.exports.getKeenData = async (req, res, actionType) => {
 
     const matchedUserIds = await Match.find({ users: userId })
       .lean()
-      .then((matches) =>
-        matches.map((m) =>
-          m.users.find((u) => u.toString() !== userId.toString())
+      .then(matches =>
+        matches.map(m =>
+          m.users.find(u => u.toString() !== userId.toString())
         )
       );
+
 
     // 2. Swipes dhundna (Populate ko Profile collection par point kar rahe hain)
     const keens = await Swipe.find({
       targetId: userId,
       action: actionType,
-      // swiperId: { $nin: mySwipedIds }
-      swiperId: {
-        $nin: [...mySwipedIds, ...matchedUserIds],
-      },
+      swiperId: { $nin: mySwipedIds }
+      //      swiperId: {
+      //   $nin: [...mySwipedIds, ...matchedUserIds]
+      // }
     })
       .sort({ createdAt: -1 })
       .skip(skip)
       .limit(parseInt(limit))
       .populate({
-        path: "swiperId",
-        model: "Profile", // <--- YE SABSE IMPORTANT HAI (Profile collection se data lega)
-        foreignField: "userId", // <--- Profile model mein userId se match karega
-        select: "nickname dob photos location about",
+        path: 'swiperId',
+        model: 'Profile',   // <--- YE SABSE IMPORTANT HAI (Profile collection se data lega)
+        foreignField: 'userId', // <--- Profile model mein userId se match karega
+        select: 'nickname dob photos location about'
       });
+
 
     const total = await Swipe.countDocuments({
       targetId: userId,
       action: actionType,
       // swiperId: { $nin: mySwipedIds }
       swiperId: {
-        $nin: [...mySwipedIds, ...matchedUserIds],
-      },
+        $nin: [...mySwipedIds, ...matchedUserIds]
+      }
     });
 
-    const formattedData = keens
-      .map((item) => {
-        const profile = item.swiperId;
+
+    const formattedData = keens.map(item => {
+      const profile = item.swiperId;
 
         if (!profile || !profile.nickname) return null;
 
@@ -253,20 +262,19 @@ module.exports.getKeenData = async (req, res, actionType) => {
           );
         }
 
-        // 🔥 EXACT MANAGER RESPONSE FORMAT
-        return {
-          userId: profile.userId,
-          nickname: profile.nickname,
-          age: age,
-          mainPhotoUrl:
-            profile.photos?.sort((a, b) => a.order - b.order)[0]?.url || "",
-          distanceText: distance <= 1 ? "1 km away" : `${distance} km away`,
-          city: profile.location?.city || "Nearby",
-          action: item.action, // 'like' or 'superlike'
-          likedAt: item.createdAt, // Manager ne 'likedAt' manga hai
-        };
-      })
-      .filter(Boolean);
+      // 🔥 EXACT MANAGER RESPONSE FORMAT
+      return {
+        userId: profile.userId,
+        nickname: profile.nickname,
+        age: age,
+        mainPhotoUrl: profile.photos?.sort((a, b) => a.order - b.order)[0]?.url || "",
+        distanceText: distance <= 1 ? "1 km away" : `${distance} km away`,
+        city: profile.location?.city || "Nearby",
+        action: item.action, // 'like' or 'superlike'
+        likedAt: item.createdAt // Manager ne 'likedAt' manga hai
+      };
+    }).filter(Boolean);
+
 
     const pageNum = parseInt(page);
     const limitNum = parseInt(limit);
@@ -279,8 +287,8 @@ module.exports.getKeenData = async (req, res, actionType) => {
         total,
         page: pageNum,
         limit: limitNum,
-        hasMore: hasMore, // ✅ Frontend check karega: if(hasMore) loadNextPage()
-      },
+        hasMore: hasMore
+      }
     });
   } catch (err) {
     console.error("Keen API Error:", err);
@@ -288,11 +296,33 @@ module.exports.getKeenData = async (req, res, actionType) => {
   }
 };
 
+exports.getKeen = (req, res) => exports.getKeenData(req, res, "like");
+exports.getSuperKeen = (req, res) => exports.getKeenData(req, res, "superlike");
+
+
+
+const UsageService = require("../../subscription/services/usage.service");
+
 exports.undo = async (req, res) => {
   const session = await mongoose.startSession();
 
   try {
     const userId = req.user._id;
+
+    // 1️⃣ REWIND QUOTA CHECK (v3 Requirements)
+    try {
+      await UsageService.useItem(userId, 'REWIND');
+    } catch (error) {
+      if (error.message === 'LIMIT_REACHED') {
+        return res.status(403).json({
+          success: false,
+          code: "LIMIT_REACHED",
+          message: "You've reached your daily Rewind limit! Upgrade to Premium for unlimited rewinds."
+        });
+      }
+      throw error;
+    }
+
     let undone = null;
 
     await session.withTransaction(async () => {

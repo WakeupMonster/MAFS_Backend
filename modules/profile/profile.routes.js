@@ -7,7 +7,9 @@ const validation = require("./profile.validation");
 const controllerDis = require("../discovery/discovery.controller");
 const userAction = require("./userActionController")
 // const ENUMS = require("../../config/enums");
-const  masterController  = require("./master.controller")
+const masterController = require("./master.controller")
+
+const { validateDiscoveryFilters } = require("../../common/utils/validators");
 
 router.use(auth);
 
@@ -20,8 +22,15 @@ router.patch(
 );
 
 router.patch(
+  "/discovery-preference/reset",
+  auth,
+  controller.resetDiscoveryFilters
+);
+
+router.patch(
   "/discovery-preference",
   auth,
+  validateDiscoveryFilters,
   controller.updateDiscoveryFilters
 );
 
@@ -75,7 +84,7 @@ router.get("/verification-status", controller.getVerificationStatus);
 
 router.post(
   "/location",
-  // validation.validateLocation,
+  validation.validateLocation,
   controller.updateLocation
 );
 
@@ -89,22 +98,22 @@ router.post("/bulk-add", masterController.bulkAddMasterData);
 router.get("/config", masterController.getAppConfig);
 
 
-router.get("/:userId",validation.validateUserIdParam, controller.getUserProfile);
+router.get("/:userId", validation.validateUserIdParam, controller.getUserProfile);
 
 router.patch(
   "/visibility",
-  auth,  
+  auth,
   controller.updateVisibility
 );
 
 router.get("/blocked/all", userAction.getBlockList);
 
-router.post("/block/:id",  userAction.blockUser);
-router.delete("/unblock/:id",  userAction.unblockUser);
-router.get("/block-list",  userAction.getBlockList);
+router.post("/block/:id", userAction.blockUser);
+router.delete("/unblock/:id", userAction.unblockUser);
+router.get("/block-list", userAction.getBlockList);
 
 // Report
 router.post("/report/:id", userAction.reportUser);
 
-router.post("/resetData",controller.resetTestData)
+router.post("/resetData", controller.resetTestData)
 module.exports = router;

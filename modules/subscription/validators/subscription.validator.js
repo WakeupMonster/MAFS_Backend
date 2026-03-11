@@ -45,4 +45,18 @@ const validate = (schema) => {
   };
 };
 
-module.exports = { verifyPurchaseSchema, validate };
+const restorePurchasesSchema = Joi.object({
+  platform: Joi.string().valid("ios", "android").required(),
+  purchases: Joi.array()
+    .items(
+      Joi.object({
+        productId: Joi.string().required(),
+        transactionId: Joi.string().optional(),
+        purchaseToken: Joi.string().optional(),
+      })
+    )
+    .min(1)
+    .required(),
+});
+
+module.exports = { verifyPurchaseSchema, restorePurchasesSchema, validate };

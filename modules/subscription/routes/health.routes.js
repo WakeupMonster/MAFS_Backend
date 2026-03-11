@@ -9,28 +9,19 @@ router.get("/", async (req, res) => {
     const Subscription = require("../models/Subscription");
 
     const dbState = mongoose.connection.readyState;
-    const dbStatus = {
-      0: "disconnected",
-      1: "connected",
-      2: "connecting",
-      3: "disconnecting",
-    };
+    const dbStatus = { 0: "disconnected", 1: "connected", 2: "connecting", 3: "disconnecting" };
 
     let pendingEvents = 0;
     let failedEvents = 0;
     let activeSubscriptions = 0;
 
     if (dbState === 1) {
-      pendingEvents = await SubscriptionEvent.countDocuments({
-        processed: false,
-      });
+      pendingEvents = await SubscriptionEvent.countDocuments({ processed: false });
       failedEvents = await SubscriptionEvent.countDocuments({
         processed: false,
         "error.retryCount": { $gte: 5 },
       });
-      activeSubscriptions = await Subscription.countDocuments({
-        status: "ACTIVE",
-      });
+      activeSubscriptions = await Subscription.countDocuments({ status: "ACTIVE" });
     }
 
     return res.json({

@@ -10,11 +10,8 @@ const Block = require("../profile/user.block");
 const { formatProfileResponse } = require("./profile.formatter");
 const UserSubscription = require("../auth/UserSubscription.model");
 const { formatPublictargetProfile } = require("./profile.userFormatter");
-const {
-  buildOnboardingResponse,
-} = require("../../common/utils/onBoardingSteps");
-const Swipe = require("../matches/swipe/swipe.model");
-const { Match } = require("../matches/swipe/swipe.model");
+const { buildOnboardingResponse } = require("../../common/utils/onBoardingSteps");
+const getFormattedUser = require("../../common/utils/getFormattedUser");
 
 async function getFullUserData(userId, existingProfile = null) {
   const [user, profile, blockedContacts, blockedUser, subData] =
@@ -90,18 +87,11 @@ module.exports.updateProfile = async (req, res) => {
         if (p[field] !== undefined) profile[field] = p[field];
       });
 
-      if (p.nickname) {
-        const existing = await Profile.findOne({
-          nickname: p.nickname,
-          userId: { $ne: userId },
-        }).lean();
-        if (existing)
-          return res.status(400).json({
-            success: false,
-            code: "NICKNAME_TAKEN",
-            message: "Nickname taken",
-          });
-      }
+      // if (p.nickname) {
+      //   const existing = await Profile.findOne({ nickname: p.nickname, userId: { $ne: userId } }).lean();
+      //   if (existing) return res.status(400).json({ success: false, message: "Nickname taken" });
+      // }
+
     }
 
     if (updateData.attributes) {
@@ -174,18 +164,23 @@ module.exports.updateProfile = async (req, res) => {
       success: true,
       message: "Profile updated successfully",
       data: {
-        user: formatProfileResponse(
-          data.user,
-          profile,
-          data.blockedContacts,
-          data.blockedUser,
-          data.subData
-        ),
-        onboarding: buildOnboardingResponse(req),
-      },
+        user: await formatProfileResponse(data.user, profile, data.blockedContacts, data.blockedUser, data.subData, req),
+
+        // onboarding: buildOnboardingResponse(req)
+      }
     });
-  } catch (error) {
-    console.error("Update Error:", error);
+  } catch (err) {
+    console.error("Update Error:", err);
+    if (err.name === 'ValidationError') {
+      // Mongoose saare errors ka object deta hai, humein pehla message chahiye
+      const message = Object.values(err.errors).map(val => val.message)[0];
+
+      return res.status(400).json({
+        success: false,
+        message: message // Ye bhejega: "Woman is not a valid gender option"
+      });
+    }
+
     res.status(500).json({ success: false, message: "Internal server error" });
   }
 };
@@ -200,15 +195,7 @@ module.exports.getMyProfile = async (req, res) => {
 
     res.json({
       success: true,
-      data: {
-        user: formatProfileResponse(
-          data.user,
-          data.profile,
-          data.blockedContacts,
-          data.blockedUser,
-          data.subData
-        ),
-      },
+      data: { user: await formatProfileResponse(data.user, data.profile, data.blockedContacts, data.blockedUser, data.subData, req) }
     });
   } catch (err) {
     res
@@ -258,6 +245,14 @@ module.exports.uploadPhotos = async (req, res) => {
       });
     });
 
+    //  if (!profile.onboarding.isComplete) {
+    //   const { nextstep, currentScreenSlug } = req.body;
+    //   profile.onboarding.nextstep = nextstep;
+    //   profile.onboarding.currentScreenSlug = currentScreenSlug;
+    //   profile.onboarding.updatedAt = new Date();
+    // }
+
+
     await profile.save();
     const [data] = await Promise.all([
       getFullUserData(userId, profile),
@@ -268,14 +263,10 @@ module.exports.uploadPhotos = async (req, res) => {
       success: true,
       message: `${newPhotosResults.length} photo uploaded successfully`,
       data: {
-        user: formatProfileResponse(
-          data.user,
-          profile,
-          data.blockedContacts,
-          data.blockedUser,
-          data.subData
-        ),
-      },
+        user: await formatProfileResponse(data.user, profile, data.blockedContacts, data.blockedUser, data.subData, req),
+        // onboarding: buildOnboardingResponse(req)
+
+      }
     });
   } catch (err) {
     res
@@ -314,15 +305,7 @@ module.exports.deletePhoto = async (req, res) => {
     res.json({
       success: true,
       message: "photo deleted successfully",
-      data: {
-        user: formatProfileResponse(
-          data.user,
-          profile,
-          data.blockedContacts,
-          data.blockedUser,
-          data.subData
-        ),
-      },
+      data: { user: await formatProfileResponse(data.user, profile, data.blockedContacts, data.blockedUser, data.subData, req) }
     });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
@@ -332,57 +315,274 @@ module.exports.deletePhoto = async (req, res) => {
 module.exports.reorderPhotos = async (req, res) => {
   try {
     const userId = req.user._id;
-    const { photoIds } = req.body;
-    if (!Array.isArray(photoIds) || photoIds.length === 0)
-      return res
-        .status(400)
-        .json({ success: false, message: "photoIds array is required" });
+    const { photoId, toPosition } = req.body;
 
+    // ✅ 1. Validation
+    if (!photoId || !toPosition) {
+      return res.status(400).json({
+        success: false,
+        message: "photoId and toPosition are required",
+      });
+    }
+
+    const cleanedPhotoId = String(photoId).trim();
+    const position = parseInt(toPosition);
+
+    // ✅ 2. Position valid hai ya nahi
+    if (isNaN(position) || position < 0) {
+      return res.status(400).json({
+        success: false,
+        message: "toPosition must be a number >= 0",
+      });
+    }
+
+    // ✅ 3. Profile find karo
     const profile = await Profile.findOne({ userId });
-    if (!profile)
-      return res
-        .status(404)
-        .json({ success: false, message: "Profile not found" });
-    if (photoIds.length !== profile.photos.length)
-      return res
-        .status(400)
-        .json({ success: false, message: "Photo count mismatch" });
+    if (!profile) {
+      return res.status(404).json({
+        success: false,
+        message: "Profile not found",
+      });
+    }
 
-    const photoMap = new Map();
-    profile.photos.forEach((photo) =>
-      photoMap.set(photo.publicId.toString(), photo)
+    // ✅ 4. Position photos count se zyada toh nahi
+    if (position > profile.photos.length) {
+      return res.status(400).json({
+        success: false,
+        message: `toPosition cannot be greater than ${profile.photos.length}`,
+      });
+    }
+
+    // ✅ 5. Photo find karo — current index nikalo
+    const currentIndex = profile.photos.findIndex(
+      (p) => p.publicId.toString() === cleanedPhotoId
     );
 
-    const reorderedPhotos = photoIds.map((id, index) => {
-      const photo = photoMap.get(id.trim());
-      if (!photo) throw new Error(`Invalid photoId: ${id}`);
-      return { ...photo.toObject(), order: index + 1, isPrimary: index === 0 };
-    });
+    if (currentIndex === -1) {
+      return res.status(400).json({
+        success: false,
+        message: "Photo not found in profile",
+      });
+    }
 
-    profile.photos = reorderedPhotos;
+    const newIndex = position - 1; // position 1 = index 0
+
+    // ✅ 6. Same position pe hai toh kuch mat karo
+    if (currentIndex === newIndex) {
+      return res.status(400).json({
+        success: false,
+        message: "Photo is already at this position",
+      });
+    }
+
+    // ✅ 7. INSERT LOGIC — NIKALO aur DAALO
+    const photosArray = [...profile.photos];
+    const [movedPhoto] = photosArray.splice(currentIndex, 1); // NIKALO
+    photosArray.splice(newIndex, 0, movedPhoto);               // DAALO
+
+    // ✅ 8. Order aur isPrimary update karo
+    const updatedPhotos = photosArray.map((photo, index) => ({
+      ...photo.toObject(),
+      order: index + 1,
+      isPrimary: index === 0,
+    }));
+
+    profile.photos = updatedPhotos;
     await profile.save();
+
+    // ✅ 9. Response
     const [data] = await Promise.all([
       getFullUserData(userId, profile),
       clearProfileCache(userId),
     ]);
 
-    res.json({
+    return res.json({
       success: true,
-      message: "Photos reordered successfully",
+      message: `Photo moved to position ${position}`,
       data: {
-        user: formatProfileResponse(
+        user: await formatProfileResponse(
           data.user,
           profile,
           data.blockedContacts,
           data.blockedUser,
-          data.subData
+          data.subData,
+          req
         ),
       },
     });
   } catch (err) {
-    res.status(400).json({ success: false, message: err.message });
+    console.error("reorderPhotos error:", err);
+    return res.status(500).json({
+      success: false,
+      message: "Something went wrong",
+    });
   }
 };
+
+// exports.reorderPhotos = async (req, res) => {
+//   try {
+//     const userId = req.user._id;
+//     const { photoIds } = req.body;
+
+//     // ✅ 1. Basic validation
+//     if (!Array.isArray(photoIds) || photoIds.length === 0) {
+//       return res.status(400).json({
+//         success: false,
+//         message: "photoIds array is required",
+//       });
+//     }
+
+//     // ✅ 2. Ensure all IDs are strings
+//     const cleanedIds = photoIds.map((id) => String(id).trim());
+
+//     // ✅ 3. Check for duplicates
+//     const uniqueIds = [...new Set(cleanedIds)];
+//     if (uniqueIds.length !== cleanedIds.length) {
+//       return res.status(400).json({
+//         success: false,
+//         message: "Duplicate photoIds are not allowed",
+//       });
+//     }
+
+//     const profile = await Profile.findOne({ userId });
+//     if (!profile) {
+//       return res.status(404).json({
+//         success: false,
+//         message: "Profile not found",
+//       });
+//     }
+
+//     // ✅ 4. Photo count must match (no silent deletion)
+//     if (uniqueIds.length !== profile.photos.length) {
+//       return res.status(400).json({
+//         success: false,
+//         message: `Expected ${profile.photos.length} photoIds, got ${uniqueIds.length}`,
+//       });
+//     }
+
+//     // ✅ 5. Build lookup map
+//     const photoMap = new Map();
+//     profile.photos.forEach((photo) => {
+//       photoMap.set(photo.publicId.toString(), photo);
+//     });
+
+//     // ✅ 6. Validate all IDs exist before reordering
+//     const invalidIds = uniqueIds.filter((id) => !photoMap.has(id));
+//     if (invalidIds.length > 0) {
+//       return res.status(400).json({
+//         success: false,
+//         message: `Invalid photoIds: ${invalidIds.join(", ")}`,
+//       });
+//     }
+
+//     // ✅ 7. Reorder
+//     const reorderedPhotos = uniqueIds.map((id, index) => ({
+//       ...photoMap.get(id).toObject(),
+//       order: index + 1,
+//       isPrimary: index === 0,
+//     }));
+
+//     profile.photos = reorderedPhotos;
+//     await profile.save();
+
+//     // ✅ 8. Response
+//     const [data] = await Promise.all([
+//       getFullUserData(userId, profile),
+//       clearProfileCache(userId),
+//     ]);
+
+//     return res.json({
+//       success: true,
+//       message: "Photos reordered successfully",
+//       data: {
+//         user: await formatProfileResponse(
+//           data.user,
+//           profile,
+//           data.blockedContacts,
+//           data.blockedUser,
+//           data.subData,
+//           req
+//         ),
+//       },
+//     });
+//   } catch (err) {
+//     console.error("reorderPhotos error:", err);
+//     return res.status(500).json({
+//       success: false,
+//       message: "Something went wrong",
+//     });
+//   }
+// };
+
+
+
+// exports.reorderPhotos = async (req, res) => {
+//   try {
+//     const userId = req.user._id;
+//     const { photoIds } = req.body;
+//     if (!Array.isArray(photoIds) || photoIds.length === 0) return res.status(400).json({ success: false, message: "photoIds array is required" });
+
+//     const profile = await Profile.findOne({ userId });
+//     if (!profile) return res.status(404).json({ success: false, message: "Profile not found" });
+//     // if (photoIds.length !== profile.photos.length) return res.status(400).json({ success: false, message: "Photo count mismatch" });
+
+//     const photoMap = new Map();
+//     profile.photos.forEach(photo => photoMap.set(photo.publicId.toString(), photo));
+
+//     const reorderedPhotos = photoIds.map((id, index) => {
+//       const photo = photoMap.get(id.trim());
+//       if (!photo) throw new Error(`Invalid photoId: ${id}`);
+//       return { ...photo.toObject(), order: index + 1, isPrimary: index === 0 };
+//     });
+
+//     profile.photos = reorderedPhotos;
+//     await profile.save();
+//     const [data] = await Promise.all([getFullUserData(userId, profile), clearProfileCache(userId)]);
+
+//     res.json({
+//       success: true,
+//       message: "Photos reordered successfully",
+//       data: { user: await formatProfileResponse(data.user, profile, data.blockedContacts, data.blockedUser, data.subData,req) }
+//     });
+//   } catch (err) {
+//     res.status(400).json({ success: false, message: err.message });
+//   }
+// };
+
+// Function name vahi hai, bas logic change kiya hai file handle karne ka
+// module.exports.uploadSelfie = async (req, res) => {
+//   try {
+//     const userId = req.user._id;
+//     // Ab file buffer nahi, direct URL aayega frontend se
+//     const { selfieUrl } = req.body; 
+
+//     if (!selfieUrl) return res.status(400).json({ success: false, message: "Selfie URL required" });
+
+//     const profile = await getOrCreateProfile(userId);
+//     if (profile.verification?.status === "approved") return res.status(400).json({ success: false, message: "Already approved" });
+
+//     // Parallel processing: DB updates
+//     const [data] = await Promise.all([
+//       getFullUserData(userId, profile), // Metadata fetch
+//       Profile.updateOne({ userId }, { 
+//         $set: { 
+//           "verification.selfieUrl": selfieUrl, 
+//           "verification.status": "pending" 
+//         } 
+//       })
+//     ]);
+
+//     await clearProfileCache(userId);
+
+//     res.json({
+//       success: true,
+//       message: "Selfie verified and updated",
+//       data: { user: formatProfileResponse(data.user, profile, data.blockedContacts, data.blockedUser, data.subData) }
+//     });
+//   } catch (err) {
+//     res.status(500).json({ success: false, message: "Sync failed" });
+//   }
+// };
 
 module.exports.uploadSelfie = async (req, res) => {
   try {
@@ -399,14 +599,9 @@ module.exports.uploadSelfie = async (req, res) => {
       success: true,
       message: "Selfie upload started...",
       data: {
-        user: formatProfileResponse(
-          data.user,
-          data.profile,
-          data.blockedContacts,
-          data.blockedUser,
-          data.subData
-        ),
-      },
+        user: await formatProfileResponse(data.user, data.profile, data.blockedContacts, data.blockedUser, data.subData, req),
+        // onboarding: buildOnboardingResponse(req)
+      }
     });
 
     // Step 3: BACKGROUND PROCESSING (No 'await' for the response)
@@ -462,14 +657,9 @@ module.exports.uploadIDDocument = async (req, res) => {
       success: true,
       message: "ID upload started. We will notify you once verified.",
       data: {
-        user: formatProfileResponse(
-          data.user,
-          data.profile,
-          data.blockedContacts,
-          data.blockedUser,
-          data.subData
-        ),
-      },
+        user: await formatProfileResponse(data.user, data.profile, data.blockedContacts, data.blockedUser, data.subData, req),
+        // onboarding: buildOnboardingResponse(req)
+      }
     });
 
     // 3. BACKGROUND PROCESSING (Network I/O)
@@ -558,48 +748,120 @@ module.exports.getVerificationStatus = async (req, res) => {
 module.exports.updateLocation = async (req, res) => {
   try {
     const userId = req.user._id;
-    const { latitude, longitude, city, state, country, full_address } =
-      req.body;
-    if (!latitude || !longitude)
-      return res
-        .status(400)
-        .json({ success: false, message: "Valid coordinates required" });
+    const { latitude, longitude, city, state, country, full_address } = req.body;
+
+    // Extra safety check (validation already handles this, but just in case)
+    if (latitude === undefined || longitude === undefined) {
+      return res.status(400).json({
+        success: false,
+        message: "Valid coordinates required (latitude and longitude)"
+      });
+    }
+
+    // Sanity check — catch swapped coordinates
+    if (Math.abs(latitude) > 90) {
+      return res.status(400).json({
+        success: false,
+        message: `Invalid latitude: ${latitude}. Latitude must be between -90 and 90. Did you swap latitude and longitude?`
+      });
+    }
+
+    if (Math.abs(longitude) > 180) {
+      return res.status(400).json({
+        success: false,
+        message: `Invalid longitude: ${longitude}. Longitude must be between -180 and 180.`
+      });
+    }
 
     let profile = await getOrCreateProfile(userId);
+
+    // MongoDB GeoJSON format: [longitude, latitude]
     profile.location = {
       type: "Point",
       coordinates: [Number(longitude), Number(latitude)],
       city: city || "",
       state: state || "",
       country: country || "",
-      full_address: full_address || "",
+      full_address: full_address || ""
     };
 
     await profile.save();
+
     const [data] = await Promise.all([
       getFullUserData(userId, profile),
-      clearProfileCache(userId),
+      clearProfileCache(userId)
     ]);
 
     res.json({
       success: true,
       message: "Location updated successfully",
       data: {
-        user: formatProfileResponse(
+        user: await formatProfileResponse(
           data.user,
           profile,
           data.blockedContacts,
           data.blockedUser,
-          data.subData
-        ),
-      },
+          data.subData,
+          req
+        )
+      }
     });
   } catch (err) {
-    res.status(500).json({ success: false, message: err.message });
+    console.error("Location Update Error:", err);
+
+    // Parse MongoDB geo errors into readable messages
+    let message = "Failed to update location. Please try again.";
+
+    if (err.message && err.message.includes("geo keys")) {
+      message =
+        "Invalid coordinates detected. Latitude must be between -90 and 90, " +
+        "and Longitude must be between -180 and 180. " +
+        "Please make sure you haven't swapped latitude and longitude.";
+    } else if (err.name === "ValidationError") {
+      // Mongoose validation error
+      const firstError = Object.values(err.errors)[0];
+      message = firstError?.message || "Invalid profile data provided.";
+    } else if (err.code === 16755) {
+      // MongoDB GeoJSON validation error code
+      message =
+        "Invalid geographic coordinates. Please check your latitude and longitude values.";
+    }
+
+    res.status(400).json({
+      success: false,
+      message
+    });
   }
 };
 
-module.exports.getStatus = async (req, res) => {
+// exports.updateLocation = async (req, res) => {
+//   try {
+//     const userId = req.user._id;
+//     const { latitude, longitude, city, state, country, full_address } = req.body;
+//     if (!latitude || !longitude) return res.status(400).json({ success: false, message: "Valid coordinates required" });
+
+//     let profile = await getOrCreateProfile(userId);
+//     profile.location = {
+//       type: "Point",
+//       coordinates: [Number(longitude), Number(latitude)],
+//       city: city || "", state: state || "", country: country || "", full_address: full_address || ""
+//     };
+
+//     await profile.save();
+//     const [data] = await Promise.all([getFullUserData(userId, profile), clearProfileCache(userId)]);
+
+//     res.json({
+//       success: true,
+//       message: "Location updated successfully",
+//       data: { user: await formatProfileResponse(data.user, profile, data.blockedContacts, data.blockedUser, data.subData, req) }
+//     });
+//   } catch (err) {
+//     console.error("Location Update Error:", err);
+//     res.status(400).json({ success: false, message: "Invalid location data or coordinates out of bounds" });
+//   }
+// };
+
+exports.getStatus = async (req, res) => {
   try {
     const userId = req.user._id;
     const cacheKey = `profile:status:${userId}`;
@@ -613,13 +875,7 @@ module.exports.getStatus = async (req, res) => {
       });
 
     const data = await getFullUserData(userId);
-    const formatted = formatProfileResponse(
-      data.user,
-      data.profile,
-      data.blockedContacts,
-      data.blockedUser,
-      data.subData
-    );
+    const formatted = await formatProfileResponse(data.user, data.profile, data.blockedContacts, data.blockedUser, data.subData, req);
 
     await cache.set(cacheKey, JSON.stringify(formatted), { EX: 30 });
     res.json({ success: true, data: formatted, cached: false });
@@ -676,41 +932,117 @@ module.exports.getUserProfile = async (req, res) => {
     res.json({ success: true, data: formattedData });
   } catch (err) {
     console.error("Profile Fetch Error:", err);
-    res
-      .status(500)
-      .json({ success: false, message: "Failed to load profile details" });
+    res.status(500).json({ success: false, message: "Failed to load profile details" });
   }
 };
+
+// exports.getUserProfile = async (req, res) => {
+//   try {
+//     const { userId: targetUserId } = req.params;
+//     const viewer = req.user;
+
+//     const [targetProfile, swipeAction, blockStatus] = await Promise.all([
+//       Profile.findOne({ userId: targetUserId }).lean(),
+//       swipeModel.findOne({ swiperId: viewer._id, targetId: targetUserId }).lean(),
+//       Block.findOne({ $or: [{ blockerId: viewer._id, blockedId: targetUserId }, { blockerId: targetUserId, blockedId: viewer._id }] }).lean()
+//     ]);
+
+//     if (!targetProfile) return res.status(404).json({ success: false, message: "User profile not found" });
+//     if (blockStatus) return res.status(403).json({ success: false, message: "Profile is private or unavailable" });
+
+//     const formattedData = await formatPublicProfile(viewer, targetProfile, swipeAction);
+//     res.json({ success: true, data: formattedData });
+//   } catch (err) {
+//     res.status(500).json({ success: false, message: "Failed to load profile details" });
+//   }
+// };
+
+
+exports.resetDiscoveryFilters = async (req, res) => {
+  try {
+    const userId = req.user._id;
+
+    const profile = await Profile.findOne({ userId });
+
+    if (!profile) {
+      return res.status(404).json({
+        success: false,
+        message: "Profile not found."
+      });
+    }
+
+    profile.discovery.preferredInterests = [];
+    profile.discovery.filterRelationshipGoal = null;
+    // profile.discovery.showMeGender = "";
+    profile.discovery.ageRange = { min: 18, max: 60 };
+    profile.discovery.advancedFilters = {
+      zodiac: null,
+      education: null,
+      familyPlans: null,
+      personalityType: null,
+      communicationStyle: null,
+      loveStyle: null,
+      pets: null,
+      drinking: null,
+      smoking: null,
+      workout: null,
+      dietary: null,
+      socialMedia: null,
+      sleeping: null
+    };
+
+    await profile.save();
+
+    if (redis) await redis.del(`feed:${userId.toString()}`);
+
+    const formattedUser = await getFormattedUser(userId, req);
+
+    return res.json({
+      success: true,
+      message: "All discovery filters have been reset to defaults.",
+      data: { user: formattedUser }
+    });
+  } catch (err) {
+    console.log("RESET ERROR:", err.message); // ← ye add karo terminal mein dekhne ke liye
+    return res.status(500).json({
+      success: false,
+      message: "Something went wrong while resetting filters."
+    });
+  }
+};
+
+
+
 
 module.exports.updateDiscoveryFilters = async (req, res) => {
   try {
     const userId = req.user._id;
     const { discoveryFilters } = req.body;
     let profile = await Profile.findOne({ userId });
-
+console.log(discoveryFilters.distanceRange,"dis")
     if (discoveryFilters) {
-      if (discoveryFilters.interests)
-        profile.discovery.preferredInterests = discoveryFilters.interests;
-      if (discoveryFilters.relationshipGoal)
-        profile.discovery.filterRelationshipGoal =
-          discoveryFilters.relationshipGoal;
-      if (discoveryFilters.ageRange)
-        profile.discovery.ageRange = discoveryFilters.ageRange;
+      if (discoveryFilters.interests) profile.discovery.preferredInterests = discoveryFilters.interests;
+      if (discoveryFilters.relationshipGoal) profile.discovery.filterRelationshipGoal = discoveryFilters.relationshipGoal;
+      if (discoveryFilters.ageRange) profile.discovery.ageRange = discoveryFilters.ageRange;
+      if(discoveryFilters.distanceRange) profile.discovery.distanceRange = discoveryFilters.distanceRange
       if (discoveryFilters.advanced) {
-        profile.discovery.advancedFilters = {
-          ...profile.discovery.advancedFilters,
-          ...discoveryFilters.advanced,
-        };
-      }
+        profile.discovery.advancedFilters = { ...profile.discovery.advancedFilters, ...discoveryFilters.advanced };
+      };
+      if (discoveryFilters.showMeGender) profile.discovery.showMeGender = discoveryFilters.showMeGender
     }
 
     await profile.save();
+
     if (redis) await redis.del(`feed:${userId.toString()}`);
 
+    const formattedUser = await getFormattedUser(userId, req);
+
     return res.json({
-      success: true,
-      message: "Filters applied! Feed is refreshing.",
+      success: true, message: "Filters applied! Feed is refreshing.", data: {
+        user: formattedUser
+      }
     });
+
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
   }

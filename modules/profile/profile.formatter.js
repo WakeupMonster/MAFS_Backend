@@ -1,3 +1,6 @@
+const { buildOnboardingResponse } = require("../../common/utils/onBoardingSteps");
+const UsageService = require("../subscription/services/usage.service");
+
 const calculateAge = (dob) => {
   if (!dob) return null;
   const today = new Date();
@@ -8,32 +11,35 @@ const calculateAge = (dob) => {
   return age;
 };
 
-const planNames = {
-    free: "MAFS Free",
-    plus: "MAFS Plus",
-    gold: "MAFS Gold",
-    platinum: "MAFS Platinum"
-  };
+// const planNames = {
+//   free: "MAFS Free",
+//   plus: "MAFS Plus",
+//   gold: "MAFS Gold",
+//   platinum: "MAFS Platinum",
+//   monthly: "MAFS PREMIUM"
+// };
 
 
 // Simple completion logic based on mandatory fields
 const calculateCompletion = (profile) => {
-  return profile.onboardingProgress?.totalCompletion || 0;
+  return profile?.onboardingProgress?.totalCompletion || 0;
 };
 
 
-const formatProfileResponse = (user, profile,blockedContacts = [], blockedUser = [],subData = {}) => {
+// eslint-disable-next-line no-unused-vars
+const formatProfileResponse = async (user, profile, blockedContacts = [], blockedUser = [], subData = {}, req) => {
   if (!user) return null;
   const p = profile || {}; // Agar profile nahi hai toh empty object
-const sub = subData || {}; // Hum subData (UserSubscription document) pass karenge
 
-  // Daily Limits define (Inhe aap helper se bhi la sakte hain)
-  const MAX_LIKES = 30;
-  const MAX_SUPERLIKES = 3;
-  
-  const isPremium = ['plus', 'gold', 'platinum'].includes(sub.planId);
-const tonight = new Date();
-tonight.setHours(24, 0, 0, 0);
+  // 🔥 Fetch dynamic status from new UsageService (v3)
+  const usageStatus = await UsageService.getUsageStatus(user._id);
+  const v3Data = usageStatus.data;
+  const isPremium = v3Data.isPremium;
+  const activeSub = v3Data.activeSubscription;
+  const quotas = v3Data.quotas;
+  const wallet = v3Data.wallet;
+  const features = v3Data.features;
+
   return {
     // 1. ACCOUNT (Data from User Model)
     account: {
@@ -44,40 +50,40 @@ tonight.setHours(24, 0, 0, 0);
         bannedBy: user.banDetails?.bannedBy || null,
         bannedAt: user.banDetails?.bannedAt || null
       },
+      suspensionDetails: {
+        isSuspended: user.suspensionDetails?.isSuspended || false,
+        reason: user.suspensionDetails?.reason || null,
+        suspendedAt: user.suspensionDetails?.suspendedAt || null,
+        suspendUntil: user.suspensionDetails?.suspendUntil || null
+      },
       deactivationDetails: {
         isDeactivated: user.deactivationDetails?.isDeactivated || false,
         reason: user.deactivationDetails?.reason || null,
-        deactivatedAt: user.deactivationDetails?.deactivatedAt || null
+        deactivatedAt: user.deactivationDetails?.deactivatedAt || null,
       },
       deletionDetails: {
         isScheduledForDeletion: user.deletionDetails?.isScheduledForDeletion || false,
-        scheduledAt: user.deletionDetails?.scheduledAt || null
+        reason: user.deletionDetails?.reason || null,
+        scheduledAt: user.deletionDetails?.scheduledAt || null,
+        deletionDate: user.deletionDetails?.deletionDate || null,
+        daysRemaining: user.deletionDetails?.daysRemaining || null
       }
     },
-
-    // 2. ONBOARDING
-    // onboarding: {
-    //   isComplete: user.onboardingComplete || false,
-    //   nextstep: user.nextStep || 1,
-    //   currentScreenSlug: user.currentScreenSlug || "welcome_screen"
-    // },
-
-    // 3. PUBLIC PROFILE (Data from Profile Model)
     profile: {
-    id: profile.userId,
+      id: profile?.userId || null,
       nickname: p.nickname || null,
-      dob: profile.dob
-  ? profile.dob.toISOString().split("T")[0]
-  : null,
-      age: profile.age || calculateAge(profile.dob),
-      gender: p.gender || null,
-      height: p.height || null,
-      about: p.about || null,
+      dob: profile?.dob
+        ? profile.dob.toISOString().split("T")[0]
+        : null,
+      age: profile?.age || calculateAge(profile?.dob),
+      gender: p?.gender || null,
+      height: p?.height || null,
+      about: p?.about || null,
       jobTitle: p.jobTitle || null,
       company: p.company || null,
       school: p.school || null,
       totalCompletion: calculateCompletion(profile)
-    //   totalCompletion: p.totalCompletion || 0
+      //   totalCompletion: p.totalCompletion || 0
     },
 
     // 4. ATTRIBUTES
@@ -115,21 +121,24 @@ tonight.setHours(24, 0, 0, 0);
       relationshipGoal: p.discovery?.relationshipGoal || null,
       globalVisibility: p.discovery?.globalVisibility || "everyone"
     },
-    discoveryFilters : {
-      interest : p.discovery?.preferredInterests || null,
-      relationshipGoal : p.discovery?.filterRelationshipGoal || null,
-      advancedFilters : {
-        zodiac :  p.discovery?.advancedFilters.zodiac || null,
-        education :  p.discovery?.advancedFilters.education || null,
-        pets :  p.discovery?.advancedFilters.pets || null,
-        drinking :  p.discovery?.advancedFilters.drinking || null,
-        smoking :  p.discovery?.advancedFilters.smoking || null
+    discoveryFilters: {
+      interest: p.discovery?.preferredInterests || null,
+      relationshipGoal: p.discovery?.filterRelationshipGoal || null,
+      advancedFilters: {
+        zodiac: p.discovery?.advancedFilters.zodiac || null,
+        education: p.discovery?.advancedFilters.education || null,
+        pets: p.discovery?.advancedFilters.pets || null,
+        drinking: p.discovery?.advancedFilters.drinking || null,
+        smoking: p.discovery?.advancedFilters.smoking || null,
+        familyPlans: p.discovery?.advancedFilters.familyPlans || null,
+        personalityType: p.discovery?.advancedFilters.personalityType || null,
+        communicationStyle: p.discovery?.advancedFilters.communicationStyle || null,
+        loveStyle: p.discovery?.advancedFilters.loveStyle || null,
+        workout: p.discovery?.advancedFilters.workout || null,
+        dietary: p.discovery?.advancedFilters.dietary || null,
+        socialMedia: p.discovery?.advancedFilters.socialMedia || null,
+        sleeping: p.discovery?.advancedFilters.sleeping || null,
       },
-    // distanceRange: p.discovery?.distanceRange || 50,
-    //   ageRange: {
-    //     min: p.discovery?.ageRange?.min || 18,
-    //     max: p.discovery?.ageRange?.max || 30
-    //   },
     },
 
     // 6. LOCATION
@@ -145,7 +154,7 @@ tonight.setHours(24, 0, 0, 0);
     photos: (p.photos || []).map(photo => ({
       id: photo._id || photo.id || null,
       url: photo.url || null,
-      publicId : photo.publicId || null,
+      publicId: photo.publicId || null,
       order: photo.order || 0
     })),
 
@@ -158,46 +167,35 @@ tonight.setHours(24, 0, 0, 0);
     },
     subscription: {
       plan: {
-        id: sub.planId || "free",
-        name: planNames[sub.planId] || "MAFS Free",
-        isActive: sub.isActive || false,
-        expiryDate: sub.expiryDate || null,
-        isAutoRenew: sub.isAutoRenew || false,
-        source: sub.paymentSource || "google_play"
+        id: activeSub?.planType || "free",
+        name: activeSub ? "MAFS Premium" : "MAFS Free",
+        isActive: isPremium,
+        expiryDate: activeSub?.expiresAt || null,
+        isAutoRenew: activeSub?.autoRenew || false,
+        source: "google_play"
       },
       wallet: {
-            likes: {
-          used: sub.dailyLikesUsed || 0,
-          limit: MAX_LIKES,
-          remaining: Math.max(0, MAX_LIKES - (sub.dailyLikesUsed || 0)),
-          isExhausted: (sub.dailyLikesUsed || 0) >= MAX_LIKES
+        likes: {
+          used: quotas.likes.used,
+          limit: quotas.likes.limit === -1 ? 30 : quotas.likes.limit, // Keep numeric type for Flutter fallback if needed
+          remaining: quotas.likes.limit === -1 ? 9999 : Math.max(0, quotas.likes.limit - quotas.likes.used),
+          isExhausted: quotas.likes.limit !== -1 && quotas.likes.used >= quotas.likes.limit
         },
         superLikes: {
-          used: sub.dailySuperlikesUsed || 0,
-          limit: MAX_SUPERLIKES,
-          remaining: Math.max(0, MAX_SUPERLIKES - (sub.dailySuperlikesUsed || 0)),
-          isExhausted: (sub.dailySuperlikesUsed || 0) >= MAX_SUPERLIKES && (sub.superlikeBalance || 0) <= 0
+          used: quotas.superKeens.used,
+          limit: quotas.superKeens.limit,
+          remaining: Math.max(0, quotas.superKeens.limit - quotas.superKeens.used) + wallet.superKeens,
+          isExhausted: (quotas.superKeens.used >= quotas.superKeens.limit) && wallet.superKeens <= 0
         },
         rewinds: {
-          remaining: isPremium ? 9999 : 0,
-          isUnlimited: isPremium
+          remaining: quotas.rewinds.limit === -1 ? 9999 : Math.max(0, quotas.rewinds.limit - quotas.rewinds.used),
+          isUnlimited: quotas.rewinds.limit === -1
         }
-        // rewinds: {
-        //   used: sub.dailyRewindsUsed || 0,
-        //   limit: sub.planId !== 'free' ? 999 : 0, // Premium users ko unlimited
-        //   remaining: sub.planId !== 'free' ? 999 : 0,
-        //   isExhausted: sub.planId === 'free'
-        // }
-        // boosts: {
-        //   remaining: sub.boostsCount || 0,
-        //   resetAt: null
-        // },
-      
       },
       benefits: {
-        seeWhoLikesYou: ['gold', 'platinum'].includes(sub.planId),
-        passportLocation: isPremium,
-        turnOffAds: isPremium,
+        seeWhoLikesYou: features.canSeeWhoLiked,
+        passportLocation: features.canPassport,
+        turnOffAds: !features.showAds,
         controlAgeDistance: isPremium
       }
     },
@@ -210,18 +208,16 @@ tonight.setHours(24, 0, 0, 0);
         matches: p.settings?.notifications?.matches ?? true,
         messages: p.settings?.notifications?.messages ?? true
       },
-     blockedContacts: blockedContacts.map(bc => bc.blockedPhoneHash || bc),
-    blockedUsers: blockedUser.map(bu=>bu.blockedId || bu),
+      blockedContacts: blockedContacts.map(bc => bc.blockedPhoneHash || bc),
+      blockedUsers: blockedUser.map(bu => bu.blockedId || bu),
     },
     createdAt: user.createdAt,
     updatedAt: user.updatedAt,
     isPhoneVerified: user.isPhoneVerified || false,
     isEmailVerified: user.isEmailVerified || false,
-      onboarding: {
-      isComplete: user.onboardingComplete || false,
-      nextstep: user.nextStep || 1,
-      currentScreenSlug: user.currentScreenSlug || "welcome_screen"
-    },
+    //  onboarding: buildOnboardingResponse(req)
+    onboarding: await buildOnboardingResponse(req, user._id)
+
   };
 };
 

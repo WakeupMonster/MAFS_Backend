@@ -1,3 +1,5 @@
+const { buildOnboardingResponse } = require("../../common/utils/onBoardingSteps");
+
 const calculateAge = (dob) => {
   if (!dob) return null;
   const today = new Date();
@@ -20,7 +22,7 @@ const planNames = {
 const calculateCompletion = (profile) => {
   return profile.onboardingProgress?.totalCompletion || 0;
 };
-const formatUserProfile = (user, profile,blockedContacts = [], blockedUser = [],subData = {}) => {
+const formatUserProfile = (user, profile,blockedContacts = [], blockedUser = [],subData = {},req) => {
   if (!user) return null;
   const p = profile || {}; // Agar profile nahi hai toh empty object
 const sub = subData || {}; // Hum subData (UserSubscription document) pass karenge
@@ -54,11 +56,7 @@ tonight.setHours(24, 0, 0, 0);
     },
 
     // 2. ONBOARDING
-    onboarding: {
-      isComplete: user.onboardingComplete || false,
-      nextstep: user.nextStep || 1,
-      currentScreenSlug: user.currentScreenSlug || "welcome_screen"
-    },
+  
 
     // 3. PUBLIC PROFILE (Data from Profile Model)
     profile: {
@@ -150,59 +148,6 @@ tonight.setHours(24, 0, 0, 0);
       rejectionReason: p.verification?.rejectionReason || null
     },
 
-    // 9. SUBSCRIPTION
-    // subscription: {
-    //   planId: user.subscription?.planId || "free",
-    //   isActive: user.subscription?.isActive || false,
-    //   expiryDate: user.subscription?.expiryDate || null,
-    //   isTrial: user.subscription?.isTrial || false,
-    //   superLikesCount: user.subscription?.superLikesCount || 0,
-    //   boostsCount: user.subscription?.boostsCount || 0,
-    //   rewindsCount: user.subscription?.rewindsCount || 0
-    // },
-    // subscription: {
-    //   planId: sub.planId || "free",
-    //   isActive: sub.isActive || false,
-    //   expiryDate: sub.expiryDate || null,
-    //   isTrial: sub.isTrial || false,
-
-    //   // --- Frontend ke liye detailed daily stats ---
-    //   dailyStats: {
-    //     likes: {
-    //       used: sub.dailyLikesUsed || 0,
-    //       limit: MAX_LIKES,
-    //       remaining: Math.max(0, MAX_LIKES - (sub.dailyLikesUsed || 0)),
-    //       isExhausted: (sub.dailyLikesUsed || 0) >= MAX_LIKES
-    //     },
-    //     superLikes: {
-    //       used: sub.dailySuperlikesUsed || 0,
-    //       limit: MAX_SUPERLIKES,
-    //       remaining: Math.max(0, MAX_SUPERLIKES - (sub.dailySuperlikesUsed || 0)),
-    //       isExhausted: (sub.dailySuperlikesUsed || 0) >= MAX_SUPERLIKES && (sub.superlikeBalance || 0) <= 0
-    //     },
-    //     rewinds: {
-    //       used: sub.dailyRewindsUsed || 0,
-    //       limit: sub.planId !== 'free' ? 999 : 0, // Premium users ko unlimited
-    //       remaining: sub.planId !== 'free' ? 999 : 0,
-    //       isExhausted: sub.planId === 'free'
-    //     }
-    //   },
-
-    //   // --- Extra Balance jo user ne khareeda ho ---
-    //   inventoryBalance: {
-    //     superLikes: sub.superlikeBalance || 0,
-    //     boosts: sub.boostsCount || 0,
-    //     rewinds: sub.rewindsCount || 0
-    //   },
-
-    //   // --- UI Helpers ---
-    //   meta: {
-    //     resetAt: new Date(new Date().setHours(24, 0, 0, 0)), // Aaj ki midnight
-    //     showPaywall: (sub.dailyLikesUsed || 0) >= MAX_LIKES,
-    //     upsellMessage: sub.planId === 'free' ? "Upgrade to Gold for unlimited likes!" : null
-    //   }
-    // },
-
     subscription: {
       plan: {
         id: sub.planId || "free",
@@ -263,7 +208,8 @@ tonight.setHours(24, 0, 0, 0);
     createdAt: user.createdAt,
     updatedAt: user.updatedAt,
     isPhoneVerified: user.isPhoneVerified || false,
-    isEmailVerified: user.isEmailVerified || false
+    isEmailVerified: user.isEmailVerified || false,
+    onboarding: buildOnboardingResponse(req)
   };
 };
 

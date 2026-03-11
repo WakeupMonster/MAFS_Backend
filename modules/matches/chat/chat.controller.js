@@ -66,11 +66,23 @@ module.exports.getChatMessages = async (req, res) => {
       u => u.toString() !== userId.toString()
     );
 
-    const blocked = await isBlocked(userId, otherUserId);
-    if (blocked) {
+    // const blocked = await isBlocked(userId, otherUserId);
+    // if (blocked) {
+    //   return res.status(403).json({
+    //     success: false,
+    //     message: "You cannot view messages"
+    //   });
+    // }
+
+       const blockStatus = await isBlocked(userId, otherUserId);
+
+    if (blockStatus.isBlocked) {
       return res.status(403).json({
         success: false,
-        message: "You cannot view messages"
+        message: "You cannot view messages",
+        errorType: "BLOCKED",                    // ✅ NEW
+        isBlockedByMe: blockStatus.blockedByMe,   // ✅ NEW — frontend needs this
+          blockedBy: blockStatus.blockedBy  
       });
     }
 

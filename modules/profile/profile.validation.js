@@ -1,6 +1,6 @@
 const {
   profileUpdateSchema,
-  // locationSchema,
+  locationSchema,
   userIdParamSchema
 } = require("./profile.schema");
 
@@ -12,12 +12,9 @@ const validate = (schema, property = "body") => {
     });
 
     if (error) {
-      const detail = error.details[0];
       return res.status(400).json({
         success: false,
-         message: detail.context?.label
-    ? `${detail.context.label} is invalid`
-    : "Invalid request data"
+        message: error.details[0].message
       });
     }
 
@@ -26,6 +23,6 @@ const validate = (schema, property = "body") => {
   };
 };
 
-module.exports.validateProfileUpdate = validate(profileUpdateSchema);
-// module.exports.validateLocation = validate(locationSchema);
-module.exports.validateUserIdParam = validate(userIdParamSchema, "params");
+exports.validateProfileUpdate = validate(profileUpdateSchema);
+exports.validateLocation = validate(locationSchema);
+exports.validateUserIdParam = validate(userIdParamSchema, "params");

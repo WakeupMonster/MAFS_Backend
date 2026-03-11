@@ -1,0 +1,1195 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Chat Socket Tester</title>
+  <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+      background: #0f0f0f;
+      color: #e0e0e0;
+      display: flex;
+      height: 100vh;
+    }
+
+    /* ── LEFT PANEL: CONTROLS ── */
+    .left-panel {
+      width: 420px;
+      min-width: 420px;
+      background: #1a1a2e;
+      border-right: 2px solid #16213e;
+      overflow-y: auto;
+      padding: 16px;
+    }
+
+    /* ── RIGHT PANEL: LOGS ── */
+    .right-panel {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      background: #0a0a0a;
+    }
+
+    .right-panel-header {
+      padding: 12px 20px;
+      background: #1a1a2e;
+      border-bottom: 2px solid #16213e;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .right-panel-header h3 {
+      color: #00d2ff;
+    }
+
+    #logArea {
+      flex: 1;
+      overflow-y: auto;
+      padding: 12px 20px;
+      font-family: "Courier New", monospace;
+      font-size: 13px;
+      line-height: 1.6;
+    }
+
+    h2 {
+      color: #00d2ff;
+      font-size: 18px;
+      margin-bottom: 12px;
+      padding-bottom: 8px;
+      border-bottom: 1px solid #16213e;
+    }
+
+    h4 {
+      color: #7f8fa6;
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      margin: 16px 0 8px 0;
+    }
+
+    /* ── CONNECTION SECTION ── */
+    .connection-section {
+      background: #16213e;
+      border-radius: 8px;
+      padding: 14px;
+      margin-bottom: 16px;
+    }
+
+    .status-bar {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 12px;
+      padding: 8px 12px;
+      border-radius: 6px;
+      background: #0f3460;
+      font-weight: 600;
+    }
+
+    .status-dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      background: #e74c3c;
+      transition: background 0.3s;
+    }
+
+    .status-dot.connected {
+      background: #2ecc71;
+      box-shadow: 0 0 8px #2ecc71;
+    }
+
+    /* ── FORM ELEMENTS ── */
+    label {
+      display: block;
+      font-size: 11px;
+      color: #7f8fa6;
+      margin-bottom: 4px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    input[type="text"],
+    textarea,
+    select {
+      width: 100%;
+      padding: 8px 12px;
+      background: #0a0a0a;
+      border: 1px solid #2d3436;
+      border-radius: 6px;
+      color: #e0e0e0;
+      font-size: 13px;
+      margin-bottom: 10px;
+      outline: none;
+      transition: border-color 0.2s;
+    }
+
+    input[type="text"]:focus,
+    textarea:focus,
+    select:focus {
+      border-color: #00d2ff;
+    }
+
+    textarea {
+      resize: vertical;
+      min-height: 50px;
+      font-family: inherit;
+    }
+
+    /* ── BUTTONS ── */
+    button {
+      padding: 8px 16px;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 13px;
+      font-weight: 600;
+      transition: all 0.2s;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    button:hover {
+      transform: translateY(-1px);
+    }
+
+    button:active {
+      transform: translateY(0);
+    }
+
+    .btn-connect {
+      background: #2ecc71;
+      color: #000;
+      width: 100%;
+      justify-content: center;
+      padding: 10px;
+    }
+
+    .btn-disconnect {
+      background: #e74c3c;
+      color: #fff;
+      width: 100%;
+      justify-content: center;
+      padding: 10px;
+    }
+
+    .btn-primary {
+      background: #00d2ff;
+      color: #000;
+    }
+
+    .btn-warning {
+      background: #f39c12;
+      color: #000;
+    }
+
+    .btn-danger {
+      background: #e74c3c;
+      color: #fff;
+    }
+
+    .btn-success {
+      background: #2ecc71;
+      color: #000;
+    }
+
+    .btn-info {
+      background: #8e44ad;
+      color: #fff;
+    }
+
+    .btn-secondary {
+      background: #636e72;
+      color: #fff;
+    }
+
+    .btn-clear {
+      background: transparent;
+      color: #e74c3c;
+      border: 1px solid #e74c3c;
+      font-size: 12px;
+      padding: 6px 12px;
+    }
+
+    /* ── SECTIONS ── */
+    .test-section {
+      background: #16213e;
+      border-radius: 8px;
+      padding: 14px;
+      margin-bottom: 12px;
+    }
+
+    .test-section h4 {
+      margin-top: 0;
+      color: #00d2ff;
+      font-size: 13px;
+    }
+
+    .btn-row {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      margin-top: 8px;
+    }
+
+    /* ── LOG ENTRIES ── */
+    .log-entry {
+      padding: 6px 0;
+      border-bottom: 1px solid #1a1a1a;
+      word-break: break-all;
+    }
+
+    .log-time {
+      color: #636e72;
+      margin-right: 8px;
+    }
+
+    .log-emit {
+      color: #00d2ff;
+    }
+
+    .log-receive {
+      color: #2ecc71;
+    }
+
+    .log-error {
+      color: #e74c3c;
+    }
+
+    .log-info {
+      color: #f39c12;
+    }
+
+    .log-ack {
+      color: #8e44ad;
+    }
+
+    .log-data {
+      color: #b2bec3;
+      margin-left: 28px;
+      font-size: 12px;
+    }
+
+    /* ── QUICK ACTIONS ── */
+    .quick-actions {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 6px;
+      margin-top: 8px;
+    }
+
+    .quick-actions button {
+      font-size: 11px;
+      padding: 6px 8px;
+      width: 100%;
+      justify-content: center;
+    }
+
+    /* ── SAVED DATA ── */
+    .saved-values {
+      background: #0a0a0a;
+      border-radius: 6px;
+      padding: 8px 12px;
+      margin: 8px 0;
+      font-size: 11px;
+      color: #636e72;
+    }
+
+    .saved-values span {
+      color: #f39c12;
+    }
+
+    /* ── FILTER BAR ── */
+    .filter-bar {
+      display: flex;
+      gap: 4px;
+      flex-wrap: wrap;
+    }
+
+    .filter-btn {
+      padding: 4px 10px;
+      font-size: 11px;
+      border-radius: 12px;
+      background: #2d3436;
+      color: #b2bec3;
+      border: none;
+      cursor: pointer;
+    }
+
+    .filter-btn.active {
+      background: #00d2ff;
+      color: #000;
+    }
+
+    /* ── SCROLLBAR ── */
+    ::-webkit-scrollbar {
+      width: 6px;
+    }
+
+    ::-webkit-scrollbar-track {
+      background: #0a0a0a;
+    }
+
+    ::-webkit-scrollbar-thumb {
+      background: #2d3436;
+      border-radius: 3px;
+    }
+
+    /* ── COLLAPSIBLE ── */
+    .section-toggle {
+      cursor: pointer;
+      user-select: none;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .section-toggle::after {
+      content: "▼";
+      font-size: 10px;
+      transition: transform 0.2s;
+    }
+
+    .section-toggle.collapsed::after {
+      transform: rotate(-90deg);
+    }
+
+    .section-body {
+      overflow: hidden;
+      transition: max-height 0.3s ease;
+    }
+
+    .section-body.collapsed {
+      max-height: 0 !important;
+      padding: 0;
+      margin: 0;
+    }
+
+    .msg-counter {
+      background: #e74c3c;
+      color: #fff;
+      font-size: 10px;
+      padding: 2px 6px;
+      border-radius: 10px;
+      margin-left: 6px;
+    }
+
+    .section-divider {
+      height: 1px;
+      background: linear-gradient(90deg, transparent, #16213e, transparent);
+      margin: 4px 0;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- ═══════════════ LEFT PANEL ═══════════════ -->
+  <div class="left-panel">
+
+    <h2>🧪 Chat Socket Tester</h2>
+
+    <!-- ── CONNECTION ── -->
+    <div class="connection-section">
+      <div class="status-bar">
+        <div class="status-dot" id="statusDot"></div>
+        <span id="statusText">Disconnected</span>
+      </div>
+
+      <label>Server URL</label>
+      <input type="text" id="serverUrl" value="http://localhost:5000" />
+
+      <label>JWT Token</label>
+      <textarea id="jwtToken" rows="3" placeholder="Paste your JWT token here..."></textarea>
+
+      <div class="btn-row">
+        <button class="btn-connect" id="btnConnect" onclick="connectSocket()">
+          ⚡ Connect
+        </button>
+        <button class="btn-disconnect" id="btnDisconnect" onclick="disconnectSocket()" style="display:none;">
+          🔌 Disconnect
+        </button>
+      </div>
+    </div>
+
+    <!-- ── SAVED VALUES ── -->
+    <div class="saved-values" id="savedValues">
+      matchId: <span id="svMatchId">—</span> &nbsp;|&nbsp;
+      messageId: <span id="svMessageId">—</span>
+    </div>
+
+    <!-- ══════════ 1. JOIN / LEAVE CHAT ══════════ -->
+    <div class="test-section">
+      <h4 class="section-toggle" onclick="toggleSection(this)">1️⃣ Join / Leave Chat</h4>
+      <div class="section-body">
+        <label>Match ID</label>
+        <input type="text" id="joinMatchId" placeholder="Enter matchId" oninput="saveMatchId(this.value)" />
+        <div class="btn-row">
+          <button class="btn-primary" onclick="joinChat()">🚪 Join Chat</button>
+          <button class="btn-warning" onclick="leaveChat()">👋 Leave Chat</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ══════════ 2. SEND TEXT MESSAGE ══════════ -->
+    <div class="test-section">
+      <h4 class="section-toggle" onclick="toggleSection(this)">2️⃣ Send Text Message</h4>
+      <div class="section-body">
+        <label>Match ID</label>
+        <input type="text" id="sendMatchId" placeholder="matchId" />
+
+        <label>Message Text</label>
+        <input type="text" id="sendText" placeholder="Type your message..." />
+
+        <label>Client Message ID (optional)</label>
+        <input type="text" id="clientMsgId" placeholder="Auto-generated if empty" />
+
+        <div class="btn-row">
+          <button class="btn-primary" onclick="sendTextMessage()">📤 Send (with ACK)</button>
+          <button class="btn-secondary" onclick="sendTextMessageNoAck()">📤 Send (no ACK)</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ══════════ 3. SEND MEDIA MESSAGE ══════════ -->
+    <div class="test-section">
+      <h4 class="section-toggle" onclick="toggleSection(this)">3️⃣ Send Media Message (via Socket)</h4>
+      <div class="section-body">
+        <label>Match ID</label>
+        <input type="text" id="mediaMatchId" placeholder="matchId" />
+
+        <label>Message ID (from upload API response)</label>
+        <input type="text" id="mediaMessageId" placeholder="Message ID from /upload-media response" />
+
+        <div class="btn-row">
+          <button class="btn-info" onclick="sendMediaMessage()">🖼️ Emit Media Message</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ══════════ 4. MARK MESSAGES READ ══════════ -->
+    <div class="test-section">
+      <h4 class="section-toggle" onclick="toggleSection(this)">4️⃣ Mark Messages Read</h4>
+      <div class="section-body">
+        <label>Match ID</label>
+        <input type="text" id="readMatchId" placeholder="matchId" />
+        <div class="btn-row">
+          <button class="btn-success" onclick="markRead()">✅ Mark Read</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ══════════ 5. TYPING INDICATOR ══════════ -->
+    <div class="test-section">
+      <h4 class="section-toggle" onclick="toggleSection(this)">5️⃣ Typing Indicator</h4>
+      <div class="section-body">
+        <label>Match ID</label>
+        <input type="text" id="typingMatchId" placeholder="matchId" />
+        <div class="btn-row">
+          <button class="btn-primary" onclick="sendTyping(true)">⌨️ Start Typing</button>
+          <button class="btn-secondary" onclick="sendTyping(false)">⏹️ Stop Typing</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ══════════ 6. DELETE FOR ME ══════════ -->
+    <div class="test-section">
+      <h4 class="section-toggle" onclick="toggleSection(this)">6️⃣ Delete Message (For Me)</h4>
+      <div class="section-body">
+        <label>Match ID</label>
+        <input type="text" id="delMatchId" placeholder="matchId" />
+
+        <label>Message ID</label>
+        <input type="text" id="delMessageId" placeholder="messageId" oninput="saveMessageId(this.value)" />
+
+        <div class="btn-row">
+          <button class="btn-danger" onclick="deleteForMe()">🗑️ Delete For Me</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ══════════ 7. DELETE FOR EVERYONE ══════════ -->
+    <div class="test-section">
+      <h4 class="section-toggle" onclick="toggleSection(this)">7️⃣ Delete For Everyone</h4>
+      <div class="section-body">
+        <label>Match ID</label>
+        <input type="text" id="delEveryoneMatchId" placeholder="matchId" />
+
+        <label>Message ID</label>
+        <input type="text" id="delEveryoneMessageId" placeholder="messageId" />
+
+        <div class="btn-row">
+          <button class="btn-danger" onclick="deleteForEveryone()">💥 Delete For Everyone</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ══════════ 8. REST API TESTS ══════════ -->
+    <div class="test-section">
+      <h4 class="section-toggle" onclick="toggleSection(this)">8️⃣ REST API Tests</h4>
+      <div class="section-body">
+        <label>Match ID</label>
+        <input type="text" id="apiMatchId" placeholder="matchId" />
+
+        <label>API Base URL</label>
+        <input type="text" id="apiBase" value="http://localhost:5000/api/v1/chat" />
+
+        <div class="quick-actions">
+          <button class="btn-primary" onclick="apiGetMessages()">📨 Get Messages</button>
+          <button class="btn-success" onclick="apiGetChatList()">📋 Chat List</button>
+          <button class="btn-warning" onclick="apiMarkRead()">✅ Mark Read (API)</button>
+          <button class="btn-info" onclick="apiSendMessage()">📤 Send (API)</button>
+        </div>
+
+        <div class="section-divider"></div>
+        <label style="margin-top:8px;">Receiver ID (for API send)</label>
+        <input type="text" id="apiReceiverId" placeholder="receiverId (for POST /send)" />
+
+        <label>Message Text (for API send)</label>
+        <input type="text" id="apiSendText" placeholder="Text for API send" />
+      </div>
+    </div>
+
+  </div>
+
+  <!-- ═══════════════ RIGHT PANEL: LOGS ═══════════════ -->
+  <div class="right-panel">
+    <div class="right-panel-header">
+      <h3>📋 Event Log <span class="msg-counter" id="logCounter">0</span></h3>
+      <div class="filter-bar">
+        <button class="filter-btn active" data-filter="all" onclick="setFilter('all', this)">All</button>
+        <button class="filter-btn" data-filter="emit" onclick="setFilter('emit', this)">Emitted</button>
+        <button class="filter-btn" data-filter="receive" onclick="setFilter('receive', this)">Received</button>
+        <button class="filter-btn" data-filter="ack" onclick="setFilter('ack', this)">ACK</button>
+        <button class="filter-btn" data-filter="error" onclick="setFilter('error', this)">Errors</button>
+        <button class="filter-btn" data-filter="info" onclick="setFilter('info', this)">Info</button>
+        <button class="btn-clear" onclick="clearLogs()">Clear</button>
+      </div>
+    </div>
+    <div id="logArea"></div>
+  </div>
+
+<script>
+  /* ══════════════════════════════════════════════════════════
+     GLOBALS
+  ══════════════════════════════════════════════════════════ */
+  let socket = null;
+  let logCount = 0;
+  let currentFilter = "all";
+
+  /* ══════════════════════════════════════════════════════════
+     LOGGING
+  ══════════════════════════════════════════════════════════ */
+  function getTime() {
+    return new Date().toLocaleTimeString("en-IN", {
+      hour: "2-digit",
+      minute: "2-digit",
+      second: "2-digit",
+    });
+  }
+
+  function addLog(type, eventName, data) {
+    const logArea = document.getElementById("logArea");
+    logCount++;
+    document.getElementById("logCounter").textContent = logCount;
+
+    const typeClass = `log-${type}`;
+    const typeLabel = {
+      emit: "📤 EMIT",
+      receive: "📥 RECV",
+      error: "❌ ERROR",
+      info: "ℹ️ INFO",
+      ack: "✅ ACK",
+    }[type] || "LOG";
+
+    const entry = document.createElement("div");
+    entry.className = `log-entry`;
+    entry.setAttribute("data-type", type);
+
+    let dataHtml = "";
+    if (data !== undefined && data !== null) {
+      try {
+        const formatted = typeof data === "string" ? data : JSON.stringify(data, null, 2);
+        dataHtml = `<div class="log-data"><pre style="margin:0;white-space:pre-wrap;">${escapeHtml(formatted)}</pre></div>`;
+      } catch (e) {
+        dataHtml = `<div class="log-data">${escapeHtml(String(data))}</div>`;
+      }
+    }
+
+    entry.innerHTML = `
+      <span class="log-time">${getTime()}</span>
+      <span class="${typeClass}">[${typeLabel}]</span>
+      <span style="color:#fff;font-weight:600;"> ${escapeHtml(eventName)}</span>
+      ${dataHtml}
+    `;
+
+    logArea.appendChild(entry);
+    logArea.scrollTop = logArea.scrollHeight;
+
+    applyFilter();
+  }
+
+  function escapeHtml(text) {
+    const div = document.createElement("div");
+    div.textContent = text;
+    return div.innerHTML;
+  }
+
+  function clearLogs() {
+    document.getElementById("logArea").innerHTML = "";
+    logCount = 0;
+    document.getElementById("logCounter").textContent = "0";
+  }
+
+  function setFilter(filter, btn) {
+    currentFilter = filter;
+    document.querySelectorAll(".filter-btn").forEach((b) => b.classList.remove("active"));
+    btn.classList.add("active");
+    applyFilter();
+  }
+
+  function applyFilter() {
+    document.querySelectorAll(".log-entry").forEach((entry) => {
+      if (currentFilter === "all") {
+        entry.style.display = "block";
+      } else {
+        entry.style.display = entry.getAttribute("data-type") === currentFilter ? "block" : "none";
+      }
+    });
+  }
+
+  /* ══════════════════════════════════════════════════════════
+     SECTION TOGGLE
+  ══════════════════════════════════════════════════════════ */
+  function toggleSection(header) {
+    header.classList.toggle("collapsed");
+    const body = header.nextElementSibling;
+    body.classList.toggle("collapsed");
+  }
+
+  /* ══════════════════════════════════════════════════════════
+     SAVED VALUES (auto-fill across sections)
+  ══════════════════════════════════════════════════════════ */
+  function saveMatchId(val) {
+    document.getElementById("svMatchId").textContent = val || "—";
+    // Auto-fill all matchId fields
+    const fields = [
+      "sendMatchId", "mediaMatchId", "readMatchId",
+      "typingMatchId", "delMatchId", "delEveryoneMatchId", "apiMatchId"
+    ];
+    fields.forEach((id) => {
+      const el = document.getElementById(id);
+      if (el && !el.value) el.value = val;
+    });
+  }
+
+  function saveMessageId(val) {
+    document.getElementById("svMessageId").textContent = val || "—";
+    const fields = ["delEveryoneMessageId", "mediaMessageId"];
+    fields.forEach((id) => {
+      const el = document.getElementById(id);
+      if (el && !el.value) el.value = val;
+    });
+  }
+
+  /* ══════════════════════════════════════════════════════════
+     GENERATE UUID (for clientMessageId)
+  ══════════════════════════════════════════════════════════ */
+  function generateUUID() {
+    return "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, function (c) {
+      const r = (Math.random() * 16) | 0;
+      const v = c === "x" ? r : (r & 0x3) | 0x8;
+      return v.toString(16);
+    });
+  }
+
+  /* ══════════════════════════════════════════════════════════
+     CONNECTION
+  ══════════════════════════════════════════════════════════ */
+  function connectSocket() {
+    const url = document.getElementById("serverUrl").value.trim();
+    const token = document.getElementById("jwtToken").value.trim();
+
+    if (!url) {
+      addLog("error", "Connection", "Server URL is required");
+      return;
+    }
+    if (!token) {
+      addLog("error", "Connection", "JWT Token is required");
+      return;
+    }
+
+    addLog("info", "Connecting...", { url });
+
+    socket = io(url, {
+      auth: { token },
+      transports: ["websocket"],
+      reconnection: true,
+      reconnectionAttempts: 5,
+      reconnectionDelay: 1000,
+    });
+
+    /* ── CONNECTION EVENTS ── */
+    socket.on("connect", () => {
+      document.getElementById("statusDot").classList.add("connected");
+      document.getElementById("statusText").textContent = `Connected (${socket.id})`;
+      document.getElementById("btnConnect").style.display = "none";
+      document.getElementById("btnDisconnect").style.display = "block";
+      addLog("info", "connect", { socketId: socket.id });
+    });
+
+    socket.on("disconnect", (reason) => {
+      document.getElementById("statusDot").classList.remove("connected");
+      document.getElementById("statusText").textContent = "Disconnected";
+      document.getElementById("btnConnect").style.display = "block";
+      document.getElementById("btnDisconnect").style.display = "none";
+      addLog("info", "disconnect", { reason });
+    });
+
+    socket.on("connect_error", (err) => {
+      document.getElementById("statusDot").classList.remove("connected");
+      document.getElementById("statusText").textContent = "Connection Error";
+      addLog("error", "connect_error", { message: err.message });
+    });
+
+    socket.io.on("reconnect_attempt", (attempt) => {
+      addLog("info", "reconnect_attempt", { attempt });
+    });
+
+    socket.io.on("reconnect", (attempt) => {
+      addLog("info", "reconnected", { attempt });
+    });
+
+    socket.io.on("reconnect_failed", () => {
+      addLog("error", "reconnect_failed", "All reconnection attempts exhausted");
+    });
+
+    /* ── CHAT EVENTS (INCOMING) ── */
+
+    socket.on("new_message", (data) => {
+      addLog("receive", "new_message", data);
+      // Auto-save messageId for quick delete testing
+      if (data && data._id) {
+        saveMessageId(data._id);
+        document.getElementById("delMessageId").value = data._id;
+        document.getElementById("delEveryoneMessageId").value = data._id;
+      }
+    });
+
+    socket.on("chat_list_update", (data) => {
+      addLog("receive", "chat_list_update", data);
+    });
+
+    socket.on("message_delivered", (data) => {
+      addLog("receive", "message_delivered", data);
+    });
+
+    socket.on("messages_delivered", (data) => {
+      addLog("receive", "messages_delivered (bulk)", data);
+    });
+
+    socket.on("messages_read", (data) => {
+      addLog("receive", "messages_read", data);
+    });
+
+    socket.on("user_typing", (data) => {
+      addLog("receive", "user_typing", data);
+    });
+
+    socket.on("message_deleted", (data) => {
+      addLog("receive", "message_deleted", data);
+    });
+
+    socket.on("message_deleted_everyone", (data) => {
+      addLog("receive", "message_deleted_everyone", data);
+    });
+
+    socket.on("chat_error", (data) => {
+      addLog("error", "chat_error", data);
+    });
+  }
+
+  function disconnectSocket() {
+    if (socket) {
+      socket.disconnect();
+      socket = null;
+    }
+  }
+
+  /* ══════════════════════════════════════════════════════════
+     SOCKET IS CONNECTED CHECK
+  ══════════════════════════════════════════════════════════ */
+  function isConnected() {
+    if (!socket || !socket.connected) {
+      addLog("error", "Not Connected", "Connect to server first!");
+      return false;
+    }
+    return true;
+  }
+
+  /* ══════════════════════════════════════════════════════════
+     1. JOIN / LEAVE CHAT
+  ══════════════════════════════════════════════════════════ */
+  function joinChat() {
+    if (!isConnected()) return;
+    const matchId = document.getElementById("joinMatchId").value.trim();
+    if (!matchId) {
+      addLog("error", "join_chat", "matchId is required");
+      return;
+    }
+    const payload = { matchId };
+    socket.emit("join_chat", payload);
+    addLog("emit", "join_chat", payload);
+
+    // Auto-fill other sections
+    saveMatchId(matchId);
+  }
+
+  function leaveChat() {
+    if (!isConnected()) return;
+    const matchId = document.getElementById("joinMatchId").value.trim();
+    if (!matchId) {
+      addLog("error", "leave_chat", "matchId is required");
+      return;
+    }
+    const payload = { matchId };
+    socket.emit("leave_chat", payload);
+    addLog("emit", "leave_chat", payload);
+  }
+
+  /* ══════════════════════════════════════════════════════════
+     2. SEND TEXT MESSAGE
+  ══════════════════════════════════════════════════════════ */
+  function sendTextMessage() {
+    if (!isConnected()) return;
+    const matchId = document.getElementById("sendMatchId").value.trim();
+    const text = document.getElementById("sendText").value.trim();
+    let clientMessageId = document.getElementById("clientMsgId").value.trim();
+
+    if (!matchId) {
+      addLog("error", "send_message", "matchId is required");
+      return;
+    }
+    if (!text) {
+      addLog("error", "send_message", "text is required");
+      return;
+    }
+
+    if (!clientMessageId) {
+      clientMessageId = generateUUID();
+      document.getElementById("clientMsgId").value = clientMessageId;
+    }
+
+    const payload = {
+      matchId,
+      text,
+      type: "text",
+      clientMessageId,
+    };
+
+    addLog("emit", "send_message (with ACK)", payload);
+
+    socket.emit("send_message", payload, (ackResponse) => {
+      addLog("ack", "send_message ACK", ackResponse);
+      if (ackResponse && ackResponse.messageId) {
+        saveMessageId(ackResponse.messageId);
+      }
+    });
+
+    // Clear text input for next message
+    document.getElementById("sendText").value = "";
+    document.getElementById("clientMsgId").value = "";
+  }
+
+  function sendTextMessageNoAck() {
+    if (!isConnected()) return;
+    const matchId = document.getElementById("sendMatchId").value.trim();
+    const text = document.getElementById("sendText").value.trim();
+    let clientMessageId = document.getElementById("clientMsgId").value.trim();
+
+    if (!matchId || !text) {
+      addLog("error", "send_message", "matchId and text required");
+      return;
+    }
+
+    if (!clientMessageId) {
+      clientMessageId = generateUUID();
+    }
+
+    const payload = {
+      matchId,
+      text,
+      type: "text",
+      clientMessageId,
+    };
+
+    socket.emit("send_message", payload);
+    addLog("emit", "send_message (no ACK)", payload);
+
+    document.getElementById("sendText").value = "";
+    document.getElementById("clientMsgId").value = "";
+  }
+
+  /* ══════════════════════════════════════════════════════════
+     3. SEND MEDIA MESSAGE (socket notification after upload)
+  ══════════════════════════════════════════════════════════ */
+  function sendMediaMessage() {
+    if (!isConnected()) return;
+    const matchId = document.getElementById("mediaMatchId").value.trim();
+    const messageId = document.getElementById("mediaMessageId").value.trim();
+
+    if (!matchId) {
+      addLog("error", "send_message (media)", "matchId is required");
+      return;
+    }
+    if (!messageId) {
+      addLog("error", "send_message (media)", "messageId from upload API is required");
+      return;
+    }
+
+    const payload = {
+      matchId,
+      type: "media",
+      messageId,
+    };
+
+    addLog("emit", "send_message (media, with ACK)", payload);
+
+    socket.emit("send_message", payload, (ackResponse) => {
+      addLog("ack", "send_message (media) ACK", ackResponse);
+    });
+  }
+
+  /* ══════════════════════════════════════════════════════════
+     4. MARK MESSAGES READ
+  ══════════════════════════════════════════════════════════ */
+  function markRead() {
+    if (!isConnected()) return;
+    const matchId = document.getElementById("readMatchId").value.trim();
+    if (!matchId) {
+      addLog("error", "messages_read", "matchId is required");
+      return;
+    }
+    const payload = { matchId };
+    socket.emit("messages_read", payload);
+    addLog("emit", "messages_read", payload);
+  }
+
+  /* ══════════════════════════════════════════════════════════
+     5. TYPING INDICATOR
+  ══════════════════════════════════════════════════════════ */
+  function sendTyping(isTyping) {
+    if (!isConnected()) return;
+    const matchId = document.getElementById("typingMatchId").value.trim();
+    if (!matchId) {
+      addLog("error", "typing", "matchId is required");
+      return;
+    }
+    const payload = { matchId, isTyping };
+    socket.emit("typing", payload);
+    addLog("emit", "typing", payload);
+  }
+
+  /* ══════════════════════════════════════════════════════════
+     6. DELETE FOR ME
+  ══════════════════════════════════════════════════════════ */
+  function deleteForMe() {
+    if (!isConnected()) return;
+    const matchId = document.getElementById("delMatchId").value.trim();
+    const messageId = document.getElementById("delMessageId").value.trim();
+
+    if (!matchId || !messageId) {
+      addLog("error", "delete_message", "matchId and messageId required");
+      return;
+    }
+    const payload = { matchId, messageId };
+    socket.emit("delete_message", payload);
+    addLog("emit", "delete_message", payload);
+  }
+
+  /* ══════════════════════════════════════════════════════════
+     7. DELETE FOR EVERYONE
+  ══════════════════════════════════════════════════════════ */
+  function deleteForEveryone() {
+    if (!isConnected()) return;
+    const matchId = document.getElementById("delEveryoneMatchId").value.trim();
+    const messageId = document.getElementById("delEveryoneMessageId").value.trim();
+
+    if (!matchId || !messageId) {
+      addLog("error", "delete_for_everyone", "matchId and messageId required");
+      return;
+    }
+    const payload = { matchId, messageId };
+    socket.emit("delete_for_everyone", payload);
+    addLog("emit", "delete_for_everyone", payload);
+  }
+
+  /* ══════════════════════════════════════════════════════════
+     8. REST API TESTS
+  ══════════════════════════════════════════════════════════ */
+  function getApiHeaders() {
+    const token = document.getElementById("jwtToken").value.trim();
+    return {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`,
+    };
+  }
+
+  async function apiGetMessages() {
+    const base = document.getElementById("apiBase").value.trim();
+    const matchId = document.getElementById("apiMatchId").value.trim();
+    if (!matchId) {
+      addLog("error", "API: Get Messages", "matchId is required");
+      return;
+    }
+    const url = `${base}/messages/${matchId}?page=1&limit=20`;
+    addLog("emit", `GET ${url}`, null);
+
+    try {
+      const res = await fetch(url, { headers: getApiHeaders() });
+      const json = await res.json();
+      addLog(res.ok ? "receive" : "error", `GET /messages/${matchId} → ${res.status}`, json);
+
+      // Auto-save last messageId if available
+      if (json.data && json.data.length > 0) {
+        const lastMsg = json.data[json.data.length - 1];
+        if (lastMsg.id) {
+          saveMessageId(lastMsg.id);
+        }
+      }
+    } catch (err) {
+      addLog("error", "API Error", err.message);
+    }
+  }
+
+  async function apiGetChatList() {
+    const base = document.getElementById("apiBase").value.trim();
+    const url = `${base}/list`;
+    addLog("emit", `GET ${url}`, null);
+
+    try {
+      const res = await fetch(url, { headers: getApiHeaders() });
+      const json = await res.json();
+      addLog(res.ok ? "receive" : "error", `GET /list → ${res.status}`, json);
+
+      // Auto-save first matchId if available
+      if (json.data && json.data.length > 0 && json.data[0].matchId) {
+        const firstMatchId = json.data[0].matchId;
+        document.getElementById("joinMatchId").value = firstMatchId;
+        saveMatchId(firstMatchId);
+      }
+    } catch (err) {
+      addLog("error", "API Error", err.message);
+    }
+  }
+
+  async function apiMarkRead() {
+    const base = document.getElementById("apiBase").value.trim();
+    const matchId = document.getElementById("apiMatchId").value.trim();
+    if (!matchId) {
+      addLog("error", "API: Mark Read", "matchId is required");
+      return;
+    }
+    const url = `${base}/messages/${matchId}/read`;
+    addLog("emit", `PATCH ${url}`, null);
+
+    try {
+      const res = await fetch(url, {
+        method: "PATCH",
+        headers: getApiHeaders(),
+      });
+      const json = await res.json();
+      addLog(res.ok ? "receive" : "error", `PATCH /messages/${matchId}/read → ${res.status}`, json);
+    } catch (err) {
+      addLog("error", "API Error", err.message);
+    }
+  }
+
+  async function apiSendMessage() {
+    const base = document.getElementById("apiBase").value.trim();
+    const matchId = document.getElementById("apiMatchId").value.trim();
+    const receiverId = document.getElementById("apiReceiverId").value.trim();
+    const text = document.getElementById("apiSendText").value.trim();
+
+    if (!matchId || !text) {
+      addLog("error", "API: Send Message", "matchId and text are required");
+      return;
+    }
+
+    const url = `${base}/send`;
+    const body = { matchId, text, receiverId };
+
+    addLog("emit", `POST ${url}`, body);
+
+    try {
+      const res = await fetch(url, {
+        method: "POST",
+        headers: getApiHeaders(),
+        body: JSON.stringify(body),
+      });
+      const json = await res.json();
+      addLog(res.ok ? "receive" : "error", `POST /send → ${res.status}`, json);
+
+      if (json.data && json.data._id) {
+        saveMessageId(json.data._id);
+      }
+    } catch (err) {
+      addLog("error", "API Error", err.message);
+    }
+  }
+
+  /* ══════════════════════════════════════════════════════════
+     KEYBOARD SHORTCUTS
+  ══════════════════════════════════════════════════════════ */
+  document.addEventListener("keydown", (e) => {
+    // Enter in sendText field → send message with ACK
+    if (e.key === "Enter" && document.activeElement.id === "sendText") {
+      e.preventDefault();
+      sendTextMessage();
+    }
+    // Ctrl+L → clear logs
+    if (e.ctrlKey && e.key === "l") {
+      e.preventDefault();
+      clearLogs();
+    }
+    // Ctrl+K → connect
+    if (e.ctrlKey && e.key === "k") {
+      e.preventDefault();
+      if (socket && socket.connected) {
+        disconnectSocket();
+      } else {
+        connectSocket();
+      }
+    }
+  });
+
+  /* ══════════════════════════════════════════════════════════
+     STARTUP INFO
+  ══════════════════════════════════════════════════════════ */
+  addLog("info", "🧪 Chat Socket Tester Ready", {
+    shortcuts: {
+      "Enter (in text field)": "Send message with ACK",
+      "Ctrl+L": "Clear logs",
+      "Ctrl+K": "Toggle connection",
+    },
+    instructions: [
+      "1. Paste JWT token",
+      "2. Click Connect",
+      "3. Enter matchId → Join Chat",
+      "4. Test all events",
+      "5. Open 2 tabs for 2-user testing",
+    ],
+  });
+</script>
+
+</body>
+</html>

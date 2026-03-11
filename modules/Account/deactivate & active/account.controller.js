@@ -5,6 +5,7 @@ const {
 } = require("../../../common/utils/feedCache.util");
 
 // const mongoose = require('mongoose');
+
 const { Match } = require("../../../modules/matches/swipe/swipe.model");
 const Swipe = require("../../../modules/matches/swipe/swipe.model");
 const Message = require("../../../modules/matches/chat/chat.message.model");
@@ -449,10 +450,6 @@ exports.requestDeleteAccountOtp = async (req, res) => {
 exports.restoreAccount = async (req, res) => {
   try {
     const userId = req.user._id;
-
-    console.log("hy");
-
-    // find user
     const user = await User.findById(userId);
 
     if (!user) {

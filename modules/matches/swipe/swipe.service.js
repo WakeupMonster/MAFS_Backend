@@ -1,6 +1,7 @@
 /* eslint-disable no-unused-vars */
 /* eslint-disable no-dupe-keys */
 // Core swipe logic & Redis integration
+
 const Profile = require("../../profile/profile.model");
 const User = require("../../auth/auth.model");
 const Swipe = require("./swipe.model"); // may export Swipe and Match - adjust import
@@ -11,10 +12,10 @@ const Block = require("../../../modules/profile/user.block");
 const Report = require("../../../modules/profile/user.report");
 const redis = require("../../../config/cache");
 const BlockedContact = require("../../BlockedContact/blockedContacts.model");
-const { checkUserQuota } = require("../../../common/utils/quotaHelper")
-const UserSubscription = require("../../auth/UserSubscription.model")
 const { canUserAccessFeed } = require("../../../common/utils/profileAccess");
 const { addNotificationJob } = require('../../../queues/notification.queue');
+const UsageService = require("../../subscription/services/usage.service");
+const Subscription = require("../../subscription/models/Subscription");
 
 function calculateDistance(lat1, lon1, lat2, lon2) {
   const R = 6371;
@@ -28,20 +29,22 @@ function calculateDistance(lat1, lon1, lat2, lon2) {
 }
 
 async function getFeedService(userId, limit, page) {
-  const CACHE_KEY = `feed:${userId.toString()}`;
+  const CACHE_KEY = `feed:${userId.toString()}:${limit}:${page}`;
   const SEEN_KEY = `feed:seen:${userId.toString()}`;
   const CACHE_TTL = 30;
-  const SEEN_TTL = 60 * 60 * 24; // 24 hours
+  const SEEN_TTL = 60 * 60 * 24;
   const skip = (page - 1) * limit;
 
-  let sub = await UserSubscription.findOne({ userId });
-  if (!sub) sub = await UserSubscription.create({ userId });
+  // 1. Setup Subscription and Profile
+  let [sub, myProfile] = await Promise.all([
+    Subscription.findOne({ userId, status: 'ACTIVE', expiresAt: { $gt: new Date() } }).lean(),
+    Profile.findOne({ userId }).lean()
+  ]);
 
-  sub.resetIfNeeded();
-
-  const myProfile = await Profile.findOne({ userId }).lean();
+  const isPremium = !!sub;
   if (!myProfile) throw new Error("Profile not found");
 
+  const discovery = myProfile.discovery || {};
   const canAccess = canUserAccessFeed({ profile: myProfile });
   if (!canAccess || !myProfile.location?.coordinates) {
     return {
@@ -52,184 +55,243 @@ async function getFeedService(userId, limit, page) {
     };
   }
 
-  // 🔹 SEEN PROFILES FETCH (NEW)
+  // 2. Fetch Seen Profiles from Redis (to avoid repeats in session)
   let seenProfiles = [];
   if (redis) {
     try {
       const seenCached = await redis.get(SEEN_KEY);
       if (seenCached) seenProfiles = JSON.parse(seenCached);
     } catch (e) {
-      console.error("Seen Redis Parse Error", e);
-      seenProfiles = [];
+      console.error("Redis Get Error (SeenProfiles):", e);
     }
   }
 
+  // 3. Return from Cache if available
   if (redis) {
     try {
       const cached = await redis.get(CACHE_KEY);
       if (cached) {
-        console.log("Feed from redis");
-        return {
-          success: true,
-          count: JSON.parse(cached).data?.length,
-          cached: true,
-          data: JSON.parse(cached).data
-        };
+        const parsed = JSON.parse(cached);
+        return { success: true, count: parsed.data?.length, cached: true, data: parsed.data };
       }
     } catch (err) {
-      console.error("Redis Error:", err);
+      console.error("Redis Get Error (Cache):", err);
     }
   }
 
-  const [
-    swipes,
-    matches,
-    myBlocked,
-    blockedMe,
-    myReports,
-    superlikes
-  ] = await Promise.all([
-    Swipe.find({ swiperId: userId, action: { $in: ["like", "pass"] } }).distinct("targetId"),
+  // 4. Gather Exclusion IDs (Always Excluded)
+  const [swipes, matches, myBlocked, blockedMe, myReports, receivedSuperlikes, nonActiveUsers] = await Promise.all([
+    Swipe.find({ swiperId: userId, action: { $in: ["like", "pass", "superlike"] } }).distinct("targetId"),
     Match.find({ users: userId }).distinct("users"),
     Block.find({ blockerId: userId }).distinct("blockedId"),
     Block.find({ blockedId: userId }).distinct("blockerId"),
     Report.find({ reporterId: userId }).distinct("reportedId"),
-    Swipe.find({ targetId: userId, action: "superlike" }).distinct("swiperId")
+    Swipe.find({ targetId: userId, action: "superlike" }).distinct("swiperId"),
+    User.find({ accountStatus: { $ne: "active" } }).distinct("_id")
   ]);
 
   const blockedPhoneHashes = await BlockedContact.find({ userId }).distinct("blockedPhoneHash");
   let blockedByContactUserIds = [];
-
   if (blockedPhoneHashes.length) {
     const users = await User.find({ phoneHash: { $in: blockedPhoneHashes } }).distinct("_id");
     blockedByContactUserIds = users.map(id => id.toString());
   }
 
-  const superlikeSet = new Set(superlikes.map(id => id.toString()));
-
-  // 🔹 MERGE SEEN INTO EXCLUDE (NEW)
-  const excludeIds = [
+  const baseExclude = [
     ...new Set([
-      ...swipes,
-      ...matches,
-      ...myBlocked,
-      ...blockedMe,
-      ...myReports,
+      ...swipes.map(id => id.toString()),
+      ...matches.map(id => id.toString()),
+      ...myBlocked.map(id => id.toString()),
+      ...blockedMe.map(id => id.toString()),
+      ...myReports.map(id => id.toString()),
       ...blockedByContactUserIds,
-      ...seenProfiles,
-      userId
+      ...nonActiveUsers.map(id => id.toString()),
+      userId.toString()
     ])
-  ].map(id => id.toString());
+  ];
 
-  const discovery = myProfile.discovery || {};
-  const query = {
+  const excludeIds = page === 1
+    ? [...new Set([...baseExclude, ...seenProfiles])]
+    : baseExclude;
+
+  // 5. Build Final Query Filters
+  const queryFilters = {
     userId: { $nin: excludeIds },
     isMandatoryComplete: true,
     "discovery.globalVisibility": "everyone"
   };
 
-  if (discovery.showMeGender?.length) query.gender = { $in: discovery.showMeGender };
-
+  if (discovery.showMeGender?.length) queryFilters.gender = { $in: discovery.showMeGender };
   if (discovery.ageRange) {
     const now = new Date();
-    query.dob = {
+    queryFilters.dob = {
       $gte: new Date(now.getFullYear() - (discovery.ageRange.max || 50), 0, 1),
       $lte: new Date(now.getFullYear() - (discovery.ageRange.min || 18), 11, 31)
     };
   }
-
-  if (discovery.hasBio) query.about = { $exists: true, $ne: "" };
-
+  if (discovery.hasBio) queryFilters.about = { $exists: true, $ne: "" };
   if (myProfile.location?.coordinates) {
-    query.location = {
+    queryFilters.location = {
       $near: {
         $geometry: { type: "Point", coordinates: myProfile.location.coordinates },
         $maxDistance: (discovery.distanceRange || 50) * 1000
       }
     };
-
   }
-    const profiles = await Profile.find(query)
-    .sort({ createdAt: -1 })
-    .skip(skip)
-    .limit(limit)
-    .lean();
 
-  if (redis && profiles.length === 0 && seenProfiles.length) {
-  await redis.del(SEEN_KEY);
+  // 6. Execute Query
+  async function runQuery(q) {
+    let pq = Profile.find(q);
+    // Prioritize superlikers at the DB level by sorting them first if not using $near
+    // If using $near, we have to handle prioritization manually after fetching or use an aggregation
+    if (!q.location) pq = pq.sort({ createdAt: -1 });
 
-  // refetch without seenProfiles
-  const retryExcludeIds = excludeIds.filter(
-    id => !seenProfiles.includes(id)
-  );
-
-  query.userId = { $nin: retryExcludeIds };
-
-
+    return pq.skip(skip).limit(limit).lean();
   }
-//     if (profiles.length < limit) {
-//   await redis.del(SEEN_KEY); // reset seen early
-// }
 
+  // SPECIAL CASE FOR PAGE 1: Fetch Superlikers explicitly to ensure they are at the top
+  let profiles = [];
+  if (page === 1) {
+    const superlikersToFetch = receivedSuperlikes.filter(id => !baseExclude.includes(id.toString()));
+    if (superlikersToFetch.length > 0) {
+      const superlikerProfiles = await Profile.find({
+        userId: { $in: superlikersToFetch },
+        isMandatoryComplete: true,
+        "discovery.globalVisibility": "everyone"
+      }).limit(5).lean(); // Limit initial superlikers to avoid overcrowding
+      profiles = [...superlikerProfiles];
+    }
+  }
 
+  // Fetch remaining profiles
+  const remainingLimit = limit - profiles.length;
+  if (remainingLimit > 0) {
+    const currentExclude = [...new Set([...excludeIds, ...profiles.map(p => p.userId.toString())])];
+    queryFilters.userId = { $nin: currentExclude };
+    const additionalProfiles = await runQuery(queryFilters);
+    profiles = [...profiles, ...additionalProfiles];
+  }
+
+  // 7. HANDLE EXHAUSTION (RETRY)
+  if (profiles.length === 0 && seenProfiles.length > 0 && page === 1) {
+    console.log(`Pool exhausted for ${userId}. Resetting seenProfiles and retrying immediately...`);
+    if (redis) await redis.del(SEEN_KEY);
+    seenProfiles = [];
+
+    queryFilters.userId = { $nin: baseExclude };
+    profiles = await runQuery(queryFilters);
+  }
+
+  if (profiles.length === 0) {
+    return { success: true, count: 0, data: [], message: "No more profiles found" };
+  }
+
+  // 8. Transformation & Scoring
   const boostKeys = profiles.map(p => `boost:${p.userId.toString()}`);
-  const boostResults = await redis.mGet(boostKeys);
+  const boostResults = (redis && profiles.length) ? await redis.mGet(boostKeys) : [];
+  const superlikeSet = new Set(receivedSuperlikes.map(id => id.toString()));
 
+  const myInterests = myProfile.attributes?.interests || myProfile.interests || [];
   const myPreferredInterests = discovery.preferredInterests || [];
   const myAdvancedFilters = discovery.advancedFilters || {};
-  const activeSearchGoal = discovery.filterRelationshipGoal || discovery.relationshipGoal;
+  const activeSearchGoal = discovery.filterRelationshipGoal
+    || discovery.relationshipGoal
+    || myProfile.relationshipGoal;
 
   const transformedProfiles = profiles.map((profile, index) => {
     const targetAttr = profile.attributes || {};
-    const targetInterests = targetAttr.interests || profile.interests || [];
+    const targetInterests = profile.discovery?.preferredInterests || [];
     const isSuperliked = superlikeSet.has(profile.userId.toString());
     const isBoosted = boostResults?.[index] === "1";
 
-    let score = isSuperliked ? 1000 : 0;
-    if (isBoosted) score += 500;
+    let compatibilityScore = 0;
+    let priorityScore = 0;
 
-    const common = targetInterests.filter(i => myPreferredInterests.includes(i));
-    score += common.length * 25;
+    if (isSuperliked) priorityScore += 1000;
+    if (isBoosted) priorityScore += 500;
 
-    const targetGoal = profile.discovery?.relationshipGoal;
-    if (targetGoal === activeSearchGoal) score += 40;
+    const commonWithPreferred = targetInterests.filter(i => myPreferredInterests.includes(i));
+    const commonWithOwn = targetInterests.filter(i => myInterests.includes(i));
+    const allCommon = [...new Set([...commonWithPreferred, ...commonWithOwn])];
+
+    compatibilityScore += commonWithPreferred.length * 8;
+    compatibilityScore += commonWithOwn.filter(i => !commonWithPreferred.includes(i)).length * 5;
+
+    const targetGoal = profile.discovery?.relationshipGoal || profile.relationshipGoal;
+    if (activeSearchGoal && targetGoal && targetGoal === activeSearchGoal) {
+      compatibilityScore += 20;
+    }
 
     const matchedTraits = [];
-    ['smoking', 'drinking', 'zodiac', 'pets', 'workout'].forEach(trait => {
-      if (myAdvancedFilters[trait] && targetAttr[trait] === myAdvancedFilters[trait]) {
-        score += 15;
-        matchedTraits.push(targetAttr[trait]);
+    const traitWeights = { smoking: 8, drinking: 8, zodiac: 5, pets: 6, workout: 7, diet: 5, education: 6, religion: 7, languages: 5 };
+
+    Object.keys(traitWeights).forEach(trait => {
+      const myFilterValue = myAdvancedFilters[trait];
+      const targetValue = targetAttr[trait];
+      if (myFilterValue && targetValue) {
+        if (Array.isArray(myFilterValue)) {
+          if (Array.isArray(targetValue)) {
+            if (targetValue.some(v => myFilterValue.includes(v))) {
+              compatibilityScore += traitWeights[trait];
+              matchedTraits.push(trait);
+            }
+          } else if (myFilterValue.includes(targetValue)) {
+            compatibilityScore += traitWeights[trait];
+            matchedTraits.push(trait);
+          }
+        } else if (targetValue === myFilterValue) {
+          compatibilityScore += traitWeights[trait];
+          matchedTraits.push(trait);
+        }
       }
     });
 
     let distanceKm = 0;
     if (myProfile.location?.coordinates && profile.location?.coordinates) {
       distanceKm = calculateDistance(
-        myProfile.location.coordinates[1],
-        myProfile.location.coordinates[0],
-        profile.location.coordinates[1],
-        profile.location.coordinates[0]
+        myProfile.location.coordinates[1], myProfile.location.coordinates[0],
+        profile.location.coordinates[1], profile.location.coordinates[0]
       );
     }
 
-    const dynamicHighlights = [];
+    if (distanceKm <= 5) compatibilityScore += 15;
+    else if (distanceKm <= 15) compatibilityScore += 10;
+    else if (distanceKm <= 30) compatibilityScore += 5;
+    else if (distanceKm <= 50) compatibilityScore += 2;
 
-    if (common.length > 0) {
-      dynamicHighlights.push({ type: "INTEREST_MATCH", icon: "🔥", title: "Common Vibe", description: `You both love ${common[0]}` });
+    const finalMatchScore = Math.min(Math.max(compatibilityScore, 1), 100);
+
+    let compatibilityLabel;
+    if (finalMatchScore >= 80) compatibilityLabel = "Excellent Match 💯";
+    else if (finalMatchScore >= 60) compatibilityLabel = "Great Match 🔥";
+    else if (finalMatchScore >= 40) compatibilityLabel = "Good Match 👍";
+    else if (finalMatchScore >= 20) compatibilityLabel = "Worth Exploring 🌟";
+    else compatibilityLabel = "New Discovery ✨";
+
+    const dynamicHighlights = [];
+    if (allCommon.length > 0) {
+      dynamicHighlights.push({
+        type: "INTEREST_MATCH",
+        icon: "🔥",
+        title: "Common Vibe",
+        description: allCommon.length > 1 ? `You both love ${allCommon[0]} +${allCommon.length - 1} more` : `You both love ${allCommon[0]}`
+      });
     }
-    if (targetGoal === activeSearchGoal) {
+
+    if (targetGoal && targetGoal === activeSearchGoal) {
       dynamicHighlights.push({ type: "GOAL_MATCH", icon: "🎯", title: "Same Intent", description: `Both looking for ${targetGoal}` });
     }
+
     if (matchedTraits.length > 0) {
-      dynamicHighlights.push({ type: "TRAIT_MATCH", icon: "✅", title: "Lifestyle", description: `Matches on ${matchedTraits[0]} habits` });
+      dynamicHighlights.push({
+        type: "TRAIT_MATCH",
+        icon: "✅",
+        title: "Lifestyle Match",
+        description: matchedTraits.length > 1 ? `Matches on ${matchedTraits[0]} +${matchedTraits.length - 1} more` : `Matches on ${matchedTraits[0]} habits`
+      });
     }
 
-    dynamicHighlights.push({
-      type: "LOCATION",
-      icon: "📍",
-      title: "Nearby",
-      description: distanceKm <= 1 ? "In your neighborhood" : `${distanceKm} km away`
-    });
+    dynamicHighlights.push({ type: "LOCATION", icon: "📍", title: "Nearby", description: distanceKm <= 1 ? "In your neighborhood" : `${distanceKm} km away` });
 
     if (profile.verification?.status === "approved") {
       dynamicHighlights.push({ type: "VERIFIED", icon: "🛡️", title: "Verified", description: "Authenticity checked by MAFS" });
@@ -240,9 +302,6 @@ async function getFeedService(userId, limit, page) {
         dynamicHighlights.push({ type: "BIO_PREVIEW", icon: "✍️", title: "About Me", description: profile.about.substring(0, 40) + "..." });
       }
       dynamicHighlights.push({ type: "ACTIVITY", icon: "⚡", title: "Active Now", description: "This user is looking for a match!" });
-      if (profile.photos.length > 3) {
-        dynamicHighlights.push({ type: "PHOTO_QUALITY", icon: "📸", title: "Photo Gallery", description: "Check out more moments" });
-      }
     }
 
     return {
@@ -255,42 +314,37 @@ async function getFeedService(userId, limit, page) {
         distanceText: distanceKm <= 1 ? "1 km away" : `${distanceKm} km away`,
         isVerified: profile.verification?.status === "approved"
       },
-      images: (profile.photos || []).sort((a, b) => a.order - b.order).map(p => ({ url: p.url })),
+      images: (profile.photos || [])
+        .sort((a, b) => a.order - b.order)
+        .map(p => ({ url: p.url })),
       relationshipGoal: targetGoal || "Not specified",
       attributes: targetAttr,
+      discoveryFilters: {
+        interest: profile.discovery?.preferredInterests || [],
+      },
       context: {
-        matchScore: Math.min(score, 100),
-        compatibilityLabel: score > 75 ? "Excellent Match" : score > 40 ? "Great Match" : "Good Match",
+        matchScore: finalMatchScore,
+        compatibilityLabel,
         isSuperLikeSender: isSuperliked,
         isBoosted: !!isBoosted,
-        commonInterests: common
+        commonInterests: allCommon
       },
       dynamicHighlights: dynamicHighlights.slice(0, 6)
     };
   });
 
-  // transformedProfiles.sort((a, b) => {
-  //   if (a.context.isBoosted && !b.context.isBoosted) return -1;
-  //   if (!a.context.isBoosted && b.context.isBoosted) return 1;
-  //   return b.context.matchScore - a.context.matchScore;
-  // });
-
+  // PRIORITY SORTING
   transformedProfiles.sort((a, b) => {
-  // 1️ SuperLike always top
-  if (a.context.isSuperLikeSender && !b.context.isSuperLikeSender) return -1;
-  if (!a.context.isSuperLikeSender && b.context.isSuperLikeSender) return 1;
-
-  // 2️ Boosted comes next
-  if (a.context.isBoosted && !b.context.isBoosted) return -1;
-  if (!a.context.isBoosted && b.context.isBoosted) return 1;
-
-  // 3️ Then match score
-  return b.context.matchScore - a.context.matchScore;
-});
+    if (a.context.isSuperLikeSender && !b.context.isSuperLikeSender) return -1;
+    if (!a.context.isSuperLikeSender && b.context.isSuperLikeSender) return 1;
+    if (a.context.isBoosted && !b.context.isBoosted) return -1;
+    if (!a.context.isBoosted && b.context.isBoosted) return 1;
+    return b.context.matchScore - a.context.matchScore;
+  });
 
   const finalResult = transformedProfiles.slice(0, limit);
 
-  // 🔹 UPDATE SEEN PROFILES (NEW)
+  // 9. Update Cache and Seen List
   if (redis && finalResult.length) {
     const newSeen = [
       ...new Set([
@@ -304,303 +358,6 @@ async function getFeedService(userId, limit, page) {
 
   return { success: true, count: finalResult.length, data: finalResult };
 }
-
-
-// async function getFeedService(userId,limit ,page) {
-//   const CACHE_KEY = `feed:${userId.toString()}`;
-//   const CACHE_TTL = 30;
-//   const skip = (page - 1) * limit;
-
-//   let sub = await UserSubscription.findOne({ userId });
-//   if (!sub) sub = await UserSubscription.create({ userId });
-
-//   // 2. Reset daily counters if needed
-//   sub.resetIfNeeded();
-
-//   // 1️⃣ User Profile & Filters Fetch
-//   const myProfile = await Profile.findOne({ userId }).lean();
-//   if (!myProfile) throw new Error("Profile not found");
-//   const canAccess = canUserAccessFeed({ profile: myProfile });
-
-//   if (!canAccess || !myProfile.location?.coordinates) {
-//     return {
-//       success: false,
-//       message: "Profile not eligible for discovery",
-//       data: [],
-//       onboardingRequired: true
-//     };
-//   }
-//   if (redis) {
-//     try {
-//       const cached = await redis.get(CACHE_KEY);
-//       if (cached)
-//         console.log("Feed from redis")
-//       return { success: true, count: JSON.parse(cached).data?.length, cached: true, data: JSON.parse(cached).data };
-//     } catch (err) { console.error("Redis Error:", err); }
-//   }
-
-//   // 3️⃣ Exclusion Lists (Swipes, Blocks, etc.)
-//   const [swipes,          // 1. Maine kise like/pass kiya
-//     matches,         // 2. Mere matches
-//     myBlocked,       // 3. Maine kise block kiya
-//     blockedMe,       // 4. Mujhe kisne block kiya
-//     myReports,       // 5. Maine kise report kiya
-//     superlikes] = await Promise.all([
-//       Swipe.find({ swiperId: userId, action: { $in: ["like", "pass"] } }).distinct("targetId"),
-//       Match.find({ users: userId }).distinct("users"),
-//       // userActionsModel.find({ $or: [{ actorId: userId }, { targetId: userId }] }).distinct("targetId"),
-//       Block.find({ blockerId: userId }).distinct("blockedId"),
-//       // Jinhone mujhe block kiya
-//       Block.find({ blockedId: userId }).distinct("blockerId"),
-//       // Maine jinhe report kiya (unhe bhi feed se hata dena chahiye)
-//       Report.find({ reporterId: userId }).distinct("reportedId"),
-//       Swipe.find({ targetId: userId, action: "superlike" }).distinct("swiperId")
-//     ]);
-
-
-//   const blockedPhoneHashes = await BlockedContact.find({
-//     userId
-//   }).distinct("blockedPhoneHash");
-
-//   let blockedByContactUserIds = [];
-
-//   if (blockedPhoneHashes.length) {
-//     const users = await User.find({
-//       phoneHash: { $in: blockedPhoneHashes }
-//     }).distinct("_id");
-
-//     blockedByContactUserIds = users.map(id => id.toString());
-//   }
-
-// console.log("swipes",swipes)
-//   const superlikeSet = new Set(superlikes.map(id => id.toString()));
-//   console.log(superlikeSet, "superlikeSet")
-//   const excludeIds = [...new Set([...swipes,
-//   ...matches,
-//   ...myBlocked,
-//   ...blockedMe,
-//   ...myReports, ...blockedByContactUserIds, userId])].map(id => id.toString());
-
-//   const discovery = myProfile.discovery || {};
-//   const query = { userId: { $nin: excludeIds }, isMandatoryComplete: true, "discovery.globalVisibility": "everyone" };
-
-//   if (discovery.showMeGender?.length) query.gender = { $in: discovery.showMeGender };
-//   if (discovery.ageRange) {
-//     const now = new Date();
-//     query.dob = {
-//       $gte: new Date(now.getFullYear() - (discovery.ageRange.max || 50), 0, 1),
-//       $lte: new Date(now.getFullYear() - (discovery.ageRange.min || 18), 11, 31)
-//     };
-//   }
-
-//   if (discovery.hasBio) {
-//     query.about = { $exists: true, $ne: "" };
-//   }
-
-//   // Location Radius
-//   if (myProfile.location?.coordinates) {
-//     query.location = {
-//       $near: {
-//         $geometry: { type: "Point", coordinates: myProfile.location.coordinates },
-//         $maxDistance: (discovery.distanceRange || 50) * 1000
-//       }
-//     };
-//   }
-
-//   // const profiles = await Profile.find(query).limit(50).lean();
-//     const profiles = await Profile.find(query)
-//     .sort({ createdAt: -1 })
-//     .skip(skip)
-//     .limit(limit)
-//     .lean();
-//   const boostKeys = profiles.map(p => `boost:${p.userId.toString()}`);
-
-// const boostResults = await redis.mGet(boostKeys);
-
-// console.log("boostresult",boostResults)
-
-//   const myPreferredInterests = discovery.preferredInterests || [];
-//   const myAdvancedFilters = discovery.advancedFilters || {};
-//   const activeSearchGoal = discovery.filterRelationshipGoal || discovery.relationshipGoal;
-//   const transformedProfiles = profiles.map((profile,index) => {
-//     const targetAttr = profile.attributes || {};
-//     const targetInterests = targetAttr.interests || profile.interests || [];
-//     const isSuperliked = superlikeSet.has(profile.userId.toString());
-//     console.log(
-//   "BOOST CHECK →",
-//   profile.userId.toString(),
-//   boostResults?.[index]
-// );
-
-
-
-
-//     const isBoosted = boostResults?.[index] === "1";
-
-//     // console.log(isSuperliked, "has in set")
-//     // 1️⃣ Match Score Calculation (Score Logic Same Rakhenge)
-//     let score = isSuperliked ? 1000 : 0;
-//     if (isBoosted) {
-//         score += 500; 
-//     }
-//     const common = targetInterests.filter(i => myPreferredInterests.includes(i));
-
-//     score += (common.length * 25);
-
-//     const targetGoal = profile.discovery?.relationshipGoal;
-//     if (targetGoal === activeSearchGoal) score += 40;
-
-//     const matchedTraits = [];
-//     // Advanced Traits Match (+15 points each)
-//     const traits = ['smoking', 'drinking', 'zodiac', 'pets', 'workout'];
-//     traits.forEach(trait => {
-//       if (myAdvancedFilters[trait] && targetAttr[trait] === myAdvancedFilters[trait]) {
-//         score += 15;
-//         matchedTraits.push(targetAttr[trait]);
-//       }
-//     });
-
-
-//     // 2️⃣ Distance calculation
-//     let distanceKm = 0;
-//     if (myProfile.location?.coordinates && profile.location?.coordinates) {
-//       distanceKm = calculateDistance(
-//         myProfile.location.coordinates[1], myProfile.location.coordinates[0],
-//         profile.location.coordinates[1], profile.location.coordinates[0]
-//       );
-//     }
-
-//     // 3️⃣ Frontend "Hand-holding" logic (Card Highlights)
-//     // Ye array frontend ko batayega ki pehle card par kya dikhana hai aur dusre par kya
-//     const cardHighlights = [];
-//     if (common.length > 0) cardHighlights.push(`You both love ${common[0]}`);
-//     if (targetGoal) cardHighlights.push(`Looking for: ${targetGoal}`);
-//     if (distanceKm <= 5) cardHighlights.push(`Very close to you!`);
-//     if (score > 75) cardHighlights.push(`${score}% Compatible`);
-
-
-//     const dynamicHighlights = [];
-
-//     // --- 1. Priority Matches (Real Data) ---
-//     if (common.length > 0) {
-//       dynamicHighlights.push({ type: "INTEREST_MATCH", icon: "🔥", title: "Common Vibe", description: `You both love ${common[0]}` });
-//     }
-//     if (targetGoal === activeSearchGoal) {
-//       dynamicHighlights.push({ type: "GOAL_MATCH", icon: "🎯", title: "Same Intent", description: `Both looking for ${targetGoal}` });
-//     }
-//     if (matchedTraits.length > 0) {
-//       dynamicHighlights.push({ type: "TRAIT_MATCH", icon: "✅", title: "Lifestyle", description: `Matches on ${matchedTraits[0]} habits` });
-//     }
-
-//     // --- 2. Essential Info (Hamesha hoti hai) ---
-//     dynamicHighlights.push({ type: "LOCATION", icon: "📍", title: "Nearby", description: distanceKm <= 1 ? "In your neighborhood" : `${distanceKm} km away` });
-
-//     if (profile.verification?.status === "approved") {
-//       dynamicHighlights.push({ type: "VERIFIED", icon: "🛡️", title: "Verified", description: "Authenticity checked by MAFS" });
-//     }
-
-//     // --- 3. Fallbacks (Jab 6 cards pure karne ho) ---
-//     if (dynamicHighlights.length < 6) {
-//       // Fallback: Bio Card
-//       if (profile.about && profile.about.length > 20) {
-//         dynamicHighlights.push({ type: "BIO_PREVIEW", icon: "✍️", title: "About Me", description: profile.about.substring(0, 40) + "..." });
-//       }
-
-//       // Fallback: Freshness Card
-//       dynamicHighlights.push({ type: "ACTIVITY", icon: "⚡", title: "Active Now", description: "This user is looking for a match!" });
-
-//       // Fallback: Quality Card
-//       if (profile.photos.length > 3) {
-//         dynamicHighlights.push({ type: "PHOTO_QUALITY", icon: "📸", title: "Photo Gallery", description: "Check out more moments" });
-//       }
-
-
-//     }
-//     return {
-//       userId: profile.userId,
-//       profile: {
-//         nickname: profile.nickname || "User",
-//         age: calculateAge(profile.dob),
-//         bio: profile.about || null,
-//         city: profile.location?.city || null,
-//         distanceText: distanceKm <= 1 ? "1 km away" : `${distanceKm} km away`,
-//         isVerified: profile.verification?.status === "approved"
-//       },
-
-//       // --- 2. IMAGES (Formatted as Objects) ---
-//       images: (profile.photos || [])
-//         .sort((a, b) => a.order - b.order)
-//         .map(p => ({ url: p.url })),
-
-//       // --- 3. GOALS ---
-//       relationshipGoal: targetGoal || "Not specified",
-
-
-//       attributes: {
-//         interests: targetAttr.interests || null,
-//         zodiac: targetAttr.zodiac || null,
-//         education: targetAttr.education || null,
-//         vaccineStatus: targetAttr.vaccineStatus || null,
-//         familyPlans: targetAttr.familyPlans || null,
-//         personalityType: targetAttr.personalityType || null,
-//         communicationStyle: targetAttr.communicationStyle || null,
-//         loveStyle: targetAttr.loveStyle || null,
-//         bloodType: targetAttr.bloodType || null,
-//         pets: targetAttr.pets || null,
-//         drinking: targetAttr.drinking || null,
-//         smoking: targetAttr.smoking || null,
-//         workout: targetAttr.workout || null,
-//         dietary: targetAttr.dietary || null,
-//         socialMedia: targetAttr.socialMedia || null,
-//         sleeping: targetAttr.sleeping || null
-//       },
-
-//       // --- 5. CONTEXT (Match Details) ---
-//       context: {
-//         matchScore: Math.min(score, 100),
-//         compatibilityLabel: score > 75 ? "Excellent Match" : (score > 40 ? "Great Match" : "Good Match"),
-//         isSuperLikeSender: isSuperliked, // Blue border logic for UI
-//         isBoosted: !!isBoosted,
-//         commonInterests: common
-//       },
-
-//       // --- 6. DYNAMIC HIGHLIGHTS (UI Cards) ---
-//       dynamicHighlights: dynamicHighlights.slice(0, 6)
-//     };
-//   });
-//   // transformedProfiles.sort((a, b) => b.context.matchScore - a.context.matchScore);
-//   transformedProfiles.sort((a, b) => {
-//   // 1️ Boosted always first
-//   if (a.context.isBoosted && !b.context.isBoosted) return -1;
-//   if (!a.context.isBoosted && b.context.isBoosted) return 1;
-
-//   // 2️ Then by matchScore
-//   return b.context.matchScore - a.context.matchScore;
-// });
-// // transformedProfiles.sort((a, b) => {
-// //   // 1️ SuperLike always top
-// //   if (a.context.isSuperLikeSender && !b.context.isSuperLikeSender) return -1;
-// //   if (!a.context.isSuperLikeSender && b.context.isSuperLikeSender) return 1;
-
-// //   // 2️ Boosted comes next
-// //   if (a.context.isBoosted && !b.context.isBoosted) return -1;
-// //   if (!a.context.isBoosted && b.context.isBoosted) return 1;
-
-// //   // 3️ Then match score
-// //   return b.context.matchScore - a.context.matchScore;
-// // });
-
-//   const finalResult = transformedProfiles.slice(0, limit,page);
-//   if (redis && finalResult.length) {
-//     // await redis.set(CACHE_KEY, JSON.stringify({ data: finalResult }), 'EX', CACHE_TTL);
-//     await redis.set(
-//       CACHE_KEY,
-//       { data: finalResult },
-//       { EX: CACHE_TTL }
-//     );
-//   }
-//   return { success: true,count: finalResult.length, data: finalResult };
-// }
 function calculateAge(dob) {
   if (!dob) return 0;
   const diff = Date.now() - new Date(dob).getTime();
@@ -608,9 +365,13 @@ function calculateAge(dob) {
 }
 
 async function doSwipe(swiperId, targetId, action) {
-  // 1. Initial Self-Swipe Check
+  // 1. Initial Checks
   if (swiperId.toString() === targetId.toString()) {
     throw new Error("Cannot swipe on your own profile");
+  }
+
+  if (!mongoose.Types.ObjectId.isValid(targetId) || !/^[0-9a-fA-F]{24}$/.test(targetId.toString())) {
+    throw new Error("Invalid target user ID format. ID must be a 24-character hex string.");
   }
 
   const session = await mongoose.startSession();
@@ -621,45 +382,10 @@ async function doSwipe(swiperId, targetId, action) {
     // Sab kuch ek hi transaction block mein
     await session.withTransaction(async () => {
 
-      // 2. Fetch Subscription (Session ke saath)
-      let sub = await UserSubscription.findOne({ userId: swiperId }).session(session);
-      if (!sub) {
-        [sub] = await UserSubscription.create([{ userId: swiperId }], { session });
-      }
+      // 2. Determine Usage Type
+      const usageType = action === 'superlike' ? 'SUPER_KEEN' : 'LIKE';
 
-      // 3. Reset daily counters if it's a new day
-      sub.resetIfNeeded();
-
-      // 4. GATEKEEPER CHECK
-      const quota = checkUserQuota(sub, action);
-      if (!quota.allowed) {
-        const now = new Date();
-        const tonight = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
-
-        // Return structured error for Frontend
-        result = {
-          success: false,
-          error: "LIMIT_REACHED",
-          message: action === 'like' ? "Daily likes limit reached!" : "No Superlikes left for today!",
-          data: {
-            quotaStatus: {
-              used: action === 'like' ? sub.dailyLikesUsed : sub.dailySuperlikesUsed,
-              limit: quota.total,
-              remaining: 0,
-              resetAt: tonight
-            },
-            upsell: {
-              title: "Don't stop swiping!",
-              description: "Upgrade now to get unlimited likes and more superlikes.",
-              action: "SHOW_PREMIUM_MODAL"
-            }
-          }
-        };
-        // Yahan se bahar nikal jao (Transaction abort nahi hogi, bas update nahi hoga)
-        return;
-      }
-
-      // 5. Target Profile aur Block Check
+      // 3. Target Profile aur Block Check
       const [targetProfile, blockExists] = await Promise.all([
         Profile.findOne({ userId: targetId }).session(session),
         Block.findOne({
@@ -673,20 +399,42 @@ async function doSwipe(swiperId, targetId, action) {
       if (!targetProfile) throw new Error('Target profile not found');
       if (blockExists) throw new Error("Action not allowed. User interaction is blocked.");
 
-      // 6. Avoid Duplicates
+      // 4. Avoid Duplicates
       const existingSwipe = await Swipe.findOne({ swiperId, targetId }).session(session);
       if (existingSwipe) {
         result = { success: true, already: true, message: "Already swiped", match: false };
         return;
       }
 
-      // 7. 🔥 UPDATE COUNTER & SAVE (Ye line DB update karegi)
-      if (action === 'like') {
-        sub.dailyLikesUsed += 1;
-      } else if (action === 'superlike') {
-        sub.dailySuperlikesUsed += 1;
+      // 5. GATEKEEPER CHECK (v3)
+      let usageResult;
+      try {
+        if (action !== 'pass') {
+          // Note: UsageService is not part of the transaction because it needs to persist 
+          // across failed transactions and manages its own atomic operations.
+          usageResult = await UsageService.useItem(swiperId, usageType);
+        }
+      } catch (error) {
+        if (error.message === 'LIMIT_REACHED') {
+          // Fetch current status for rich error response
+          const status = await UsageService.getUsageStatus(swiperId);
+          result = {
+            success: false,
+            error: "LIMIT_REACHED",
+            message: action === 'like' ? "Daily likes limit reached!" : "No Super Keens left!",
+            data: {
+              quotaStatus: status.data.quotas[usageType === 'LIKE' ? 'likes' : 'superKeens'],
+              upsell: {
+                title: "Don't stop swiping!",
+                description: "Upgrade now to get unlimited likes and more super keens.",
+                action: "SHOW_PREMIUM_MODAL"
+              }
+            }
+          };
+          return; // Exit transaction block gracefully
+        }
+        throw error; // Other errors
       }
-      await sub.save({ session }); // Ab ye save hoga because of clean session
 
       // 8. Create Swipe Record
       await Swipe.create([{ swiperId, targetId, action, createdAt: new Date() }], { session });
@@ -724,31 +472,23 @@ async function doSwipe(swiperId, targetId, action) {
                 },
                 myPhotoUrl: myProfile?.photos?.[0]?.url || null
               },
-              // 🔥 Wallet Section (Calculated from updated 'sub')
-              wallet: {
-                likesRemaining: Math.max(0, 30 - sub.dailyLikesUsed),
-                superLikesRemaining: Math.max(0, 3 - sub.dailySuperlikesUsed) + (sub.superlikeBalance || 0),
-                rewindsRemaining: sub.planId !== 'free' ? 999 : 0
-              }
+              // 🔥 Wallet Section (v3)
+              wallet: (await UsageService.getUsageStatus(swiperId)).data.wallet
             }
           };
           addNotificationJob('NEW_MATCH', { userId1: swiperId, userId2: targetId });
         } else {
           // 🔥 CASE 2: NO MATCH (Manager's exact request)
           // Ye response dikhega jab user swipe karega par samne wale ne abhi like nahi kiya
+          const status = await UsageService.getUsageStatus(swiperId);
           result = {
             success: true,
             data: {
               isMatch: false,
               matchDetails: null,
-              wallet: {
-                likesRemaining: Math.max(0, 30 - sub.dailyLikesUsed),
-                superLikesRemaining: Math.max(0, 3 - sub.dailySuperlikesUsed) + (sub.superlikeBalance || 0),
-                rewindsRemaining: sub.planId !== 'free' ? 5 : 0
-              }
-
+              wallet: status.data.wallet,
+              quotas: status.data.quotas
             }
-
           }
           if (action === 'like' || action === 'superlike') {
             addNotificationJob('NEW_LIKE', { senderId: swiperId, receiverId: targetId });
@@ -770,6 +510,7 @@ async function doSwipe(swiperId, targetId, action) {
       // 10. Cache Clearing (Transaction ke andar ya bahar)
       if (redis) {
         await redis.del(`feed:${swiperId.toString()}`);
+        await redis.del(`feed:${targetId.toString()}`); // Clear recipient's cache too
         if (result.match) {
           await Promise.all([
             redis.del(`matches:${swiperId}`),
@@ -790,6 +531,15 @@ async function doSwipe(swiperId, targetId, action) {
 }
 
 async function undoSwipe(swiperId, targetId) {
+  // 1. Quota Check (v3) 
+  try {
+    await UsageService.useItem(swiperId, 'REWIND');
+  } catch (error) {
+    if (error.message === 'LIMIT_REACHED') {
+      throw new Error("No Rewinds left for today!");
+    }
+    throw error;
+  }
 
   const lastSwipe = await Swipe.findOne({ swiperId, targetId })
     .sort({ createdAt: -1 });
@@ -797,6 +547,9 @@ async function undoSwipe(swiperId, targetId) {
   if (!lastSwipe) throw new Error("No swipe to undo");
 
   if (lastSwipe.action === "superlike") {
+    // Note: Guide says super keens can be undone? 
+    // Usually Super Keens are high value, some apps block undo. 
+    // Keeping existing behavior unless asked.
     throw new Error("Superlike undo not allowed");
   }
 
@@ -810,7 +563,6 @@ async function undoSwipe(swiperId, targetId) {
   if (redis) {
     await Promise.all([
       redis.sRem(`swiped:${swiperId}`, targetId.toString()),
-      redis.lPush(`queue:${swiperId}`, targetId.toString()),
       redis.del(`feed:${swiperId}`)
     ]);
   }

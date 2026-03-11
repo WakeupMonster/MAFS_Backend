@@ -6,14 +6,14 @@ const giveawayCampaignSchema = new mongoose.Schema(
     date: {
       type: Date,
       required: true,
-      unique: true
+      unique: true,
     },
 
     // Us din ka prize (Prize Scheduling ka base)
     prizeId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "GiveawayPrize",
-      required: true
+      required: true,
     },
 
     // Cron job state (crash-safe & multi-server safe)
@@ -21,45 +21,61 @@ const giveawayCampaignSchema = new mongoose.Schema(
       type: String,
       enum: ["PENDING", "PROCESSING", "COMPLETED"],
       default: "PENDING",
-      index: true
+      index: true,
     },
-
 
     // Winner user (draw complete hone ke baad)
     winnerUserId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",
-      default: null
+      default: null,
     },
 
     // Draw kab run hua (audit & debugging)
     drawAt: {
       type: Date,
-      default: null
+      default: null,
     },
 
     // Agar draw skip / fail hua to reason
     failureReason: {
       type: String,
-      default: null
+      default: null,
     },
     supportiveItems: {
       type: [String],
-      default: []
+      default: [],
     },
 
     // Admin control: feature enable / disable
     isActive: {
       type: Boolean,
-      default: true
-    }
+      default: true,
+    },
+    participants: {
+      type: [mongoose.Schema.Types.ObjectId],
+      ref: "User",
+      default: [],
+    },
+
+    totalParticipants: {
+      type: Number,
+      default: 0,
+    },
+
+    matchWindowStart: {
+      type: Date,
+      default: null,
+    },
+
+    matchWindowEnd: {
+      type: Date,
+      default: null,
+    },
   },
   {
-    timestamps: true
+    timestamps: true,
   }
 );
 
-module.exports = mongoose.model(
-  "GiveawayCampaign",
-  giveawayCampaignSchema
-);
+module.exports = mongoose.model("GiveawayCampaign", giveawayCampaignSchema);

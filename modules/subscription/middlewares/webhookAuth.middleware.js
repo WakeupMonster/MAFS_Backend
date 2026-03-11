@@ -60,11 +60,7 @@ const verifyGoogleWebhook = async (req, res, next) => {
       const ticket = await googleAuthClient.verifyIdToken({ idToken: token });
       const claim = ticket.getPayload();
 
-      if (
-        !claim ||
-        !claim.email ||
-        !claim.email.endsWith("gserviceaccount.com")
-      ) {
+      if (!claim || !claim.email || !claim.email.endsWith("gserviceaccount.com")) {
         throw new Error("Invalid sender");
       }
 

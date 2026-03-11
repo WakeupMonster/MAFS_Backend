@@ -177,7 +177,7 @@ module.exports.GETAllUsers = async (req, res) => {
     await redis.setex(
       cacheKey,
       60 * 2, // ⏱ 2 minutes (admin-safe)
-      JSON.stringify(response),
+      JSON.stringify(response)
     );
 
     return res.status(200).json({
@@ -271,31 +271,31 @@ module.exports.SampleGETallUser = async (req, res) => {
                   {
                     email: new RegExp(
                       searchTrimmed.replace(/[.*+?^${}()|[\\/]\\]/g, "\\$&"),
-                      "i",
+                      "i"
                     ),
                   },
                   {
                     phone: new RegExp(
                       searchTrimmed.replace(/[.*+?^${}()|[\\/]\\]/g, "\\$&"),
-                      "i",
+                      "i"
                     ),
                   },
                   {
                     "profile.nickname": new RegExp(
                       searchTrimmed.replace(/[.*+?^${}()|[\\/]\\]/g, "\\$&"),
-                      "i",
+                      "i"
                     ),
                   },
                   {
                     "profile.gender": new RegExp(
                       searchTrimmed.replace(/[.*+?^${}()|[\\/]\\]/g, "\\$&"),
-                      "i",
+                      "i"
                     ),
                   },
                   {
                     "profile.location.address": new RegExp(
                       searchTrimmed.replace(/[.*+?^${}()|[\\/]\\]/g, "\\$&"),
-                      "i",
+                      "i"
                     ),
                   },
                   // Exact match for Age if search is a number
@@ -858,7 +858,7 @@ module.exports.UPDATESingleUserDetail = async (req, res) => {
     if (error) {
       await session.abortTransaction();
       const errorMessages = error.details.map((detail) =>
-        detail.message.replace(/"/g, ""),
+        detail.message.replace(/"/g, "")
       );
       return res.status(400).json({
         success: false,
@@ -886,7 +886,7 @@ module.exports.UPDATESingleUserDetail = async (req, res) => {
     const user = await User.findOneAndUpdate(
       { _id: userId, role: "USER" },
       { $set: userUpdate },
-      { new: true, session },
+      { new: true, session }
     );
 
     if (!user) {
@@ -935,7 +935,7 @@ module.exports.UPDATESingleUserDetail = async (req, res) => {
         updatedProfile = await Profile.findOneAndUpdate(
           { userId },
           { $set: profileUpdate },
-          { new: true, runValidators: true, session },
+          { new: true, runValidators: true, session }
         );
       }
     }
@@ -1013,7 +1013,7 @@ module.exports.UPDATEUserStatus = async (req, res) => {
     const user = await User.findOneAndUpdate(
       { _id: userId, role: "USER" },
       { $set: { accountStatus } },
-      { new: true },
+      { new: true }
     );
 
     if (!user) {
@@ -1174,8 +1174,8 @@ module.exports.GETExportAllUsers = async (req, res) => {
         doc.createdAt instanceof Date
           ? doc.createdAt.toISOString()
           : doc.createdAt
-            ? new Date(doc.createdAt).toISOString()
-            : "";
+          ? new Date(doc.createdAt).toISOString()
+          : "";
 
       csvStream.write({
         UserId: doc._id.toString(),
@@ -1235,7 +1235,7 @@ module.exports.streamUsersExport = async (req, res) => {
     // Removed progress markers because they corrupt the CSV file structure
     res.setHeader(
       "Content-Disposition",
-      `attachment; filename=MAFS_Users_${Date.now()}.csv`,
+      `attachment; filename=MAFS_Users_${Date.now()}.csv`
     );
     res.setHeader("Content-Type", "text/csv");
     res.setHeader("X-Content-Type-Options", "nosniff");

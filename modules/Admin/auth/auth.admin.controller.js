@@ -11,7 +11,7 @@ const authService = require("./auth.services");
 
 const REFRESH_TOKEN_TTL_MS = 30 * 24 * 60 * 60 * 1000;
 const MAX_REFRESH_TOKENS = 5;
-const ADMIN_EMAIL_OTP_TTL = 300; // 5 min
+// const ADMIN_EMAIL_OTP_TTL = 300; // 5 min
 
 /*==================================================
   POST API 1: REGISTER FOR ADMIN [Note: Provide for admin]
