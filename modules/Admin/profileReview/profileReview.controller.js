@@ -1,6 +1,7 @@
 const Profile = require("../../../modules/profile/profile.model");
 const User = require("../../../modules/auth/auth.model");
 const {
+  // eslint-disable-next-line no-unused-vars
   formatProfileResponse,
 } = require("../../../modules/profile/profile.formatter");
 const Report = require("../../../modules/profile/user.report");
@@ -10,16 +11,19 @@ const getProfileForReview = async (req, res) => {
     const { userId } = req.params;
     console.log("userId: ", userId);
 
-    // Get user and profile with all necessary data
     const [user, profile, reports] = await Promise.all([
-      User.findById(userId).lean(),
+      User.findById(userId).select('email phone accountStatus isVerified banDetails lastActive deviceInfo').lean(),
       Profile.findOne({ userId }).lean(),
-      Report.find({ reportedId: userId, status: "new" })
-        // .populate('reportedBy', 'name email phone')
-        .lean(),
+      Report.find({ reportedId: userId }).lean(),
     ]);
 
-    // console.log(reports)
+    const reporterIds = [...new Set(reports.map(r => r.reporterId))];
+    const reporters = await Profile.find({ userId: { $in: reporterIds } }).select('userId nickname').lean();
+    const reporterMap = reporters.reduce((acc, reporter) => {
+      acc[reporter.userId.toString()] = reporter.nickname;
+      return acc;
+    }, {});
+
     if (!user || !profile) {
       return res.status(404).json({
         success: false,
@@ -56,7 +60,11 @@ const getProfileForReview = async (req, res) => {
         _id: report._id,
         reason: report.reason,
         details: report.details,
-        reportedBy: report.reportedBy,
+        reportedBy: {
+          id: report.reporterId,
+          nickname: reporterMap[report.reporterId.toString()] || 'Unknown User'
+        },
+        status: report.status,
         createdAt: report.createdAt,
       })),
 

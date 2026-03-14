@@ -62,6 +62,40 @@ class GoogleService {
     });
   }
 
+  async verifyConsumable(productId, purchaseToken) {
+    if (!this.isReady()) {
+      logger.warn("Google MOCK MODE: Returning mock consumable verification");
+      return this.getMockConsumableData(productId);
+    }
+
+    const client = await this.getClient();
+
+    const result = await client.purchases.products.get({
+      packageName: iapConfig.google.packageName,
+      productId: productId,
+      token: purchaseToken,
+    });
+
+    return result.data;
+  }
+
+  async acknowledgeConsumable(productId, purchaseToken) {
+    if (!this.isReady()) {
+      logger.warn("Google MOCK MODE: Skipping consumable acknowledge");
+      return;
+    }
+
+    const client = await this.getClient();
+
+    // The acknowledge request body might require developerPayload, but commonly just token is enough for simple ack.
+    // Ensure that it's actually required to call acknowledge for one-time products. Yes, it's recommended or Google may refund.
+    await client.purchases.products.acknowledge({
+      packageName: iapConfig.google.packageName,
+      productId: productId,
+      token: purchaseToken,
+    });
+  }
+
   decodeWebhookPayload(messageData) {
     const decoded = JSON.parse(Buffer.from(messageData, "base64").toString("utf8"));
     return decoded;
@@ -71,8 +105,7 @@ class GoogleService {
     return GOOGLE_EVENT_MAP[notificationType] || "UNKNOWN";
   }
 
-  // eslint-disable-next-line no-unused-vars
-  getMockSubscriptionData(subscriptionId) {
+  getMockSubscriptionData() {
     return {
       startTimeMillis: String(Date.now()),
       expiryTimeMillis: String(Date.now() + 30 * 24 * 60 * 60 * 1000),
@@ -81,6 +114,16 @@ class GoogleService {
       orderId: "GPA.MOCK-1111-2222-3333",
       cancelReason: 0,
       acknowledgementState: 1,
+    };
+  }
+
+  getMockConsumableData() {
+    return {
+      purchaseTimeMillis: String(Date.now()),
+      purchaseState: 0,
+      consumptionState: 0,
+      orderId: "GPA.MOCK-CONSUMABLE-9999",
+      acknowledgementState: 0,
     };
   }
 }

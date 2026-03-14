@@ -185,7 +185,7 @@ exports.getKeenData = async (req, res, actionType) => {
     // 1. Premium Check for normal likes (v3 Requirements)
     if (actionType === 'like') {
       const usageStatus = await UsageService.getUsageStatus(userId);
-      if (!usageStatus.data.features.canSeeWhoLiked) {
+      if (!usageStatus.data.premiumFeatures.seeWhoLikedYou) {
         return res.status(403).json({
           success: false,
           code: "PREMIUM_REQUIRED",
@@ -308,7 +308,7 @@ exports.undo = async (req, res) => {
       if (error.message === 'LIMIT_REACHED') {
         return res.status(403).json({
           success: false,
-          code: "LIMIT_REACHED",
+          // code: "LIMIT_REACHED",
           message: "You've reached your daily Rewind limit! Upgrade to Premium for unlimited rewinds."
         });
       }
@@ -363,14 +363,23 @@ exports.undo = async (req, res) => {
       await redis.del(`feed:${userId.toString()}`);
     }
 
+    const status = await UsageService.getUsageStatus(userId);
+
     return res.json({
       success: true,
       message: "Swipe undone successfully",
-      undoneAction: undone
+      data: {
+        undoneAction: undone,
+        isPremium: status.data.isPremium,
+        showAds: status.data.showAds,
+        premiumFeatures: status.data.premiumFeatures,
+        allocations: status.data.allocations,
+        wallet: status.data.wallet
+      }
     });
 
   } catch (err) {
-    await session.abortTransaction();
+    // await session.abortTransaction();
     session.endSession();
 
     return res.status(400).json({

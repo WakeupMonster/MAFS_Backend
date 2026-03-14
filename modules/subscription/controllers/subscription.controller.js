@@ -7,6 +7,8 @@ const Subscription = require("../../../modules/subscription/models/Subscription"
 const SubscriptionTransaction = require("../../../modules/subscription/models/SubscriptionTransaction");
 const SubscriptionEvent = require("../../../modules/subscription/models/SubscriptionEvent");
 const Product = require("../models_v3/Product");
+const SubscriptionConfig = require("../models_v3/SubscriptionConfig");
+const UsageService = require("../services/usage.service");
 
 const verifyPurchase = async (req, res, next) => {
   try {
@@ -16,7 +18,7 @@ const verifyPurchase = async (req, res, next) => {
     let purchaseData;
 
     if (platform === "ios") {
-      const result = await appleService.verifyTransaction(transactionId);
+      const result = await appleService.verifyTransaction(transactionId, productId);
 
       purchaseData = {
         userId: userId,
@@ -28,22 +30,54 @@ const verifyPurchase = async (req, res, next) => {
         expiresDate: result.expiresDate,
       };
     } else if (platform === "android") {
-      const result = await googleService.verifySubscription(
-        productId,
-        purchaseToken
-      );
+      // Step 1: Query the product to determine if it's a subscription or consumable
+      const catalogProduct = await Product.findOne({
+        $or: [
+          { googleProductId: productId },
+          { productKey: productId } // fallback 
+        ],
+        isActive: true
+      }).lean();
 
-      purchaseData = {
-        userId: userId,
-        platform: "android",
-        productId: productId,
-        purchaseToken: purchaseToken,
-        orderId: result.orderId,
-        purchaseDate: parseInt(result.startTimeMillis),
-        expiresDate: parseInt(result.expiryTimeMillis),
-      };
+      if (catalogProduct && catalogProduct.type === 'CONSUMABLE') {
+        // Use Consumable Verification Pipeline
+        const result = await googleService.verifyConsumable(
+          productId,
+          purchaseToken
+        );
 
-      await googleService.acknowledgePurchase(productId, purchaseToken);
+        purchaseData = {
+          userId: userId,
+          platform: "android",
+          productId: productId,
+          purchaseToken: purchaseToken,
+          orderId: result.orderId,
+          purchaseDate: parseInt(result.purchaseTimeMillis) || Date.now(),
+          expiresDate: null, // Consumables have no expiry
+        };
+
+        // Acknowledge one-time purchase
+        await googleService.acknowledgeConsumable(productId, purchaseToken);
+      } else {
+        // Use Subscription Verification Pipeline
+        const result = await googleService.verifySubscription(
+          productId,
+          purchaseToken
+        );
+
+        purchaseData = {
+          userId: userId,
+          platform: "android",
+          productId: productId,
+          purchaseToken: purchaseToken,
+          orderId: result.orderId,
+          purchaseDate: parseInt(result.startTimeMillis),
+          expiresDate: parseInt(result.expiryTimeMillis),
+        };
+
+        // Acknowledge recurring subscription
+        await googleService.acknowledgePurchase(productId, purchaseToken);
+      }
     }
 
     // v3: handlePurchase now returns { type: 'SUBSCRIPTION' | 'CONSUMABLE', ... }
@@ -57,26 +91,40 @@ const verifyPurchase = async (req, res, next) => {
 
     // v3: Different response based on purchase type
     if (result.type === 'CONSUMABLE') {
+      const fullStatus = await UsageService.getUsageStatus(userId);
       return res.json({
         success: true,
-        purchaseType: "CONSUMABLE",
         message: `${result.quantity} ${result.consumableType}(s) added to your wallet!`,
-        wallet: result.wallet
+        data: {
+          purchaseType: "CONSUMABLE",
+          consumableType: result.consumableType,
+          quantity: result.quantity,
+          wallet: result.wallet,
+          status: fullStatus.data
+        }
       });
     }
 
-    // SUBSCRIPTION response (backwards compatible)
+    // SUBSCRIPTION response — includes full status snapshot (§1.6.1)
     const sub = result.subscription;
+    const fullStatus = await UsageService.getUsageStatus(sub.userId);
     return res.json({
       success: true,
-      purchaseType: "SUBSCRIPTION",
-      subscription: {
-        id: sub._id,
-        status: sub.status,
-        planType: sub.planType,
-        expiresAt: sub.expiresAt,
-        autoRenew: sub.autoRenew,
-      },
+      message: "Subscription verified successfully",
+      data: {
+        purchaseType: "SUBSCRIPTION",
+        subscription: {
+          id: sub._id,
+          status: sub.status,
+          planType: sub.planType,
+          platform: sub.platform,
+          productId: sub.productId,
+          startedAt: sub.startedAt,
+          expiresAt: sub.expiresAt,
+          autoRenew: sub.autoRenew,
+        },
+        status: fullStatus.data
+      }
     });
   } catch (err) {
     logger.error("Verify purchase error:", err.message);
@@ -95,7 +143,7 @@ const restorePurchases = async (req, res, next) => {
         let purchaseData;
 
         if (platform === "ios") {
-          const result = await appleService.verifyTransaction(item.transactionId);
+          const result = await appleService.verifyTransaction(item.transactionId, item.productId);
           purchaseData = {
             userId,
             platform: "ios",
@@ -106,19 +154,38 @@ const restorePurchases = async (req, res, next) => {
             expiresDate: result.expiresDate,
           };
         } else {
-          const result = await googleService.verifySubscription(
-            item.productId,
-            item.purchaseToken
-          );
-          purchaseData = {
-            userId,
-            platform: "android",
-            productId: item.productId,
-            purchaseToken: item.purchaseToken,
-            orderId: result.orderId,
-            purchaseDate: parseInt(result.startTimeMillis),
-            expiresDate: parseInt(result.expiryTimeMillis),
-          };
+          // Android restore routing based on product type
+          const catalogProduct = await Product.findOne({
+            $or: [
+              { googleProductId: item.productId },
+              { productKey: item.productId }
+            ],
+            isActive: true
+          }).lean();
+
+          if (catalogProduct && catalogProduct.type === 'CONSUMABLE') {
+            const result = await googleService.verifyConsumable(item.productId, item.purchaseToken);
+            purchaseData = {
+              userId,
+              platform: "android",
+              productId: item.productId,
+              purchaseToken: item.purchaseToken,
+              orderId: result.orderId,
+              purchaseDate: parseInt(result.purchaseTimeMillis) || Date.now(),
+              expiresDate: null,
+            };
+          } else {
+            const result = await googleService.verifySubscription(item.productId, item.purchaseToken);
+            purchaseData = {
+              userId,
+              platform: "android",
+              productId: item.productId,
+              purchaseToken: item.purchaseToken,
+              orderId: result.orderId,
+              purchaseDate: parseInt(result.startTimeMillis),
+              expiresDate: parseInt(result.expiryTimeMillis),
+            };
+          }
         }
 
         const result = await subscriptionService.handlePurchase(purchaseData);
@@ -135,10 +202,17 @@ const restorePurchases = async (req, res, next) => {
       }
     }
 
+    // v3: Fetch full status after restoration
+    const fullStatus = await UsageService.getUsageStatus(userId);
+
     return res.json({
       success: true,
-      restoredCount: restoredItems.length,
-      items: restoredItems
+      message: "Purchases restored successfully",
+      data: {
+        restoredCount: restoredItems.length,
+        items: restoredItems,
+        status: fullStatus.data
+      }
     });
   } catch (err) {
     logger.error("Restore purchases error:", err.message);
@@ -150,18 +224,13 @@ const getStatus = async (req, res, next) => {
   try {
     const UsageService = require("../services/usage.service");
 
-    // v3: Full status with quotas, wallet, features, and subscription info
-    const usageStatus = await UsageService.getUsageStatus(req.user._id);
-
-    // Also get subscription details for backward compatibility
-    const access = await subscriptionService.checkAccess(req.user._id);
-
-    return res.json({
-      success: true,
-      ...access,
-      showAds: !access.isPremium,  // v3: AdMob control flag
-      ...usageStatus.data          // quotas, wallet, features
-    });
+    /**
+     * v3: Single source of truth for usage, wallet, and entitlements.
+     * UsageService handles all the aggregation and formatting for the Flutter app.
+     */
+    const response = await UsageService.getUsageStatus(req.user._id);
+    
+    return res.json(response);
   } catch (err) {
     logger.error("Get status error:", err.message);
     return next(err);
@@ -170,18 +239,54 @@ const getStatus = async (req, res, next) => {
 
 const getCatalog = async (req, res, next) => {
   try {
-    const products = await Product.find({ isActive: true }).sort({ sortOrder: 1 });
+    const [products, config, milestoneCount] = await Promise.all([
+      Product.find({ isActive: true }).sort({ sortOrder: 1 }),
+      SubscriptionConfig.getOrCreate(),
+      Subscription.countDocuments({ planType: 'MILESTONE' })
+    ]);
 
-    // Separate into categories for easier frontend consumption
+    // Separate into categories
     const subscriptions = products.filter(p => p.type === 'SUBSCRIPTION');
     const consumables = products.filter(p => p.type === 'CONSUMABLE');
 
+    // Dynamic Feature Lists for UI display
+    const features = [
+      config.premiumLimits.swipesPerDay === -1 ? "Unlimited likes" : `${config.premiumLimits.swipesPerDay} likes per day`,
+      config.premiumLimits.superKeensPerDay === -1 ? "Unlimited Super Keens" : `${config.premiumLimits.superKeensPerDay} Super Keens per day`,
+      config.premiumLimits.boostsPerMonth === -1 ? "Unlimited Supercharges" : `${config.premiumLimits.boostsPerMonth} Boost per month`,
+      config.premiumLimits.rewindsPerDay === -1 ? "Unlimited rewinds" : `${config.premiumLimits.rewindsPerDay} rewinds per day`,
+      config.premiumFeatures.seeWhoLikedYou ? "See who liked you" : null,
+      config.premiumFeatures.advancedFilters ? "Advanced filters" : null,
+      config.premiumFeatures.noAds ? "No ads" : null,
+      config.premiumFeatures.passport ? "Passport to any location" : null
+    ].filter(Boolean);
+
+    const freeFeatures = [
+      `${config.freeLimits.swipesPerDay} likes per day`,
+      `${config.freeLimits.superKeensPerWeek} Super Keen per week`,
+      `${config.freeLimits.rewindsPerDay} rewind per day`,
+      `${config.freeLimits.boostsPerMonth} Boost per month`,
+      "Basic filters"
+    ];
+
     return res.json({
       success: true,
-      catalog: {
-        subscriptions,
-        consumables,
-        all: products
+      message: "Catalog fetched",
+      data: {
+        subscriptions: subscriptions.map(sub => ({
+          ...sub.toObject(),
+          features
+        })),
+        consumables: {
+          superKeens: consumables.filter(c => c.consumableType === 'SUPER_KEEN'),
+          boosts: consumables.filter(c => c.consumableType === 'BOOST')
+        },
+        milestone: {
+          target: config.milestone.targetUserCount,
+          currentCount: milestoneCount,
+          isActive: config.milestone.isActive
+        },
+        freeFeatures
       }
     });
   } catch (err) {
@@ -193,14 +298,19 @@ const getCatalog = async (req, res, next) => {
 const getHistory = async (req, res, next) => {
   try {
     const limit = parseInt(req.query.limit) || 50;
-    const transactions = await subscriptionService.getTransactionHistory(
+    const { transactions, total } = await subscriptionService.getTransactionHistory(
       req.user._id,
       limit
     );
 
     return res.json({
       success: true,
-      transactions: transactions,
+      message: "Transaction history fetched",
+      data: {
+        transactions: transactions,
+        hasMore: transactions.length < total,
+        total: total
+      }
     });
   } catch (err) {
     logger.error("Get history error:", err.message);
@@ -239,8 +349,18 @@ const getStats = async (req, res, next) => {
         $match: { status: "ACTIVE" },
       },
       {
+        $sort : { createdAt : -1 }
+      },
+        {
+    
         $group: {
-          _id: "$planType",
+          _id: "$userId", // Dhyan dein: Agar database schema mein field ka naam "user" hai, toh usko "$user" karein
+          planType: { $first: "$productId" }
+        }
+      },
+      {
+        $group: {
+          _id: "$productId",
           count: { $sum: 1 },
         },
       },

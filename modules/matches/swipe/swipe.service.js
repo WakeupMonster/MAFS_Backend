@@ -356,7 +356,14 @@ async function getFeedService(userId, limit, page) {
     await redis.set(CACHE_KEY, { data: finalResult }, { EX: CACHE_TTL });
   }
 
-  return { success: true, count: finalResult.length, data: finalResult };
+  const status = await UsageService.getUsageStatus(userId);
+
+  return { 
+    success: true, 
+    count: finalResult.length, 
+    data: finalResult,
+    userQuota: status.data
+  };
 }
 function calculateAge(dob) {
   if (!dob) return 0;
@@ -420,10 +427,15 @@ async function doSwipe(swiperId, targetId, action) {
           const status = await UsageService.getUsageStatus(swiperId);
           result = {
             success: false,
-            error: "LIMIT_REACHED",
+            // error: "LIMIT_REACHED",
             message: action === 'like' ? "Daily likes limit reached!" : "No Super Keens left!",
             data: {
-              quotaStatus: status.data.quotas[usageType === 'LIKE' ? 'likes' : 'superKeens'],
+              isPremium: status.data.isPremium,
+              showAds: status.data.showAds,
+              premiumFeatures: status.data.premiumFeatures,
+              allocations: status.data.allocations,
+              wallet: status.data.wallet,
+              quotaStatus: status.data.allocations[usageType === 'LIKE' ? 'likes' : 'superKeens'],
               upsell: {
                 title: "Don't stop swiping!",
                 description: "Upgrade now to get unlimited likes and more super keens.",
@@ -442,7 +454,7 @@ async function doSwipe(swiperId, targetId, action) {
       // 9. Match Logic
       let mutualSwipe = null;
       if (['like', 'superlike'].includes(action)) {
-        const mutualSwipe = await Swipe.findOne({
+        mutualSwipe = await Swipe.findOne({
           swiperId: targetId,
           targetId: swiperId,
           action: { $in: ['like', 'superlike'] }
@@ -456,6 +468,7 @@ async function doSwipe(swiperId, targetId, action) {
           }], { session });
 
           const myProfile = await Profile.findOne({ userId: swiperId }).session(session);
+          const status = await UsageService.getUsageStatus(swiperId);
 
           result = {
             success: true,
@@ -464,7 +477,7 @@ async function doSwipe(swiperId, targetId, action) {
               isMatch: true,
               matchDetails: {
                 matchId: match._id,
-                chatId: match._id, // Room ID for socket/chat
+                chatId: match._id,
                 user: {
                   userId: targetId,
                   nickname: targetProfile.nickname,
@@ -472,33 +485,33 @@ async function doSwipe(swiperId, targetId, action) {
                 },
                 myPhotoUrl: myProfile?.photos?.[0]?.url || null
               },
-              // 🔥 Wallet Section (v3)
-              wallet: (await UsageService.getUsageStatus(swiperId)).data.wallet
+              isPremium: status.data.isPremium,
+              showAds: status.data.showAds,
+              premiumFeatures: status.data.premiumFeatures,
+              allocations: status.data.allocations,
+              wallet: status.data.wallet
             }
           };
           addNotificationJob('NEW_MATCH', { userId1: swiperId, userId2: targetId });
         } else {
           // 🔥 CASE 2: NO MATCH (Manager's exact request)
-          // Ye response dikhega jab user swipe karega par samne wale ne abhi like nahi kiya
           const status = await UsageService.getUsageStatus(swiperId);
           result = {
             success: true,
+            message: `Action ${action} successful`,
             data: {
               isMatch: false,
               matchDetails: null,
-              wallet: status.data.wallet,
-              quotas: status.data.quotas
+              isPremium: status.data.isPremium,
+              showAds: status.data.showAds,
+              premiumFeatures: status.data.premiumFeatures,
+              allocations: status.data.allocations,
+              wallet: status.data.wallet
             }
           }
           if (action === 'like' || action === 'superlike') {
             addNotificationJob('NEW_LIKE', { senderId: swiperId, receiverId: targetId });
           }
-
-          // result = { 
-          //   success: true, 
-          //   match: true, 
-          //   matchId: match._id, 
-          //   message: "It's a match!",
           //   partnerData: { 
           //       name: targetProfile.nickname,
           //       image: targetProfile.photos?.[0]?.url

@@ -57,6 +57,7 @@ const notificationRoutes = require("../../../modules/Admin/adminNotificationCamp
 const fakeProfileRoutes = require("../../../modules/Admin/fakeProfiles/fakeProfile.routes");
 
 const subscriptionAdminRoutes = require("../../../modules/subscription/routes/admin.routes");
+const transactionRoutes = require("../../../modules/subscription/routes/transaction.routes");
 
 // --- Public Admin Routes ---
 // Login and Forget Password shouldn't require an Auth token
@@ -68,6 +69,7 @@ router.use(auth);
 router.use(allowAdmin);
 
 router.use("/subscription", subscriptionAdminRoutes);
+router.use("/transactions", transactionRoutes);
 router.use("/account", accountRoutes);
 router.use("/users", userRoutes); // Cleaned name from "user-management"
 router.use("/cms", cmsRoutes);

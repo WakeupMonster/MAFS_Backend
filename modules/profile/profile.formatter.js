@@ -1,5 +1,5 @@
 const { buildOnboardingResponse } = require("../../common/utils/onBoardingSteps");
-const UsageService = require("../subscription/services/usage.service");
+// const UsageService = require("../subscription/services/usage.service");
 
 const calculateAge = (dob) => {
   if (!dob) return null;
@@ -32,13 +32,13 @@ const formatProfileResponse = async (user, profile, blockedContacts = [], blocke
   const p = profile || {}; // Agar profile nahi hai toh empty object
 
   // 🔥 Fetch dynamic status from new UsageService (v3)
-  const usageStatus = await UsageService.getUsageStatus(user._id);
-  const v3Data = usageStatus.data;
-  const isPremium = v3Data.isPremium;
-  const activeSub = v3Data.activeSubscription;
-  const quotas = v3Data.quotas;
-  const wallet = v3Data.wallet;
-  const features = v3Data.features;
+  // const usageStatus = await UsageService.getUsageStatus(user._id);
+  // const v3Data = usageStatus.data;
+  
+  // const isPremium = v3Data.isPremium;
+  // const allocations = v3Data.allocations;
+  // const wallet = v3Data.wallet;
+  // const premiumFeatures = v3Data.premiumFeatures;
 
   return {
     // 1. ACCOUNT (Data from User Model)
@@ -158,47 +158,48 @@ const formatProfileResponse = async (user, profile, blockedContacts = [], blocke
       order: photo.order || 0
     })),
 
-    // 8. VERIFICATION
-    verification: {
+      verification: {
       status: p.verification?.status || "pending",
       selfieUrl: p.verification?.selfieUrl || null,
       docUrl: p.verification?.docUrl || null,
       rejectionReason: p.verification?.rejectionReason || null
     },
-    subscription: {
-      plan: {
-        id: activeSub?.planType || "free",
-        name: activeSub ? "MAFS Premium" : "MAFS Free",
-        isActive: isPremium,
-        expiryDate: activeSub?.expiresAt || null,
-        isAutoRenew: activeSub?.autoRenew || false,
-        source: "google_play"
-      },
-      wallet: {
-        likes: {
-          used: quotas.likes.used,
-          limit: quotas.likes.limit === -1 ? 30 : quotas.likes.limit, // Keep numeric type for Flutter fallback if needed
-          remaining: quotas.likes.limit === -1 ? 9999 : Math.max(0, quotas.likes.limit - quotas.likes.used),
-          isExhausted: quotas.likes.limit !== -1 && quotas.likes.used >= quotas.likes.limit
-        },
-        superLikes: {
-          used: quotas.superKeens.used,
-          limit: quotas.superKeens.limit,
-          remaining: Math.max(0, quotas.superKeens.limit - quotas.superKeens.used) + wallet.superKeens,
-          isExhausted: (quotas.superKeens.used >= quotas.superKeens.limit) && wallet.superKeens <= 0
-        },
-        rewinds: {
-          remaining: quotas.rewinds.limit === -1 ? 9999 : Math.max(0, quotas.rewinds.limit - quotas.rewinds.used),
-          isUnlimited: quotas.rewinds.limit === -1
-        }
-      },
-      benefits: {
-        seeWhoLikesYou: features.canSeeWhoLiked,
-        passportLocation: features.canPassport,
-        turnOffAds: !features.showAds,
-        controlAgeDistance: isPremium
-      }
-    },
+
+    // 8. VERIFICATION
+    // subscription: {
+    //   plan: {
+    //     id: v3Data.plan || "free",
+    //     name: v3Data.isPremium ? "MAFS Premium" : "MAFS Free",
+    //     isActive: isPremium,
+    //     expiryDate: v3Data.expiresAt || null,
+    //     isAutoRenew: v3Data.autoRenew || false,
+    //     source: "google_play"
+    //   },
+    //   wallet: {
+    //     likes: {
+    //       used: allocations.likes.used,
+    //       limit: allocations.likes.limit,
+    //       remaining: allocations.likes.remaining,
+    //       isExhausted: allocations.likes.limit !== -1 && allocations.likes.used >= allocations.likes.limit
+    //     },
+    //     superLikes: {
+    //       used: allocations.superKeens.used,
+    //       limit: allocations.superKeens.limit,
+    //       remaining: allocations.superKeens.remaining + wallet.superKeens,
+    //       isExhausted: (allocations.superKeens.used >= allocations.superKeens.limit) && wallet.superKeens <= 0
+    //     },
+    //     rewinds: {
+    //       remaining: allocations.rewinds.remaining,
+    //       isUnlimited: allocations.rewinds.limit === -1
+    //     }
+    //   },
+    //   benefits: {
+    //     seeWhoLikesYou: premiumFeatures.seeWhoLikedYou,
+    //     passportLocation: premiumFeatures.passport,
+    //     turnOffAds: premiumFeatures.noAds,
+    //     controlAgeDistance: isPremium
+    //   }
+    // },
 
     // 10. SETTINGS
     settings: {

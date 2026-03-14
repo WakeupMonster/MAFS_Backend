@@ -35,10 +35,10 @@ class AppleService {
     return token;
   }
 
-  async verifyTransaction(transactionId) {
+  async verifyTransaction(transactionId, expectedProductId = null) {
     if (!this.isReady()) {
       logger.warn("Apple MOCK MODE: Returning mock verification");
-      return this.getMockTransactionData(transactionId);
+      return this.getMockTransactionData(transactionId, expectedProductId);
     }
 
     const axios = require("axios");
@@ -132,8 +132,8 @@ class AppleService {
     }
   }
 
-  getMockTransactionData(transactionId) {
-    const productId = process.env.PRODUCT_MONTHLY_IOS || "com.myapp.premium.monthly";
+  getMockTransactionData(transactionId, expectedProductId = null) {
+    const productId = expectedProductId || process.env.PRODUCT_MONTHLY_IOS || "com.myapp.premium.monthly";
     return {
       transactionId: transactionId || "MOCK_TXN_001",
       originalTransactionId: "MOCK_ORIG_TXN_001",

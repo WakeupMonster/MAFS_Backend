@@ -9,9 +9,14 @@ exports.activateBoost = async (req, res) => {
     // 1️⃣ Check for already active boost
     const existing = await redis.get(`boost:${userId}`);
     if (existing) {
+      const fullStatus = await UsageService.getUsageStatus(userId);
       return res.json({
         success: true,
         message: "Boost already active",
+        data: {
+          boostDurationMinutes: 30,
+          ...fullStatus.data
+        }
       });
     }
 
@@ -20,37 +25,35 @@ exports.activateBoost = async (req, res) => {
       await UsageService.useItem(userId, 'BOOST');
     } catch (error) {
       if (error.message === 'LIMIT_REACHED') {
+        const fullStatus = await UsageService.getUsageStatus(userId);
         return res.status(403).json({
           success: false,
           code: "LIMIT_REACHED",
-          message: "No Boosts left! You can purchase more in the store."
+          message: "No Boosts left! You can purchase more in the store.",
+          data: {
+            ...fullStatus.data
+          }
         });
       }
       throw error;
     }
 
-    // 3️⃣ Already boosted?
-    // const existing = await redis.get(`boost:${userId}`);
-    // if (existing) {
-    //   return res.json({
-    //     success: true,
-    //     message: "Boost already active",
-    //     // remainingSeconds: await redis.client.ttl(`boost:${userId}`)
-    //   });
-    // }
-
     // 4️⃣ Activate boost
-    // await redis.set(`boost:${userId}`, 1, Number({ EX: BOOST_TTL_SECONDS }));
     await redis.set(`boost:${userId}`, "1", { EX: BOOST_TTL_SECONDS });
     console.log(`boost:${userId}`, "bosted user")
 
     // 5️⃣ Clear feed cache (VERY IMPORTANT)
     await redis.del(`feed:${userId}`);
 
+    const fullStatus = await UsageService.getUsageStatus(userId);
+
     return res.json({
       success: true,
       message: "Boost activated successfully",
-      boostDurationMinutes: 30
+      data: {
+        boostDurationMinutes: 30,
+        ...fullStatus.data
+      }
     });
   } catch (err) {
     console.error("Boost Error:", err);

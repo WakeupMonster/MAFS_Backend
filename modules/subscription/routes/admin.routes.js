@@ -35,6 +35,7 @@ router.post("/users/:userId/revoke", adminController.revokeSubscription);
 /**
  * --- Analytics ---
  */
+router.get("/stats", adminController.getStats);
 router.get("/dashboard", adminController.getDashboardStats);
 
 module.exports = router;

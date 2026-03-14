@@ -11,8 +11,6 @@ const Profile = require("../../profile/profile.model");
 
 class SubscriptionService {
 
-
-
   async _syncProfile(subscription) {
     try {
 
@@ -92,6 +90,23 @@ class SubscriptionService {
       throw new Error(`Unknown consumable type: ${catalogProduct.consumableType}`);
     }
 
+    // Idempotency Check (Prevent duplicate consumable granting)
+    const identifier = data.transactionId || data.purchaseToken || String(Date.now());
+    const eventType = "CONSUMABLE_PURCHASE";
+    const key = generateIdempotencyKey(data.platform, eventType, identifier);
+    
+    // Using exists instead of findOne for performance, since we only need the boolean representation
+    const txnExists = await SubscriptionTransaction.exists({ idempotencyKey: key });
+    if (txnExists) {
+      logger.info("DOUBLE GRANT PREVENTED: Consumable already granted (Idempotency)", { key, userId: data.userId });
+      return {
+        type: 'CONSUMABLE',
+        consumableType: catalogProduct.consumableType,
+        quantity: catalogProduct.quantity,
+        status: "ALREADY_GRANTED"
+      };
+    }
+
     // Atomic wallet update (upsert: creates wallet if first purchase)
     const updatedWallet = await UserConsumableBalance.findOneAndUpdate(
       { userId: data.userId },
@@ -123,10 +138,10 @@ class SubscriptionService {
       type: 'CONSUMABLE',
       consumableType: catalogProduct.consumableType,
       quantity: catalogProduct.quantity,
-      wallet: {
-        superKeens: updatedWallet.superKeensBalance,
-        boosts: updatedWallet.boostsBalance
-      }
+      // wallet: {
+      //   superKeens: updatedWallet.superKeensBalance,
+      //   boosts: updatedWallet.boostsBalance
+      // }
     };
   }
 
@@ -144,16 +159,30 @@ class SubscriptionService {
       orConditions.push({ purchaseToken: data.purchaseToken });
     }
 
+    // v3: Enhanced product lookup. Check DB Catalog first, fallback to config.
+    const dbProduct = await Product.findOne({
+      $or: [
+        { appleProductId: data.productId },
+        { googleProductId: data.productId }
+      ]
+    }).lean();
+
+    const configProduct = iapConfig.getProductDetails(data.productId);
+    const catalogPlanType = dbProduct ? dbProduct.planType : (configProduct ? configProduct.planType : "1_MONTH");
+
     let existing = null;
     if (orConditions.length > 0) {
       existing = await Subscription.findOne({ $or: orConditions });
     }
 
     if (existing) {
+      existing.userId = data.userId; // Ensure subscription belongs to current user
       existing.status = "ACTIVE";
       existing.expiresAt = new Date(data.expiresDate);
       existing.latestTransactionId = data.transactionId || existing.latestTransactionId;
       existing.previousStatus = existing.status;
+      existing.productId = data.productId; // Update the product ID in case of an upgrade/crossgrade
+      existing.planType = catalogPlanType; // v3: Ensure consistent planType on update/verify
       await existing.save();
 
       // v3 Sync: Use UsageService for consistent premium state
@@ -168,14 +197,11 @@ class SubscriptionService {
       return { type: 'SUBSCRIPTION', subscription: existing };
     }
 
-    // Fallback: Check iapConfig for legacy product details
-    const product = iapConfig.getProductDetails(data.productId);
-
     const subscription = await Subscription.create({
       userId: data.userId,
       platform: data.platform,
       productId: data.productId,
-      planType: product ? product.planType : "monthly",
+      planType: catalogPlanType,
       status: "ACTIVE",
       autoRenew: true,
       startedAt: new Date(data.purchaseDate || Date.now()),
@@ -187,6 +213,9 @@ class SubscriptionService {
       environment: iapConfig.apple.environment || "sandbox",
     });
 
+    const amount = dbProduct ? parseFloat(dbProduct.displayPrice.replace(/[^0-9.]/g, '')) : (configProduct ? configProduct.price : 0);
+    const currency = dbProduct ? dbProduct.currency : (configProduct ? configProduct.currency : "AUD");
+
     await this._logTransaction({
       subscriptionId: subscription._id,
       userId: data.userId,
@@ -195,8 +224,8 @@ class SubscriptionService {
       purchaseToken: data.purchaseToken,
       productId: data.productId,
       eventType: "PURCHASE",
-      amount: product ? product.price : 0,
-      currency: product ? product.currency : "USD",
+      amount: amount,
+      currency: currency,
       occurredAt: new Date(data.purchaseDate || Date.now()),
     });
 
@@ -221,7 +250,17 @@ class SubscriptionService {
       throw new Error("Subscription not found for renew");
     }
 
-    const product = iapConfig.getProductDetails(sub.productId);
+    // v3: Enhanced product lookup
+    const dbProduct = await Product.findOne({
+      $or: [
+        { appleProductId: sub.productId },
+        { googleProductId: sub.productId }
+      ]
+    }).lean();
+
+    const configProduct = iapConfig.getProductDetails(sub.productId);
+    const amount = dbProduct ? parseFloat(dbProduct.displayPrice.replace(/[^0-9.]/g, '')) : (configProduct ? configProduct.price : 0);
+    const currency = dbProduct ? dbProduct.currency : (configProduct ? configProduct.currency : "AUD");
 
     sub.previousStatus = sub.status;
     sub.status = "ACTIVE";
@@ -238,8 +277,8 @@ class SubscriptionService {
       transactionId: data.transactionId,
       productId: sub.productId,
       eventType: "RENEW",
-      amount: product ? product.price : 0,
-      currency: product ? product.currency : "USD",
+      amount: amount,
+      currency: currency,
       occurredAt: new Date(),
     });
 
@@ -396,9 +435,14 @@ class SubscriptionService {
   // ─── GET TRANSACTION HISTORY ───
   async getTransactionHistory(userId, limit) {
     const safeLimit = limit || 50;
-    return SubscriptionTransaction.find({ userId: userId })
-      .sort({ occurredAt: -1 })
-      .limit(safeLimit);
+    const [transactions, total] = await Promise.all([
+      SubscriptionTransaction.find({ userId: userId })
+        .sort({ occurredAt: -1 })
+        .limit(safeLimit)
+        .lean(),
+      SubscriptionTransaction.countDocuments({ userId: userId })
+    ]);
+    return { transactions, total };
   }
 
   // ─── PRIVATE: Find subscription ───

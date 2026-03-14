@@ -117,14 +117,25 @@ const googleWebhook = async (req, res) => {
   try {
     const message = req.body.message;
     const data = googleService.decodeWebhookPayload(message.data);
-    const notification = data.subscriptionNotification;
+    
+    // Check both paths: subscriptions and one-time products
+    const notification = data.subscriptionNotification || data.oneTimeProductNotification;
+    const isConsumable = !!data.oneTimeProductNotification;
 
     if (!notification) {
-      logger.info("Google webhook - not a subscription event");
-      return res.status(200).send("Not subscription");
+      logger.info("Google webhook - not a subscription or product event");
+      return res.status(200).send("Not supported event");
     }
 
-    const eventName = googleService.getEventName(notification.notificationType);
+    // Map the event name properly depending on the product type
+    let eventName;
+    if (isConsumable) {
+      // OneTimeProductNotification only has 1 or 2 states (1 = PURCHASED, 2 = CANCELED)
+      eventName = notification.notificationType === 1 ? "CONSUMABLE_PURCHASED" : "CONSUMABLE_CANCELED";
+    } else {
+      eventName = googleService.getEventName(notification.notificationType);
+    }
+    
     const hash = generatePayloadHash(data);
 
     let event;
@@ -149,7 +160,7 @@ const googleWebhook = async (req, res) => {
 
     res.status(200).send("OK");
 
-    _processGoogleWebhook(notification, eventName, event).catch((err) => {
+    _processGoogleWebhook(notification, eventName, event, isConsumable).catch((err) => {
       logger.error("Google webhook processing failed:", err.message);
     });
   } catch (err) {
@@ -158,35 +169,65 @@ const googleWebhook = async (req, res) => {
   }
 };
 
-async function _processGoogleWebhook(notification, eventName, event) {
+async function _processGoogleWebhook(notification, eventName, event, isConsumable = false) {
   try {
-    const detail = await googleService.verifySubscription(
-      notification.subscriptionId,
-      notification.purchaseToken
-    );
+    let data;
 
-    const data = {
-      purchaseToken: notification.purchaseToken,
-      productId: notification.subscriptionId,
-      purchaseDate: parseInt(detail.startTimeMillis),
-      expiresDate: parseInt(detail.expiryTimeMillis),
-      orderId: detail.orderId,
-      platform: "android",
-    };
+    if (isConsumable) {
+      // It's a oneTimeProductNotification
+      const productId = notification.sku; // For consumables, Google uses 'sku'
+      const detail = await googleService.verifyConsumable(
+        productId,
+        notification.purchaseToken
+      );
 
-    switch (eventName) {
-      case "PURCHASED":
-      case "RECOVERED":
-      case "RESTARTED":
+      data = {
+        purchaseToken: notification.purchaseToken,
+        productId: productId,
+        purchaseDate: parseInt(detail.purchaseTimeMillis) || Date.now(),
+        expiresDate: null,
+        orderId: detail.orderId,
+        platform: "android",
+      };
+
+      if (eventName === "CONSUMABLE_PURCHASED") {
         await subscriptionService.handlePurchase(data);
-        await googleService.acknowledgePurchase(
-          notification.subscriptionId,
-          notification.purchaseToken
-        );
-        break;
-      case "RENEWED":
-        await subscriptionService.handleRenew(data);
-        break;
+        await googleService.acknowledgeConsumable(productId, notification.purchaseToken);
+      }
+      // Note: Consumables don't have RENEWED, EXPIRED etc. Canceled means revoked.
+      if (eventName === "CONSUMABLE_CANCELED") {
+        await subscriptionService.handleRefund(data);
+      }
+
+    } else {
+      // It's a subscriptionNotification
+      const detail = await googleService.verifySubscription(
+        notification.subscriptionId,
+        notification.purchaseToken
+      );
+
+      data = {
+        purchaseToken: notification.purchaseToken,
+        productId: notification.subscriptionId,
+        purchaseDate: parseInt(detail.startTimeMillis),
+        expiresDate: parseInt(detail.expiryTimeMillis),
+        orderId: detail.orderId,
+        platform: "android",
+      };
+
+      switch (eventName) {
+        case "PURCHASED":
+        case "RECOVERED":
+        case "RESTARTED":
+          await subscriptionService.handlePurchase(data);
+          await googleService.acknowledgePurchase(
+            notification.subscriptionId,
+            notification.purchaseToken
+          );
+          break;
+        case "RENEWED":
+          await subscriptionService.handleRenew(data);
+          break;
       case "CANCELED":
         data.cancellationReason =
           detail.cancelReason === 0 ? "USER_CANCELLED" : "BILLING_ERROR";
@@ -208,6 +249,7 @@ async function _processGoogleWebhook(notification, eventName, event) {
         break;
       default:
         logger.info("Unhandled Google event:", eventName);
+      }
     }
 
     event.processed = true;
