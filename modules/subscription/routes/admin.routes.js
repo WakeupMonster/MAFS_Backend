@@ -30,12 +30,13 @@ router.get("/subscribers", adminController.listSubscribers);
 router.get("/users/:userId", adminController.getUserSubscriptionDetail);
 router.post("/users/:userId/grant", adminController.manualGrant);
 router.post("/users/:userId/grant-consumable", adminController.grantConsumables);
+router.post("/users/:userId/extend", adminController.extendSubscription);
 router.post("/users/:userId/revoke", adminController.revokeSubscription);
 
 /**
  * --- Analytics ---
  */
-router.get("/stats", adminController.getStats);
+router.get("/stats", adminController.getDashboardStats);
 router.get("/dashboard", adminController.getDashboardStats);
 
 module.exports = router;

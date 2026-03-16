@@ -150,3 +150,20 @@ user A has 1 month premium then he clicks on the 3 month purchase button.
         }
     }
 }
+
+
+
+1) revenue / 
+2) 8.4 Subscriber Management Page
+View and manage all user subscriptions.
+Subscriber List View:
+Table columns: User (avatar + name), Email, Plan (Monthly/3-Month/Gift), Status (Active/Cancelled/Expired/Grace Period), Platform (iOS/Android/Admin), Started, Expires, Auto-Renew (yes/no), Source (Store/Admin/Giveaway). Filterable by all columns. Searchable by name, email, or transaction ID.
+
+
+
+email same response.
+
+
+Responsiveness:-
+manage subscription (responsiveness)
+Refund rate (how do we calculate it)

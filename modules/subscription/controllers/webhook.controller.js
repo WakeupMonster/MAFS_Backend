@@ -10,7 +10,9 @@ const logger = require("../utils/logger");
 const appleWebhook = async (req, res) => {
   try {
     const hash = generatePayloadHash(req.body);
-    const decoded = appleService.decodeWebhookPayload(req.body.signedPayload);
+    
+    // v3: Verify signature (True Production mode)
+    const decoded = await appleService.verifyAndDecodeJWS(req.body.signedPayload);
 
     let event;
     try {
@@ -45,8 +47,13 @@ const appleWebhook = async (req, res) => {
 
 async function _processAppleWebhook(decoded, event) {
   try {
-    const txn = decoded.transactionInfo || {};
-    // const renewal = decoded.renewalInfo || {};   
+    // If using signature verification, nested parts might still be signed JWS
+    let txn = {};
+    if (decoded.data && decoded.data.signedTransactionInfo) {
+      txn = appleService.decodeJWS(decoded.data.signedTransactionInfo);
+    } else {
+      txn = decoded.transactionInfo || {};
+    }
 
     const data = {
       originalTransactionId: txn.originalTransactionId,
@@ -67,6 +74,8 @@ async function _processAppleWebhook(decoded, event) {
       case "DID_CHANGE_RENEWAL_STATUS":
         if (decoded.subtype === "AUTO_RENEW_DISABLED") {
           await subscriptionService.handleCancel(data);
+        } else if (decoded.subtype === "AUTO_RENEW_ENABLED") {
+          await subscriptionService.handleReActivate(data);
         }
         break;
       case "DID_FAIL_TO_RENEW":

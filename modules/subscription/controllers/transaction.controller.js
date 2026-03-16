@@ -1,5 +1,8 @@
 const SubscriptionTransaction = require("../models/SubscriptionTransaction");
 const Product = require("../models_v3/Product");
+const User = require("../../auth/auth.model");
+const Profile = require("../../profile/profile.model");
+const mongoose = require("mongoose");
 const logger = require("../utils/logger");
 
 /**
@@ -14,7 +17,7 @@ const COMMISSION_RATES = {
 
 /**
  * 1. GET /transactions
- * Full transaction list with filters, sorting, and pagination.
+ * Full transaction list with filters, sorting, search, and pagination.
  * Includes Net Revenue calculation (after Apple/Google commission).
  */
 exports.getTransactions = async (req, res, next) => {
@@ -24,6 +27,7 @@ exports.getTransactions = async (req, res, next) => {
             platform,
             productId,
             status,
+            search,
             page = 1,
             limit = 20,
             startDate,
@@ -51,6 +55,47 @@ exports.getTransactions = async (req, res, next) => {
         // Refund status filter
         if (status === "refunded") {
             filter.eventType = "REFUND";
+        }
+
+        // Search: User email, User nickname, Transaction ID / Order ID, Product ID
+        if (search) {
+            const searchRegex = new RegExp(search, 'i');
+
+            // Find matching Users (by email)
+            const matchedUsers = await User.find({
+                email: searchRegex
+            }).select('_id').lean();
+
+            // Find matching Profiles (by nickname)
+            const matchedProfiles = await Profile.find({
+                $or: [
+                    { nickname: searchRegex },
+                    { fullName: searchRegex }
+                ]
+            }).select('userId').lean();
+
+            const userIds = [
+                ...matchedUsers.map(u => u._id),
+                ...matchedProfiles.map(p => p.userId)
+            ];
+
+            // Combine: user match OR direct transaction field match
+            const orConditions = [
+                { transactionId: searchRegex },
+                { orderId: searchRegex },
+                { productId: searchRegex },
+            ];
+
+            if (userIds.length > 0) {
+                orConditions.push({ userId: { $in: userIds } });
+            }
+
+            // Direct userId match if search is a valid ObjectId
+            if (mongoose.isValidObjectId(search)) {
+                orConditions.push({ userId: new mongoose.Types.ObjectId(search) });
+            }
+
+            filter.$or = orConditions;
         }
 
         const skip = (parseInt(page) - 1) * parseInt(limit);

@@ -210,6 +210,7 @@ class SubscriptionService {
       latestTransactionId: data.transactionId || undefined,
       purchaseToken: data.purchaseToken || undefined,
       orderId: data.orderId || undefined,
+      source: "STORE",
       environment: iapConfig.apple.environment || "sandbox",
     });
 
@@ -312,6 +313,28 @@ class SubscriptionService {
     });
 
     logger.info("Subscription cancelled", { subscriptionId: sub._id });
+    return sub;
+  }
+
+  // ─── RE-ACTIVATE (Un-cancel) ───
+  async handleReActivate(data) {
+    const sub = await this._findSubscription(data);
+    if (!sub) {
+      logger.error("Subscription not found for re-activate", data);
+      throw new Error("Subscription not found for re-activate");
+    }
+
+    sub.previousStatus = sub.status;
+    sub.status = "ACTIVE";
+    sub.autoRenew = true;
+    sub.cancellationReason = undefined;
+    sub.cancelledAt = undefined;
+    await sub.save();
+
+    await this._syncProfile(sub);
+    await UsageService._syncPremiumState(sub.userId, true).catch(err => logger.error('Sync Error:', err));
+
+    logger.info("Subscription re-activated", { subscriptionId: sub._id });
     return sub;
   }
 
@@ -532,6 +555,7 @@ class SubscriptionService {
         startedAt: new Date(),
         expiresAt: expiresAt,
         grantReason: "milestone_first_1000",
+        source: "GIVEAWAY",
         environment: "production"
       });
 

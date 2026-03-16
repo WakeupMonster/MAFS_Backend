@@ -1,0 +1,70 @@
+Hi Backend Team,
+
+We encountered a bug on the admin panel: **Admins are unable to revoke old admin-granted subscriptions.** The API throws the error: *"Cannot revoke store-purchased subscriptions..."*
+
+### 🐛 The Root Cause
+When the new `source` field was added to the [Subscription](file:///c:/MAFSFrontend/mafs_frontend/src/modules/users/components/Tabs/subscription.Tab.jsx#31-276) schema, the `default` was set to `"STORE"`. Because of this, **all old subscriptions** (which were granted manually by admins via `platform: "admin_granted"`) now evaluate as `source: "STORE"`. 
+
+The `/revoke` endpoint relies on the `source` field to restrict action. Since the old admin grants now look like store purchases, the backend incorrectly blocks the revoke action.
+
+---
+
+### 🛠️ Required Fixes
+
+Please apply these two changes to fully resolve the issue without any future bugs:
+
+#### 1. Update the Controller Logic (Immediate Fix)
+In **`modules/subscription/controllers/admin.controller.js`** inside the [revokeSubscription](file:///c:/MAFSFrontend/mafs_frontend/src/modules/subsciptions/services/subscription.services.js#95-99) function, update the restriction condition to properly ignore old `"admin_granted"` platforms.
+
+**Change this:**
+```javascript
+        // Restrict revoking store-purchased subscriptions
+        if (activeSubscription.source === "STORE") {
+            return res.status(400).json({
+                success: false,
+                message: "Cannot revoke store-purchased subscriptions. User must request refund through Apple/Google."
+            });
+        }
+```
+
+**To this:**
+```javascript
+        // Restrict revoking store-purchased subscriptions (fallback check for old records)
+        const isStorePurchase = activeSubscription.source === "STORE" && activeSubscription.platform !== "admin_granted";
+        
+        if (isStorePurchase) {
+            return res.status(400).json({
+                success: false,
+                message: "Cannot revoke store-purchased subscriptions. User must request refund through Apple/Google."
+            });
+        }
+```
+
+<br/>
+
+#### 2. Run a One-Time Database Migration (Data Cleanup)
+To ensure our analytics and dashboard metrics are 100% accurate, we need to fix the old database records. Please run this script in the MongoDB shell or via a temporary route:
+
+```javascript
+// Step 1: Fix old manual admin grants (that incorrectly defaulted to STORE)
+await mongoose.model("Subscription").updateMany(
+    { 
+        platform: "admin_granted", 
+        source: "STORE",
+        grantReason: { $not: /milestone/i } 
+    },
+    { $set: { source: "ADMIN" } }
+);
+
+// Step 2: Fix old Giveaway/Milestone grants (if any)
+await mongoose.model("Subscription").updateMany(
+    { 
+        platform: "admin_granted", 
+        source: "STORE",
+        grantReason: /milestone/i 
+    },
+    { $set: { source: "GIVEAWAY" } }
+);
+```
+
+Let me know once this is deployed so I can test it on the frontend!

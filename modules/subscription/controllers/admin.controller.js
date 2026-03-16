@@ -173,7 +173,7 @@ exports.listSubscribers = async (req, res, next) => {
             const isActuallyExpired = sub.expiresAt && new Date(sub.expiresAt) < new Date();
 
             const responseObj = {
-                 user: {
+                user: {
                     _id: sub.userId?._id,
                     phone: sub.userId?.phone || 'N/A',
                     email: sub.userId?.email || 'N/A',
@@ -186,7 +186,7 @@ exports.listSubscribers = async (req, res, next) => {
 
             // Remove the redundant userId object to keep it clean
             delete responseObj.userId;
-            
+
             return responseObj;
         });
 
@@ -215,9 +215,16 @@ exports.getUserSubscriptionDetail = async (req, res, next) => {
             User.findById(userId).select("phone email role accountStatus").lean(),
             Profile.findOne({ userId }).select("fullName nickname photos").lean(),
             Subscription.findOne({ userId }).sort({ createdAt: -1 }).lean(),
-            SubscriptionTransaction.find({ userId }).sort({ occurredAt: -1 }).limit(10).lean(),
+            // Return ALL transactions (not just 10)
+            SubscriptionTransaction.find({ userId }).sort({ occurredAt: -1 }).lean(),
             UserConsumableBalance.findOne({ userId }).lean()
         ]);
+
+        // Fetch subscription history (all past subscriptions except the current one)
+        const subscriptionHistory = await Subscription.find({
+            userId: userId,
+            ...(subscription?._id ? { _id: { $ne: subscription._id } } : {})
+        }).sort({ createdAt: -1 }).lean();
 
         return res.json({
             success: true,
@@ -229,7 +236,9 @@ exports.getUserSubscriptionDetail = async (req, res, next) => {
                     photo: profile?.photos?.[0]?.url || null
                 },
                 subscription,
-                recentTransactions: transactions,
+                subscriptionHistory,
+                transactions,
+                recentTransactions: transactions, // Keep backward compatibility
                 wallet
             }
         });
@@ -259,14 +268,29 @@ exports.manualGrant = async (req, res, next) => {
             startedAt: new Date(),
             expiresAt,
             grantReason: reason || "Admin manual grant",
+            source: "ADMIN",
             environment: "production"
+        });
+
+        // Log the admin grant as a transaction
+        await SubscriptionTransaction.create({
+            userId,
+            subscriptionId: subscription._id,
+            platform: "ADMIN",
+            eventType: "ADMIN_GRANT",
+            productId: `manual_${planType.toLowerCase()}`,
+            amount: 0,
+            currency: "AUD",
+            reason: reason || "Admin manual grant",
+            occurredAt: new Date(),
+            idempotencyKey: `admin_GRANT_${subscription._id}_${Date.now()}`
         });
 
         // Sync flags
         await UsageService._syncPremiumState(userId, true);
         await subscriptionService._syncProfile(subscription);
 
-        return res.json({ success: true, message: "Subscription granted successfully", data: subscription });
+        return res.json({ success: true, message: "Subscription granted successfully", data: { subscription } });
     } catch (err) {
         next(err);
     }
@@ -288,7 +312,18 @@ exports.grantConsumables = async (req, res, next) => {
             { upsert: true, new: true }
         );
 
-        // TODO: Log this in transaction history if needed
+        // Log the consumable grant as a transaction for audit trail
+        await SubscriptionTransaction.create({
+            userId,
+            platform: "ADMIN",
+            eventType: "ADMIN_CONSUMABLE_GRANT",
+            productId: type, // "SUPER_KEEN" or "BOOST"
+            amount: 0,
+            currency: "AUD",
+            reason: reason || "Admin consumable grant",
+            occurredAt: new Date(),
+            idempotencyKey: `admin_CONSUMABLE_${userId}_${type}_${Date.now()}`
+        });
 
         return res.json({ success: true, message: "Consumables granted", wallet });
     } catch (err) {
@@ -299,6 +334,27 @@ exports.grantConsumables = async (req, res, next) => {
 exports.revokeSubscription = async (req, res, next) => {
     try {
         const { userId } = req.params;
+        const { reason } = req.body || {};
+
+        // Check if user has an active subscription
+        const activeSubscription = await Subscription.findOne({ userId, status: "ACTIVE" });
+
+        if (!activeSubscription) {
+            return res.status(404).json({
+                success: false,
+                message: "No active subscription found"
+            });
+        }
+
+        // Restrict revoking store-purchased subscriptions (fallback check for old records)
+        const isStorePurchase = activeSubscription.source === "STORE" && activeSubscription.platform !== "admin_granted";
+        
+        if (isStorePurchase) {
+            return res.status(400).json({
+                success: false,
+                message: "Cannot revoke store-purchased subscriptions. User must request refund through Apple/Google."
+            });
+        }
 
         await Subscription.updateMany(
             { userId, status: "ACTIVE" },
@@ -316,198 +372,90 @@ exports.revokeSubscription = async (req, res, next) => {
 };
 
 /**
- * 5. DASHBOARD / STATS
+ * EXTEND SUBSCRIPTION — Adds extra days to expiresAt
  */
-exports.
-getStats = async (req, res, next) => {
+exports.extendSubscription = async (req, res, next) => {
     try {
-        const now = new Date();
-        const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
-        const startOfLastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
-        const last30Days = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+        const { userId } = req.params;
+        const { days, reason } = req.body;
 
-        const [
-            activeCountCurrent,
-            activeCountLastMonth,
-            consumableRevenue,
-            newPremiumCounts,
-            newUsersCount,
-            cancellationsCount,
-            milestoneUsers,
-            config,
-            revenueTrends,
-            growthTrends,
-            platformSplit,
-            planDistribution,
-            activeSubscriptions
-        ] = await Promise.all([
-            // 1. Active Subscribers Current
-            Subscription.countDocuments({ status: "ACTIVE" }),
-            // 2. Active Subscribers at start of this month (approx)
-            Subscription.countDocuments({ status: "ACTIVE", createdAt: { $lt: startOfMonth } }),
-            // 3. Consumable Revenue (this month)
-            SubscriptionTransaction.aggregate([
-                {
-                    $match: {
-                        eventType: "CONSUMABLE_PURCHASE",
-                        occurredAt: { $gte: startOfMonth }
-                    }
-                },
-                { $group: { _id: null, total: { $sum: "$amount" } } }
-            ]),
-            // 4. New Premium Subscribers (this month)
-            Subscription.countDocuments({ status: "ACTIVE", createdAt: { $gte: startOfMonth } }),
-            // 5. Total New Users (this month)
-            User.countDocuments({ createdAt: { $gte: startOfMonth }, isFake: false }),
-            // 6. Cancellations (this month)
-            SubscriptionTransaction.countDocuments({ eventType: "CANCEL", occurredAt: { $gte: startOfMonth } }),
-            // 7. Milestone Users
-            Subscription.countDocuments({ planType: "MILESTONE" }),
-            // 8. Config
-            SubscriptionConfig.getOrCreate(),
-            // 9. Revenue Trends (last 30 days)
-            SubscriptionTransaction.aggregate([
-                {
-                    $match: {
-                        occurredAt: { $gte: last30Days },
-                        eventType: { $in: ["PURCHASE", "RENEW", "CONSUMABLE_PURCHASE"] }
-                    }
-                },
-                {
-                    $group: {
-                        _id: {
-                            day: { $dateToString: { format: "%Y-%m-%d", date: "$occurredAt" } },
-                            type: { $cond: [{ $eq: ["$eventType", "CONSUMABLE_PURCHASE"] }, "consumable", "subscription"] }
-                        },
-                        amount: { $sum: "$amount" }
-                    }
-                },
-                { $sort: { "_id.day": 1 } }
-            ]),
-            // 10. Growth Trends (last 30 days)
-            SubscriptionTransaction.aggregate([
-                {
-                    $match: {
-                        occurredAt: { $gte: last30Days },
-                        eventType: { $in: ["PURCHASE", "CANCEL"] }
-                    }
-                },
-                {
-                    $group: {
-                        _id: {
-                            day: { $dateToString: { format: "%Y-%m-%d", date: "$occurredAt" } },
-                            type: "$eventType"
-                        },
-                        count: { $sum: 1 }
-                    }
-                },
-                { $sort: { "_id.day": 1 } }
-            ]),
-            // 11. Platform Split (Revenue)
-            SubscriptionTransaction.aggregate([
-                {
-                    $match: { eventType: { $in: ["PURCHASE", "RENEW", "CONSUMABLE_PURCHASE"] } }
-                },
-                {
-                    $group: {
-                        _id: "$platform",
-                        revenue: { $sum: "$amount" }
-                    }
-                }
-            ]),
-            // 12. Plan Distribution
-            Subscription.aggregate([
-                { $match: { status: "ACTIVE" } },
-                {
-                    $group: {
-                        _id: "$planType",
-                        count: { $sum: 1 }
-                    }
-                }
-            ]),
-            // 13. Active subs for MRR calculation
-            Subscription.find({ status: "ACTIVE" }).select("productId planType").lean()
-        ]);
+        // Validation
+        if (!days || !Number.isInteger(days) || days < 1 || days > 365) {
+            return res.status(400).json({
+                success: false,
+                message: "days must be a positive integer between 1 and 365"
+            });
+        }
 
-        // Calculate MRR
-        // We fetching prices for mapping
-        const subscriptionProducts = await Product.find({ type: 'SUBSCRIPTION' }).lean();
-        const priceMap = {};
-        subscriptionProducts.forEach(p => {
-            const monthlyPrice = p.durationDays ? (parseFloat(String(p.displayPrice).replace(/[^0-9.]/g, '')) / (p.durationDays / 30)) : 0;
-            priceMap[p.productKey] = monthlyPrice;
-            // Fallback for store IDs
-            if (p.appleProductId) priceMap[p.appleProductId] = monthlyPrice;
-            if (p.googleProductId) priceMap[p.googleProductId] = monthlyPrice;
+        if (!reason || typeof reason !== 'string' || reason.trim().length === 0) {
+            return res.status(400).json({
+                success: false,
+                message: "reason is required"
+            });
+        }
+
+        const subscription = await Subscription.findOne({
+            userId,
+            status: "ACTIVE"
         });
 
-        let totalMRR = 0;
-        activeSubscriptions.forEach(sub => {
-            totalMRR += priceMap[sub.productId] || 0;
+        if (!subscription) {
+            return res.status(404).json({
+                success: false,
+                message: "No active subscription found"
+            });
+        }
+
+        const previousExpiresAt = new Date(subscription.expiresAt);
+        const newExpiresAt = new Date(previousExpiresAt.getTime() + (days * 24 * 60 * 60 * 1000));
+
+        subscription.expiresAt = newExpiresAt;
+        await subscription.save();
+
+        // Log the extension as a transaction
+        await SubscriptionTransaction.create({
+            userId,
+            subscriptionId: subscription._id,
+            platform: "ADMIN",
+            eventType: "EXTENSION",
+            productId: subscription.productId,
+            amount: 0,
+            currency: "AUD",
+            reason: reason,
+            occurredAt: new Date(),
+            idempotencyKey: `admin_EXTENSION_${subscription._id}_${Date.now()}`
         });
 
-        // Format Trends
-        const formattedRevTrend = {};
-        revenueTrends.forEach(item => {
-            if (!formattedRevTrend[item._id.day]) formattedRevTrend[item._id.day] = { day: item._id.day, subscription: 0, consumable: 0 };
-            formattedRevTrend[item._id.day][item._id.type] = item.amount;
-        });
-
-        const formattedGrowthTrend = {};
-        growthTrends.forEach(item => {
-            if (!formattedGrowthTrend[item._id.day]) formattedGrowthTrend[item._id.day] = { day: item._id.day, new: 0, cancelled: 0 };
-            if (item._id.type === 'PURCHASE') formattedGrowthTrend[item._id.day].new = item.count;
-            if (item._id.type === 'CANCEL') formattedGrowthTrend[item._id.day].cancelled = item.count;
-        });
-
-        // KPI calculations
-        const subChange = activeCountLastMonth > 0 ? (((activeCountCurrent - activeCountLastMonth) / activeCountLastMonth) * 100).toFixed(1) : 0;
+        // Sync profile with updated expiry
+        await subscriptionService._syncProfile(subscription);
 
         return res.json({
             success: true,
+            message: `Subscription extended by ${days} days`,
             data: {
-                kpis: {
-                    activeSubscribers: {
-                        count: activeCountCurrent,
-                        change: `${subChange}%`
-                    },
-                    mrr: {
-                        amount: Math.round(totalMRR),
-                        currency: "AUD"
-                    },
-                    consumableRevenue: {
-                        amount: consumableRevenue[0]?.total || 0,
-                        currency: "AUD"
-                    },
-                    conversionRate: newUsersCount > 0 ? ((newPremiumCounts / newUsersCount) * 100).toFixed(1) + "%" : "0%",
-                    churnRate: activeCountLastMonth > 0 ? ((cancellationsCount / activeCountLastMonth) * 100).toFixed(1) + "%" : "0%",
-                    milestone: {
-                        currentCount: milestoneUsers,
-                        target: config.milestone.targetUserCount,
-                        progress: (milestoneUsers / config.milestone.targetUserCount * 100).toFixed(1)
-                    }
-                },
-                charts: {
-                    revenueTrend: Object.values(formattedRevTrend),
-                    subscriberGrowth: Object.values(formattedGrowthTrend).map(d => ({ ...d, net: d.new - d.cancelled })),
-                    platformSplit: platformSplit.map(p => ({ platform: p._id, revenue: p.revenue })),
-                    planDistribution: planDistribution.map(p => ({ plan: p._id, count: p.count }))
-                }
+                previousExpiresAt: previousExpiresAt.toISOString(),
+                newExpiresAt: newExpiresAt.toISOString(),
+                daysAdded: days
             }
         });
-
     } catch (err) {
         next(err);
     }
 };
 
+/**
+ * 5. DASHBOARD / STATS
+ */
 exports.getDashboardStats = async (req, res, next) => {
     try {
         const { timeFilter = 'last7' } = req.query; // daily, weekly, last7, last15, last30, allTime
-        
+
         const now = new Date();
         const startOfToday = new Date();
         startOfToday.setHours(0, 0, 0, 0);
+
+        const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+        const startOfLastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
 
         const last24hStart = new Date(now.getTime() - 24 * 60 * 60 * 1000);
         const next24hEnd = new Date(now.getTime() + 24 * 60 * 60 * 1000);
@@ -522,15 +470,14 @@ exports.getDashboardStats = async (req, res, next) => {
         } else if (timeFilter === 'last30') {
             startDate = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
         } else if (timeFilter === 'allTime') {
-            startDate = new Date(0); // Beginning of time
+            startDate = new Date(0);
         } else {
-            // Default to 7 days
             startDate = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
         }
 
         // 1. Parallel aggregates for high performance
         const results = await Promise.all([
-            // [0] Overall Active Counts (Independent of time filter, shows current state)
+            // [0] Overall Active Counts
             Subscription.aggregate([
                 {
                     $group: {
@@ -550,20 +497,23 @@ exports.getDashboardStats = async (req, res, next) => {
                 },
                 {
                     $group: {
-                        _id: { $dateToString: { format: "%Y-%m-%d", date: "$occurredAt" } },
-                        dailyRevenue: { $sum: { $ifNull: ["$amount", 0] } },
+                        _id: {
+                            day: { $dateToString: { format: "%Y-%m-%d", date: "$occurredAt" } },
+                            type: { $cond: [{ $eq: ["$eventType", "CONSUMABLE_PURCHASE"] }, "consumable", "subscription"] }
+                        },
+                        amount: { $sum: { $ifNull: ["$amount", 0] } },
                         count: { $sum: 1 }
                     }
                 },
-                { $sort: { "_id": 1 } }
+                { $sort: { "_id.day": 1 } }
             ]),
-            // [2] Best Selling Products (Filtered by startDate for context-aware best sellers)
+            // [2] Best Selling Products
             SubscriptionTransaction.aggregate([
-                { 
-                    $match: { 
+                {
+                    $match: {
                         occurredAt: { $gte: startDate },
-                        eventType: { $in: ["PURCHASE", "CONSUMABLE_PURCHASE"] } 
-                    } 
+                        eventType: { $in: ["PURCHASE", "CONSUMABLE_PURCHASE"] }
+                    }
                 },
                 {
                     $group: {
@@ -574,13 +524,13 @@ exports.getDashboardStats = async (req, res, next) => {
                 { $sort: { salesCount: -1 } },
                 { $limit: 10 }
             ]),
-            // [3] Platform Distribution (of active subs, independent of filter)
-            Subscription.aggregate([
-                { $match: { status: "ACTIVE" } },
+            // [3] Platform Distribution (Revenue Split)
+            SubscriptionTransaction.aggregate([
+                { $match: { eventType: { $in: ["PURCHASE", "RENEW", "CONSUMABLE_PURCHASE"] } } },
                 {
                     $group: {
                         _id: "$platform",
-                        count: { $sum: 1 }
+                        revenue: { $sum: "$amount" }
                     }
                 }
             ]),
@@ -588,7 +538,18 @@ exports.getDashboardStats = async (req, res, next) => {
             User.countDocuments({ isFake: false }),
             // [5] SubscriptionConfig
             SubscriptionConfig.getOrCreate(),
-            // [6] Today's specific KPIs (always today, unaffected by filter)
+            // [6] Monthly Metrics for KPIs (Count active at start of month)
+            Subscription.countDocuments({
+                status: "ACTIVE",
+                createdAt: { $lt: startOfMonth },
+                expiresAt: { $gt: startOfMonth }
+            }),
+            // [7] Cancellations (current month)
+            SubscriptionTransaction.countDocuments({
+                eventType: "CANCEL",
+                occurredAt: { $gte: startOfMonth }
+            }),
+            // [8] Today's specific KPIs
             Promise.all([
                 Subscription.countDocuments({ createdAt: { $gte: startOfToday } }), // todayNew
                 SubscriptionTransaction.countDocuments({ eventType: "CANCEL", occurredAt: { $gte: startOfToday } }), // todayCancelled
@@ -602,54 +563,117 @@ exports.getDashboardStats = async (req, res, next) => {
                     { $group: { _id: null, total: { $sum: { $ifNull: ["$amount", 0] } } } }
                 ]) // todayRevenue
             ]),
-            // [7] Last 24h vs Next 24h Activity (always relative to now)
+            // [9] Last 24h Activity
             Promise.all([
-                Subscription.countDocuments({ createdAt: { $gte: last24hStart } }), // New plans last 24h
-                SubscriptionTransaction.countDocuments({ eventType: "CONSUMABLE_PURCHASE", occurredAt: { $gte: last24hStart } }), // Wallet packs last 24h
-                SubscriptionTransaction.countDocuments({ eventType: "CANCEL", occurredAt: { $gte: last24hStart } }), // Cancellations last 24h
-                Subscription.countDocuments({ status: "ACTIVE", expiresAt: { $gte: now, $lte: next24hEnd } }), // Plans expiring in 24h
-            ])
+                Subscription.countDocuments({ createdAt: { $gte: last24hStart } }),
+                SubscriptionTransaction.countDocuments({ eventType: "CONSUMABLE_PURCHASE", occurredAt: { $gte: last24hStart } }),
+                SubscriptionTransaction.countDocuments({ eventType: "CANCEL", occurredAt: { $gte: last24hStart } }),
+                Subscription.countDocuments({
+                    status: "ACTIVE",
+                    expiresAt: { $gte: now, $lte: next24hEnd }
+                }),
+            ]),
+            // [10] Plan Distribution (Snapshot)
+            Subscription.aggregate([
+                { $match: { status: "ACTIVE", expiresAt: { $gt: now } } },
+                {
+                    $group: {
+                        _id: "$planType",
+                        count: { $sum: 1 }
+                    }
+                }
+            ]),
+            // [11] Active subs for MRR
+            Subscription.find({
+                status: "ACTIVE",
+                expiresAt: { $gt: now }
+            }).select("productId planType").lean()
         ]);
 
         const [
             totals,
-            revenueTrend,
+            rawRevenueTrend,
             bestSellingProducts,
             platformMix,
-            milestoneUsers,
+            totalActiveUsers,
             config,
+            activeCountStartOfMonth,
+            monthlyCancellations,
             todayStats,
-            last24hActivity
+            last24hActivity,
+            planDistribution,
+            activeSubscriptions
         ] = results;
 
-        const totalUserCount = await User.countDocuments();
+        // MRR Calculation
+        const subscriptionProducts = await Product.find({ type: 'SUBSCRIPTION' }).lean();
+        const priceMap = {};
+        subscriptionProducts.forEach(p => {
+            const price = parseFloat(String(p.displayPrice).replace(/[^0-9.]/g, '')) || 0;
+            const monthlyPrice = p.durationDays ? (price / (p.durationDays / 30)) : price;
+            priceMap[p.productKey] = monthlyPrice;
+            if (p.appleProductId) priceMap[p.appleProductId] = monthlyPrice;
+            if (p.googleProductId) priceMap[p.googleProductId] = monthlyPrice;
+        });
+
+        let totalMRR = 0;
+        activeSubscriptions.forEach(sub => {
+            totalMRR += priceMap[sub.productId] || 0;
+        });
+
+        // Format Trends Plan Distribution
+        const validPlans = ["1_MONTH", "3_MONTH", "6_MONTH", "12_MONTH", "LIFETIME", "MILESTONE"];
+        const finalPlanDist = planDistribution
+            .filter(p => p._id && validPlans.includes(p._id.toUpperCase()))
+            .map(p => ({ plan: p._id.toUpperCase(), count: p.count }));
+
+        // Format Revenue Trend Chart
+        const formattedRevTrend = {};
+        rawRevenueTrend.forEach(item => {
+            if (!formattedRevTrend[item._id.day]) {
+                formattedRevTrend[item._id.day] = { day: item._id.day, subscription: 0, consumable: 0 };
+            }
+            formattedRevTrend[item._id.day][item._id.type] = item.amount;
+        });
+
+        const activeCountCurrent = totals[0]?.activeSubscribers || 0;
+        const subChange = activeCountStartOfMonth > 0
+            ? (((activeCountCurrent - activeCountStartOfMonth) / activeCountStartOfMonth) * 100).toFixed(1)
+            : 0;
 
         return res.json({
             success: true,
             data: {
                 kpis: {
-                    totalUsers: totalUserCount,
-                    totalSubscribers: totals[0]?.totalSubscribers || 0,
-                    activeSubscribers: totals[0]?.activeSubscribers || 0,
-                    conversionRate: totalUserCount > 0 ? ((totals[0]?.activeSubscribers || 0) / totalUserCount * 100).toFixed(2) + "%" : "0%",
-                    todayNew: todayStats[0],
-                    todayCancelled: todayStats[1],
+                    totalUsers: totalActiveUsers,
+                    activeSubscribers: {
+                        count: activeCountCurrent,
+                        change: `${subChange}%`
+                    },
+                    mrr: {
+                        amount: Math.round(totalMRR),
+                        currency: "AUD"
+                    },
                     todayRevenue: todayStats[2][0]?.total || 0,
+                    conversionRate: totalActiveUsers > 0 ? ((activeCountCurrent / totalActiveUsers * 100).toFixed(2) + "%") : "0%",
+                    churnRate: activeCountStartOfMonth > 0 ? ((monthlyCancellations / activeCountStartOfMonth * 100).toFixed(1) + "%") : "0%",
+                    milestone: {
+                        currentCount: activeCountCurrent, // or use specific milestone logic
+                        targetCount: config.milestone.targetUserCount,
+                        percentage: (activeCountCurrent / config.milestone.targetUserCount * 100).toFixed(1)
+                    }
+                },
+                charts: {
+                    revenueTrend: Object.values(formattedRevTrend),
+                    platformMix: platformMix.map(p => ({ platform: p._id, revenue: p.revenue })),
+                    planDistribution: finalPlanDist,
+                    bestSellingProducts
                 },
                 last24HoursActivity: {
                     newSubscriptions: last24hActivity[0],
                     walletPacksBought: last24hActivity[1],
                     cancellations: last24hActivity[2],
-                    plansExpiringSoon: last24hActivity[3] // Expiry in next 24h
-                },
-                revenueTrend: revenueTrend,
-                bestSellingProducts: bestSellingProducts,
-                platformMix: platformMix,
-                milestone: {
-                    currentCount: milestoneUsers,
-                    targetCount: config.milestone.targetUserCount,
-                    isActive: config.milestone.isActive,
-                    percentage: (milestoneUsers / config.milestone.targetUserCount) * 100
+                    plansExpiringSoon: last24hActivity[3]
                 }
             }
         });
