@@ -5,21 +5,98 @@ const {
 } = require("../../../modules/profile/profile.formatter");
 const Report = require("../../../modules/profile/user.report");
 
+// const getProfileForReview = async (req, res) => {
+//   try {
+//     const { userId } = req.params;
+
+//     // Get user and profile with all necessary data
+//     const [user, profile, reports] = await Promise.all([
+//       User.findById(userId).lean(),
+//       Profile.findOne({ userId }).lean(),
+//       Report.find({ reportedId: userId })
+//         // .populate('reportedBy', 'name email phone')
+//         .lean(),
+//     ]);
+
+//     // console.log(reports)
+//     if (!user || !profile) {
+//       return res.status(404).json({
+//         success: false,
+//         message: "User or profile not found",
+//       });
+//     }
+
+//     const response = {
+//       userId: user._id,
+//       email: user.email,
+//       phone: user.phone,
+//       accountStatus: user.accountStatus,
+//       isVerified: user.isVerified,
+//       isBanned: user.banDetails?.isBanned || false,
+//       banReason: user.banDetails?.reason || null,
+//       banDetails: user.banDetails || {},
+//       profile: {
+//         nickname: profile.nickname,
+//         photos: profile?.photos || [],
+//         bio: profile.about,
+//         interests: profile.interests || [],
+//         gender: profile.gender,
+//         age: profile.age,
+//         dob: profile.dob,
+//         location: profile?.location || {},
+//         verification: profile?.verification || {},
+//         createdAt: profile.createdAt,
+//         lastActive: user.lastActive || null,
+//         deviceInfo: user.deviceInfo || {},
+//       },
+//       reports: reports.map((report) => ({
+//         _id: report._id,
+//         reason: report.reason,
+//         details: report.details,
+//         reportedBy: report.reportedBy,
+//         createdAt: report.createdAt,
+//       })),
+
+//       reportCount: reports.length,
+//     };
+
+//     res.json({
+//       success: true,
+//       data: response,
+//     });
+//   } catch (error) {
+//     console.error("Error fetching profile for review:", error);
+//     res.status(500).json({
+//       success: false,
+//       message: "Failed to fetch profile for review",
+//       error: error.message,
+//     });
+//   }
+// };
 const getProfileForReview = async (req, res) => {
   try {
     const { userId } = req.params;
     console.log("userId: ", userId);
 
-    // Get user and profile with all necessary data
     const [user, profile, reports] = await Promise.all([
-      User.findById(userId).lean(),
-      Profile.findOne({ userId }).lean(),
-      Report.find({ reportedId: userId, status: "new" })
-        // .populate('reportedBy', 'name email phone')
+      User.findById(userId)
+        .select(
+          "email phone accountStatus isVerified banDetails lastActive deviceInfo",
+        )
         .lean(),
+      Profile.findOne({ userId }).lean(),
+      Report.find({ reportedId: userId }).lean(),
     ]);
 
-    // console.log(reports)
+    const reporterIds = [...new Set(reports.map((r) => r.reporterId))];
+    const reporters = await Profile.find({ userId: { $in: reporterIds } })
+      .select("userId nickname")
+      .lean();
+    const reporterMap = reporters.reduce((acc, reporter) => {
+      acc[reporter.userId.toString()] = reporter.nickname;
+      return acc;
+    }, {});
+
     if (!user || !profile) {
       return res.status(404).json({
         success: false,
@@ -56,14 +133,19 @@ const getProfileForReview = async (req, res) => {
         _id: report._id,
         reason: report.reason,
         details: report.details,
-        reportedBy: report.reportedBy,
+        reportedBy: {
+          id: report.reporterId,
+          nickname: reporterMap[report.reporterId.toString()] || "Unknown User",
+        },
+        status: report.status,
+        description: report.description,
         createdAt: report.createdAt,
       })),
 
       reportCount: reports.length,
     };
 
-    res.json({
+    res.status(200).json({
       success: true,
       data: response,
     });
@@ -129,7 +211,7 @@ const updateProfileStatus = async (req, res) => {
               resolvedBy: adminId,
               resolution: reason || "Profile reviewed and cleared by admin.",
             },
-          }
+          },
         );
         // Ensure user is active
         user.accountStatus = "active";
@@ -163,7 +245,7 @@ const updateProfileStatus = async (req, res) => {
               resolvedBy: adminId,
               resolution: `User banned: ${reason}`,
             },
-          }
+          },
         );
         message = `User has been banned.`;
         break;

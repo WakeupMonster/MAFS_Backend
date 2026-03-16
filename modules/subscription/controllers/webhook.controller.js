@@ -46,7 +46,7 @@ const appleWebhook = async (req, res) => {
 async function _processAppleWebhook(decoded, event) {
   try {
     const txn = decoded.transactionInfo || {};
-    // const renewal = decoded.renewalInfo || {};   
+    // const renewal = decoded.renewalInfo || {};
 
     const data = {
       originalTransactionId: txn.originalTransactionId,
@@ -90,10 +90,16 @@ async function _processAppleWebhook(decoded, event) {
 
     // v3 Sync: Ensure User/Profile flags are updated after any webhook event
     if (data.originalTransactionId) {
-      const sub = await require("../models/Subscription").findOne({ originalTransactionId: data.originalTransactionId });
+      const sub = await require("../models/Subscription").findOne({
+        originalTransactionId: data.originalTransactionId,
+      });
       if (sub) {
-        const isActive = ["ACTIVE", "CANCELLED"].includes(sub.status) && sub.expiresAt > new Date();
-        UsageService._syncPremiumState(sub.userId, isActive).catch(err => logger.error('Webhook Sync Error:', err));
+        const isActive =
+          ["ACTIVE", "CANCELLED"].includes(sub.status) &&
+          sub.expiresAt > new Date();
+        UsageService._syncPremiumState(sub.userId, isActive).catch((err) =>
+          logger.error("Webhook Sync Error:", err)
+        );
       }
     }
 
@@ -216,10 +222,16 @@ async function _processGoogleWebhook(notification, eventName, event) {
 
     // v3 Sync: Ensure User/Profile flags are updated after any webhook event
     if (data.purchaseToken) {
-      const sub = await require("../models/Subscription").findOne({ purchaseToken: data.purchaseToken });
+      const sub = await require("../models/Subscription").findOne({
+        purchaseToken: data.purchaseToken,
+      });
       if (sub) {
-        const isActive = ["ACTIVE", "CANCELLED"].includes(sub.status) && sub.expiresAt > new Date();
-        UsageService._syncPremiumState(sub.userId, isActive).catch(err => logger.error('Webhook Sync Error:', err));
+        const isActive =
+          ["ACTIVE", "CANCELLED"].includes(sub.status) &&
+          sub.expiresAt > new Date();
+        UsageService._syncPremiumState(sub.userId, isActive).catch((err) =>
+          logger.error("Webhook Sync Error:", err)
+        );
       }
     }
 

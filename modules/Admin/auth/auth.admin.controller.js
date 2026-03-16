@@ -34,7 +34,7 @@ module.exports.adminRegister = async (req, res, next) => {
       throw new AppError(
         "ADMIN_EXISTS",
         "Admin with this email or phone already exists",
-        400
+        400,
       );
     }
 
@@ -85,7 +85,7 @@ module.exports.adminLogin = async (req, res, next) => {
       throw new AppError(
         "INVALID_CREDENTIALS",
         "Invalid admin credentials",
-        401
+        401,
       );
     }
 
@@ -98,7 +98,7 @@ module.exports.adminLogin = async (req, res, next) => {
       throw new AppError(
         "INVALID_CREDENTIALS",
         "Invalid admin credentials",
-        401
+        401,
       );
     }
 
@@ -116,8 +116,8 @@ module.exports.adminLogin = async (req, res, next) => {
       expiresAt: now + REFRESH_TOKEN_TTL_MS,
     });
 
-    (admin.lastLoginAt = new Date()), // <--- Ye comma (,) yahan galat hai.
-      await admin.save();
+    ((admin.lastLoginAt = new Date()), // <--- Ye comma (,) yahan galat hai.
+      await admin.save());
 
     /* ------------------------------------
      * 7️⃣ Fetch Profile (lean & minimal)
@@ -170,7 +170,7 @@ module.exports.sendEmailOTP = async (req, res, next) => {
       throw new AppError(
         "ADMIN_NOT_FOUND",
         "If an account exists, an OTP has been sent.",
-        404
+        404,
       );
     }
 
@@ -248,7 +248,7 @@ module.exports.adminForgotPassword = async (req, res, next) => {
       throw new AppError(
         "INVALID_REQUEST",
         "Email and new password are required",
-        400
+        400,
       );
     }
 
@@ -294,7 +294,7 @@ module.exports.adminResetPassword = async (req, res, next) => {
     const result = await authService.updateAuthenticatedAdminPassword(
       adminId,
       value.currentPassword,
-      value.newPassword
+      value.newPassword,
     );
 
     // 3. Handle specific service errors

@@ -5,7 +5,7 @@ const SubscriptionTransactionSchema = new mongoose.Schema(
     subscriptionId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "Subscription",
-      required: false,  // v3: Not required for consumable purchases
+      required: false, // v3: Not required for consumable purchases
       index: true,
     },
     userId: {
@@ -73,4 +73,7 @@ const SubscriptionTransactionSchema = new mongoose.Schema(
 SubscriptionTransactionSchema.index({ subscriptionId: 1, eventType: 1 });
 SubscriptionTransactionSchema.index({ transactionId: 1, platform: 1 });
 
-module.exports = mongoose.model("SubscriptionTransaction", SubscriptionTransactionSchema);
+module.exports = mongoose.model(
+  "SubscriptionTransaction",
+  SubscriptionTransactionSchema
+);

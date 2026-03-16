@@ -75,7 +75,9 @@ class AppleService {
     const decoded = this.decodeJWS(signedPayload);
 
     if (decoded.data && decoded.data.signedTransactionInfo) {
-      decoded.transactionInfo = this.decodeJWS(decoded.data.signedTransactionInfo);
+      decoded.transactionInfo = this.decodeJWS(
+        decoded.data.signedTransactionInfo
+      );
     }
 
     if (decoded.data && decoded.data.signedRenewalInfo) {
@@ -86,7 +88,10 @@ class AppleService {
   }
 
   async verifyAndDecodeJWS(signedPayload) {
-    if (!this.isReady() || iapConfig.getCurrentSettings().skipWebhookVerification) {
+    if (
+      !this.isReady() ||
+      iapConfig.getCurrentSettings().skipWebhookVerification
+    ) {
       return this.decodeJWS(signedPayload);
     }
 
@@ -94,7 +99,9 @@ class AppleService {
       const { jwtVerify, importX509 } = require("jose");
 
       const headerPart = signedPayload.split(".")[0];
-      const header = JSON.parse(Buffer.from(headerPart, "base64").toString("utf8"));
+      const header = JSON.parse(
+        Buffer.from(headerPart, "base64").toString("utf8")
+      );
 
       if (!header.x5c || header.x5c.length === 0) {
         throw new Error("No certificates in JWS header");
@@ -124,7 +131,9 @@ class AppleService {
       if (parts.length !== 3) {
         throw new Error("Invalid JWS format");
       }
-      const payload = JSON.parse(Buffer.from(parts[1], "base64").toString("utf8"));
+      const payload = JSON.parse(
+        Buffer.from(parts[1], "base64").toString("utf8")
+      );
       return payload;
     } catch (err) {
       logger.error("JWS decode error:", err.message);
@@ -133,7 +142,8 @@ class AppleService {
   }
 
   getMockTransactionData(transactionId) {
-    const productId = process.env.PRODUCT_MONTHLY_IOS || "com.myapp.premium.monthly";
+    const productId =
+      process.env.PRODUCT_MONTHLY_IOS || "com.myapp.premium.monthly";
     return {
       transactionId: transactionId || "MOCK_TXN_001",
       originalTransactionId: "MOCK_ORIG_TXN_001",
@@ -153,7 +163,8 @@ class AppleService {
           lastTransactions: [
             {
               status: 1,
-              originalTransactionId: originalTransactionId || "MOCK_ORIG_TXN_001",
+              originalTransactionId:
+                originalTransactionId || "MOCK_ORIG_TXN_001",
             },
           ],
         },

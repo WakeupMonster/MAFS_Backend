@@ -82,7 +82,7 @@ async function verifyPhoneOtpUnified(phone, otp, req) {
     user.suspensionDetails.suspendUntil > new Date()
   ) {
     throw new Error(
-      `Your account is suspended until ${user.suspensionDetails.suspendUntil.toISOString()}`
+      `Your account is suspended until ${user.suspensionDetails.suspendUntil.toISOString()}`,
     );
   }
 
@@ -110,14 +110,13 @@ async function verifyPhoneOtpUnified(phone, otp, req) {
       },
     },
     { new: true },
-
   );
 
   const profile = await profileModel
     .findOneAndUpdate(
       { userId: user._id },
       { $set: { "onboardingProgress.phoneVerified": true } },
-      { upsert: true, new: true, setDefaultsOnInsert: true }
+      { upsert: true, new: true, setDefaultsOnInsert: true },
     )
     .lean();
 
@@ -134,7 +133,9 @@ async function verifyPhoneOtpUnified(phone, otp, req) {
 
   // v3 Milestone: Grant premium to first 1000 users
   if (isFirstVerification) {
-    await subscriptionService.handleMilestoneGrant(user._id).catch(err => console.error("Milestone Error:", err));
+    await subscriptionService
+      .handleMilestoneGrant(user._id)
+      .catch((err) => console.error("Milestone Error:", err));
   }
 
   return {
@@ -149,13 +150,19 @@ async function verifyPhoneOtpUnified(phone, otp, req) {
     //   subData
     // )
     data: {
-      user: await formatProfileResponse(user, profile, blockedContacts, blockedUser, subData, req),
+      user: await formatProfileResponse(
+        user,
+        profile,
+        blockedContacts,
+        blockedUser,
+        subData,
+        req,
+      ),
 
       // onboarding: buildOnboardingResponse(req)
-    }
+    },
   };
 }
-
 
 async function verifyPhoneTestOtpUnified(phone, otp, req) {
   // 1️⃣ Normalize phone (VERY IMPORTANT)
@@ -178,10 +185,9 @@ async function verifyPhoneTestOtpUnified(phone, otp, req) {
   if (!user) {
     user = await User.create({
       phone: normalizedPhone,
-      phoneHash: phoneHash
+      phoneHash: phoneHash,
     });
   }
-
 
   // ACCOUNT STATE CHECK (CRITICAL)
   // if (user.banDetails?.isBanned) {
@@ -209,7 +215,7 @@ async function verifyPhoneTestOtpUnified(phone, otp, req) {
         phoneHash: phoneHash,
         isPhoneVerified: true,
         isNewUser: false,
-        lastLoginAt: new Date()
+        lastLoginAt: new Date(),
       },
       $push: {
         refreshTokens: {
@@ -218,14 +224,14 @@ async function verifyPhoneTestOtpUnified(phone, otp, req) {
         },
       },
     },
-    { new: true }
+    { new: true },
   );
 
   const profile = await profileModel
     .findOneAndUpdate(
       { userId: user._id },
       { $set: { "onboardingProgress.phoneVerified": true } },
-      { upsert: true, new: true, setDefaultsOnInsert: true }
+      { upsert: true, new: true, setDefaultsOnInsert: true },
     )
     .lean();
 
@@ -238,11 +244,13 @@ async function verifyPhoneTestOtpUnified(phone, otp, req) {
   if (!subData) {
     subData = await UserSubscription.create({ userId: user._id });
   }
-  subData.resetIfNeeded()
+  subData.resetIfNeeded();
 
   // v3 Milestone: Grant premium to first 1000 users (Test mode)
   if (isFirstVerification) {
-    await subscriptionService.handleMilestoneGrant(user._id).catch(err => console.error("Milestone Error:", err));
+    await subscriptionService
+      .handleMilestoneGrant(user._id)
+      .catch((err) => console.error("Milestone Error:", err));
   }
   await redis.del(redisKey);
 
@@ -251,7 +259,13 @@ async function verifyPhoneTestOtpUnified(phone, otp, req) {
     refreshToken: refreshTokenRaw,
     isNewUser: !user.firstName,
     // user: formatUserProfile(user, profile, blockedContacts, blockedUser,subData)
-    user: await formatProfileResponse(user, profile, blockedContacts, blockedUser, req)
+    user: await formatProfileResponse(
+      user,
+      profile,
+      blockedContacts,
+      blockedUser,
+      req,
+    ),
   };
 }
 
@@ -282,9 +296,6 @@ async function verifyPhoneOtp(phone, otp) {
   return user;
 }
 
-
-
-
 // async function sendEmailOtp(token, email) {
 
 //   const decoded = utils.verifyToken(token);
@@ -308,7 +319,6 @@ async function verifyPhoneOtp(phone, otp) {
 //   const redisKey = `user:email:otp:${user._id.toString()}`;
 //   console.log("SETTING OTP IN REDIS:", redisKey);
 //   await redis.set(redisKey, {otp}, { EX: EMAIL_OTP_TTL_MS / 1000 });
-
 
 //   const subject = "Your verification code";
 //   const text = `Your email verification code is ${otp}`;
@@ -349,7 +359,6 @@ async function verifyPhoneOtp(phone, otp) {
 //   };
 // }
 
-
 async function verifyEmailOtp(token, otp, req) {
   const decoded = utils.verifyToken(token);
 
@@ -369,7 +378,7 @@ async function verifyEmailOtp(token, otp, req) {
     profileModel.findOneAndUpdate(
       { userId: user._id },
       { $set: { "onboardingProgress.emailVerified": true } },
-      { upsert: true, new: true, lean: true }
+      { upsert: true, new: true, lean: true },
     ),
     BlockedContact.find({ userId: user._id }).lean(),
     Block.find({ blockerId: user._id }).lean(),
@@ -378,7 +387,13 @@ async function verifyEmailOtp(token, otp, req) {
   return {
     // Return the formatted user including block lists
     // user: formatUserProfile(user, profile, blockedContacts, blockedUser)
-    user: await formatProfileResponse(user, profile, blockedContacts, blockedUser, req)
+    user: await formatProfileResponse(
+      user,
+      profile,
+      blockedContacts,
+      blockedUser,
+      req,
+    ),
   };
 }
 
@@ -512,12 +527,12 @@ async function refreshAccessToken(refreshTokenRaw, req) {
 
   // 3. Purane/Expired tokens hatao (Maintenance)
   user.refreshTokens = user.refreshTokens.filter(
-    (rt) => rt.expiresAt > Date.now()
+    (rt) => rt.expiresAt > Date.now(),
   );
 
   // 4. Double check ki current wala abhi bhi list mein hai (Expired toh nahi tha?)
   const isStillValid = user.refreshTokens.some(
-    (rt) => rt.tokenHash === incomingHash
+    (rt) => rt.tokenHash === incomingHash,
   );
 
   if (!isStillValid) {
@@ -534,7 +549,7 @@ async function refreshAccessToken(refreshTokenRaw, req) {
     profileModel.findOneAndUpdate(
       { userId: user._id },
       { $set: { "onboardingProgress.emailVerified": true } },
-      { upsert: true, new: true, lean: true }
+      { upsert: true, new: true, lean: true },
     ),
     BlockedContact.find({ userId: user._id }).lean(),
     Block.find({ blockerId: user._id }).lean(),
@@ -546,7 +561,13 @@ async function refreshAccessToken(refreshTokenRaw, req) {
   return {
     accessToken,
     refreshToken: refreshTokenRaw,
-    user: await formatProfileResponse(user, profile, blockedContacts, blockedUser, req)
+    user: await formatProfileResponse(
+      user,
+      profile,
+      blockedContacts,
+      blockedUser,
+      req,
+    ),
   };
 }
 
@@ -564,7 +585,7 @@ async function logout(refreshTokenRaw) {
   }
 
   user.refreshTokens = user.refreshTokens.filter(
-    (rt) => rt.tokenHash !== incomingHash
+    (rt) => rt.tokenHash !== incomingHash,
   );
 
   await user.save();
@@ -584,7 +605,12 @@ async function sendPhoneOtpTest(phone, testMode = false) {
 
   // Store in Redis with TTL
   await redis.set(redisKey, otp, "EX", 3000);
-  console.log(`🔑 mobile OTP saved in Redis (${redisKey}):`, otp, "redisKey", redisKey);
+  console.log(
+    `🔑 mobile OTP saved in Redis (${redisKey}):`,
+    otp,
+    "redisKey",
+    redisKey,
+  );
 
   if (!testMode) {
     await utils.sendSms(normalizedPhone, `Your MAFS OTP is ${otp}`);
@@ -595,7 +621,7 @@ async function sendPhoneOtpTest(phone, testMode = false) {
   return {
     success: true,
     otp,
-    message: testMode ? "OTP generated (test mode)" : "OTP sent successfully"
+    message: testMode ? "OTP generated (test mode)" : "OTP sent successfully",
   };
 }
 
@@ -611,7 +637,7 @@ module.exports = {
   loginVerifyOtp,
   refreshAccessToken,
   logout,
-  sendPhoneOtpTest
+  sendPhoneOtpTest,
   // socialAuthHandler
 };
 

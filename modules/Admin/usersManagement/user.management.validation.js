@@ -63,5 +63,16 @@ module.exports.updateUserSchema = Joi.object({
       country: Joi.string().allow(null, ""),
       full_address: Joi.string().allow(null, ""),
     }).unknown(true),
+
+    settings: Joi.object({
+      notifications: Joi.object({
+        push: Joi.boolean(),
+        email: Joi.boolean(),
+        matches: Joi.boolean(),
+        messages: Joi.boolean(),
+      }).unknown(true), // Allows flexibility
+      blockedUsers: Joi.array().items(Joi.string()),
+      blockedContacts: Joi.array().items(Joi.string()),
+    }).unknown(true),
   }).required(),
 });

@@ -8,7 +8,7 @@ const AppError = require("../../common/errors/ApiError");
 const { formatProfileResponse } = require("../profile/profile.formatter");
 // const { buildOnboardingResponse } = require("../../common/utils/onBoardingSteps");
 
-module.exports.sendOtp = async (req, res,next) => {
+module.exports.sendOtp = async (req, res, next) => {
   try {
     let { phone } = req.body;
 
@@ -87,7 +87,7 @@ module.exports.verifyOtp = async (req, res) => {
     if (!otp || !phone) {
       throw new AppError("OTP_REQUIRED", "Phone and OTP is required", 400);
     }
-    const result = await authService.verifyPhoneOtpUnified(phone, otp,req);
+    const result = await authService.verifyPhoneOtpUnified(phone, otp, req);
 
     return res.json({
       success: true,
@@ -117,7 +117,7 @@ module.exports.verifyTestOtp = async (req, res) => {
         .json({ success: false, message: "Phone and OTP are required" });
     }
 
-    const result = await authService.verifyPhoneTestOtpUnified(phone, otp,req);
+    const result = await authService.verifyPhoneTestOtpUnified(phone, otp, req);
 
     return res.json({
       success: true,
@@ -176,7 +176,7 @@ module.exports.verifyEmail = async (req, res) => {
       });
     }
 
-    const result = await authService.verifyEmailOtp(token, otp,req);
+    const result = await authService.verifyEmailOtp(token, otp, req);
 
     // await profileModel.findOneAndUpdate(
     //   { userId: result.user._id },
@@ -260,7 +260,7 @@ module.exports.refreshToken = async (req, res) => {
     }
 
     const refreshToken = authHeader.split(" ")[1];
-    const result = await authService.refreshAccessToken(refreshToken,req);
+    const result = await authService.refreshAccessToken(refreshToken, req);
 
     return res.json({
       success: true,
@@ -328,7 +328,7 @@ module.exports.resendPhoneOtp = async (req, res) => {
       throw new AppError(
         "USER_NOT_FOUND",
         "No account found with this phone number.",
-        404
+        404,
       );
     }
 
@@ -392,9 +392,6 @@ module.exports.resendEmailOtp = async (req, res) => {
   }
 };
 
-
-
-
 const Profile = require("../../modules/profile/profile.model");
 const BlockedContact = require("../../modules/BlockedContact/blockedContacts.model");
 const BlockedUser = require("../../modules/profile/user.block");
@@ -436,16 +433,16 @@ module.exports.sendTestOtp = async (req, res) => {
       const profile = await Profile.findOne({ userId });
 
       const blockedContacts = await BlockedContact.find({
-        userId
+        userId,
       }).lean();
 
       const blockedUser = await BlockedUser.find({
-        userId
+        userId,
       }).lean();
 
       const subData = await UserSubscription.findOne({
         userId,
-        isActive: true
+        isActive: true,
       }).lean();
 
       formattedUser = await formatProfileResponse(
@@ -454,19 +451,17 @@ module.exports.sendTestOtp = async (req, res) => {
         blockedContacts,
         blockedUser,
         subData,
-        req
+        req,
       );
     }
 
     return res.json({
       success: true,
       message: `Test OTP: ${result.otp}`,
-      data : {
-         user: formattedUser
-      }
-    
+      data: {
+        user: formattedUser,
+      },
     });
-
   } catch (err) {
     console.error("Error in sendTestOtp:", err);
     return res.status(400).json({
@@ -475,7 +470,6 @@ module.exports.sendTestOtp = async (req, res) => {
     });
   }
 };
-
 
 // module.exports.sendTestOtp = async (req, res) => {
 //   try {

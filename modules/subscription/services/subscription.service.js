@@ -10,30 +10,31 @@ const logger = require("../utils/logger");
 const Profile = require("../../profile/profile.model");
 
 class SubscriptionService {
-
-
-
   async _syncProfile(subscription) {
     try {
-
       console.log("🔄 Syncing Profile for User:", subscription.userId); // Debug 1
       if (!subscription || !subscription.userId) {
         console.log("❌ Subscription or UserId missing"); // Debug 2
         return;
       }
 
-      const isActive = ["ACTIVE", "CANCELLED"].includes(subscription.status) && subscription.expiresAt > new Date();
+      const isActive =
+        ["ACTIVE", "CANCELLED"].includes(subscription.status) &&
+        subscription.expiresAt > new Date();
 
       const profileUpdate = {
         "subscription.planId": subscription.planType || "free",
         "subscription.isActive": isActive,
         "subscription.expiryDate": subscription.expiresAt,
-        "subscription.isTrial": false
+        "subscription.isTrial": false,
       };
 
       // Agar expired/cancelled hai toh free pe set karo?
       // Optional: Depend karta hai business logic pe
-      if (subscription.status === "EXPIRED" || subscription.status === "REVOKED") {
+      if (
+        subscription.status === "EXPIRED" ||
+        subscription.status === "REVOKED"
+      ) {
         profileUpdate["subscription.planId"] = "free";
         profileUpdate["subscription.isActive"] = false;
       }
@@ -45,13 +46,13 @@ class SubscriptionService {
         { $set: profileUpdate }
       );
 
-      logger.info("Profile subscription synced", { userId: subscription.userId });
+      logger.info("Profile subscription synced", {
+        userId: subscription.userId,
+      });
     } catch (err) {
       logger.error("Profile sync failed:", err.message);
     }
   }
-
-
 
   /**
    * v3 Purchase Router: Determines if the purchase is a SUBSCRIPTION or CONSUMABLE
@@ -63,13 +64,13 @@ class SubscriptionService {
       $or: [
         { appleProductId: data.productId },
         { googleProductId: data.productId },
-        { productKey: data.productId }
+        { productKey: data.productId },
       ],
-      isActive: true
+      isActive: true,
     }).lean();
 
     // Step 2: THE FORK — Route based on product type
-    if (catalogProduct && catalogProduct.type === 'CONSUMABLE') {
+    if (catalogProduct && catalogProduct.type === "CONSUMABLE") {
       return this._handleConsumablePurchase(data, catalogProduct);
     }
 
@@ -84,12 +85,14 @@ class SubscriptionService {
   async _handleConsumablePurchase(data, catalogProduct) {
     // Determine which wallet field to increment
     const incrementField = {};
-    if (catalogProduct.consumableType === 'SUPER_KEEN') {
+    if (catalogProduct.consumableType === "SUPER_KEEN") {
       incrementField.superKeensBalance = catalogProduct.quantity;
-    } else if (catalogProduct.consumableType === 'BOOST') {
+    } else if (catalogProduct.consumableType === "BOOST") {
       incrementField.boostsBalance = catalogProduct.quantity;
     } else {
-      throw new Error(`Unknown consumable type: ${catalogProduct.consumableType}`);
+      throw new Error(
+        `Unknown consumable type: ${catalogProduct.consumableType}`
+      );
     }
 
     // Atomic wallet update (upsert: creates wallet if first purchase)
@@ -107,7 +110,10 @@ class SubscriptionService {
       purchaseToken: data.purchaseToken,
       productId: data.productId,
       eventType: "CONSUMABLE_PURCHASE",
-      amount: parseFloat(String(catalogProduct.displayPrice).replace(/[^0-9.]/g, '')) || 0,
+      amount:
+        parseFloat(
+          String(catalogProduct.displayPrice).replace(/[^0-9.]/g, "")
+        ) || 0,
       currency: catalogProduct.currency || "AUD",
       occurredAt: new Date(data.purchaseDate || Date.now()),
     });
@@ -116,17 +122,17 @@ class SubscriptionService {
       userId: data.userId,
       type: catalogProduct.consumableType,
       quantity: catalogProduct.quantity,
-      newBalance: updatedWallet
+      newBalance: updatedWallet,
     });
 
     return {
-      type: 'CONSUMABLE',
+      type: "CONSUMABLE",
       consumableType: catalogProduct.consumableType,
       quantity: catalogProduct.quantity,
       wallet: {
         superKeens: updatedWallet.superKeensBalance,
-        boosts: updatedWallet.boostsBalance
-      }
+        boosts: updatedWallet.boostsBalance,
+      },
     };
   }
 
@@ -152,12 +158,15 @@ class SubscriptionService {
     if (existing) {
       existing.status = "ACTIVE";
       existing.expiresAt = new Date(data.expiresDate);
-      existing.latestTransactionId = data.transactionId || existing.latestTransactionId;
+      existing.latestTransactionId =
+        data.transactionId || existing.latestTransactionId;
       existing.previousStatus = existing.status;
       await existing.save();
 
       // v3 Sync: Use UsageService for consistent premium state
-      UsageService._syncPremiumState(existing.userId, true).catch(err => logger.error('Sync Error:', err));
+      UsageService._syncPremiumState(existing.userId, true).catch((err) =>
+        logger.error("Sync Error:", err)
+      );
       await this._syncProfile(existing);
 
       logger.info("Subscription updated (existing)", {
@@ -165,7 +174,7 @@ class SubscriptionService {
         userId: data.userId,
       });
 
-      return { type: 'SUBSCRIPTION', subscription: existing };
+      return { type: "SUBSCRIPTION", subscription: existing };
     }
 
     // Fallback: Check iapConfig for legacy product details
@@ -213,10 +222,12 @@ class SubscriptionService {
     });
 
     // v3 Sync: Use UsageService for consistent premium state
-    UsageService._syncPremiumState(subscription.userId, true).catch(err => logger.error('Sync Error:', err));
+    UsageService._syncPremiumState(subscription.userId, true).catch((err) =>
+      logger.error("Sync Error:", err)
+    );
     await this._syncProfile(subscription);
 
-    return { type: 'SUBSCRIPTION', subscription: subscription };
+    return { type: "SUBSCRIPTION", subscription: subscription };
   }
 
   // ─── RENEW ───
@@ -281,7 +292,6 @@ class SubscriptionService {
     logger.info("Subscription cancelled", { subscriptionId: sub._id });
     return sub;
   }
-
 
   // ─── EXPIRE ───
   async handleExpire(data) {
@@ -418,15 +428,22 @@ class SubscriptionService {
       return Subscription.findOne({ purchaseToken: data.purchaseToken });
     }
     if (data.userId) {
-      return Subscription.findOne({ userId: data.userId }).sort({ createdAt: -1 });
+      return Subscription.findOne({ userId: data.userId }).sort({
+        createdAt: -1,
+      });
     }
     return null;
   }
 
   // ─── PRIVATE: Log transaction ───
   async _logTransaction(data) {
-    const identifier = data.transactionId || data.purchaseToken || String(Date.now());
-    const key = generateIdempotencyKey(data.platform, data.eventType, identifier);
+    const identifier =
+      data.transactionId || data.purchaseToken || String(Date.now());
+    const key = generateIdempotencyKey(
+      data.platform,
+      data.eventType,
+      identifier
+    );
 
     try {
       await SubscriptionTransaction.create({
@@ -494,14 +511,16 @@ class SubscriptionService {
         startedAt: new Date(),
         expiresAt: expiresAt,
         grantReason: "milestone_first_1000",
-        environment: "production"
+        environment: "production",
       });
 
       // 5. Sync Premium State (User/Profile flags)
       await UsageService._syncPremiumState(userId, true);
       await this._syncProfile(subscription);
 
-      logger.info(`Milestone premium granted to user ${userId} (Rank: ${userCount})`);
+      logger.info(
+        `Milestone premium granted to user ${userId} (Rank: ${userCount})`
+      );
       return subscription;
     } catch (err) {
       logger.error("Milestone grant failed:", err.message);

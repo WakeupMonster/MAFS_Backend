@@ -9,9 +9,7 @@ const objectId = Joi.string().custom((value, helpers) => {
 });
 
 const stringArray = (label) =>
-  Joi.array()
-    .items(Joi.string().trim())
-    .label(label);
+  Joi.array().items(Joi.string().trim()).label(label);
 
 const attributesSchema = Joi.object({
   // Basics
@@ -40,7 +38,7 @@ const attributesSchema = Joi.object({
   music: stringArray("Music"),
   movies: stringArray("Movies"),
   books: stringArray("Books"),
-  travel: stringArray("Travel")
+  travel: stringArray("Travel"),
 })
   .label("Attributes")
   .min(1);
@@ -52,18 +50,15 @@ const genderEnum = [
   "trans-man",
   "trans-woman",
   "genderqueer",
-  "everyone"
+  "everyone",
 ];
 
 const discoverySchema = Joi.object({
-  distanceRange: Joi.number()
-    .min(1)
-    .max(500)
-    .label("Distance Range"),
+  distanceRange: Joi.number().min(1).max(500).label("Distance Range"),
 
   ageRange: Joi.object({
     min: Joi.number().min(18).max(99).label("Minimum Age"),
-    max: Joi.number().min(18).max(99).label("Maximum Age")
+    max: Joi.number().min(18).max(99).label("Maximum Age"),
   })
     .custom((value, helpers) => {
       if (value.min > value.max) {
@@ -102,8 +97,8 @@ const discoverySchema = Joi.object({
     workout: Joi.string().label("Workout Filter"),
     dietary: Joi.string().label("Dietary Filter"),
     socialMedia: Joi.string().label("Social Media Filter"),
-    sleeping: Joi.string().label("Sleeping Filter")
-  }).label("Advanced Filters")
+    sleeping: Joi.string().label("Sleeping Filter"),
+  }).label("Advanced Filters"),
 })
   .label("Discovery Preferences")
   .min(1);
@@ -112,17 +107,27 @@ module.exports.profileUpdateSchema = Joi.object({
   profile: Joi.object({
     nickname: Joi.string().min(2).max(30).label("Nickname"),
     dob: Joi.date().iso().label("Date of Birth"),
-    gender: Joi.string().valid("man", "woman", "non-binary", "trans-man", "trans-woman", "genderqueer", "everyone").label("Gender"),
+    gender: Joi.string()
+      .valid(
+        "man",
+        "woman",
+        "non-binary",
+        "trans-man",
+        "trans-woman",
+        "genderqueer",
+        "everyone"
+      )
+      .label("Gender"),
     height: Joi.number().min(100).max(250).label("Height"),
     about: Joi.string().max(500).label("About"),
     jobTitle: Joi.string().max(50).label("Job Title"),
     company: Joi.string().max(50).label("Company"),
     school: Joi.string().max(50).label("School"),
     pronouns: Joi.string().label("Pronouns"),
-    weight: Joi.number().min(30).max(300).label("Weight")
+    weight: Joi.number().min(30).max(300).label("Weight"),
   }).required(),
   attributes: attributesSchema,
-  discovery: discoverySchema
+  discovery: discoverySchema,
 });
 
 // exports.locationSchema = Joi.object({
@@ -147,8 +152,6 @@ module.exports.profileUpdateSchema = Joi.object({
 //   full_address: Joi.string().allow("", null).label("Full Address")
 // });
 
-
-
 // profile.schema.js
 
 exports.locationSchema = Joi.object({
@@ -161,7 +164,7 @@ exports.locationSchema = Joi.object({
       "any.required": "Latitude is required",
       "number.base": "Latitude must be a number",
       "number.min": "Latitude must be between -90 and 90",
-      "number.max": "Latitude must be between -90 and 90"
+      "number.max": "Latitude must be between -90 and 90",
     }),
   longitude: Joi.number()
     .min(-180)
@@ -172,15 +175,15 @@ exports.locationSchema = Joi.object({
       "any.required": "Longitude is required",
       "number.base": "Longitude must be a number",
       "number.min": "Longitude must be between -180 and 180",
-      "number.max": "Longitude must be between -180 and 180"
+      "number.max": "Longitude must be between -180 and 180",
     }),
 
   city: Joi.string().allow("", null).label("City"),
   state: Joi.string().allow("", null).label("State"),
   country: Joi.string().allow("", null).label("Country"),
-  full_address: Joi.string().allow("", null).label("Full Address")
+  full_address: Joi.string().allow("", null).label("Full Address"),
 });
 
 exports.userIdParamSchema = Joi.object({
-  userId: objectId.required()
+  userId: objectId.required(),
 });

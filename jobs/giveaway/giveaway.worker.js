@@ -5,7 +5,7 @@ const timezone = require("dayjs/plugin/timezone");
 const GiveawayCampaign = require("../../modules/Admin/giveaways/giveawayCampaign.model");
 const GiveawayWinHistory = require("../../modules/Admin/giveaways/giveawayWinHistory.model");
 const User = require("../../modules/auth/auth.model");
-const {Match} = require("../../modules/matches/swipe/swipe.model");
+const { Match } = require("../../modules/matches/swipe/swipe.model");
 const notificationService = require("../../modules/notifications/notification.service");
 const Prize = require("../../modules/Admin/giveaways/prize.model");
 const GiveawaySettings = require("../../modules/Admin/giveaways/giveawaySettings.model");
@@ -13,7 +13,7 @@ const GiveawaySettings = require("../../modules/Admin/giveaways/giveawaySettings
 dayjs.extend(utc);
 dayjs.extend(timezone);
 
-const IST_TZ = "Asia/Kolkata";  
+const IST_TZ = "Asia/Kolkata";
 
 module.exports = async function runGiveawayWorker() {
   console.log("🎯 Giveaway worker started at:", new Date().toISOString());
@@ -34,10 +34,10 @@ module.exports = async function runGiveawayWorker() {
     const campaign = await GiveawayCampaign.findOne({
       $or: [
         { date: todayUTC },
-        { date: { $gte: startOfTodayIST, $lt: endOfTodayIST } }
+        { date: { $gte: startOfTodayIST, $lt: endOfTodayIST } },
       ],
       isActive: true,
-      drawStatus: "PENDING"
+      drawStatus: "PENDING",
     });
 
     if (!campaign) {
@@ -62,8 +62,16 @@ module.exports = async function runGiveawayWorker() {
     // const giveawayStart = nowIST.startOf("day").toDate();
     // const giveawayEnd = nowIST.endOf("day").toDate();
 
-    const giveawayStart = dayjs().tz(IST_TZ).subtract(1, "day").startOf("day").toDate();
-const giveawayEnd = dayjs().tz(IST_TZ).subtract(1, "day").endOf("day").toDate();
+    const giveawayStart = dayjs()
+      .tz(IST_TZ)
+      .subtract(1, "day")
+      .startOf("day")
+      .toDate();
+    const giveawayEnd = dayjs()
+      .tz(IST_TZ)
+      .subtract(1, "day")
+      .endOf("day")
+      .toDate();
 
     console.log("🎰 Match window:", giveawayStart, "→", giveawayEnd);
 
@@ -73,11 +81,11 @@ const giveawayEnd = dayjs().tz(IST_TZ).subtract(1, "day").endOf("day").toDate();
     const matchedUsers = await Match.aggregate([
       {
         $match: {
-          matchedAt: { $gte: giveawayStart, $lte: giveawayEnd }
-        }
+          matchedAt: { $gte: giveawayStart, $lte: giveawayEnd },
+        },
       },
       { $unwind: "$users" },
-      { $group: { _id: "$users" } }
+      { $group: { _id: "$users" } },
     ]);
 
     console.log("👥 Total matched users:", matchedUsers.length);
@@ -91,7 +99,7 @@ const giveawayEnd = dayjs().tz(IST_TZ).subtract(1, "day").endOf("day").toDate();
       return;
     }
 
-    const matchedUserIds = matchedUsers.map(u => u._id);
+    const matchedUserIds = matchedUsers.map((u) => u._id);
 
     // ===============================
     // ✅ 5️⃣ Save ALL participants in campaign
@@ -114,7 +122,7 @@ const giveawayEnd = dayjs().tz(IST_TZ).subtract(1, "day").endOf("day").toDate();
           isPremium: true,
           accountStatus: "active",
           // premiumExpiresAt: { $gt: new Date() }
-        }
+        },
       },
       {
         $lookup: {
@@ -126,22 +134,22 @@ const giveawayEnd = dayjs().tz(IST_TZ).subtract(1, "day").endOf("day").toDate();
                 $expr: {
                   $and: [
                     { $eq: ["$userId", "$$userId"] },
-                    { $eq: ["$year", currentYear] }
-                  ]
-                }
-              }
-            }
+                    { $eq: ["$year", currentYear] },
+                  ],
+                },
+              },
+            },
           ],
-          as: "winsThisYear"
-        }
+          as: "winsThisYear",
+        },
       },
       {
         $match: {
-          $expr: { $lt: [{ $size: "$winsThisYear" }, yearlyLimit] }
-        }
+          $expr: { $lt: [{ $size: "$winsThisYear" }, yearlyLimit] },
+        },
       },
       { $sample: { size: 1 } },
-      { $project: { _id: 1 } }
+      { $project: { _id: 1 } },
     ]);
 
     console.log("🏆 Winner:", winner ? winner._id : "NONE");
@@ -160,7 +168,7 @@ const giveawayEnd = dayjs().tz(IST_TZ).subtract(1, "day").endOf("day").toDate();
       userId: winner._id,
       campaignId: campaign._id,
       prizeId: campaign.prizeId,
-      year: currentYear
+      year: currentYear,
     });
 
     const prize = await Prize.findById(campaign.prizeId).select("title");
@@ -179,13 +187,12 @@ const giveawayEnd = dayjs().tz(IST_TZ).subtract(1, "day").endOf("day").toDate();
 
     console.log("✅ Giveaway completed! Winner:", winner._id);
     console.log("📊 Total participants:", matchedUserIds.length);
-
   } catch (error) {
     console.error("❌ Giveaway worker FAILED:", error.message);
 
     try {
       const campaign = await GiveawayCampaign.findOne({
-        drawStatus: "PROCESSING"
+        drawStatus: "PROCESSING",
       });
       if (campaign) {
         campaign.drawStatus = "PENDING";
@@ -197,9 +204,6 @@ const giveawayEnd = dayjs().tz(IST_TZ).subtract(1, "day").endOf("day").toDate();
     }
   }
 };
-
-
-
 
 // const dayjs = require("dayjs");
 // const utc = require("dayjs/plugin/utc");

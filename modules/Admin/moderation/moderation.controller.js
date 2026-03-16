@@ -6,7 +6,7 @@ const Profile = require("../../profile/profile.model");
 const Report = require("../../profile/user.report");
 const redis = require("../../../config/cache");
 const Block = require("../../profile/user.block");
-const utils = require("../../auth/auth.utils")
+const utils = require("../../auth/auth.utils");
 
 module.exports.verifyUserProfile = async (req, res) => {
   const adminId = req.user.id;
@@ -381,11 +381,11 @@ module.exports.replyToReport = async (req, res) => {
       await utils.sendEmail(
         reporter.email,
         "We are reviewing your report",
-        `<p>${message}</p><p>— Support Team</p>`
+        `<p>${message}</p><p>— Support Team</p>`,
       );
     } else {
       console.log(
-        `Report reply skipped email: reporter ${report.reporterId} has no email`
+        `Report reply skipped email: reporter ${report.reporterId} has no email`,
       );
     }
 
@@ -433,7 +433,7 @@ module.exports.updateReportStatus = async (req, res) => {
         await utils.sendEmail(
           report.reporterId.email,
           "Your report has been resolved",
-          "Thanks for reporting. We have taken appropriate action."
+          "Thanks for reporting. We have taken appropriate action.",
         );
       }
     }
@@ -491,150 +491,46 @@ module.exports.getBlockedUsers = async (req, res) => {
   }
 };
 
-// module.exports.getPendingVerifications = async (req, res, next) => {
-//   try {
-//     // Find all profiles with pending verification
-//     const pendingProfiles = await Profile.aggregate([
-//       {
-//         $match: {
-//           "verification.status": "pending",
-//         },
-//       },
-//       {
-//         $lookup: {
-//           from: "users",
-//           localField: "userId",
-//           foreignField: "_id",
-//           as: "user",
-//         },
-//       },
-//       { $unwind: "$user" },
-//       {
-//         $project: {
-//           _id: 1,
-//           userId: 1,
-//           verification: 1,
-//           "user.email": 1,
-//           "user.phone": 1,
-//           "user.createdAt": 1,
-//           profilePhoto: 1,
-//           fullName: 1,
-//         },
-//       },
-//       { $sort: { createdAt: -1 } },
-//     ]);
-//     res.json({
-//       success: true,
-//       count: pendingProfiles.length,
-//       data: pendingProfiles,
-//     });
-//   } catch (error) {
-//     res.status(500).json({
-//       success: false,
-//       message: "Failed to fetch pending verifications",
-//     });
-//   }
-// };
-
-
-
-// module.exports.getPendingVerifications = async (req, res, next) => {
-//   try {
-//     const pendingProfiles = await Profile.aggregate([
-//       {
-//         $match: {
-//           "verification.status": "pending",
-//         },
-//       },
-//       {
-//         $lookup: {
-//           from: "users",
-//           localField: "userId",
-//           foreignField: "_id",
-//           as: "user",
-//         },
-//       },
-//       { $unwind: "$user" },
-//       {
-//         $project: {
-//           _id: 1,
-//           userId: 1,
-//           nickname: 1,                    
-//           age: 1,                         
-//           gender: 1,                      
-//           about: 1,                       
-//           jobTitle: 1,                    
-//           company: 1,                     
-//           school: 1,                      
-//           "location.city": 1,             
-//           "location.state": 1,            
-//           "location.country": 1,          
-//           "verification.status": 1,
-//           "verification.selfieUrl": 1,
-//           "verification.docUrl": 1,
-//           "verification.submittedAt": 1,  // ⭐ ADDED
-//           "verification.rejectionReason": 1,
-//           "photos.publicId" : 1,
-//           "user._id": 1,
-//           "user.email": 1,
-//           "user.phone": 1,
-//           "user.createdAt": 1,
-//           "user.isPhoneVerified": 1,      // ⭐ ADDED
-//           "user.isEmailVerified": 1,      // ⭐ ADDED
-//           createdAt: 1,
-//           updatedAt: 1,
-//         },
-//       },
-//       { 
-//         $sort: { 
-//           "verification.submittedAt": -1,
-//           createdAt: -1 
-//         } 
-//       },
-//     ]);
-
-//     res.json({
-//       success: true,
-//       count: pendingProfiles.length,
-//       data: pendingProfiles,
-//     });
-//   } catch (error) {
-//     console.error("Error fetching pending verifications:", error);
-//     res.status(500).json({
-//       success: false,
-//       message: "Failed to fetch pending verifications",
-//       error: error.message,
-//     });
-//   }
-// };
-
-
-
-
-
-
-
 module.exports.getPendingVerifications = async (req, res, next) => {
   try {
-    // 1. Frontend se status mangwao (e.g., /api/verifications?status=approved)
-    const { status } = req.query;
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 10;
+    const skip = (page - 1) * limit;
+    const search = req.query.search || "";
+    const sortBy = req.query.sortBy || "";
+    const status = req.query.status || "";
 
-    console.log(status)
+    const limitNum = parseInt(limit);
 
-    // 2. Dynamic Match Object banayein
-    // Agar status 'all' hai toh filter hata do, warna specific status search karo
-    let matchQuery = {};
-    if (status && status !== "all") {
-      matchQuery["verification.status"] = status;
-    } else if (!status) {
-      // Default behavior: agar kuch na bheje toh pending dikhao
-      matchQuery["verification.status"] = "pending";
+    // 1. DYNAMIC SORTING
+    // If sortBy is empty, it stays as Newest First (default)
+    let sortQuery = { createdAt: -1 };
+    if (sortBy === "oldest") {
+      sortQuery = { createdAt: 1 };
+    } else if (sortBy === "alphabetical" || sortBy === "name") {
+      sortQuery = { nickname: 1 };
     }
 
-    const pendingProfiles = await Profile.aggregate([
-      {
-        $match: matchQuery, 
-      },
+    // 2. DYNAMIC MATCHING (FILTERING)
+    const matchStage = {
+      "user.role": "USER", // ✅ Always restrict to users with 'USER' role
+    };
+
+    // Only filter by status if a status is actually provided
+    if (status && status !== "all") {
+      matchStage["verification.status"] = status;
+    }
+
+    // Add search logic if search term exists
+    if (search) {
+      matchStage.$or = [
+        { nickname: { $regex: search, $options: "i" } },
+        { "user.email": { $regex: search, $options: "i" } },
+        { "user.phone": { $regex: search, $options: "i" } },
+      ];
+    }
+
+    const pipeline = [
       {
         $lookup: {
           from: "users",
@@ -645,54 +541,75 @@ module.exports.getPendingVerifications = async (req, res, next) => {
       },
       { $unwind: "$user" },
       {
-        $project: {
-          _id: 1,
-          userId: 1,
-          nickname: 1,
-          age: 1,
-          gender: 1,
-          about: 1,
-          jobTitle: 1,
-          company: 1,
-          school: 1,
-          "location.city": 1,
-          "location.state": 1,
-          "location.country": 1,
-          "verification.status": 1,
-          "verification.selfieUrl": 1,
-          "verification.docUrl": 1,
-          "verification.submittedAt": 1,
-          "verification.rejectionReason": 1,
-          "photos.publicId": 1,
-          "user._id": 1,
-          "user.email": 1,
-          "user.phone": 1,
-          "user.createdAt": 1,
-          "user.isPhoneVerified": 1,
-          "user.isEmailVerified": 1,
-          createdAt: 1,
-          updatedAt: 1,
+        $lookup: {
+          from: "profiles",
+          localField: "userId",
+          foreignField: "userId",
+          as: "profileDetails",
         },
       },
       {
-        $sort: {
-          "verification.submittedAt": -1,
-          createdAt: -1,
+        $unwind: { path: "$profileDetails", preserveNullAndEmptyArrays: true },
+      },
+      { $match: matchStage }, // ✅ Match runs AFTER lookup/unwind to see the role
+      {
+        $facet: {
+          metadata: [{ $count: "total" }],
+          data: [
+            { $sort: sortQuery },
+            { $skip: skip },
+            { $limit: limitNum },
+            {
+              $project: {
+                _id: 1,
+                userId: 1,
+                verification: 1,
+                nickname: 1,
+                createdAt: 1,
+                // avatar: {
+                //   $ifNull: [
+                //     { $arrayElemAt: ["$photos", 0] }, // Photos array ki 0 index wali URL
+                //     null, // Agar photo nahi hai to empty string
+                //   ],
+                // },
+                // "user.email": 1,
+                // "user.phone": 1,
+                // "user.role": 1, // Optional: project role for debugging
+
+                user: {
+                  email: "$user.email",
+                  phone: "$user.phone",
+                  nickname: "$profileDetails.nickname",
+                  // avatar: {
+                  //   $ifNull: [
+                  //     { $arrayElemAt: ["$photos", 0] }, // Photos array ki 0 index wali URL
+                  //     null, // Agar photo nahi hai to empty string
+                  //   ],
+                  // },
+                  avatar: { $arrayElemAt: ["$profileDetails.photos.url", 0] },
+                },
+              },
+            },
+          ],
         },
       },
-    ]);
+    ];
 
-    res.json({
+    const result = await Profile.aggregate(pipeline);
+    const total = result[0].metadata[0]?.total || 0;
+
+    res.status(200).json({
       success: true,
-      count: pendingProfiles.length,
-      data: pendingProfiles,
+      pagination: {
+        total,
+        page: parseInt(page),
+        limit: limitNum,
+        totalPages: Math.ceil(total / limitNum),
+      },
+      data: result[0].data,
     });
   } catch (error) {
-    console.error("Error fetching verifications:", error);
-    res.status(500).json({
-      success: false,
-      message: "Failed to fetch verifications",
-      error: error.message,
-    });
+    console.error("KYC Fetch Error:", error);
+    res.status(500).json({ success: false, message: "Server error" });
   }
 };

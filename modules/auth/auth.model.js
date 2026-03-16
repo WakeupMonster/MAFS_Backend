@@ -5,7 +5,7 @@ const refreshTokenSchema = new mongoose.Schema(
     tokenHash: { type: String, required: true },
     expiresAt: { type: Date, required: true },
   },
-  { _id: false }
+  { _id: false },
 );
 
 // Social Provider Schema
@@ -18,7 +18,7 @@ const socialProviderSchema = new mongoose.Schema(
     linkedAt: { type: Date, default: Date.now }, // When linked
     lastLoginAt: { type: Date }, // Last login with this provider
   },
-  { _id: false }
+  { _id: false },
 );
 
 const userSchema = new mongoose.Schema(
@@ -175,6 +175,7 @@ const userSchema = new mongoose.Schema(
       default: null,
       select: false,
     },
+
     suspensionDetails: {
       isSuspended: {
         type: Boolean,
@@ -256,7 +257,7 @@ const userSchema = new mongoose.Schema(
       default: "phone",
     },
   },
-  { timestamps: true }
+  { timestamps: true },
 );
 
 userSchema.index({ "social.google.id": 1 });

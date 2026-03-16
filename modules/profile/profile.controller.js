@@ -10,7 +10,9 @@ const Block = require("../profile/user.block");
 const { formatProfileResponse } = require("./profile.formatter");
 const UserSubscription = require("../auth/UserSubscription.model");
 const { formatPublictargetProfile } = require("./profile.userFormatter");
-const { buildOnboardingResponse } = require("../../common/utils/onBoardingSteps");
+const {
+  buildOnboardingResponse,
+} = require("../../common/utils/onBoardingSteps");
 const getFormattedUser = require("../../common/utils/getFormattedUser");
 
 async function getFullUserData(userId, existingProfile = null) {
@@ -91,7 +93,6 @@ module.exports.updateProfile = async (req, res) => {
       //   const existing = await Profile.findOne({ nickname: p.nickname, userId: { $ne: userId } }).lean();
       //   if (existing) return res.status(400).json({ success: false, message: "Nickname taken" });
       // }
-
     }
 
     if (updateData.attributes) {
@@ -164,20 +165,27 @@ module.exports.updateProfile = async (req, res) => {
       success: true,
       message: "Profile updated successfully",
       data: {
-        user: await formatProfileResponse(data.user, profile, data.blockedContacts, data.blockedUser, data.subData, req),
+        user: await formatProfileResponse(
+          data.user,
+          profile,
+          data.blockedContacts,
+          data.blockedUser,
+          data.subData,
+          req
+        ),
 
         // onboarding: buildOnboardingResponse(req)
-      }
+      },
     });
   } catch (err) {
     console.error("Update Error:", err);
-    if (err.name === 'ValidationError') {
+    if (err.name === "ValidationError") {
       // Mongoose saare errors ka object deta hai, humein pehla message chahiye
-      const message = Object.values(err.errors).map(val => val.message)[0];
+      const message = Object.values(err.errors).map((val) => val.message)[0];
 
       return res.status(400).json({
         success: false,
-        message: message // Ye bhejega: "Woman is not a valid gender option"
+        message: message, // Ye bhejega: "Woman is not a valid gender option"
       });
     }
 
@@ -195,7 +203,16 @@ module.exports.getMyProfile = async (req, res) => {
 
     res.json({
       success: true,
-      data: { user: await formatProfileResponse(data.user, data.profile, data.blockedContacts, data.blockedUser, data.subData, req) }
+      data: {
+        user: await formatProfileResponse(
+          data.user,
+          data.profile,
+          data.blockedContacts,
+          data.blockedUser,
+          data.subData,
+          req
+        ),
+      },
     });
   } catch (err) {
     res
@@ -252,7 +269,6 @@ module.exports.uploadPhotos = async (req, res) => {
     //   profile.onboarding.updatedAt = new Date();
     // }
 
-
     await profile.save();
     const [data] = await Promise.all([
       getFullUserData(userId, profile),
@@ -263,10 +279,16 @@ module.exports.uploadPhotos = async (req, res) => {
       success: true,
       message: `${newPhotosResults.length} photo uploaded successfully`,
       data: {
-        user: await formatProfileResponse(data.user, profile, data.blockedContacts, data.blockedUser, data.subData, req),
+        user: await formatProfileResponse(
+          data.user,
+          profile,
+          data.blockedContacts,
+          data.blockedUser,
+          data.subData,
+          req
+        ),
         // onboarding: buildOnboardingResponse(req)
-
-      }
+      },
     });
   } catch (err) {
     res
@@ -305,7 +327,16 @@ module.exports.deletePhoto = async (req, res) => {
     res.json({
       success: true,
       message: "photo deleted successfully",
-      data: { user: await formatProfileResponse(data.user, profile, data.blockedContacts, data.blockedUser, data.subData, req) }
+      data: {
+        user: await formatProfileResponse(
+          data.user,
+          profile,
+          data.blockedContacts,
+          data.blockedUser,
+          data.subData,
+          req
+        ),
+      },
     });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
@@ -378,7 +409,7 @@ module.exports.reorderPhotos = async (req, res) => {
     // ✅ 7. INSERT LOGIC — NIKALO aur DAALO
     const photosArray = [...profile.photos];
     const [movedPhoto] = photosArray.splice(currentIndex, 1); // NIKALO
-    photosArray.splice(newIndex, 0, movedPhoto);               // DAALO
+    photosArray.splice(newIndex, 0, movedPhoto); // DAALO
 
     // ✅ 8. Order aur isPrimary update karo
     const updatedPhotos = photosArray.map((photo, index) => ({
@@ -514,8 +545,6 @@ module.exports.reorderPhotos = async (req, res) => {
 //   }
 // };
 
-
-
 // exports.reorderPhotos = async (req, res) => {
 //   try {
 //     const userId = req.user._id;
@@ -554,7 +583,7 @@ module.exports.reorderPhotos = async (req, res) => {
 //   try {
 //     const userId = req.user._id;
 //     // Ab file buffer nahi, direct URL aayega frontend se
-//     const { selfieUrl } = req.body; 
+//     const { selfieUrl } = req.body;
 
 //     if (!selfieUrl) return res.status(400).json({ success: false, message: "Selfie URL required" });
 
@@ -564,11 +593,11 @@ module.exports.reorderPhotos = async (req, res) => {
 //     // Parallel processing: DB updates
 //     const [data] = await Promise.all([
 //       getFullUserData(userId, profile), // Metadata fetch
-//       Profile.updateOne({ userId }, { 
-//         $set: { 
-//           "verification.selfieUrl": selfieUrl, 
-//           "verification.status": "pending" 
-//         } 
+//       Profile.updateOne({ userId }, {
+//         $set: {
+//           "verification.selfieUrl": selfieUrl,
+//           "verification.status": "pending"
+//         }
 //       })
 //     ]);
 
@@ -599,9 +628,16 @@ module.exports.uploadSelfie = async (req, res) => {
       success: true,
       message: "Selfie upload started...",
       data: {
-        user: await formatProfileResponse(data.user, data.profile, data.blockedContacts, data.blockedUser, data.subData, req),
+        user: await formatProfileResponse(
+          data.user,
+          data.profile,
+          data.blockedContacts,
+          data.blockedUser,
+          data.subData,
+          req
+        ),
         // onboarding: buildOnboardingResponse(req)
-      }
+      },
     });
 
     // Step 3: BACKGROUND PROCESSING (No 'await' for the response)
@@ -657,9 +693,16 @@ module.exports.uploadIDDocument = async (req, res) => {
       success: true,
       message: "ID upload started. We will notify you once verified.",
       data: {
-        user: await formatProfileResponse(data.user, data.profile, data.blockedContacts, data.blockedUser, data.subData, req),
+        user: await formatProfileResponse(
+          data.user,
+          data.profile,
+          data.blockedContacts,
+          data.blockedUser,
+          data.subData,
+          req
+        ),
         // onboarding: buildOnboardingResponse(req)
-      }
+      },
     });
 
     // 3. BACKGROUND PROCESSING (Network I/O)
@@ -748,13 +791,14 @@ module.exports.getVerificationStatus = async (req, res) => {
 module.exports.updateLocation = async (req, res) => {
   try {
     const userId = req.user._id;
-    const { latitude, longitude, city, state, country, full_address } = req.body;
+    const { latitude, longitude, city, state, country, full_address } =
+      req.body;
 
     // Extra safety check (validation already handles this, but just in case)
     if (latitude === undefined || longitude === undefined) {
       return res.status(400).json({
         success: false,
-        message: "Valid coordinates required (latitude and longitude)"
+        message: "Valid coordinates required (latitude and longitude)",
       });
     }
 
@@ -762,14 +806,14 @@ module.exports.updateLocation = async (req, res) => {
     if (Math.abs(latitude) > 90) {
       return res.status(400).json({
         success: false,
-        message: `Invalid latitude: ${latitude}. Latitude must be between -90 and 90. Did you swap latitude and longitude?`
+        message: `Invalid latitude: ${latitude}. Latitude must be between -90 and 90. Did you swap latitude and longitude?`,
       });
     }
 
     if (Math.abs(longitude) > 180) {
       return res.status(400).json({
         success: false,
-        message: `Invalid longitude: ${longitude}. Longitude must be between -180 and 180.`
+        message: `Invalid longitude: ${longitude}. Longitude must be between -180 and 180.`,
       });
     }
 
@@ -782,14 +826,14 @@ module.exports.updateLocation = async (req, res) => {
       city: city || "",
       state: state || "",
       country: country || "",
-      full_address: full_address || ""
+      full_address: full_address || "",
     };
 
     await profile.save();
 
     const [data] = await Promise.all([
       getFullUserData(userId, profile),
-      clearProfileCache(userId)
+      clearProfileCache(userId),
     ]);
 
     res.json({
@@ -803,8 +847,8 @@ module.exports.updateLocation = async (req, res) => {
           data.blockedUser,
           data.subData,
           req
-        )
-      }
+        ),
+      },
     });
   } catch (err) {
     console.error("Location Update Error:", err);
@@ -829,7 +873,7 @@ module.exports.updateLocation = async (req, res) => {
 
     res.status(400).json({
       success: false,
-      message
+      message,
     });
   }
 };
@@ -875,7 +919,14 @@ exports.getStatus = async (req, res) => {
       });
 
     const data = await getFullUserData(userId);
-    const formatted = await formatProfileResponse(data.user, data.profile, data.blockedContacts, data.blockedUser, data.subData, req);
+    const formatted = await formatProfileResponse(
+      data.user,
+      data.profile,
+      data.blockedContacts,
+      data.blockedUser,
+      data.subData,
+      req
+    );
 
     await cache.set(cacheKey, JSON.stringify(formatted), { EX: 30 });
     res.json({ success: true, data: formatted, cached: false });
@@ -932,7 +983,9 @@ module.exports.getUserProfile = async (req, res) => {
     res.json({ success: true, data: formattedData });
   } catch (err) {
     console.error("Profile Fetch Error:", err);
-    res.status(500).json({ success: false, message: "Failed to load profile details" });
+    res
+      .status(500)
+      .json({ success: false, message: "Failed to load profile details" });
   }
 };
 
@@ -957,7 +1010,6 @@ module.exports.getUserProfile = async (req, res) => {
 //   }
 // };
 
-
 exports.resetDiscoveryFilters = async (req, res) => {
   try {
     const userId = req.user._id;
@@ -967,7 +1019,7 @@ exports.resetDiscoveryFilters = async (req, res) => {
     if (!profile) {
       return res.status(404).json({
         success: false,
-        message: "Profile not found."
+        message: "Profile not found.",
       });
     }
 
@@ -988,7 +1040,7 @@ exports.resetDiscoveryFilters = async (req, res) => {
       workout: null,
       dietary: null,
       socialMedia: null,
-      sleeping: null
+      sleeping: null,
     };
 
     await profile.save();
@@ -1000,35 +1052,41 @@ exports.resetDiscoveryFilters = async (req, res) => {
     return res.json({
       success: true,
       message: "All discovery filters have been reset to defaults.",
-      data: { user: formattedUser }
+      data: { user: formattedUser },
     });
   } catch (err) {
     console.log("RESET ERROR:", err.message); // ← ye add karo terminal mein dekhne ke liye
     return res.status(500).json({
       success: false,
-      message: "Something went wrong while resetting filters."
+      message: "Something went wrong while resetting filters.",
     });
   }
 };
-
-
-
 
 module.exports.updateDiscoveryFilters = async (req, res) => {
   try {
     const userId = req.user._id;
     const { discoveryFilters } = req.body;
     let profile = await Profile.findOne({ userId });
-console.log(discoveryFilters.distanceRange,"dis")
+    console.log(discoveryFilters.distanceRange, "dis");
     if (discoveryFilters) {
-      if (discoveryFilters.interests) profile.discovery.preferredInterests = discoveryFilters.interests;
-      if (discoveryFilters.relationshipGoal) profile.discovery.filterRelationshipGoal = discoveryFilters.relationshipGoal;
-      if (discoveryFilters.ageRange) profile.discovery.ageRange = discoveryFilters.ageRange;
-      if(discoveryFilters.distanceRange) profile.discovery.distanceRange = discoveryFilters.distanceRange
+      if (discoveryFilters.interests)
+        profile.discovery.preferredInterests = discoveryFilters.interests;
+      if (discoveryFilters.relationshipGoal)
+        profile.discovery.filterRelationshipGoal =
+          discoveryFilters.relationshipGoal;
+      if (discoveryFilters.ageRange)
+        profile.discovery.ageRange = discoveryFilters.ageRange;
+      if (discoveryFilters.distanceRange)
+        profile.discovery.distanceRange = discoveryFilters.distanceRange;
       if (discoveryFilters.advanced) {
-        profile.discovery.advancedFilters = { ...profile.discovery.advancedFilters, ...discoveryFilters.advanced };
-      };
-      if (discoveryFilters.showMeGender) profile.discovery.showMeGender = discoveryFilters.showMeGender
+        profile.discovery.advancedFilters = {
+          ...profile.discovery.advancedFilters,
+          ...discoveryFilters.advanced,
+        };
+      }
+      if (discoveryFilters.showMeGender)
+        profile.discovery.showMeGender = discoveryFilters.showMeGender;
     }
 
     await profile.save();
@@ -1038,11 +1096,12 @@ console.log(discoveryFilters.distanceRange,"dis")
     const formattedUser = await getFormattedUser(userId, req);
 
     return res.json({
-      success: true, message: "Filters applied! Feed is refreshing.", data: {
-        user: formattedUser
-      }
+      success: true,
+      message: "Filters applied! Feed is refreshing.",
+      data: {
+        user: formattedUser,
+      },
     });
-
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
   }
