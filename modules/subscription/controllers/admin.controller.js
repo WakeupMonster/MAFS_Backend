@@ -348,7 +348,7 @@ exports.revokeSubscription = async (req, res, next) => {
 
         // Restrict revoking store-purchased subscriptions (fallback check for old records)
         const isStorePurchase = activeSubscription.source === "STORE" && activeSubscription.platform !== "admin_granted";
-        
+
         if (isStorePurchase) {
             return res.status(400).json({
                 success: false,
@@ -446,6 +446,7 @@ exports.extendSubscription = async (req, res, next) => {
 /**
  * 5. DASHBOARD / STATS
  */
+
 exports.getDashboardStats = async (req, res, next) => {
     try {
         const { timeFilter = 'last7' } = req.query; // daily, weekly, last7, last15, last30, allTime
@@ -499,30 +500,29 @@ exports.getDashboardStats = async (req, res, next) => {
                     $group: {
                         _id: {
                             day: { $dateToString: { format: "%Y-%m-%d", date: "$occurredAt" } },
-                            type: { $cond: [{ $eq: ["$eventType", "CONSUMABLE_PURCHASE"] }, "consumable", "subscription"] }
+                            productId: "$productId"
                         },
-                        amount: { $sum: { $ifNull: ["$amount", 0] } },
-                        count: { $sum: 1 }
+                        amount: { $sum: { $ifNull: ["$amount", 0] } }
                     }
                 },
                 { $sort: { "_id.day": 1 } }
             ]),
-            // [2] Best Selling Products
+            // [2] Revenue by Product (Best Selling)
             SubscriptionTransaction.aggregate([
                 {
                     $match: {
                         occurredAt: { $gte: startDate },
-                        eventType: { $in: ["PURCHASE", "CONSUMABLE_PURCHASE"] }
+                        eventType: { $in: ["PURCHASE", "RENEW", "CONSUMABLE_PURCHASE"] }
                     }
                 },
                 {
                     $group: {
                         _id: "$productId",
-                        salesCount: { $sum: 1 }
+                        salesCount: { $sum: 1 },
+                        revenue: { $sum: { $ifNull: ["$amount", 0] } }
                     }
                 },
-                { $sort: { salesCount: -1 } },
-                { $limit: 10 }
+                { $sort: { revenue: -1 } }
             ]),
             // [3] Platform Distribution (Revenue Split)
             SubscriptionTransaction.aggregate([
@@ -587,7 +587,31 @@ exports.getDashboardStats = async (req, res, next) => {
             Subscription.find({
                 status: "ACTIVE",
                 expiresAt: { $gt: now }
-            }).select("productId planType").lean()
+            }).select("productId planType").lean(),
+            // [12] Total Consumable Revenue — Super Keen + Supercharge sales this month
+            SubscriptionTransaction.aggregate([
+                { $match: { eventType: "CONSUMABLE_PURCHASE", occurredAt: { $gte: startOfMonth } } },
+                { $group: { _id: null, totalAmount: { $sum: "$amount" } } }
+            ]),
+            // [13] Subscriber Growth Trend (new vs cancelled)
+            SubscriptionTransaction.aggregate([
+                {
+                    $match: {
+                        occurredAt: { $gte: startDate },
+                        eventType: { $in: ["PURCHASE", "ADMIN_GRANT", "GIVEAWAY", "CANCEL", "EXPIRE", "REVOKE"] }
+                    }
+                },
+                {
+                    $group: {
+                        _id: {
+                            day: { $dateToString: { format: "%Y-%m-%d", date: "$occurredAt" } },
+                            type: { $cond: [{ $in: ["$eventType", ["PURCHASE", "ADMIN_GRANT", "GIVEAWAY"]] }, "new", "cancelled"] }
+                        },
+                        count: { $sum: 1 }
+                    }
+                },
+                { $sort: { "_id.day": 1 } }
+            ])
         ]);
 
         const [
@@ -602,19 +626,49 @@ exports.getDashboardStats = async (req, res, next) => {
             todayStats,
             last24hActivity,
             planDistribution,
-            activeSubscriptions
+            activeSubscriptions,
+            monthlyConsumableRevenueResult,
+            rawSubscriberGrowth
         ] = results;
 
         // MRR Calculation
-        const subscriptionProducts = await Product.find({ type: 'SUBSCRIPTION' }).lean();
+        // MRR Calculation & Product mapping
+        const allProducts = await Product.find().lean();
         const priceMap = {};
-        subscriptionProducts.forEach(p => {
-            const price = parseFloat(String(p.displayPrice).replace(/[^0-9.]/g, '')) || 0;
-            const monthlyPrice = p.durationDays ? (price / (p.durationDays / 30)) : price;
-            priceMap[p.productKey] = monthlyPrice;
-            if (p.appleProductId) priceMap[p.appleProductId] = monthlyPrice;
-            if (p.googleProductId) priceMap[p.googleProductId] = monthlyPrice;
+        const productNameMap = {};
+        const categoryMap = {};
+        
+        allProducts.forEach(p => {
+            // Setup for MRR
+            if (p.type === 'SUBSCRIPTION') {
+                const price = parseFloat(String(p.displayPrice).replace(/[^0-9.]/g, '')) || 0;
+                const monthlyPrice = p.durationDays ? (price / (p.durationDays / 30)) : price;
+                priceMap[p.productKey] = monthlyPrice;
+                if (p.appleProductId) priceMap[p.appleProductId] = monthlyPrice;
+                if (p.googleProductId) priceMap[p.googleProductId] = monthlyPrice;
+            }
+            
+            // Setup for Best Selling Products Names
+            productNameMap[p.productKey] = p.displayName;
+            if (p.appleProductId) productNameMap[p.appleProductId] = p.displayName;
+            if (p.googleProductId) productNameMap[p.googleProductId] = p.displayName;
+
+            // Setup for Revenue Trend Categorization
+            let category = "other";
+            if (p.type === 'SUBSCRIPTION') category = p.planType || 'subscription';
+            if (p.type === 'CONSUMABLE') category = p.consumableType || 'consumable';
+            
+            categoryMap[p.productKey] = category;
+            if (p.appleProductId) categoryMap[p.appleProductId] = category;
+            if (p.googleProductId) categoryMap[p.googleProductId] = category;
         });
+
+        const formattedBestSelling = bestSellingProducts.map(p => ({
+            productId: p._id,
+            displayName: productNameMap[p._id] || p._id,
+            salesCount: p.salesCount,
+            revenue: parseFloat(p.revenue.toFixed(2))
+        }));
 
         let totalMRR = 0;
         activeSubscriptions.forEach(sub => {
@@ -630,10 +684,44 @@ exports.getDashboardStats = async (req, res, next) => {
         // Format Revenue Trend Chart
         const formattedRevTrend = {};
         rawRevenueTrend.forEach(item => {
-            if (!formattedRevTrend[item._id.day]) {
-                formattedRevTrend[item._id.day] = { day: item._id.day, subscription: 0, consumable: 0 };
+            const day = item._id.day;
+            const category = categoryMap[item._id.productId] || 'other';
+
+            if (!formattedRevTrend[day]) {
+                formattedRevTrend[day] = { 
+                    day: day, 
+                    "1_MONTH": 0, 
+                    "3_MONTH": 0, 
+                    "SUPER_KEEN": 0, 
+                    "BOOST": 0 
+                };
             }
-            formattedRevTrend[item._id.day][item._id.type] = item.amount;
+            
+            if (formattedRevTrend[day][category] === undefined) {
+                formattedRevTrend[day][category] = 0;
+            }
+            
+            formattedRevTrend[day][category] = parseFloat((formattedRevTrend[day][category] + item.amount).toFixed(2));
+        });
+
+        // Format Subscriber Growth Trend
+        const formattedSubscriberGrowth = {};
+        rawSubscriberGrowth.forEach(item => {
+            const day = item._id.day;
+            const type = item._id.type; // "new" or "cancelled"
+
+            if (!formattedSubscriberGrowth[day]) {
+                formattedSubscriberGrowth[day] = { 
+                    day: day, 
+                    new: 0, 
+                    cancelled: 0,
+                    net: 0 
+                };
+            }
+            
+            formattedSubscriberGrowth[day][type] += item.count;
+            // update net each time we modify new or cancelled
+            formattedSubscriberGrowth[day].net = formattedSubscriberGrowth[day].new - formattedSubscriberGrowth[day].cancelled;
         });
 
         const activeCountCurrent = totals[0]?.activeSubscribers || 0;
@@ -645,7 +733,7 @@ exports.getDashboardStats = async (req, res, next) => {
             success: true,
             data: {
                 kpis: {
-                    totalUsers: totalActiveUsers,
+                    consumableRevenue: monthlyConsumableRevenueResult[0]?.totalAmount || 0,
                     activeSubscribers: {
                         count: activeCountCurrent,
                         change: `${subChange}%`
@@ -665,9 +753,10 @@ exports.getDashboardStats = async (req, res, next) => {
                 },
                 charts: {
                     revenueTrend: Object.values(formattedRevTrend),
+                    subscriberGrowth: Object.values(formattedSubscriberGrowth),
                     platformMix: platformMix.map(p => ({ platform: p._id, revenue: p.revenue })),
                     planDistribution: finalPlanDist,
-                    bestSellingProducts
+                    bestSellingProducts: formattedBestSelling
                 },
                 last24HoursActivity: {
                     newSubscriptions: last24hActivity[0],

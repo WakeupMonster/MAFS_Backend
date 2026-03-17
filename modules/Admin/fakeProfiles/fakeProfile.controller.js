@@ -42,7 +42,7 @@ const listAll = async (req, res) => {
         const result = await fakeProfileService.listFakeProfiles(value);
 
         // Format each profile in the result
-        const formattedData = await Promise.all(result.map(async (item) => {
+        const formattedData = await Promise.all(result.data.map(async (item) => {
             return {
                 user: await formatProfileResponse(item.user, item.profile, [], [], {}, req)
             };
@@ -50,7 +50,8 @@ const listAll = async (req, res) => {
 
         res.status(200).json({
             success: true,
-            data: formattedData
+            data: formattedData,
+            pagination: result.pagination
         });
     } catch (error) {
         console.error("List Fake Profiles Error:", error);

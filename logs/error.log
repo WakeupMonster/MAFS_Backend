@@ -163,3 +163,17 @@
 {"level":"error","message":"[CRON] Expire check error:","service":"iap-service","timestamp":"2026-03-16 16:45:05"}
 {"level":"error","message":"[CRON] Cancelled expire check error:","service":"iap-service","timestamp":"2026-03-16 16:45:05"}
 {"level":"error","message":"Transaction summary error:","service":"iap-service","timestamp":"2026-03-16 21:54:19"}
+{"level":"error","message":"[CRON] Cancelled expire check error:","service":"iap-service","timestamp":"2026-03-17 12:20:05"}
+{"level":"error","message":"[CRON] Failed events check error:","service":"iap-service","timestamp":"2026-03-17 12:20:05"}
+{"level":"error","message":"[CRON] Expire check error:","service":"iap-service","timestamp":"2026-03-17 12:20:05"}
+{"level":"error","message":"[CRON] Cancelled expire check error:","service":"iap-service","timestamp":"2026-03-17 12:25:06"}
+{"level":"error","message":"[CRON] Expire check error:","service":"iap-service","timestamp":"2026-03-17 12:25:06"}
+{"level":"error","message":"[CRON] Cancelled expire check error:","service":"iap-service","timestamp":"2026-03-17 13:40:14"}
+{"level":"error","message":"[CRON] Failed events check error:","service":"iap-service","timestamp":"2026-03-17 15:20:05"}
+{"level":"error","message":"[CRON] Expire check error:","service":"iap-service","timestamp":"2026-03-17 15:20:05"}
+{"level":"error","message":"[CRON] Cancelled expire check error:","service":"iap-service","timestamp":"2026-03-17 15:20:05"}
+{"level":"error","message":"[CRON] Expire check error:","service":"iap-service","timestamp":"2026-03-17 15:25:06"}
+{"level":"error","message":"[CRON] Cancelled expire check error:","service":"iap-service","timestamp":"2026-03-17 15:25:06"}
+{"level":"error","message":"Verify purchase error:","service":"iap-service","timestamp":"2026-03-17 15:32:07"}
+{"level":"error","message":"[CRON] Expire check error:","service":"iap-service","timestamp":"2026-03-17 18:45:05"}
+{"level":"error","message":"[CRON] Cancelled expire check error:","service":"iap-service","timestamp":"2026-03-17 18:45:05"}
