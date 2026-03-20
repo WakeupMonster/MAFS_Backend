@@ -10832,3 +10832,33 @@
 {"level":"debug","message":"GET /api/v1/swipe/feed","service":"iap-service","timestamp":"2026-03-20 17:44:21"}
 {"level":"debug","message":"GET /api/v1/swipe/feed","service":"iap-service","timestamp":"2026-03-20 17:44:23"}
 {"level":"debug","message":"GET /api/v1/swipe/feed","service":"iap-service","timestamp":"2026-03-20 17:44:25"}
+{"level":"info","message":"[CRON] Subscription cron jobs initialized (v3 - No Grace Period)","service":"iap-service","timestamp":"2026-03-20 17:59:36"}
+{"level":"debug","message":"GET /api/v1/admin/moderation/pending-verifications?page=1&limit=10","service":"iap-service","timestamp":"2026-03-20 17:59:58"}
+{"level":"debug","message":"GET /api/v1/admin/fake-profiles?page=1&limit=10","service":"iap-service","timestamp":"2026-03-20 18:00:01"}
+{"level":"debug","message":"POST /api/v1/admin/fake-profiles/bulk-create","service":"iap-service","timestamp":"2026-03-20 18:00:19"}
+{"level":"debug","message":"GET /api/v1/admin/fake-profiles?page=1&limit=10","service":"iap-service","timestamp":"2026-03-20 18:00:21"}
+{"level":"debug","message":"PATCH /api/v1/profile/discovery-preference","service":"iap-service","timestamp":"2026-03-20 18:01:14"}
+{"level":"debug","message":"GET /api/v1/swipe/feed","service":"iap-service","timestamp":"2026-03-20 18:01:18"}
+{"level":"debug","message":"PATCH /api/v1/profile/discovery-preference","service":"iap-service","timestamp":"2026-03-20 18:01:29"}
+{"level":"debug","message":"GET /api/v1/swipe/feed?limit=71","service":"iap-service","timestamp":"2026-03-20 18:01:40"}
+{"level":"debug","message":"GET /api/v1/swipe/feed?limit=71","service":"iap-service","timestamp":"2026-03-20 18:01:44"}
+{"level":"debug","message":"GET /api/v1/swipe/feed?limit=71","service":"iap-service","timestamp":"2026-03-20 18:01:47"}
+{"level":"debug","message":"GET /api/v1/swipe/feed?limit=71","service":"iap-service","timestamp":"2026-03-20 18:01:53"}
+{"level":"debug","message":"GET /api/v1/swipe/feed?limit=71","service":"iap-service","timestamp":"2026-03-20 18:02:08"}
+{"level":"debug","message":"GET /api/v1/swipe/feed?limit=71","service":"iap-service","timestamp":"2026-03-20 18:02:12"}
+{"level":"debug","message":"GET /api/v1/swipe/feed?limit=71","service":"iap-service","timestamp":"2026-03-20 18:02:14"}
+{"level":"debug","message":"GET /api/v1/swipe/feed?limit=71","service":"iap-service","timestamp":"2026-03-20 18:02:19"}
+{"level":"debug","message":"GET /api/v1/swipe/feed?limit=60","service":"iap-service","timestamp":"2026-03-20 18:02:27"}
+{"level":"debug","message":"GET /api/v1/profile/me","service":"iap-service","timestamp":"2026-03-20 18:02:40"}
+{"level":"debug","message":"PATCH /api/v1/profile/discovery-preference","service":"iap-service","timestamp":"2026-03-20 18:02:58"}
+{"level":"debug","message":"GET /api/v1/swipe/feed?limit=60","service":"iap-service","timestamp":"2026-03-20 18:03:05"}
+{"level":"debug","message":"GET /api/v1/swipe/feed?limit=71","service":"iap-service","timestamp":"2026-03-20 18:03:10"}
+{"level":"debug","message":"GET /api/v1/swipe/feed?limit=75","service":"iap-service","timestamp":"2026-03-20 18:03:15"}
+{"level":"debug","message":"GET /api/v1/swipe/feed?limit=23","service":"iap-service","timestamp":"2026-03-20 18:03:48"}
+{"level":"debug","message":"GET /api/v1/swipe/feed?limit=23","service":"iap-service","timestamp":"2026-03-20 18:03:55"}
+{"level":"debug","message":"GET /api/v1/swipe/feed?limit=23","service":"iap-service","timestamp":"2026-03-20 18:03:58"}
+{"level":"debug","message":"GET /api/v1/swipe/feed?limit=23","service":"iap-service","timestamp":"2026-03-20 18:04:00"}
+{"level":"debug","message":"GET /api/v1/swipe/feed?limit=23","service":"iap-service","timestamp":"2026-03-20 18:04:11"}
+{"level":"debug","message":"GET /api/v1/swipe/feed?limit=71","service":"iap-service","timestamp":"2026-03-20 18:04:34"}
+{"level":"debug","message":"GET /api/v1/profile/me","service":"iap-service","timestamp":"2026-03-20 18:05:36"}
+{"level":"info","message":"[CRON] Subscription cron jobs initialized (v3 - No Grace Period)","service":"iap-service","timestamp":"2026-03-20 18:12:54"}

@@ -31,7 +31,7 @@ function calculateDistance(lat1, lon1, lat2, lon2) {
 async function getFeedService(userId, limit, page) {
   const CACHE_KEY = `feed:${userId.toString()}`;
   const SEEN_KEY = `feed:seen:${userId.toString()}`;
-  const CACHE_TTL = 3;
+  const CACHE_TTL = 30;
   const SEEN_TTL = 60 * 60 * 24;
   const skip = (page - 1) * limit;
 
