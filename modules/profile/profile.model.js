@@ -1,44 +1,44 @@
 const mongoose = require('mongoose');
 
 const GENDER_OPTIONS = [
-  "men", 
-  "women", 
-  "non-binary", 
-  "trans-man", 
-  "trans-women", 
-  "genderqueer", 
+  "men",
+  "women",
+  "non-binary",
+  "trans-man",
+  "trans-women",
+  "genderqueer",
   "everyone"
 ];
 
 const ProfileSchema = new mongoose.Schema({
-  userId: { 
-    type: mongoose.Schema.Types.ObjectId, 
-    ref: "User", 
-    required: true, 
-    unique: true, 
-    index: true 
+  userId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: "User",
+    required: true,
+    unique: true,
+    index: true
   },
 
   //admin name
-  fullName : {
+  fullName: {
     type: String
   },
   nickname: { type: String, trim: true, index: true },
   dob: { type: Date },
-  age: { type: Number }, 
+  age: { type: Number },
   // gender: { type: String },
-    gender: { 
-    type: String, 
+  gender: {
+    type: String,
     enum: {
       values: GENDER_OPTIONS,
       message: '{VALUE} is not a valid gender option'
     },
-    index: true 
+    index: true
   },
   pronouns: { type: String, default: null },
   height: { type: Number, default: null },
   weight: { type: Number, default: null },
-  about: { type: String, maxlength: 500 }, 
+  about: { type: String, maxlength: 500 },
   jobTitle: { type: String, default: null },
   company: { type: String, default: null },
   school: { type: String, default: null },
@@ -55,16 +55,16 @@ const ProfileSchema = new mongoose.Schema({
     bloodType: { type: String, default: "" },
     covidVaccine: { type: String, default: "" },
     religion: { type: String, default: "" },
-    
+
     // Lifestyle
     pets: { type: String, default: "" },
     drinking: { type: String, default: "" },
     smoking: { type: String, default: "" },
-    workout: { type: String, default: ""},
+    workout: { type: String, default: "" },
     dietary: { type: String, default: "" },
     sleeping: { type: String, default: "" },
     socialMedia: { type: String, default: "" },
-    
+
     // Arrays (Store Meta IDs)
     languages: { type: [String], default: [] },
     interests: { type: [String], default: [] },
@@ -75,45 +75,45 @@ const ProfileSchema = new mongoose.Schema({
   },
 
   discovery: {
-    distanceRange: { type: Number, default: 50 , min: 1, max: 500}, // in km
+    distanceRange: { type: Number, default: 50, min: 1, max: 500 }, // in km
     ageRange: {
       min: { type: Number, default: 18 },
       max: { type: Number, default: 60 }
     },
     // showMeGender: { type: [String], default: null }, 
-    showMeGender: { 
-    type: [String], // Array of Strings
-    enum: {
+    showMeGender: {
+      type: [String], // Array of Strings
+      enum: {
         values: GENDER_OPTIONS,
-        message: '{VALUE} is not a valid option for showMeGender' 
+        message: '{VALUE} is not a valid option for showMeGender'
+      },
+      default: [] // ✅ BEST PRACTICE: Array ka default [] rakhein, null nahi.
     },
-    default: [] // ✅ BEST PRACTICE: Array ka default [] rakhein, null nahi.
-}, 
     relationshipGoal: { type: String, default: null }, // Stored as ID String
-    globalVisibility: { 
-        type: String, 
-        enum: ["everyone", "matches_only", "nobody"], 
-        default: "everyone" 
+    globalVisibility: {
+      type: String,
+      enum: ["everyone", "matches_only", "nobody"],
+      default: "everyone"
     },
     filterRelationshipGoal: String,
     preferredInterests: [String],
-  
-  // Advanced Scoring Filters
-  advancedFilters: {
-    zodiac: [String],
-    education: [String],
-    familyPlans: [String],
-    personalityType: [String],
-    communicationStyle: [String],
-    loveStyle: [String],
-    pets: [String],
-    drinking: [String],
-    smoking: [String],
-    workout: [String],
-    dietary: [String],
-    socialMedia: [String],
-    sleeping: [String]
-  }
+
+    // Advanced Scoring Filters
+    advancedFilters: {
+      zodiac: [String],
+      education: [String],
+      familyPlans: [String],
+      personalityType: [String],
+      communicationStyle: [String],
+      loveStyle: [String],
+      pets: [String],
+      drinking: [String],
+      smoking: [String],
+      workout: [String],
+      dietary: [String],
+      socialMedia: [String],
+      sleeping: [String]
+    }
   },
 
   photos: [{
@@ -128,37 +128,37 @@ const ProfileSchema = new mongoose.Schema({
     type: { type: String, default: "Point" },
     coordinates: { type: [Number], default: [0, 0] }, // [Longitude, Latitude]
     city: String,
-    state: String, 
+    state: String,
     country: String,
     full_address: String
   },
 
 
   verification: {
-    status: { 
-        type: String, 
-        enum: ["not_started", "pending", "approved", "rejected"], 
-        default: "not_started",
-        index: true 
+    status: {
+      type: String,
+      enum: ["not_started", "pending", "approved", "rejected"],
+      default: "not_started",
+      index: true
     },
     verifiedBy: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: "User",
-    default: null
-  },
-   verifiedAt: {
-    type: Date,
-    default: null
-  },
-   submittedAt: {
-        type: Date,
-        default: null
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+      default: null
+    },
+    verifiedAt: {
+      type: Date,
+      default: null
+    },
+    submittedAt: {
+      type: Date,
+      default: null
     },
     selfieUrl: String,
     docUrl: String,
     rejectionReason: {
-      type : String,
-      default : null
+      type: String,
+      default: null
     }
   },
 
@@ -186,12 +186,12 @@ const ProfileSchema = new mongoose.Schema({
     selfieUploaded: { type: Boolean, default: false },
     idDocumentUploaded: { type: Boolean, default: false },
     locationSet: { type: Boolean, default: false },
-    
+
     bioSet: { type: Boolean, default: false },
     lifestyleSet: { type: Boolean, default: false },
     languagesSet: { type: Boolean, default: false },
     educationSet: { type: Boolean, default: false },
-    
+
     mandatoryCompletion: { type: Number, default: 0 },
     optionalCompletion: { type: Number, default: 0 },
     totalCompletion: { type: Number, default: 0 },
@@ -201,25 +201,25 @@ const ProfileSchema = new mongoose.Schema({
 
 
   onboarding: {
-  nextstep: {
-    type: Number,
-    default: 1,
-    min: 1
+    nextstep: {
+      type: Number,
+      default: 1,
+      min: 1
+    },
+    currentScreenSlug: {
+      type: String,
+      default: "welcome_screen",
+      index: true
+    },
+    isComplete: {
+      type: Boolean,
+      default: false
+    },
+    updatedAt: {
+      type: Date,
+      default: Date.now
+    }
   },
-  currentScreenSlug: {
-    type: String,
-    default: "welcome_screen",
-    index: true
-  },
-  isComplete: {
-    type: Boolean,
-    default: false
-  },
-  updatedAt: {
-    type: Date,
-    default: Date.now
-  }
-},
 
 
   settings: {
@@ -241,17 +241,62 @@ const ProfileSchema = new mongoose.Schema({
 
 ProfileSchema.index({ location: "2dsphere" });
 
-ProfileSchema.pre('save', function(next) {
+// ProfileSchema.pre('save', function(next) {
+//   const profile = this;
+
+//   const hasNickname = !!profile.nickname;
+//   const hasDob = !!profile.dob;
+//   const hasGender = !!profile.gender;
+//   const hasLocation = !!(profile.location && profile.location.city);
+//   const hasMinPhotos = !!(profile.photos && profile.photos.length >= 1);
+//   const hasGoal = !!profile.discovery?.relationshipGoal;
+//   const hasInterests = !!(profile.attributes?.interests && profile.attributes.interests.length >= 3);
+
+//   profile.onboardingProgress.nicknameSet = hasNickname;
+//   profile.onboardingProgress.dobSet = hasDob;
+//   profile.onboardingProgress.genderSet = hasGender;
+//   profile.onboardingProgress.photosUploaded = hasMinPhotos;
+//   profile.onboardingProgress.locationSet = hasLocation;
+//   profile.onboardingProgress.relationshipGoalSet = hasGoal;
+//   profile.onboardingProgress.interestsSet = hasInterests;
+
+//   let score = 0;
+//   if (hasNickname) score += 15;
+//   if (hasDob) score += 10;
+//   if (hasGender) score += 10;
+//   if (hasLocation) score += 10;
+//   if (hasMinPhotos) score += 25; 
+//   if (hasGoal) score += 15;
+//   if (hasInterests) score += 15;
+
+//   profile.onboardingProgress.totalCompletion = score;
+
+//   const isProfileReady = hasNickname && hasDob && hasGender && hasMinPhotos && hasLocation;
+
+//   profile.isMandatoryComplete = isProfileReady;
+//   next();
+// });
+
+
+
+ProfileSchema.pre('save', function (next) {
   const profile = this;
-  
+  const attr = profile.attributes || {};
+
+  // ========================================
+  // CATEGORY 1: ONBOARDING STEPS (50% max)
+  // ========================================
   const hasNickname = !!profile.nickname;
   const hasDob = !!profile.dob;
   const hasGender = !!profile.gender;
   const hasLocation = !!(profile.location && profile.location.city);
   const hasMinPhotos = !!(profile.photos && profile.photos.length >= 1);
   const hasGoal = !!profile.discovery?.relationshipGoal;
-  const hasInterests = !!(profile.attributes?.interests && profile.attributes.interests.length >= 3);
+  const hasInterests = !!(attr.interests && attr.interests.length >= 3);
+  const hasSelfie = !!profile.verification?.selfieUrl;
+  const hasIdDocument = !!profile.verification?.docUrl;
 
+  // Update onboarding flags
   profile.onboardingProgress.nicknameSet = hasNickname;
   profile.onboardingProgress.dobSet = hasDob;
   profile.onboardingProgress.genderSet = hasGender;
@@ -259,85 +304,62 @@ ProfileSchema.pre('save', function(next) {
   profile.onboardingProgress.locationSet = hasLocation;
   profile.onboardingProgress.relationshipGoalSet = hasGoal;
   profile.onboardingProgress.interestsSet = hasInterests;
+  profile.onboardingProgress.selfieUploaded = hasSelfie;
+  profile.onboardingProgress.idDocumentUploaded = hasIdDocument;
 
-  let score = 0;
-  if (hasNickname) score += 15;
-  if (hasDob) score += 10;
-  if (hasGender) score += 10;
-  if (hasLocation) score += 10;
-  if (hasMinPhotos) score += 25; 
-  if (hasGoal) score += 15;
-  if (hasInterests) score += 15;
-  
-  profile.onboardingProgress.totalCompletion = score;
+  let onboardingScore = 0;
+  if (hasNickname) onboardingScore += 7;
+  if (hasDob) onboardingScore += 5;
+  if (hasGender) onboardingScore += 5;
+  if (hasLocation) onboardingScore += 5;
+  if (hasMinPhotos) onboardingScore += 10;
+  if (hasGoal) onboardingScore += 6;
+  if (hasInterests) onboardingScore += 6;
+  if (hasSelfie) onboardingScore += 3;
+  if (hasIdDocument) onboardingScore += 3;
+  // Onboarding Max: 50
 
+  // ========================================
+  // CATEGORY 2: PROFILE ATTRIBUTES (50% max)
+  // ========================================
+  let attributeScore = 0;
+
+  // Group A: Basics (20% total — 2.5 each × 8 fields)
+  const basics = ['zodiac', 'education', 'familyPlans', 'personalityType',
+    'communicationStyle', 'loveStyle', 'religion'];
+  basics.forEach(field => {
+    if (attr[field]) attributeScore += 2.5;
+  });
+  if (attr.languages && attr.languages.length >= 1) attributeScore += 2.5;
+
+  // Group B: Lifestyle (18% total — 3 each × 6 fields)
+  const lifestyle = ['pets', 'drinking', 'smoking', 'workout', 'dietary', 'sleeping'];
+  lifestyle.forEach(field => {
+    if (attr[field]) attributeScore += 3;
+  });
+
+  // Group C: Preference Arrays (8% total — 2 each × 4 fields)
+  const preferences = ['music', 'movies', 'books', 'travel'];
+  preferences.forEach(field => {
+    if (attr[field] && attr[field].length >= 1) attributeScore += 2;
+  });
+
+  // Group D: Extra Profile Info (4% total — 2 each × 2 fields)
+  if (profile.about) attributeScore += 2;
+  if (attr.socialMedia) attributeScore += 2;
+  // Attributes Max: 50
+
+  // ========================================
+  // FINAL TOTAL SCORE
+  // ========================================
+  profile.onboardingProgress.totalCompletion = Math.min(Math.round(onboardingScore + attributeScore), 100);
+
+  // Mandatory check (untouched — existing logic)
   const isProfileReady = hasNickname && hasDob && hasGender && hasMinPhotos && hasLocation;
-
   profile.isMandatoryComplete = isProfileReady;
+
   next();
 });
 
+
 module.exports = mongoose.model("Profile", ProfileSchema);
-
-
-
-
-
-// ProfileSchema.pre('save', function(next) {
-//   const profile = this;
-//   const attr = profile.attributes || {};
-  
-//   let score = 0;
-
-//   // --- 1. MANDATORY CORE (Total: 70%) ---
-//   if (profile.nickname) score += 10;
-//   if (profile.dob) score += 10;
-//   if (profile.gender) score += 10;
-//   if (profile.location?.city) score += 10;
-//   if (profile.photos?.length >= 1) score += 10;
-//   if (profile.photos?.length >= 2) score += 10; // Extra for 2nd photo
-//   if (profile.discovery?.relationshipGoal) score += 10;
-
-//   // --- 2. PROFILE DEPTH & TRAITS (Total: 30%) ---
-//   // Basic Details (5%)
-//   if (profile.about) score += 2;
-//   if (profile.jobTitle || profile.school) score += 3;
-
-//   // Interests & Languages (10%)
-//   if (attr.interests?.length >= 5) score += 5;
-//   if (attr.languages?.length >= 1) score += 5;
-
-//   // Figma Traits - Chips (Total 15%)
-//   // Hum har field ke liye 1-1 ya 2-2 points denge
-//   const traits = [
-//     'zodiac', 'education', 'familyPlans', 'personalityType', 
-//     'communicationStyle', 'loveStyle', 'pets', 'drinking', 
-//     'smoking', 'workout', 'dietary', 'religion'
-//   ];
-
-//   let filledTraits = 0;
-//   traits.forEach(t => { if (attr[t]) filledTraits++; });
-  
-//   // Scoring traits: 15 points total for 12 traits (~1.25 per trait)
-//   score += Math.round((filledTraits / traits.length) * 15);
-
-//   // Final Score Cap
-//   profile.onboardingProgress.totalCompletion = Math.min(score, 100);
-
-//   // --- 3. SYSTEM FLAGS (The "Swipe Gate") ---
-//   const isProfileReady = !!(profile.nickname && profile.dob && profile.gender && profile.photos?.length >= 2 && profile.location?.city);
-//   const isVerified = profile.verification?.status === 'approved';
-
-//   profile.isMandatoryComplete = isProfileReady;
-  
-//   // Swipe allowed only if Ready + Approved
-//   if (isProfileReady && isVerified) {
-//     profile.canAccessSwipe = true;
-//     profile.isDiscoverable = true;
-//   } else {
-//     profile.canAccessSwipe = false;
-//     profile.isDiscoverable = false;
-//   }
-
-//   next();
-// });

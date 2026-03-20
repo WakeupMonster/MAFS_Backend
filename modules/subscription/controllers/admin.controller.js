@@ -611,7 +611,9 @@ exports.getDashboardStats = async (req, res, next) => {
                     }
                 },
                 { $sort: { "_id.day": 1 } }
-            ])
+            ]),
+
+            Subscription.countDocuments({ planType: 'MILESTONE' })
         ]);
 
         const [
@@ -628,7 +630,8 @@ exports.getDashboardStats = async (req, res, next) => {
             planDistribution,
             activeSubscriptions,
             monthlyConsumableRevenueResult,
-            rawSubscriberGrowth
+            rawSubscriberGrowth,
+            milestoneCount
         ] = results;
 
         // MRR Calculation
@@ -637,7 +640,7 @@ exports.getDashboardStats = async (req, res, next) => {
         const priceMap = {};
         const productNameMap = {};
         const categoryMap = {};
-        
+
         allProducts.forEach(p => {
             // Setup for MRR
             if (p.type === 'SUBSCRIPTION') {
@@ -647,7 +650,7 @@ exports.getDashboardStats = async (req, res, next) => {
                 if (p.appleProductId) priceMap[p.appleProductId] = monthlyPrice;
                 if (p.googleProductId) priceMap[p.googleProductId] = monthlyPrice;
             }
-            
+
             // Setup for Best Selling Products Names
             productNameMap[p.productKey] = p.displayName;
             if (p.appleProductId) productNameMap[p.appleProductId] = p.displayName;
@@ -657,7 +660,7 @@ exports.getDashboardStats = async (req, res, next) => {
             let category = "other";
             if (p.type === 'SUBSCRIPTION') category = p.planType || 'subscription';
             if (p.type === 'CONSUMABLE') category = p.consumableType || 'consumable';
-            
+
             categoryMap[p.productKey] = category;
             if (p.appleProductId) categoryMap[p.appleProductId] = category;
             if (p.googleProductId) categoryMap[p.googleProductId] = category;
@@ -688,19 +691,19 @@ exports.getDashboardStats = async (req, res, next) => {
             const category = categoryMap[item._id.productId] || 'other';
 
             if (!formattedRevTrend[day]) {
-                formattedRevTrend[day] = { 
-                    day: day, 
-                    "1_MONTH": 0, 
-                    "3_MONTH": 0, 
-                    "SUPER_KEEN": 0, 
-                    "BOOST": 0 
+                formattedRevTrend[day] = {
+                    day: day,
+                    "1_MONTH": 0,
+                    "3_MONTH": 0,
+                    "SUPER_KEEN": 0,
+                    "BOOST": 0
                 };
             }
-            
+
             if (formattedRevTrend[day][category] === undefined) {
                 formattedRevTrend[day][category] = 0;
             }
-            
+
             formattedRevTrend[day][category] = parseFloat((formattedRevTrend[day][category] + item.amount).toFixed(2));
         });
 
@@ -711,14 +714,14 @@ exports.getDashboardStats = async (req, res, next) => {
             const type = item._id.type; // "new" or "cancelled"
 
             if (!formattedSubscriberGrowth[day]) {
-                formattedSubscriberGrowth[day] = { 
-                    day: day, 
-                    new: 0, 
+                formattedSubscriberGrowth[day] = {
+                    day: day,
+                    new: 0,
                     cancelled: 0,
-                    net: 0 
+                    net: 0
                 };
             }
-            
+
             formattedSubscriberGrowth[day][type] += item.count;
             // update net each time we modify new or cancelled
             formattedSubscriberGrowth[day].net = formattedSubscriberGrowth[day].new - formattedSubscriberGrowth[day].cancelled;
@@ -746,9 +749,9 @@ exports.getDashboardStats = async (req, res, next) => {
                     conversionRate: totalActiveUsers > 0 ? ((activeCountCurrent / totalActiveUsers * 100).toFixed(2) + "%") : "0%",
                     churnRate: activeCountStartOfMonth > 0 ? ((monthlyCancellations / activeCountStartOfMonth * 100).toFixed(1) + "%") : "0%",
                     milestone: {
-                        currentCount: activeCountCurrent, // or use specific milestone logic
+                        currentCount: milestoneCount,
                         targetCount: config.milestone.targetUserCount,
-                        percentage: (activeCountCurrent / config.milestone.targetUserCount * 100).toFixed(1)
+                        percentage: (milestoneCount / config.milestone.targetUserCount * 100).toFixed(1)
                     }
                 },
                 charts: {

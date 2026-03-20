@@ -94,7 +94,7 @@ class SubscriptionService {
     const identifier = data.transactionId || data.purchaseToken || String(Date.now());
     const eventType = "CONSUMABLE_PURCHASE";
     const key = generateIdempotencyKey(data.platform, eventType, identifier);
-    
+
     // Using exists instead of findOne for performance, since we only need the boolean representation
     const txnExists = await SubscriptionTransaction.exists({ idempotencyKey: key });
     if (txnExists) {
@@ -398,6 +398,85 @@ class SubscriptionService {
     logger.info("Subscription refunded/revoked", { subscriptionId: sub._id });
     return sub;
   }
+
+  // ─── CONSUMABLE REFUND (WALLET SE WAPAS LENA) ───
+  async handleConsumableRefund(data) {
+    try {
+      // // 1. Kis user ne ye purchase kiya tha? (Transaction table se nikalna)
+      // const originalTx = await SubscriptionTransaction.findOne({
+      //   purchaseToken: data.purchaseToken,
+      //   eventType: "CONSUMABLE_PURCHASE"
+      // });
+
+      // 1. Kis user ne ye purchase kiya tha? (Transaction table se nikalna)
+      const originalTx = await SubscriptionTransaction.findOne({
+        $or: [
+          { purchaseToken: data.purchaseToken },
+          { transactionId: data.purchaseToken },      // Apple yaha catch hoga
+          { transactionId: data.transactionId },      // iOS fallback
+          { transactionId: data.originalTransactionId }
+        ],
+        eventType: "CONSUMABLE_PURCHASE"
+      });
+
+
+      if (!originalTx) {
+        logger.error("Consumable refund ke liye purani transaction nahi mili", data);
+        return;
+      }
+
+      // 2. Wo product (Boost/SuperKeen) kitne pack ka tha?
+      const catalogProduct = await Product.findOne({
+        $or: [
+          { appleProductId: data.productId },
+          { googleProductId: data.productId },
+          { productKey: data.productId }
+        ]
+      }).lean();
+
+      if (!catalogProduct) return;
+
+      // 3. Deduction (Minus) Field tayar karna
+      const decrementField = {};
+      if (catalogProduct.consumableType === 'SUPER_KEEN') {
+        decrementField.superKeensBalance = -catalogProduct.quantity; // Minus
+      } else if (catalogProduct.consumableType === 'BOOST') {
+        decrementField.boostsBalance = -catalogProduct.quantity; // Minus
+      }
+
+      // 4. User ke Wallet table se minus kar dena
+      await UserConsumableBalance.findOneAndUpdate(
+        { userId: originalTx.userId },
+        { $inc: decrementField }
+      );
+
+      // Agar user ne kharch kar diye the, toh -ve me na jaye
+      await UserConsumableBalance.updateMany(
+        { userId: originalTx.userId, superKeensBalance: { $lt: 0 } },
+        { $set: { superKeensBalance: 0 } }
+      );
+      await UserConsumableBalance.updateMany(
+        { userId: originalTx.userId, boostsBalance: { $lt: 0 } },
+        { $set: { boostsBalance: 0 } }
+      );
+
+      // 5. Fraud Log record kar lena (Record History)
+      await this._logTransaction({
+        userId: originalTx.userId,
+        platform: data.platform,
+        purchaseToken: data.purchaseToken,
+        productId: data.productId,
+        eventType: "CONSUMABLE_REFUND",
+        refundReason: "GOOGLE_CANCELED",
+      });
+
+      logger.info(`Fraud Roka Gaya: ${catalogProduct.quantity} ${catalogProduct.consumableType} kam kiye gaye`, { userId: originalTx.userId });
+
+    } catch (error) {
+      logger.error("Consumable refund handle error:", error.message);
+    }
+  }
+
 
   // ─── PAUSE ───
   async handlePause(data) {

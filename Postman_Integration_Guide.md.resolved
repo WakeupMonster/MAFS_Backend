@@ -1,0 +1,229 @@
+# 🛠️ Postman & Frontend Integration Guide (Subscription Engine V3)
+**End-to-End Developer Documentation for App Integration & API Testing**
+
+This document serves as the exact step-by-step guide for Frontend Developers (Flutter/React) and QA testers using Postman. It covers the complete journey from fetching products to verifying purchases, checking status, and triggering webhooks.
+
+---
+
+## 🔁 End-to-End Flow (How the App works)
+
+1. **App Opens** ➔ Frontend calls `GET /catalog` to show available plans and boost packs.
+2. **User Clicks "Buy"** ➔ Flutter/React Native opens the native Apple/Google Pay bottom sheet.
+3. **Payment Success** ➔ Native OS gives the App a `purchaseToken` or `transactionId`.
+4. **App Notifies Backend** ➔ Frontend sends this token to `POST /verify`. Backend validates it, adds it to the database, and returns the new Wallet/Limit status.
+5. **Home Screen Render** ➔ Frontend calls `GET /status` to check how many "Likes" or "SuperKeens" the user has left today.
+
+---
+
+## 🔌 1. Fetch Store Catalog
+**Use Case:** Showing the Paywall screen.
+Returns dynamic arrays of subscriptions, consumables (Boosts/SuperKeens), and the Free/Premium feature lists.
+
+- **Endpoint:** `GET {{baseURL}}/api/v1/subscription/catalog`
+- **Headers:** `Authorization: Bearer <USER_JWT>`
+
+**✅ Response (200 OK):**
+```json
+{
+    "success": true,
+    "message": "Catalog fetched",
+    "data": {
+        "subscriptions": [
+            {
+                "_id": "60d5ec...",
+                "appleProductId": "com.app.premium.1month",
+                "googleProductId": "com.app.premium.1month",
+                "planType": "1_MONTH",
+                "displayPrice": "$9.99",
+                "currency": "USD",
+                "features": ["Unlimited likes", "Advanced filters"]
+            }
+        ],
+        "consumables": {
+            "superKeens": [
+                {
+                    "appleProductId": "com.app.superkeen.pack5",
+                    "consumableType": "SUPER_KEEN",
+                    "quantity": 5,
+                    "displayPrice": "$4.99"
+                }
+            ],
+            "boosts": []
+        },
+        "freeFeatures": ["20 likes per day", "Basic filters"]
+    }
+}
+```
+
+---
+
+## 🛒 2. Verify Purchase (The Core API)
+**Use Case:** Right after Apple/Google successfully charges the user. Backend talks to Apple/Google servers (or Mocks them locally) to validate the receipt.
+
+- **Endpoint:** `POST {{baseURL}}/api/v1/subscription/verify`
+- **Headers:** `Authorization: Bearer <USER_JWT>`
+
+**📤 Request Body (JSON):**
+```json
+{
+  "platform": "ios", 
+  "productId": "com.keenasmustard.premium.1month",
+  "purchaseToken": "xyz123_test_receipt_data",
+  "transactionId": "GPA.333-222" 
+}
+```
+*(Note: For Android, `transactionId` represents `orderId`, and `purchaseToken` is the main token. For iOS, `transactionId` is required).*
+
+**✅ Response (200 OK - Example for Subscription):**
+```json
+{
+    "success": true,
+    "message": "Subscription verified successfully",
+    "data": {
+        "purchaseType": "SUBSCRIPTION",
+        "subscription": {
+            "status": "ACTIVE",
+            "planType": "1_MONTH",
+            "expiresAt": "2026-04-18T09:12:55.126Z",
+            "autoRenew": true
+        },
+        "status": {
+            "isPremium": true
+            // ... (Full Usage Status appended here)
+        }
+    }
+}
+```
+
+**✅ Response (200 OK - Example for Consumable):**
+```json
+{
+    "success": true,
+    "message": "5 SUPER_KEEN(s) added to your wallet!",
+    "data": {
+        "purchaseType": "CONSUMABLE",
+        "consumableType": "SUPER_KEEN",
+        "quantity": 5,
+        "wallet": {
+            "superKeens": 15,
+            "boosts": 0
+        }
+    }
+}
+```
+
+---
+
+## 📊 3. Get User Usage Status & Wallet
+**Use Case:** Re-opening the app. The Frontend needs to know if the user is Premium, and exactly how many Swipes/Boosts they can use before showing a Paywall.
+
+- **Endpoint:** `GET {{baseURL}}/api/v1/subscription/status`
+- **Headers:** `Authorization: Bearer <USER_JWT>`
+
+**✅ Response (200 OK):**
+```json
+{
+    "success": true,
+    "data": {
+        "isPremium": true,
+        "status": "ACTIVE",
+        "expiresAt": "2026-04-18T09:12:55.126Z",
+        "allocations": {
+            "likes": {
+                "limit": -1,         // -1 means Unlimited
+                "used": 45,
+                "remaining": -1,
+                "period": "daily",
+                "resetsAt": "2026-03-20T13:00:00.000Z"
+            },
+            "superKeens": {
+                "limit": 3,
+                "used": 1,
+                "remaining": 2,      // They can send 2 more today without spending from Wallet
+                "period": "daily",
+                "resetsAt": "2026-03-20T13:00:00.000Z"
+            }
+        },
+        "wallet": {
+            "superKeens": 10,        // Bought items stored forever
+            "boosts": 5
+        },
+        "premiumFeatures": {
+            "seeWhoLikedYou": true,
+            "noAds": true
+        }
+    }
+}
+```
+**Frontend Logic Note:** If a user sends a SuperKeen, the backend automatically deducts from `allocations.superKeens.remaining` first. If that hits `0`, it deducts from `wallet.superKeens`.
+
+---
+
+## 🔄 4. Restore Purchases
+**Use Case:** A user gets a new phone or uninstalled the app. They click "Restore Purchases" on the Paywall. Frontend grabs all past receipts from the OS and sends them as an array.
+
+- **Endpoint:** `POST {{baseURL}}/api/v1/subscription/restore`
+- **Headers:** `Authorization: Bearer <USER_JWT>`
+
+**📤 Request Body (JSON):**
+```json
+{
+  "platform": "ios",
+  "purchases": [
+    {
+      "productId": "com.keenasmustard.premium.1month",
+      "transactionId": "10000008392",
+      "purchaseToken": "receipt_data_..."
+    }
+  ]
+}
+```
+
+---
+
+## 🪝 5. Testing Webhooks in Postman (Fake Events)
+
+Webhooks don't require Authentication (Bearer token) because they come from Apple/Google.
+
+### 🍎 Simulating Apple App Store Webhook
+Apple sends signed JSON Web Signatures (JWS). If you want to test Apple's webhook without real keys, ensure `skipWebhookVerification: true` is set in your config, or use a proper Apple Sandbox payload.
+
+- **Endpoint:** `POST {{baseURL}}/api/v1/webhook/apple`
+
+**📤 Request Body (Raw JSON):**
+```json
+{
+  "signedPayload": "eyJhbG... (base64_encoded_JWT_here)"
+}
+```
+
+### 🤖 Simulating Google Play Webhook
+Google sends Base64 encoded messages wrapped inside a Pub/Sub payload.
+
+- **Endpoint:** `POST {{baseURL}}/api/v1/webhook/google`
+
+**📤 Request Body (JSON):**
+```json
+{
+  "message": {
+    "data": "eyJ2ZXJzaW9uIjoiMS4wIiwicGFja2FnZU5hbWUiOiJjb20ubWFmcy5hcHAiLCJldmVudFRpbWVNaWxsaXMiOiIxNTEyMzQ1Njc4OTAiLCJzdWJzY3JpcHRpb25Ob3RpZmljYXRpb24iOnsidmVyc2lvbiI6IjEuMCIsIm5vdGlmaWNhdGlvblR5cGUiOjEsInB1cmNoYXNlVG9rZW4iOiJzb21lX3Rva2VuIiwic3Vic2NyaXB0aW9uSWQiOiJjb20xX21vbnRoIn19",
+    "messageId": "1234567890"
+  }
+}
+```
+*(Note: Use a base64 encoder to encode testing JSON strings like `{"subscriptionNotification":{"notificationType":1}}` into the `data` field to simulate `PURCHASED`, `RENEWED` (Type 2), or `CANCELED` (Type 3) events).*
+
+---
+
+## 🛑 How Frontend Identifies Edge Cases
+
+1. **User Upgrades Plan:**
+   - Frontend triggers `/verify` with the new `productId` (e.g., `3month`).
+   - Backend matches the Apple `originalTransactionId`.
+   - Backend seamlessly overrides the old plan with the `3month` plan. No duplicates created.
+2. **User Runs Out of Boosts:**
+   - Call `/status`. If `wallet.boosts === 0`, Frontend should disable the "Boost Profile" button and pop up the Paywall pointing directly to the Consumable Boost Packs.
+3. **Refund Occurs via Webhook:**
+   - If User refunds 5 Boosts via Google Play Customer Support, Google hits the Webhook.
+   - The Backend automatically subtracts `-5` from `wallet.boosts`.
+   - On the next App open, `/status` responds with the reduced amount. User cannot exploit refunds.

@@ -76,7 +76,7 @@ module.exports.GETAllUsers = async (req, res) => {
     /* -----------------------------
      * 3️⃣ User Match
      * ----------------------------- */
-    const userMatch = { role: "USER" };
+    const userMatch = { role: "USER", isFake: { $ne: true } };
 
     if (accountStatus) userMatch.accountStatus = accountStatus;
     if (isPremium !== undefined) userMatch.isPremium = isPremium;
@@ -209,34 +209,12 @@ module.exports.SampleGETallUser = async (req, res) => {
       last24Hours,
     } = req.query;
 
-    // 1. Generate a unique cache key based on query params
-    // const cacheKey = `users:list:${JSON.stringify({
-    //   reqPage,
-    //   reqLimit,
-    //   search,
-    //   accountStatus,
-    //   isPremium,
-    //   isBanned,
-    // })}`;
-
-    // 2. Try to fetch from Redis
-    // const cachedData = await redis.get(cacheKey);
-    // if (cachedData) {
-    //   console.log("CACHE HIT");
-    //   return res.status(200).json({
-    //     success: true,
-    //     cached: true,
-    //     ...JSON.parse(cachedData),
-    //   });
-    // }
-
-    // --- YOUR EXISTING LOGIC START ---
     const page = Math.max(parseInt(reqPage) || 1, 1);
     const limit = Math.min(parseInt(reqLimit) || 10, 100);
     const skip = (page - 1) * limit;
     const searchTrimmed = search?.trim();
 
-    const baseMatch = { role: "USER" };
+    const baseMatch = { role: "USER", isFake: { $ne: true } };
     if (accountStatus) baseMatch.accountStatus = accountStatus;
     if (isPremium) baseMatch.isPremium = isPremium === "true";
     if (isBanned !== undefined)
@@ -246,12 +224,6 @@ module.exports.SampleGETallUser = async (req, res) => {
       const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
       baseMatch.lastLoginAt = { $gte: twentyFourHoursAgo };
     }
-
-    // const searchRegex = searchTrimmed
-    //   ? new RegExp(searchTrimmed.replace(/[.*+?^${}()|[\\/]\\]/g, "\\$&"), "i")
-    //   : null;
-
-    // Your Pipeline (Keeping your existing pipeline structure)
     const pipeline = [
       { $match: baseMatch },
       {
@@ -265,47 +237,47 @@ module.exports.SampleGETallUser = async (req, res) => {
       { $unwind: { path: "$profile", preserveNullAndEmptyArrays: true } },
       ...(searchTrimmed
         ? [
-            {
-              $match: {
-                $or: [
-                  {
-                    email: new RegExp(
-                      searchTrimmed.replace(/[.*+?^${}()|[\\/]\\]/g, "\\$&"),
-                      "i"
-                    ),
-                  },
-                  {
-                    phone: new RegExp(
-                      searchTrimmed.replace(/[.*+?^${}()|[\\/]\\]/g, "\\$&"),
-                      "i"
-                    ),
-                  },
-                  {
-                    "profile.nickname": new RegExp(
-                      searchTrimmed.replace(/[.*+?^${}()|[\\/]\\]/g, "\\$&"),
-                      "i"
-                    ),
-                  },
-                  {
-                    "profile.gender": new RegExp(
-                      searchTrimmed.replace(/[.*+?^${}()|[\\/]\\]/g, "\\$&"),
-                      "i"
-                    ),
-                  },
-                  {
-                    "profile.location.address": new RegExp(
-                      searchTrimmed.replace(/[.*+?^${}()|[\\/]\\]/g, "\\$&"),
-                      "i"
-                    ),
-                  },
-                  // Exact match for Age if search is a number
-                  ...(!isNaN(parseInt(searchTrimmed))
-                    ? [{ "profile.age": parseInt(searchTrimmed) }]
-                    : []),
-                ],
-              },
+          {
+            $match: {
+              $or: [
+                {
+                  email: new RegExp(
+                    searchTrimmed.replace(/[.*+?^${}()|[\\/]\\]/g, "\\$&"),
+                    "i"
+                  ),
+                },
+                {
+                  phone: new RegExp(
+                    searchTrimmed.replace(/[.*+?^${}()|[\\/]\\]/g, "\\$&"),
+                    "i"
+                  ),
+                },
+                {
+                  "profile.nickname": new RegExp(
+                    searchTrimmed.replace(/[.*+?^${}()|[\\/]\\]/g, "\\$&"),
+                    "i"
+                  ),
+                },
+                {
+                  "profile.gender": new RegExp(
+                    searchTrimmed.replace(/[.*+?^${}()|[\\/]\\]/g, "\\$&"),
+                    "i"
+                  ),
+                },
+                {
+                  "profile.location.address": new RegExp(
+                    searchTrimmed.replace(/[.*+?^${}()|[\\/]\\]/g, "\\$&"),
+                    "i"
+                  ),
+                },
+                // Exact match for Age if search is a number
+                ...(!isNaN(parseInt(searchTrimmed))
+                  ? [{ "profile.age": parseInt(searchTrimmed) }]
+                  : []),
+              ],
             },
-          ]
+          },
+        ]
         : [{ $sort: { createdAt: -1 } }]),
       {
         $lookup: {
@@ -371,69 +343,11 @@ module.exports.SampleGETallUser = async (req, res) => {
           },
         },
       },
-      // ...(searchRegex
-      //   ? [
-      //       {
-      //         $match: {
-      //           $or: [
-      //             { "account.email": searchRegex },
-      //             { "profile.nickname": searchRegex },
-      //           ],
-      //         },
-      //       }, // Simplified for brevity, use your full list
-      //       {
-      //         $addFields: {
-      //           searchScore: {
-      //             $sum: [
-      //               {
-      //                 $cond: [
-      //                   {
-      //                     $regexMatch: {
-      //                       input: { $ifNull: ["$profile.nickname", ""] },
-      //                       regex: searchRegex,
-      //                     },
-      //                   },
-      //                   10,
-      //                   0,
-      //                 ],
-      //               },
-      //               {
-      //                 $cond: [
-      //                   {
-      //                     $regexMatch: {
-      //                       input: { $ifNull: ["$account.email", ""] },
-      //                       regex: searchRegex,
-      //                     },
-      //                   },
-      //                   8,
-      //                   0,
-      //                 ],
-      //               },
-      //               {
-      //                 $cond: [
-      //                   {
-      //                     $regexMatch: {
-      //                       input: { $ifNull: ["$profile.jobTitle", ""] },
-      //                       regex: searchRegex,
-      //                     },
-      //                   },
-      //                   5,
-      //                   0,
-      //                 ],
-      //               },
-      //             ],
-      //           },
-      //         },
-      //       },
-      //       { $sort: { searchScore: -1, createdAt: -1 } },
-      //     ]
-      //   : [{ $sort: { createdAt: -1 } }]),
       {
         $facet: {
           data: [
             { $skip: skip },
             { $limit: limit },
-            // 🔥 NEW STATS LOOKUPS: Swipe Stats
             {
               $lookup: {
                 from: "swipes",
@@ -464,7 +378,6 @@ module.exports.SampleGETallUser = async (req, res) => {
                 preserveNullAndEmptyArrays: true,
               },
             },
-            // 🔥 NEW STATS LOOKUPS: Match Stats HISTORY & COUNT
             {
               $lookup: {
                 from: "matches",
@@ -472,7 +385,6 @@ module.exports.SampleGETallUser = async (req, res) => {
                 pipeline: [
                   { $match: { $expr: { $in: ["$$currentUserId", "$users"] } } },
                   { $sort: { matchedAt: -1 } },
-                  // We identify the "Other User" and get their profile info
                   {
                     $addFields: {
                       otherUserId: {
@@ -513,10 +425,50 @@ module.exports.SampleGETallUser = async (req, res) => {
               },
             },
             {
+              $lookup: {
+                from: "blocks",
+                let: { currentUserId: "$_id" },
+                pipeline: [
+                  { $match: { $expr: { $eq: ["$blockerId", "$$currentUserId"] } } },
+                  {
+                    $lookup: {
+                      from: "profiles",
+                      let: {
+                        bId: {
+                          $convert: { input: "$blockedId", to: "objectId", onError: null, onNull: null }
+                        }
+                      },
+                      pipeline: [
+                        { $match: { $expr: { $eq: ["$userId", "$$bId"] } } }
+                      ],
+                      as: "blockedProfile"
+                    }
+                  },
+                  { $unwind: { path: "$blockedProfile", preserveNullAndEmptyArrays: true } },
+                  {
+                    $project: {
+                      _id: "$blockedId",
+                      nickname: { $ifNull: ["$blockedProfile.nickname", ""] },
+                      photo: { $arrayElemAt: ["$blockedProfile.photos.url", 0] },
+                      blockedAt: "$createdAt"
+                    }
+                  }
+                ],
+                as: "blockedUsersData",
+              },
+            },
+            {
+              $lookup: {
+                from: "blockedcontacts",
+                localField: "_id",
+                foreignField: "userId",
+                as: "blockedContactsData",
+              },
+            },
+            {
               $project: {
                 _id: 1,
                 role: 1,
-                // 🔥 ADD THE STATS TO THE PROJECT OUTPUT
                 stats: {
                   totalSwipes: { $ifNull: ["$swipeStats.totalSwipes", 0] },
                   totalLikes: { $ifNull: ["$swipeStats.likes", 0] },
@@ -524,7 +476,6 @@ module.exports.SampleGETallUser = async (req, res) => {
                   totalMatches: { $size: "$matchData" },
                   totalTransactions: { $size: "$transactionHistory" }, // Useful stat
                 },
-                // Show only the 5 most recent matches in the array
                 recentMatches: { $slice: ["$matchData", 5] },
                 account: {
                   status: "$accountStatus",
@@ -634,6 +585,28 @@ module.exports.SampleGETallUser = async (req, res) => {
                 photos: "$profile.photos",
                 verification: "$profile.verification",
                 lastProfileUpdate: "$profile.lastProfileUpdate",
+                settings: {
+                  notifications: {
+                    push: { $ifNull: ["$profile.settings.notifications.push", true] },
+                    email: { $ifNull: ["$profile.settings.notifications.email", false] },
+                    matches: { $ifNull: ["$profile.settings.notifications.matches", true] },
+                    messages: { $ifNull: ["$profile.settings.notifications.messages", true] },
+                  },
+                  blockedContacts: {
+                    $map: {
+                      input: "$blockedContactsData",
+                      as: "bc",
+                      in: {
+                        name: "$$bc.blockedName",
+                        phone: "$$bc.blockedPhone",
+                        blockedPhoneHash: "$$bc.blockedPhoneHash",
+                        source: "$$bc.source",
+                        blockedAt: "$$bc.createdAt"
+                      }
+                    }
+                  },
+                  blockedUsers: "$blockedUsersData"
+                },
                 createdAt: 1,
                 lastLoginAt: 1,
                 isPhoneVerified: 1,
@@ -659,10 +632,6 @@ module.exports.SampleGETallUser = async (req, res) => {
       },
       data: users,
     };
-    // --- YOUR EXISTING LOGIC END ---
-
-    // 3. Save to Redis with an expiration time (e.g., 5 minutes / 300 seconds)
-    // await redis.set(cacheKey, responseData, "EX", 300);
 
     return res.status(200).json({
       success: true,
@@ -1161,8 +1130,8 @@ module.exports.GETExportAllUsers = async (req, res) => {
         doc.createdAt instanceof Date
           ? doc.createdAt.toISOString()
           : doc.createdAt
-          ? new Date(doc.createdAt).toISOString()
-          : "";
+            ? new Date(doc.createdAt).toISOString()
+            : "";
 
       csvStream.write({
         UserId: doc._id.toString(),

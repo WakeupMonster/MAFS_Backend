@@ -177,3 +177,14 @@
 {"level":"error","message":"Verify purchase error:","service":"iap-service","timestamp":"2026-03-17 15:32:07"}
 {"level":"error","message":"[CRON] Expire check error:","service":"iap-service","timestamp":"2026-03-17 18:45:05"}
 {"level":"error","message":"[CRON] Cancelled expire check error:","service":"iap-service","timestamp":"2026-03-17 18:45:05"}
+{"level":"error","message":"[CRON] Expire check error:","service":"iap-service","timestamp":"2026-03-18 15:15:06"}
+{"level":"error","message":"[CRON] Cancelled expire check error:","service":"iap-service","timestamp":"2026-03-18 15:15:06"}
+{"level":"error","message":"[CRON] Expire check error:","service":"iap-service","timestamp":"2026-03-18 16:40:06"}
+{"level":"error","message":"Milestone grant failed:","service":"iap-service","timestamp":"2026-03-19 15:28:31"}
+{"level":"error","message":"Milestone grant failed:","service":"iap-service","timestamp":"2026-03-19 15:31:03"}
+{"level":"error","message":"[CRON] Failed events check error:","service":"iap-service","timestamp":"2026-03-19 15:50:05"}
+{"level":"error","message":"[CRON] Cancelled expire check error:","service":"iap-service","timestamp":"2026-03-19 15:50:05"}
+{"level":"error","message":"[CRON] Expire check error:","service":"iap-service","timestamp":"2026-03-19 15:50:05"}
+{"level":"error","message":"[CRON] Expire check error:","service":"iap-service","timestamp":"2026-03-20 16:50:05"}
+{"level":"error","message":"[CRON] Failed events check error:","service":"iap-service","timestamp":"2026-03-20 16:50:05"}
+{"level":"error","message":"[CRON] Cancelled expire check error:","service":"iap-service","timestamp":"2026-03-20 16:50:05"}

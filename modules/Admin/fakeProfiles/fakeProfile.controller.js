@@ -14,10 +14,18 @@ const bulkCreate = async (req, res) => {
 
         // Format each profile in the result
         const formattedProfiles = await Promise.all(result.profiles.map(async (item) => {
+            const formatted = await formatProfileResponse(item.user, item.profile, [], [], {}, req);
+            formatted.account.email = item.user.email;
+            formatted.account.phone = item.user.phone;
+        
+        
+            
             return {
-                user: await formatProfileResponse(item.user, item.profile, [], [], {}, req)
+                user: formatted
             };
         }));
+
+        
 
         res.status(200).json({
             success: true,
@@ -43,8 +51,13 @@ const listAll = async (req, res) => {
 
         // Format each profile in the result
         const formattedData = await Promise.all(result.data.map(async (item) => {
+            const formatted = await formatProfileResponse(item.user, item.profile, [], [], {}, req);
+            // Append sensitive details only for Admin response
+            formatted.account.email = item.user.email;
+            formatted.account.phone = item.user.phone;
+            
             return {
-                user: await formatProfileResponse(item.user, item.profile, [], [], {}, req)
+                user: formatted
             };
         }));
 

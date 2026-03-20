@@ -28,11 +28,46 @@ const bulkCreateFakeProfiles = async ({ count, gender, ageRange, city, adminId }
 
     // 1. Fetch names from randomuser.me (Fastest way to get realistic names/DOBs)
     // Map gender for randomuser API names
-    const apiGender = (gender === "men" || gender === "trans-man") ? "men" :
-        (gender === "women" || gender === "trans-women") ? "women" : "";
+    const apiGender = (gender === "men" || gender === "trans-man") ? "male" :
+        (gender === "women" || gender === "trans-women") ? "female" : "";
 
-    const response = await axios.get(`https://randomuser.me/api/?results=${count}&gender=${apiGender}&nat=au`);
-    const apiUsers = response.data.results;
+    const apiUrl = apiGender
+        ? `https://randomuser.me/api/?results=${count}&gender=${apiGender}&nat=au`
+        : `https://randomuser.me/api/?results=${count}&nat=au`;
+
+    let apiUsers = [];
+    try {
+        const response = await axios.get(apiUrl, { timeout: 5000 });
+        apiUsers = response.data?.results || [];
+    } catch (err) {
+        console.warn("RandomUser API failed, falling back to local generation", err.message);
+    }
+
+    // ── FALLBACK LOGIC if API is down or returned empty `[]` ("d3adb33f" seed bug) ──
+    if (!apiUsers || apiUsers.length === 0) {
+        const fallbackMen = ["James", "William", "Oliver", "Jack", "Noah", "Thomas", "Lucas", "Liam", "Ethan", "Mason"];
+        const fallbackWomen = ["Charlotte", "Olivia", "Amelia", "Mia", "Isla", "Ava", "Chloe", "Grace", "Harper", "Sophia"];
+        
+        for (let i = 0; i < count; i++) {
+            const isMaleFallback = apiGender === "male" || (!apiGender && Math.random() > 0.5);
+            const namesPool = isMaleFallback ? fallbackMen : fallbackWomen;
+            const randomName = getRandom(namesPool) + Math.floor(Math.random() * 100); // add number for uniqueness
+            
+            // random DOB between ageRange min and max (fallback to 22-35 if not provided)
+            const minAge = ageRange?.min || 22;
+            const maxAge = ageRange?.max || 35;
+            const randomAge = Math.floor(Math.random() * (maxAge - minAge + 1)) + minAge;
+            const dob = new Date();
+            dob.setFullYear(dob.getFullYear() - randomAge);
+            dob.setMonth(Math.floor(Math.random() * 12));
+            dob.setDate(Math.floor(Math.random() * 28) + 1);
+
+            apiUsers.push({
+                name: { first: randomName },
+                dob: { date: dob.toISOString() }
+            });
+        }
+    }
 
     // 2. Prepare User Objects
     const userObjects = apiUsers.map(apiUser => {
@@ -119,7 +154,13 @@ const bulkCreateFakeProfiles = async ({ count, gender, ageRange, city, adminId }
                 totalCompletion: 100
             },
             isMandatoryComplete: true,
-            isProfileComplete: true
+            isProfileComplete: true,
+            onboarding: {
+                isComplete: true,
+                nextstep: 1,
+                currentScreenSlug: "complete",
+                updatedAt: new Date()
+            }
         };
     });
 
@@ -178,9 +219,10 @@ const listFakeProfiles = async ({ page, limit, gender, batchId, status, search, 
             }).select("_id").lean();
             const userMatchedIds = matchedUsers.map(u => u._id);
 
-            // Search in Profile model (nickname)
+            // Search in Profile model (nickname, city)
             profileQuery.$or = [
                 { nickname: searchRegex },
+                { "location.city": searchRegex },
                 { userId: { $in: userMatchedIds } }
             ];
         }

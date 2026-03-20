@@ -10,7 +10,7 @@ const logger = require("../utils/logger");
 const appleWebhook = async (req, res) => {
   try {
     const hash = generatePayloadHash(req.body);
-    
+
     // v3: Verify signature (True Production mode)
     const decoded = await appleService.verifyAndDecodeJWS(req.body.signedPayload);
 
@@ -87,8 +87,22 @@ async function _processAppleWebhook(decoded, event) {
         break;
       case "REFUND":
         data.refundReason = txn.revocationReason === 1 ? "APP_ISSUE" : "OTHER";
-        await subscriptionService.handleRefund(data);
+        // await subscriptionService.handleRefund(data);
+        // break;
+
+        // Check if the refunded item was a Consumable or a Subscription
+        const Product = require("../models_v3/Product");
+        const catalogProduct = await Product.findOne({ appleProductId: data.productId }).lean();
+        if (catalogProduct && catalogProduct.type === 'CONSUMABLE') {
+          // Apple Consumables ki history me transactionId save hota hai
+          data.purchaseToken = data.originalTransactionId || data.transactionId;
+          await subscriptionService.handleConsumableRefund(data);
+        } else {
+          // Normal Subscription refund
+          await subscriptionService.handleRefund(data);
+        }
         break;
+
       default:
         logger.info("Unhandled Apple event:", decoded.notificationType);
     }
@@ -126,7 +140,7 @@ const googleWebhook = async (req, res) => {
   try {
     const message = req.body.message;
     const data = googleService.decodeWebhookPayload(message.data);
-    
+
     // Check both paths: subscriptions and one-time products
     const notification = data.subscriptionNotification || data.oneTimeProductNotification;
     const isConsumable = !!data.oneTimeProductNotification;
@@ -144,7 +158,7 @@ const googleWebhook = async (req, res) => {
     } else {
       eventName = googleService.getEventName(notification.notificationType);
     }
-    
+
     const hash = generatePayloadHash(data);
 
     let event;
@@ -178,6 +192,11 @@ const googleWebhook = async (req, res) => {
   }
 };
 
+
+
+
+
+
 async function _processGoogleWebhook(notification, eventName, event, isConsumable = false) {
   try {
     let data;
@@ -205,7 +224,8 @@ async function _processGoogleWebhook(notification, eventName, event, isConsumabl
       }
       // Note: Consumables don't have RENEWED, EXPIRED etc. Canceled means revoked.
       if (eventName === "CONSUMABLE_CANCELED") {
-        await subscriptionService.handleRefund(data);
+        // await subscriptionService.handleRefund(data);
+        await subscriptionService.handleConsumableRefund(data);
       }
 
     } else {
@@ -237,27 +257,27 @@ async function _processGoogleWebhook(notification, eventName, event, isConsumabl
         case "RENEWED":
           await subscriptionService.handleRenew(data);
           break;
-      case "CANCELED":
-        data.cancellationReason =
-          detail.cancelReason === 0 ? "USER_CANCELLED" : "BILLING_ERROR";
-        await subscriptionService.handleCancel(data);
-        break;
-      case "IN_GRACE_PERIOD":
-      case "ON_HOLD":
-        // v3: No Grace Period! Treat as immediate expiry.
-        await subscriptionService.handleExpire(data);
-        break;
-      case "EXPIRED":
-        await subscriptionService.handleExpire(data);
-        break;
-      case "REVOKED":
-        await subscriptionService.handleRefund(data);
-        break;
-      case "PAUSED":
-        await subscriptionService.handlePause(data);
-        break;
-      default:
-        logger.info("Unhandled Google event:", eventName);
+        case "CANCELED":
+          data.cancellationReason =
+            detail.cancelReason === 0 ? "USER_CANCELLED" : "BILLING_ERROR";
+          await subscriptionService.handleCancel(data);
+          break;
+        case "IN_GRACE_PERIOD":
+        case "ON_HOLD":
+          // v3: No Grace Period! Treat as immediate expiry.
+          await subscriptionService.handleExpire(data);
+          break;
+        case "EXPIRED":
+          await subscriptionService.handleExpire(data);
+          break;
+        case "REVOKED":
+          await subscriptionService.handleRefund(data);
+          break;
+        case "PAUSED":
+          await subscriptionService.handlePause(data);
+          break;
+        default:
+          logger.info("Unhandled Google event:", eventName);
       }
     }
 

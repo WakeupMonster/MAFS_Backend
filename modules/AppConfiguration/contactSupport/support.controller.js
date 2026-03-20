@@ -1,5 +1,6 @@
 /* eslint-disable no-unused-vars */
 const SupportTicket = require("./supportTicket.model");
+const { sendEmail } = require("../../auth/auth.utils");
 
 module.exports.contactSupport = async (req, res) => {
   try {
@@ -33,184 +34,6 @@ module.exports.contactSupport = async (req, res) => {
   }
 };
 
-// module.exports.getAllTickets = async (req, res) => {
-//   try {
-//     const { status, search } = req.query;
-
-//     // Initial Match (Status Filter)
-//     let matchQuery = {};
-//     if (status && status !== "all") {
-//       matchQuery.status = status;
-//     }
-
-//     const tickets = await SupportTicket.aggregate([
-//       { $match: matchQuery },
-
-//       // 1. Join with User Collection
-//       {
-//         $lookup: {
-//           from: "users", // Aapke users collection ka name
-//           localField: "userId",
-//           foreignField: "_id",
-//           as: "userDetails",
-//         },
-//       },
-//       { $unwind: { path: "$userDetails", preserveNullAndEmptyArrays: true } },
-
-//       // 2. Join with Profile Collection
-//       // (Yahan hum userId match kar rahe hain profile collection ke userId field se)
-//       {
-//         $lookup: {
-//           from: "profiles", // Aapke profiles collection ka name check kar lena (plural hota hai)
-//           localField: "userId",
-//           foreignField: "userId",
-//           as: "profileDetails",
-//         },
-//       },
-//       {
-//         $unwind: { path: "$profileDetails", preserveNullAndEmptyArrays: true },
-//       },
-
-//       // 3. Search Filter (Subject, Nickname, Email par ek saath search)
-//       {
-//         $match: search
-//           ? {
-//               $or: [
-//                 { subject: { $regex: search, $options: "i" } },
-//                 { "userDetails.email": { $regex: search, $options: "i" } },
-//                 {
-//                   "profileDetails.nickname": { $regex: search, $options: "i" },
-//                 },
-//               ],
-//             }
-//           : {},
-//       },
-
-//       // 4. Project (Sirf wahi data jo frontend ko chahiye)
-//       {
-//         $project: {
-//           _id: 1,
-//           subject: 1,
-//           category: 1,
-//           status: 1,
-//           createdAt: 1,
-//           "user.email": "$userDetails.email",
-//           "user.phone": "$userDetails.phone",
-//           "user.nickname": "$profileDetails.nickname",
-//           "user.avatar": { $arrayElemAt: ["$profileDetails.photos.url", 0] },
-//         },
-//       },
-//       { $sort: { createdAt: -1 } },
-//     ]);
-
-//     return res.json({
-//       success: true,
-//       data: tickets,
-//     });
-//   } catch (err) {
-//     console.error("Ticket Fetch Error:", err);
-//     return res.status(500).json({
-//       success: false,
-//       message: "Failed to fetch tickets",
-//       error: err.message,
-//     });
-//   }
-// };
-
-// module.exports.getAllTickets = async (req, res) => {
-//   try {
-//     const { status, search } = req.query;
-//     let query = {};
-
-//     // 1. Status Filter (open, in_progress, resolved, closed)
-//     if (status && status !== "all") {
-//       query.status = status;
-//     }
-
-//     // 2. Search Filter (Subject ya Category par search karega)
-//     if (search) {
-//       query.$or = [
-//         { subject: { $regex: search, $options: "i" } },
-//         { category: { $regex: search, $options: "i" } }
-//       ];
-//     }
-
-//     const tickets = await SupportTicket.find(query)
-//       .populate({
-//         path: "userId",
-//         select: "email phone profile", // User model se email, phone aur profile ID uthayi
-//         populate: {
-//           path: "profile", // Ab User ke andar jo profile ID hai use populate kiya
-//           select: "nickname photos", // Profile model se nickname aur photo uthayi
-//         }
-//       })
-//       .sort({ createdAt: -1 })
-//       .lean();
-
-//     // const tickets = await SupportTicket.find(query)
-//     //   .populate("userId", "nickname email phone") // User details saath mein mangwai
-//     //   .select("userId category subject status adminReply createdAt updatedAt")
-//     //   .sort({ createdAt: -1 })
-//     //   .lean();
-
-//     return res.json({
-//       success: true,
-//       count: tickets.length,
-//       data: tickets
-//     });
-
-//   } catch (err) {
-//     return res.status(500).json({
-//       success: false,
-//       message: "Failed to fetch tickets",
-//       error: err.message
-//     });
-//   }
-// };
-
-// module.exports.getAllTickets = async (req, res) => {
-//   try {
-//     const tickets = await SupportTicket.find({})
-//       .select("userId category subject status adminReply createdAt updatedAt")
-//       .sort({ createdAt: -1 })
-//       .lean();
-
-//     return res.json({
-//       success: true,
-//       data: tickets
-//     });
-
-//   } catch (err) {
-//     return res.status(500).json({
-//       success: false,
-//       message: "Failed to fetch tickets"
-//     });
-//   }
-// };
-
-// module.exports.getMyTickets = async (req, res) => {
-//   try {
-//     const userId = req.user._id;
-
-//     // const tickets = await SupportTicket.find({ userId })
-//     //   .select("category subject status adminReply createdAt updatedAt")
-//     //   .sort({ createdAt: -1 })
-//     //   .lean();
-
-//     const tickets = await SupportTicket.find({ userId })
-//       .select("status")
-//     return res.json({
-//       success: true,
-//       data: tickets
-//     });
-
-//   } catch (err) {
-//     return res.status(500).json({
-//       success: false,
-//       message: "Failed to fetch tickets"
-//     });
-//   }
-// };
 
 module.exports.getAllTickets = async (req, res) => {
   try {
@@ -362,7 +185,7 @@ module.exports.replyToTicket = async (req, res) => {
       });
     }
 
-    const ticket = await SupportTicket.findById(ticketId);
+    const ticket = await SupportTicket.findById(ticketId).populate("userId", "email");
 
     if (!ticket) {
       return res.status(404).json({
@@ -376,6 +199,30 @@ module.exports.replyToTicket = async (req, res) => {
     ticket.repliedAt = new Date();
 
     await ticket.save();
+
+    // 📧 SEND EMAIL TO THE USER
+    if (ticket.userId && ticket.userId.email) {
+      const emailSubject = `Update on your Support Ticket: ${ticket.subject || 'MAFS Support'}`;
+      const emailHtml = `
+        <div style="font-family: Arial, sans-serif; padding: 20px; color: #333; line-height: 1.6;">
+          <h2 style="color: #00adef;">Support Ticket Update</h2>
+          <p>Hello,</p>
+          <p>Your support ticket has been updated to: <strong style="text-transform: capitalize;">${status.replace(/_/g, " ")}</strong></p>
+          <p><strong>Admin Reply:</strong></p>
+          <blockquote style="background: #f9f9f9; padding: 15px; border-left: 4px solid #00adef; margin: 10px 0;">
+            ${reply.replace(/\n/g, "<br/>")}
+          </blockquote>
+          <br/>
+          <p>Thank you for reaching out to us.</p>
+          <p>Best regards,<br/><strong>MAFS Support Team</strong></p>
+        </div>
+      `;
+      try {
+        await sendEmail(ticket.userId.email, emailSubject, emailHtml);
+      } catch (emailErr) {
+        console.error("Email sending failed for ticket reply:", emailErr);
+      }
+    }
 
     return res.json({
       success: true,

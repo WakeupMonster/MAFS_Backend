@@ -13,6 +13,19 @@ exports.getFeed = async (req, res) => {
     const limit = Number(req.query.limit) || 20;
     const page = Number(req.query.page) || 1;
 
+    // Fresh users (only phone verified, no profile) cannot access feed
+    const profileExists = await Profile.findOne({ userId }).select("_id").lean();
+    if (!profileExists) {
+      return res.status(403).json({
+        success: false,
+        message: "Please complete your profile setup to explore matches!",
+        data: {
+          actionAllowed: false,
+          reason: "PROFILE_NOT_FOUND"
+        }
+      });
+    }
+
     const feedResult = await service.getFeedService(userId, limit, page);
 
     return res.json({
@@ -30,7 +43,7 @@ exports.getFeed = async (req, res) => {
       // list: feedResult.data
       // },
       data: feedResult.data,
-      userQuota: feedResult.userQuota
+      // userQuota: feedResult.userQuota
     });
   } catch (err) {
     console.error("GET FEED ERROR:", err);
@@ -44,6 +57,46 @@ exports.action = async (req, res) => {
   try {
     const userId = req.user._id;
     const { targetId, action } = req.body;
+
+    // Gate: Only verified users with complete profiles can perform actions
+    const swiperProfile = await Profile.findOne({ userId })
+      .select("isMandatoryComplete verification")
+      .lean();
+
+    if (!swiperProfile) {
+      return res.status(403).json({
+        success: false,
+        message: "Please complete your profile to start matching!",
+        data: {
+          actionAllowed: false,
+          reason: "PROFILE_NOT_FOUND"
+        }
+      });
+    }
+
+    if (!swiperProfile.isMandatoryComplete) {
+      return res.status(403).json({
+        success: false,
+        message: "Complete your profile to start swiping!",
+        data: {
+          actionAllowed: false,
+          reason: "PROFILE_INCOMPLETE"
+        }
+      });
+    }
+
+    if (swiperProfile.verification?.status !== "approved") {
+      return res.status(403).json({
+        success: false,
+        message: "Verify your identity to unlock swiping! Upload your selfie and ID to get started.",
+        data: {
+          actionAllowed: false,
+          reason: "VERIFICATION_PENDING",
+          verificationStatus: swiperProfile.verification?.status || "not_started"
+        }
+      });
+    }
+
     const result = await service.doSwipe(userId, targetId, action);
     return res.json({
       success: true,

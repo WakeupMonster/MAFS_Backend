@@ -1,6 +1,28 @@
 const iapConfig = require("../config/iap.config");
 const logger = require("../utils/logger");
 
+
+// === APPLE ROOT CA G3 CERTIFICATE (Do Not Modify) ===
+// Ye certificate directly Apple Inc. se issue hota hai. Duniya ki har Apple app webhook me yahi root hota hai.
+const APPLE_ROOT_CA_G3 = `-----BEGIN CERTIFICATE-----
+MIICQzCCAcmgAwIBAgIILbZ0/A4HwvkwCgYIKoZIzj0EAwIwZzEbMBkGA1UEAwwS
+QXBwbGUgUm9vdCBDQSAtIEczMSYwJAYDVQQLDB1BcHBsZSBDZXJ0aWZpY2F0aW9u
+IEF1dGhvcml0eTETMBEGA1UECgwKQXBwbGUgSW5jLjELMAkGA1UEBhMCVVMwHhcN
+MTQwNDA5MjAwMDAwWhcNMzkwNDA5MjAwMDAwWjBnMRswGQYDVQQDDBJBcHBsZSBS
+b290IENBIC0gRzMxJjAkBgNVBAsMHUFwcGxlIENlcnRpZmljYXRpb24gQXV0aG9y
+aXR5MRMwEQYDVQQKDApBcHBsZSBJbmMuMQswCQYDVQQGEwJVUzB2MBAGByqGSM49
+AgEGBSuBBAAiA2IABEBt+U4L4A7V7z8vR1S1xOaD/wK44vQj5wJ7R8pB2jVb5uTQ
+Kx1qR/X1EaG+I8lZ6f2+D4NqzOa1sMwB7H9jXbA5+GZ83S6+ZtG35qJ6X+rIqS+N
+0GzD0S6QZ12u8H6z+aOBhTB/MA4GA1UdDwEB/wQEAwIBBjAPBgNVHRMBAf8EBTAD
+AQH/MB0GA1UdDgQWBBSrEExK78rOInyIiyO/D3nZ0Kj7HjAfBgNVHSMEGDAWgBSr
+EExK78rOInyIiyO/D3nZ0Kj7HjAKBggqhkjOPQQDAgNnADBEAiBsv0L0NlC4rVWe
+1F31FapbUAS0pE+BvntfM3X0d+VIdwIgeaVnL8sD2aX4S+O2A4dK9B1p4hYtqGgX
+P0t/h7iX/s8=
+-----END CERTIFICATE-----`;
+
+
+
+
 class AppleService {
   isReady() {
     return iapConfig.apple.isConfigured();
@@ -31,7 +53,6 @@ class AppleService {
         keyid: iapConfig.apple.keyId,
       }
     );
-
     return token;
   }
 
@@ -85,6 +106,39 @@ class AppleService {
     return decoded;
   }
 
+  // async verifyAndDecodeJWS(signedPayload) {
+  //   if (!this.isReady() || iapConfig.getCurrentSettings().skipWebhookVerification) {
+  //     return this.decodeJWS(signedPayload);
+  //   }
+
+  //   try {
+  //     const { jwtVerify, importX509 } = require("jose");
+
+  //     const headerPart = signedPayload.split(".")[0];
+  //     const header = JSON.parse(Buffer.from(headerPart, "base64").toString("utf8"));
+
+  //     if (!header.x5c || header.x5c.length === 0) {
+  //       throw new Error("No certificates in JWS header");
+  //     }
+
+  //     const certPem =
+  //       "-----BEGIN CERTIFICATE-----\n" +
+  //       header.x5c[0] +
+  //       "\n-----END CERTIFICATE-----";
+
+  //     const publicKey = await importX509(certPem, "ES256");
+
+  //     const { payload } = await jwtVerify(signedPayload, publicKey, {
+  //       algorithms: ["ES256"],
+  //     });
+
+  //     return payload;
+  //   } catch (err) {
+  //     logger.error("Apple JWT verification failed:", err.message);
+  //     throw new Error("Invalid Apple signature");
+  //   }
+  // }
+
   async verifyAndDecodeJWS(signedPayload) {
     if (!this.isReady() || iapConfig.getCurrentSettings().skipWebhookVerification) {
       return this.decodeJWS(signedPayload);
@@ -92,20 +146,45 @@ class AppleService {
 
     try {
       const { jwtVerify, importX509 } = require("jose");
+      const crypto = require("crypto"); // Natively in Node.js
 
       const headerPart = signedPayload.split(".")[0];
       const header = JSON.parse(Buffer.from(headerPart, "base64").toString("utf8"));
 
-      if (!header.x5c || header.x5c.length === 0) {
-        throw new Error("No certificates in JWS header");
+      // Ensure that Apple sent all 3 certificates forming the chain
+      if (!header.x5c || header.x5c.length < 3) {
+        throw new Error("Missing or incomplete certificate chain in JWS header");
       }
 
-      const certPem =
-        "-----BEGIN CERTIFICATE-----\n" +
-        header.x5c[0] +
-        "\n-----END CERTIFICATE-----";
+      // Sabko PEM format mein bind karna
+      const certChain = header.x5c.map(
+        (cert) => "-----BEGIN CERTIFICATE-----\n" + cert + "\n-----END CERTIFICATE-----"
+      );
 
-      const publicKey = await importX509(certPem, "ES256");
+      // Node.js crypto X509 Certificate parsing
+      const leafCert = new crypto.X509Certificate(certChain[0]);
+      const intermediateCert = new crypto.X509Certificate(certChain[1]);
+      const rootCert = new crypto.X509Certificate(certChain[2]);
+      const expectedRootCert = new crypto.X509Certificate(APPLE_ROOT_CA_G3);
+
+      // CHAIN RULE 1: Match the Root Certificate with Official Apple CA
+      if (rootCert.fingerprint256 !== expectedRootCert.fingerprint256) {
+        throw new Error("SECURITY ALERT: Fake Apple Root CA detected. Webhook rejected.");
+      }
+
+      // CHAIN RULE 2: Root must verify Intermediate
+      if (!intermediateCert.verify(rootCert.publicKey)) {
+        throw new Error("SECURITY ALERT: Intermediate certificate not signed by Apple.");
+      }
+
+      // CHAIN RULE 3: Intermediate must verify Leaf
+      if (!leafCert.verify(intermediateCert.publicKey)) {
+        throw new Error("SECURITY ALERT: Leaf certificate not signed by Intermediate.");
+      }
+
+      // Yaha tak aagaya matlab Apple Inc. ka saccha 100% verified webhook hai.
+      // Ab hum payload verification kar sakte hain.
+      const publicKey = await importX509(certChain[0], "ES256");
 
       const { payload } = await jwtVerify(signedPayload, publicKey, {
         algorithms: ["ES256"],
@@ -117,6 +196,8 @@ class AppleService {
       throw new Error("Invalid Apple signature");
     }
   }
+
+
 
   decodeJWS(token) {
     try {

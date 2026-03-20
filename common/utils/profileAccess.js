@@ -8,7 +8,7 @@ const canUserAccessFeed = ({ profile }) => {
   if (profile.verification?.status !== "approved") return false;
 
   // 3️⃣ User ne khud ko hide nahi kiya hona chahiye
-  if (profile.discovery?.globalVisibility === "nobody") return false;
+  // if (profile.discovery?.globalVisibility === "nobody") return false;
 
   return true;
 };

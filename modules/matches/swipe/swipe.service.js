@@ -29,9 +29,9 @@ function calculateDistance(lat1, lon1, lat2, lon2) {
 }
 
 async function getFeedService(userId, limit, page) {
-  const CACHE_KEY = `feed:${userId.toString()}:${limit}:${page}`;
+  const CACHE_KEY = `feed:${userId.toString()}`;
   const SEEN_KEY = `feed:seen:${userId.toString()}`;
-  const CACHE_TTL = 30;
+  const CACHE_TTL = 3;
   const SEEN_TTL = 60 * 60 * 24;
   const skip = (page - 1) * limit;
 
@@ -45,15 +45,9 @@ async function getFeedService(userId, limit, page) {
   if (!myProfile) throw new Error("Profile not found");
 
   const discovery = myProfile.discovery || {};
-  const canAccess = canUserAccessFeed({ profile: myProfile });
-  if (!canAccess || !myProfile.location?.coordinates) {
-    return {
-      success: false,
-      message: "Profile not eligible for discovery",
-      data: [],
-      onboardingRequired: true
-    };
-  }
+  // Feed is open to ALL users (even non-KYC). They can browse but cannot perform actions.
+  // Only KYC-approved profiles will appear in the feed (enforced via queryFilters below).
+  // If user has no location, $near filter is simply skipped (line 154 handles this).
 
   // 2. Fetch Seen Profiles from Redis (to avoid repeats in session)
   let seenProfiles = [];
@@ -66,8 +60,8 @@ async function getFeedService(userId, limit, page) {
     }
   }
 
-  // 3. Return from Cache if available
-  if (redis) {
+  // 3. Return from Cache if available (only page 1 — other pages always fresh)
+  if (redis && page === 1) {
     try {
       const cached = await redis.get(CACHE_KEY);
       if (cached) {
@@ -80,14 +74,33 @@ async function getFeedService(userId, limit, page) {
   }
 
   // 4. Gather Exclusion IDs (Always Excluded)
-  const [swipes, matches, myBlocked, blockedMe, myReports, receivedSuperlikes, nonActiveUsers] = await Promise.all([
+  // Cache nonActiveUsers globally — avoids full User table scan on every request
+  let nonActiveUserIds = [];
+  const NON_ACTIVE_KEY = 'global:nonActiveUsers';
+  if (redis) {
+    try {
+      const cachedNA = await redis.get(NON_ACTIVE_KEY);
+      if (cachedNA) {
+        nonActiveUserIds = JSON.parse(cachedNA);
+      } else {
+        nonActiveUserIds = (await User.find({ accountStatus: { $ne: "active" } }).distinct("_id")).map(id => id.toString());
+        await redis.set(NON_ACTIVE_KEY, nonActiveUserIds, { EX: 300 });
+      }
+    } catch (e) {
+      console.error("NonActiveUsers cache error:", e);
+      nonActiveUserIds = (await User.find({ accountStatus: { $ne: "active" } }).distinct("_id")).map(id => id.toString());
+    }
+  } else {
+    nonActiveUserIds = (await User.find({ accountStatus: { $ne: "active" } }).distinct("_id")).map(id => id.toString());
+  }
+
+  const [swipes, matches, myBlocked, blockedMe, myReports, receivedSuperlikes] = await Promise.all([
     Swipe.find({ swiperId: userId, action: { $in: ["like", "pass", "superlike"] } }).distinct("targetId"),
     Match.find({ users: userId }).distinct("users"),
     Block.find({ blockerId: userId }).distinct("blockedId"),
     Block.find({ blockedId: userId }).distinct("blockerId"),
     Report.find({ reporterId: userId }).distinct("reportedId"),
-    Swipe.find({ targetId: userId, action: "superlike" }).distinct("swiperId"),
-    User.find({ accountStatus: { $ne: "active" } }).distinct("_id")
+    Swipe.find({ targetId: userId, action: "superlike" }).distinct("swiperId")
   ]);
 
   const blockedPhoneHashes = await BlockedContact.find({ userId }).distinct("blockedPhoneHash");
@@ -97,31 +110,34 @@ async function getFeedService(userId, limit, page) {
     blockedByContactUserIds = users.map(id => id.toString());
   }
 
-  const baseExclude = [
-    ...new Set([
-      ...swipes.map(id => id.toString()),
-      ...matches.map(id => id.toString()),
-      ...myBlocked.map(id => id.toString()),
-      ...blockedMe.map(id => id.toString()),
-      ...myReports.map(id => id.toString()),
-      ...blockedByContactUserIds,
-      ...nonActiveUsers.map(id => id.toString()),
-      userId.toString()
-    ])
-  ];
+  // Use Set for O(1) lookups instead of Array.includes O(n)
+  const baseExcludeSet = new Set([
+    ...swipes.map(id => id.toString()),
+    ...matches.map(id => id.toString()),
+    ...myBlocked.map(id => id.toString()),
+    ...blockedMe.map(id => id.toString()),
+    ...myReports.map(id => id.toString()),
+    ...blockedByContactUserIds,
+    ...nonActiveUserIds,
+    userId.toString()
+  ]);
 
   const excludeIds = page === 1
-    ? [...new Set([...baseExclude, ...seenProfiles])]
-    : baseExclude;
+    ? [...new Set([...baseExcludeSet, ...seenProfiles])]
+    : [...baseExcludeSet];
 
   // 5. Build Final Query Filters
   const queryFilters = {
     userId: { $nin: excludeIds },
     isMandatoryComplete: true,
+    "verification.status": "approved",
     "discovery.globalVisibility": "everyone"
   };
 
-  if (discovery.showMeGender?.length) queryFilters.gender = { $in: discovery.showMeGender };
+  // "everyone" means show ALL genders — skip gender filter in that case
+  if (discovery.showMeGender?.length && !discovery.showMeGender.includes("everyone")) {
+    queryFilters.gender = { $in: discovery.showMeGender };
+  }
   if (discovery.ageRange) {
     const now = new Date();
     queryFilters.dob = {
@@ -149,19 +165,62 @@ async function getFeedService(userId, limit, page) {
     return pq.skip(skip).limit(limit).lean();
   }
 
-  // SPECIAL CASE FOR PAGE 1: Fetch Superlikers explicitly to ensure they are at the top
+  // Fetch Superlikers on ALL pages — they must always be at the top until user swipes
   let profiles = [];
-  if (page === 1) {
-    const superlikersToFetch = receivedSuperlikes.filter(id => !baseExclude.includes(id.toString()));
+  {
+    const superlikersToFetch = receivedSuperlikes.filter(id => !baseExcludeSet.has(id.toString()));
     if (superlikersToFetch.length > 0) {
-      const superlikerProfiles = await Profile.find({
+      // Apply same discovery filters to superlikers for consistency
+      const superlikerQuery = {
         userId: { $in: superlikersToFetch },
         isMandatoryComplete: true,
+        "verification.status": "approved",
         "discovery.globalVisibility": "everyone"
-      }).limit(5).lean(); // Limit initial superlikers to avoid overcrowding
+      };
+      // "everyone" means all genders — skip filter
+      if (discovery.showMeGender?.length && !discovery.showMeGender.includes("everyone")) {
+        superlikerQuery.gender = { $in: discovery.showMeGender };
+      }
+      if (queryFilters.dob) superlikerQuery.dob = queryFilters.dob;
+
+      const maxSuperlikers = Math.min(5, limit);
+      const superlikerProfiles = await Profile.find(superlikerQuery).limit(maxSuperlikers).lean();
       profiles = [...superlikerProfiles];
     }
   }
+
+  // // Fetch Boosted Profiles to ensure they are at the top alongside superlikes
+  // if (limit - profiles.length > 0) {
+  //   try {
+  //     if (redis && redis.redisClient && typeof redis.redisClient.keys === 'function') {
+  //       const keys = await redis.redisClient.keys('boost:*');
+  //       if (keys && keys.length > 0) {
+  //         // Exclude already seen superlikes and base exclusions
+  //         const currentExcludeSet = new Set([...baseExcludeSet, ...profiles.map(p => p.userId.toString())]);
+  //         const boostedUserIds = keys.map(k => k.split(':')[1]).filter(id => !currentExcludeSet.has(id.toString()));
+
+  //         if (boostedUserIds.length > 0) {
+  //           const boostQuery = {
+  //             userId: { $in: boostedUserIds },
+  //             isMandatoryComplete: true,
+  //             "discovery.globalVisibility": "everyone"
+  //           };
+  //           if (discovery.showMeGender?.length && !discovery.showMeGender.includes("everyone")) {
+  //             boostQuery.gender = { $in: discovery.showMeGender };
+  //           }
+  //           if (queryFilters.dob) boostQuery.dob = queryFilters.dob;
+
+  //           // Limit to max 5 boosted profiles per page so it doesn't flood the limit
+  //           const maxBoosted = Math.min(5, limit - profiles.length);
+  //           const boostedProfiles = await Profile.find(boostQuery).limit(maxBoosted).lean();
+  //           profiles = [...profiles, ...boostedProfiles];
+  //         }
+  //       }
+  //     }
+  //   } catch (err) {
+  //     console.error("Error explicitly fetching boosted profiles:", err);
+  //   }
+  // }
 
   // Fetch remaining profiles
   const remainingLimit = limit - profiles.length;
@@ -178,7 +237,7 @@ async function getFeedService(userId, limit, page) {
     if (redis) await redis.del(SEEN_KEY);
     seenProfiles = [];
 
-    queryFilters.userId = { $nin: baseExclude };
+    queryFilters.userId = { $nin: [...baseExcludeSet] };
     profiles = await runQuery(queryFilters);
   }
 
@@ -346,23 +405,30 @@ async function getFeedService(userId, limit, page) {
 
   // 9. Update Cache and Seen List
   if (redis && finalResult.length) {
-    const newSeen = [
+    const MAX_SEEN = 500; // Cap to prevent $nin from becoming too large
+    let newSeen = [
       ...new Set([
         ...seenProfiles,
         ...finalResult.map(p => p.userId.toString())
       ])
     ];
+    if (newSeen.length > MAX_SEEN) {
+      newSeen = newSeen.slice(-MAX_SEEN); // Keep most recent
+    }
     await redis.set(SEEN_KEY, newSeen, { EX: SEEN_TTL });
-    await redis.set(CACHE_KEY, { data: finalResult }, { EX: CACHE_TTL });
+    // Only cache page 1 results (other pages are always fresh)
+    if (page === 1) {
+      await redis.set(CACHE_KEY, { data: finalResult }, { EX: CACHE_TTL });
+    }
   }
 
-  const status = await UsageService.getUsageStatus(userId);
+  // const status = await UsageService.getUsageStatus(userId);
 
-  return { 
-    success: true, 
-    count: finalResult.length, 
+  return {
+    success: true,
+    count: finalResult.length,
     data: finalResult,
-    userQuota: status.data
+    // userQuota: status.data
   };
 }
 function calculateAge(dob) {
@@ -524,7 +590,7 @@ async function doSwipe(swiperId, targetId, action) {
       if (redis) {
         await redis.del(`feed:${swiperId.toString()}`);
         await redis.del(`feed:${targetId.toString()}`); // Clear recipient's cache too
-        if (result.match) {
+        if (result.data?.isMatch) {
           await Promise.all([
             redis.del(`matches:${swiperId}`),
             redis.del(`matches:${targetId}`)
