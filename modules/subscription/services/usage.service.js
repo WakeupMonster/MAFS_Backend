@@ -6,6 +6,7 @@ const UserDailyUsage = require("../models_v3/UserDailyUsage");
 const UserWeeklyUsage = require("../models_v3/UserWeeklyUsage");
 const UserMonthlyUsage = require("../models_v3/UserMonthlyUsage");
 const UserConsumableBalance = require("../models_v3/UserConsumableBalance");
+const Product = require("../models_v3/Product");
 const dateHelpers = require("../utils/dateHelpers");
 
 /**
@@ -61,6 +62,18 @@ class UsageService {
         const isPremium = !!activeSub;
         this._syncPremiumState(userId, isPremium).catch(err => console.error('Sync Error:', err));
 
+        // Fetch product details for displayName, subtitle, badge
+        let productInfo = null;
+        if (activeSub && activeSub.productId) {
+            productInfo = await Product.findOne({
+                $or: [
+                    { appleProductId: activeSub.productId },
+                    { googleProductId: activeSub.productId },
+                    { productKey: activeSub.productId }
+                ]
+            }).select('displayName subtitle badge durationDays').lean();
+        }
+
         // Quota values
         const likesLimit = isPremium ? config.premiumLimits.swipesPerDay : config.freeLimits.swipesPerDay;
         const likesUsed = daily?.likesUsed || 0;
@@ -79,7 +92,11 @@ class UsageService {
             message: "Status fetched",
             data: {
                 isPremium,
-                productId: activeSub ? activeSub.productId : null,
+                planType: activeSub ? activeSub.planType : null,
+                displayName: productInfo?.displayName || null,
+                durationDays : productInfo?.durationDays || null,
+                subtitle: productInfo?.subtitle || null,
+                badge: productInfo?.badge || null,
                 status: activeSub ? activeSub.status : "NONE",
                 expiresAt: activeSub ? activeSub.expiresAt : null,
                 autoRenew: activeSub ? activeSub.autoRenew : false,

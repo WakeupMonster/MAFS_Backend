@@ -229,7 +229,7 @@ const getStatus = async (req, res, next) => {
      * UsageService handles all the aggregation and formatting for the Flutter app.
      */
     const response = await UsageService.getUsageStatus(req.user._id);
-    
+
     return res.json(response);
   } catch (err) {
     logger.error("Get status error:", err.message);
@@ -275,11 +275,17 @@ const getCatalog = async (req, res, next) => {
       data: {
         subscriptions: subscriptions.map(sub => ({
           ...sub.toObject(),
-          features
+          features,
+          allocations: {
+            likes: config.premiumLimits.swipesPerDay,         // -1 = Unlimited
+            superKeens: config.premiumLimits.superKeensPerDay,
+            boosts: config.premiumLimits.boostsPerMonth,
+            rewinds: config.premiumLimits.rewindsPerDay        // -1 = Unlimited
+          }
         })),
         consumables: {
-          superKeens: consumables.filter(c => c.consumableType === 'SUPER_KEEN'),
-          boosts: consumables.filter(c => c.consumableType === 'BOOST')
+          superKeens: consumables.filter(c => c.consumableType === 'SUPER_KEEN').map(c => c.toObject()),
+          boosts: consumables.filter(c => c.consumableType === 'BOOST').map(c => c.toObject())
         },
         milestone: {
           target: config.milestone.targetUserCount,
@@ -349,10 +355,10 @@ const getStats = async (req, res, next) => {
         $match: { status: "ACTIVE" },
       },
       {
-        $sort : { createdAt : -1 }
+        $sort: { createdAt: -1 }
       },
-        {
-    
+      {
+
         $group: {
           _id: "$userId", // Dhyan dein: Agar database schema mein field ka naam "user" hai, toh usko "$user" karein
           planType: { $first: "$productId" }
@@ -652,15 +658,18 @@ const getAllSubscriptions = async (req, res, next) => {
 
     return res.json({
       success: true,
-      pagination: {
-        page: pageNum,
-        limit: limitNum,
-        totalPages,
-        total,
-        hasNext: pageNum * limitNum < total,
-        hasPrev: pageNum > 1,
-      },
-      subscriptions,
+      message: "subscriptions fetched successfully",
+      data: {
+        subscriptions,
+        pagination: {
+          page: pageNum,
+          limit: limitNum,
+          totalPages,
+          total,
+          hasNext: pageNum * limitNum < total,
+          hasPrev: pageNum > 1,
+        },
+      }
     });
   } catch (err) {
     logger.error("Admin aggregation error:", err.message);
@@ -884,6 +893,7 @@ const getUserSubscriptionDetail = async (req, res, next) => {
 
     return res.json({
       success: true,
+      message: "subscription detail fetched successfully",
       data: result[0],
     });
   } catch (err) {
@@ -1017,6 +1027,7 @@ const getRevenueAnalytics = async (req, res, next) => {
 
     return res.json({
       success: true,
+      message: "Revenue analytics fetched successfully",
       data: {
         period: { start: start, end: end },
         revenue: {
@@ -1114,6 +1125,7 @@ const getCancellationAnalytics = async (req, res, next) => {
 
     return res.json({
       success: true,
+      message: "Cancellation analytics fetched successfully",
       data: {
         total: totalCancelled,
         byReason: byReason,
