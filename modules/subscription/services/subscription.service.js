@@ -10,7 +10,6 @@ const logger = require("../utils/logger");
 const Profile = require("../../profile/profile.model");
 
 class SubscriptionService {
-
   async _syncProfile(subscription) {
     try {
       console.log("🔄 Syncing Profile for User:", subscription.userId); // Debug 1
@@ -91,23 +90,31 @@ class SubscriptionService {
     } else if (catalogProduct.consumableType === "BOOST") {
       incrementField.boostsBalance = catalogProduct.quantity;
     } else {
-      throw new Error(`Unknown consumable type: ${catalogProduct.consumableType}`);
+      throw new Error(
+        `Unknown consumable type: ${catalogProduct.consumableType}`
+      );
     }
 
     // Idempotency Check (Prevent duplicate consumable granting)
-    const identifier = data.transactionId || data.purchaseToken || String(Date.now());
+    const identifier =
+      data.transactionId || data.purchaseToken || String(Date.now());
     const eventType = "CONSUMABLE_PURCHASE";
     const key = generateIdempotencyKey(data.platform, eventType, identifier);
 
     // Using exists instead of findOne for performance, since we only need the boolean representation
-    const txnExists = await SubscriptionTransaction.exists({ idempotencyKey: key });
+    const txnExists = await SubscriptionTransaction.exists({
+      idempotencyKey: key,
+    });
     if (txnExists) {
-      logger.info("DOUBLE GRANT PREVENTED: Consumable already granted (Idempotency)", { key, userId: data.userId });
+      logger.info(
+        "DOUBLE GRANT PREVENTED: Consumable already granted (Idempotency)",
+        { key, userId: data.userId }
+      );
       return {
-        type: 'CONSUMABLE',
+        type: "CONSUMABLE",
         consumableType: catalogProduct.consumableType,
         quantity: catalogProduct.quantity,
-        status: "ALREADY_GRANTED"
+        status: "ALREADY_GRANTED",
       };
     }
 
@@ -170,12 +177,16 @@ class SubscriptionService {
     const dbProduct = await Product.findOne({
       $or: [
         { appleProductId: data.productId },
-        { googleProductId: data.productId }
-      ]
+        { googleProductId: data.productId },
+      ],
     }).lean();
 
     const configProduct = iapConfig.getProductDetails(data.productId);
-    const catalogPlanType = dbProduct ? dbProduct.planType : (configProduct ? configProduct.planType : "1_MONTH");
+    const catalogPlanType = dbProduct
+      ? dbProduct.planType
+      : configProduct
+      ? configProduct.planType
+      : "1_MONTH";
 
     let existing = null;
     if (orConditions.length > 0) {
@@ -224,8 +235,16 @@ class SubscriptionService {
       environment: iapConfig.apple.environment || "sandbox",
     });
 
-    const amount = dbProduct ? parseFloat(dbProduct.displayPrice.replace(/[^0-9.]/g, '')) : (configProduct ? configProduct.price : 0);
-    const currency = dbProduct ? dbProduct.currency : (configProduct ? configProduct.currency : "AUD");
+    const amount = dbProduct
+      ? parseFloat(dbProduct.displayPrice.replace(/[^0-9.]/g, ""))
+      : configProduct
+      ? configProduct.price
+      : 0;
+    const currency = dbProduct
+      ? dbProduct.currency
+      : configProduct
+      ? configProduct.currency
+      : "AUD";
 
     await this._logTransaction({
       subscriptionId: subscription._id,
@@ -273,13 +292,21 @@ class SubscriptionService {
     const dbProduct = await Product.findOne({
       $or: [
         { appleProductId: sub.productId },
-        { googleProductId: sub.productId }
-      ]
+        { googleProductId: sub.productId },
+      ],
     }).lean();
 
     const configProduct = iapConfig.getProductDetails(sub.productId);
-    const amount = dbProduct ? parseFloat(dbProduct.displayPrice.replace(/[^0-9.]/g, '')) : (configProduct ? configProduct.price : 0);
-    const currency = dbProduct ? dbProduct.currency : (configProduct ? configProduct.currency : "AUD");
+    const amount = dbProduct
+      ? parseFloat(dbProduct.displayPrice.replace(/[^0-9.]/g, ""))
+      : configProduct
+      ? configProduct.price
+      : 0;
+    const currency = dbProduct
+      ? dbProduct.currency
+      : configProduct
+      ? configProduct.currency
+      : "AUD";
 
     sub.previousStatus = sub.status;
     sub.status = "ACTIVE";
@@ -350,12 +377,13 @@ class SubscriptionService {
     await sub.save();
 
     await this._syncProfile(sub);
-    await UsageService._syncPremiumState(sub.userId, true).catch(err => logger.error('Sync Error:', err));
+    await UsageService._syncPremiumState(sub.userId, true).catch((err) =>
+      logger.error("Sync Error:", err)
+    );
 
     logger.info("Subscription re-activated", { subscriptionId: sub._id });
     return sub;
   }
-
 
   // ─── EXPIRE ───
   async handleExpire(data) {
@@ -430,16 +458,18 @@ class SubscriptionService {
       const originalTx = await SubscriptionTransaction.findOne({
         $or: [
           { purchaseToken: data.purchaseToken },
-          { transactionId: data.purchaseToken },      // Apple yaha catch hoga
-          { transactionId: data.transactionId },      // iOS fallback
-          { transactionId: data.originalTransactionId }
+          { transactionId: data.purchaseToken }, // Apple yaha catch hoga
+          { transactionId: data.transactionId }, // iOS fallback
+          { transactionId: data.originalTransactionId },
         ],
-        eventType: "CONSUMABLE_PURCHASE"
+        eventType: "CONSUMABLE_PURCHASE",
       });
 
-
       if (!originalTx) {
-        logger.error("Consumable refund ke liye purani transaction nahi mili", data);
+        logger.error(
+          "Consumable refund ke liye purani transaction nahi mili",
+          data
+        );
         return;
       }
 
@@ -448,17 +478,17 @@ class SubscriptionService {
         $or: [
           { appleProductId: data.productId },
           { googleProductId: data.productId },
-          { productKey: data.productId }
-        ]
+          { productKey: data.productId },
+        ],
       }).lean();
 
       if (!catalogProduct) return;
 
       // 3. Deduction (Minus) Field tayar karna
       const decrementField = {};
-      if (catalogProduct.consumableType === 'SUPER_KEEN') {
+      if (catalogProduct.consumableType === "SUPER_KEEN") {
         decrementField.superKeensBalance = -catalogProduct.quantity; // Minus
-      } else if (catalogProduct.consumableType === 'BOOST') {
+      } else if (catalogProduct.consumableType === "BOOST") {
         decrementField.boostsBalance = -catalogProduct.quantity; // Minus
       }
 
@@ -488,13 +518,14 @@ class SubscriptionService {
         refundReason: "GOOGLE_CANCELED",
       });
 
-      logger.info(`Fraud Roka Gaya: ${catalogProduct.quantity} ${catalogProduct.consumableType} kam kiye gaye`, { userId: originalTx.userId });
-
+      logger.info(
+        `Fraud Roka Gaya: ${catalogProduct.quantity} ${catalogProduct.consumableType} kam kiye gaye`,
+        { userId: originalTx.userId }
+      );
     } catch (error) {
       logger.error("Consumable refund handle error:", error.message);
     }
   }
-
 
   // ─── PAUSE ───
   async handlePause(data) {
@@ -560,7 +591,7 @@ class SubscriptionService {
         .sort({ occurredAt: -1 })
         .limit(safeLimit)
         .lean(),
-      SubscriptionTransaction.countDocuments({ userId: userId })
+      SubscriptionTransaction.countDocuments({ userId: userId }),
     ]);
     return { transactions, total };
   }
@@ -660,7 +691,7 @@ class SubscriptionService {
         expiresAt: expiresAt,
         grantReason: "milestone_first_1000",
         source: "GIVEAWAY",
-        environment: "production"
+        environment: "production",
       });
 
       // 5. Sync Premium State (User/Profile flags)

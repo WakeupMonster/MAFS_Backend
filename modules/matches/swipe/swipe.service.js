@@ -13,7 +13,7 @@ const Report = require("../../../modules/profile/user.report");
 const redis = require("../../../config/cache");
 const BlockedContact = require("../../BlockedContact/blockedContacts.model");
 const { canUserAccessFeed } = require("../../../common/utils/profileAccess");
-const { addNotificationJob } = require('../../../queues/notification.queue');
+const { addNotificationJob } = require("../../../queues/notification.queue");
 const UsageService = require("../../subscription/services/usage.service");
 const Subscription = require("../../subscription/models/Subscription");
 
@@ -21,9 +21,12 @@ function calculateDistance(lat1, lon1, lat2, lon2) {
   const R = 6371;
   const dLat = (lat2 - lat1) * (Math.PI / 180);
   const dLon = (lon2 - lon1) * (Math.PI / 180);
-  const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-    Math.cos(lat1 * (Math.PI / 180)) * Math.cos(lat2 * (Math.PI / 180)) *
-    Math.sin(dLon / 2) * Math.sin(dLon / 2);
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos(lat1 * (Math.PI / 180)) *
+      Math.cos(lat2 * (Math.PI / 180)) *
+      Math.sin(dLon / 2) *
+      Math.sin(dLon / 2);
   const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
   return Math.round(R * c);
 }
@@ -37,8 +40,12 @@ async function getFeedService(userId, limit, page) {
 
   // 1. Setup Subscription and Profile
   let [sub, myProfile] = await Promise.all([
-    Subscription.findOne({ userId, status: 'ACTIVE', expiresAt: { $gt: new Date() } }).lean(),
-    Profile.findOne({ userId }).lean()
+    Subscription.findOne({
+      userId,
+      status: "ACTIVE",
+      expiresAt: { $gt: new Date() },
+    }).lean(),
+    Profile.findOne({ userId }).lean(),
   ]);
 
   const isPremium = !!sub;
@@ -66,7 +73,12 @@ async function getFeedService(userId, limit, page) {
       const cached = await redis.get(CACHE_KEY);
       if (cached) {
         const parsed = JSON.parse(cached);
-        return { success: true, count: parsed.data?.length, cached: true, data: parsed.data };
+        return {
+          success: true,
+          count: parsed.data?.length,
+          cached: true,
+          data: parsed.data,
+        };
       }
     } catch (err) {
       console.error("Redis Get Error (Cache):", err);
@@ -76,82 +88,109 @@ async function getFeedService(userId, limit, page) {
   // 4. Gather Exclusion IDs (Always Excluded)
   // Cache nonActiveUsers globally — avoids full User table scan on every request
   let nonActiveUserIds = [];
-  const NON_ACTIVE_KEY = 'global:nonActiveUsers';
+  const NON_ACTIVE_KEY = "global:nonActiveUsers";
   if (redis) {
     try {
       const cachedNA = await redis.get(NON_ACTIVE_KEY);
       if (cachedNA) {
         nonActiveUserIds = JSON.parse(cachedNA);
       } else {
-        nonActiveUserIds = (await User.find({ accountStatus: { $ne: "active" } }).distinct("_id")).map(id => id.toString());
+        nonActiveUserIds = (
+          await User.find({ accountStatus: { $ne: "active" } }).distinct("_id")
+        ).map((id) => id.toString());
         await redis.set(NON_ACTIVE_KEY, nonActiveUserIds, { EX: 300 });
       }
     } catch (e) {
       console.error("NonActiveUsers cache error:", e);
-      nonActiveUserIds = (await User.find({ accountStatus: { $ne: "active" } }).distinct("_id")).map(id => id.toString());
+      nonActiveUserIds = (
+        await User.find({ accountStatus: { $ne: "active" } }).distinct("_id")
+      ).map((id) => id.toString());
     }
   } else {
-    nonActiveUserIds = (await User.find({ accountStatus: { $ne: "active" } }).distinct("_id")).map(id => id.toString());
+    nonActiveUserIds = (
+      await User.find({ accountStatus: { $ne: "active" } }).distinct("_id")
+    ).map((id) => id.toString());
   }
 
-  const [swipes, matches, myBlocked, blockedMe, myReports, receivedSuperlikes] = await Promise.all([
-    Swipe.find({ swiperId: userId, action: { $in: ["like", "pass", "superlike"] } }).distinct("targetId"),
-    Match.find({ users: userId }).distinct("users"),
-    Block.find({ blockerId: userId }).distinct("blockedId"),
-    Block.find({ blockedId: userId }).distinct("blockerId"),
-    Report.find({ reporterId: userId }).distinct("reportedId"),
-    Swipe.find({ targetId: userId, action: "superlike" }).distinct("swiperId")
-  ]);
+  const [swipes, matches, myBlocked, blockedMe, myReports, receivedSuperlikes] =
+    await Promise.all([
+      Swipe.find({
+        swiperId: userId,
+        action: { $in: ["like", "pass", "superlike"] },
+      }).distinct("targetId"),
+      Match.find({ users: userId }).distinct("users"),
+      Block.find({ blockerId: userId }).distinct("blockedId"),
+      Block.find({ blockedId: userId }).distinct("blockerId"),
+      Report.find({ reporterId: userId }).distinct("reportedId"),
+      Swipe.find({ targetId: userId, action: "superlike" }).distinct(
+        "swiperId",
+      ),
+    ]);
 
-  const blockedPhoneHashes = await BlockedContact.find({ userId }).distinct("blockedPhoneHash");
+  const blockedPhoneHashes = await BlockedContact.find({ userId }).distinct(
+    "blockedPhoneHash",
+  );
   let blockedByContactUserIds = [];
   if (blockedPhoneHashes.length) {
-    const users = await User.find({ phoneHash: { $in: blockedPhoneHashes } }).distinct("_id");
-    blockedByContactUserIds = users.map(id => id.toString());
+    const users = await User.find({
+      phoneHash: { $in: blockedPhoneHashes },
+    }).distinct("_id");
+    blockedByContactUserIds = users.map((id) => id.toString());
   }
 
   // Use Set for O(1) lookups instead of Array.includes O(n)
   const baseExcludeSet = new Set([
-    ...swipes.map(id => id.toString()),
-    ...matches.map(id => id.toString()),
-    ...myBlocked.map(id => id.toString()),
-    ...blockedMe.map(id => id.toString()),
-    ...myReports.map(id => id.toString()),
+    ...swipes.map((id) => id.toString()),
+    ...matches.map((id) => id.toString()),
+    ...myBlocked.map((id) => id.toString()),
+    ...blockedMe.map((id) => id.toString()),
+    ...myReports.map((id) => id.toString()),
     ...blockedByContactUserIds,
     ...nonActiveUserIds,
-    userId.toString()
+    userId.toString(),
   ]);
 
-  const excludeIds = page === 1
-    ? [...new Set([...baseExcludeSet, ...seenProfiles])]
-    : [...baseExcludeSet];
+  const excludeIds =
+    page === 1
+      ? [...new Set([...baseExcludeSet, ...seenProfiles])]
+      : [...baseExcludeSet];
 
   // 5. Build Final Query Filters
   const queryFilters = {
     userId: { $nin: excludeIds },
     isMandatoryComplete: true,
     "verification.status": "approved",
-    "discovery.globalVisibility": "everyone"
+    "discovery.globalVisibility": "everyone",
   };
 
   // "everyone" means show ALL genders — skip gender filter in that case
-  if (discovery.showMeGender?.length && !discovery.showMeGender.includes("everyone")) {
+  if (
+    discovery.showMeGender?.length &&
+    !discovery.showMeGender.includes("everyone")
+  ) {
     queryFilters.gender = { $in: discovery.showMeGender };
   }
   if (discovery.ageRange) {
     const now = new Date();
     queryFilters.dob = {
       $gte: new Date(now.getFullYear() - (discovery.ageRange.max || 50), 0, 1),
-      $lte: new Date(now.getFullYear() - (discovery.ageRange.min || 18), 11, 31)
+      $lte: new Date(
+        now.getFullYear() - (discovery.ageRange.min || 18),
+        11,
+        31,
+      ),
     };
   }
   if (discovery.hasBio) queryFilters.about = { $exists: true, $ne: "" };
   if (myProfile.location?.coordinates) {
     queryFilters.location = {
       $near: {
-        $geometry: { type: "Point", coordinates: myProfile.location.coordinates },
-        $maxDistance: (discovery.distanceRange || 50) * 1000
-      }
+        $geometry: {
+          type: "Point",
+          coordinates: myProfile.location.coordinates,
+        },
+        $maxDistance: (discovery.distanceRange || 50) * 1000,
+      },
     };
   }
 
@@ -168,23 +207,30 @@ async function getFeedService(userId, limit, page) {
   // Fetch Superlikers on ALL pages — they must always be at the top until user swipes
   let profiles = [];
   {
-    const superlikersToFetch = receivedSuperlikes.filter(id => !baseExcludeSet.has(id.toString()));
+    const superlikersToFetch = receivedSuperlikes.filter(
+      (id) => !baseExcludeSet.has(id.toString()),
+    );
     if (superlikersToFetch.length > 0) {
       // Apply same discovery filters to superlikers for consistency
       const superlikerQuery = {
         userId: { $in: superlikersToFetch },
         isMandatoryComplete: true,
         "verification.status": "approved",
-        "discovery.globalVisibility": "everyone"
+        "discovery.globalVisibility": "everyone",
       };
       // "everyone" means all genders — skip filter
-      if (discovery.showMeGender?.length && !discovery.showMeGender.includes("everyone")) {
+      if (
+        discovery.showMeGender?.length &&
+        !discovery.showMeGender.includes("everyone")
+      ) {
         superlikerQuery.gender = { $in: discovery.showMeGender };
       }
       if (queryFilters.dob) superlikerQuery.dob = queryFilters.dob;
 
       const maxSuperlikers = Math.min(5, limit);
-      const superlikerProfiles = await Profile.find(superlikerQuery).limit(maxSuperlikers).lean();
+      const superlikerProfiles = await Profile.find(superlikerQuery)
+        .limit(maxSuperlikers)
+        .lean();
       profiles = [...superlikerProfiles];
     }
   }
@@ -225,7 +271,9 @@ async function getFeedService(userId, limit, page) {
   // Fetch remaining profiles
   const remainingLimit = limit - profiles.length;
   if (remainingLimit > 0) {
-    const currentExclude = [...new Set([...excludeIds, ...profiles.map(p => p.userId.toString())])];
+    const currentExclude = [
+      ...new Set([...excludeIds, ...profiles.map((p) => p.userId.toString())]),
+    ];
     queryFilters.userId = { $nin: currentExclude };
     const additionalProfiles = await runQuery(queryFilters);
     profiles = [...profiles, ...additionalProfiles];
@@ -233,7 +281,9 @@ async function getFeedService(userId, limit, page) {
 
   // 7. HANDLE EXHAUSTION (RETRY)
   if (profiles.length === 0 && seenProfiles.length > 0 && page === 1) {
-    console.log(`Pool exhausted for ${userId}. Resetting seenProfiles and retrying immediately...`);
+    console.log(
+      `Pool exhausted for ${userId}. Resetting seenProfiles and retrying immediately...`,
+    );
     if (redis) await redis.del(SEEN_KEY);
     seenProfiles = [];
 
@@ -242,20 +292,28 @@ async function getFeedService(userId, limit, page) {
   }
 
   if (profiles.length === 0) {
-    return { success: true, count: 0, data: [], message: "No more profiles found" };
+    return {
+      success: true,
+      count: 0,
+      data: [],
+      message: "No more profiles found",
+    };
   }
 
   // 8. Transformation & Scoring
-  const boostKeys = profiles.map(p => `boost:${p.userId.toString()}`);
-  const boostResults = (redis && profiles.length) ? await redis.mGet(boostKeys) : [];
-  const superlikeSet = new Set(receivedSuperlikes.map(id => id.toString()));
+  const boostKeys = profiles.map((p) => `boost:${p.userId.toString()}`);
+  const boostResults =
+    redis && profiles.length ? await redis.mGet(boostKeys) : [];
+  const superlikeSet = new Set(receivedSuperlikes.map((id) => id.toString()));
 
-  const myInterests = myProfile.attributes?.interests || myProfile.interests || [];
+  const myInterests =
+    myProfile.attributes?.interests || myProfile.interests || [];
   const myPreferredInterests = discovery.preferredInterests || [];
   const myAdvancedFilters = discovery.advancedFilters || {};
-  const activeSearchGoal = discovery.filterRelationshipGoal
-    || discovery.relationshipGoal
-    || myProfile.relationshipGoal;
+  const activeSearchGoal =
+    discovery.filterRelationshipGoal ||
+    discovery.relationshipGoal ||
+    myProfile.relationshipGoal;
 
   const transformedProfiles = profiles.map((profile, index) => {
     const targetAttr = profile.attributes || {};
@@ -269,28 +327,44 @@ async function getFeedService(userId, limit, page) {
     if (isSuperliked) priorityScore += 1000;
     if (isBoosted) priorityScore += 500;
 
-    const commonWithPreferred = targetInterests.filter(i => myPreferredInterests.includes(i));
-    const commonWithOwn = targetInterests.filter(i => myInterests.includes(i));
+    const commonWithPreferred = targetInterests.filter((i) =>
+      myPreferredInterests.includes(i),
+    );
+    const commonWithOwn = targetInterests.filter((i) =>
+      myInterests.includes(i),
+    );
     const allCommon = [...new Set([...commonWithPreferred, ...commonWithOwn])];
 
     compatibilityScore += commonWithPreferred.length * 8;
-    compatibilityScore += commonWithOwn.filter(i => !commonWithPreferred.includes(i)).length * 5;
+    compatibilityScore +=
+      commonWithOwn.filter((i) => !commonWithPreferred.includes(i)).length * 5;
 
-    const targetGoal = profile.discovery?.relationshipGoal || profile.relationshipGoal;
+    const targetGoal =
+      profile.discovery?.relationshipGoal || profile.relationshipGoal;
     if (activeSearchGoal && targetGoal && targetGoal === activeSearchGoal) {
       compatibilityScore += 20;
     }
 
     const matchedTraits = [];
-    const traitWeights = { smoking: 8, drinking: 8, zodiac: 5, pets: 6, workout: 7, diet: 5, education: 6, religion: 7, languages: 5 };
+    const traitWeights = {
+      smoking: 8,
+      drinking: 8,
+      zodiac: 5,
+      pets: 6,
+      workout: 7,
+      diet: 5,
+      education: 6,
+      religion: 7,
+      languages: 5,
+    };
 
-    Object.keys(traitWeights).forEach(trait => {
+    Object.keys(traitWeights).forEach((trait) => {
       const myFilterValue = myAdvancedFilters[trait];
       const targetValue = targetAttr[trait];
       if (myFilterValue && targetValue) {
         if (Array.isArray(myFilterValue)) {
           if (Array.isArray(targetValue)) {
-            if (targetValue.some(v => myFilterValue.includes(v))) {
+            if (targetValue.some((v) => myFilterValue.includes(v))) {
               compatibilityScore += traitWeights[trait];
               matchedTraits.push(trait);
             }
@@ -308,8 +382,10 @@ async function getFeedService(userId, limit, page) {
     let distanceKm = 0;
     if (myProfile.location?.coordinates && profile.location?.coordinates) {
       distanceKm = calculateDistance(
-        myProfile.location.coordinates[1], myProfile.location.coordinates[0],
-        profile.location.coordinates[1], profile.location.coordinates[0]
+        myProfile.location.coordinates[1],
+        myProfile.location.coordinates[0],
+        profile.location.coordinates[1],
+        profile.location.coordinates[0],
       );
     }
 
@@ -333,12 +409,20 @@ async function getFeedService(userId, limit, page) {
         type: "INTEREST_MATCH",
         icon: "🔥",
         title: "Common Vibe",
-        description: allCommon.length > 1 ? `You both love ${allCommon[0]} +${allCommon.length - 1} more` : `You both love ${allCommon[0]}`
+        description:
+          allCommon.length > 1
+            ? `You both love ${allCommon[0]} +${allCommon.length - 1} more`
+            : `You both love ${allCommon[0]}`,
       });
     }
 
     if (targetGoal && targetGoal === activeSearchGoal) {
-      dynamicHighlights.push({ type: "GOAL_MATCH", icon: "🎯", title: "Same Intent", description: `Both looking for ${targetGoal}` });
+      dynamicHighlights.push({
+        type: "GOAL_MATCH",
+        icon: "🎯",
+        title: "Same Intent",
+        description: `Both looking for ${targetGoal}`,
+      });
     }
 
     if (matchedTraits.length > 0) {
@@ -346,21 +430,45 @@ async function getFeedService(userId, limit, page) {
         type: "TRAIT_MATCH",
         icon: "✅",
         title: "Lifestyle Match",
-        description: matchedTraits.length > 1 ? `Matches on ${matchedTraits[0]} +${matchedTraits.length - 1} more` : `Matches on ${matchedTraits[0]} habits`
+        description:
+          matchedTraits.length > 1
+            ? `Matches on ${matchedTraits[0]} +${matchedTraits.length - 1} more`
+            : `Matches on ${matchedTraits[0]} habits`,
       });
     }
 
-    dynamicHighlights.push({ type: "LOCATION", icon: "📍", title: "Nearby", description: distanceKm <= 1 ? "In your neighborhood" : `${distanceKm} km away` });
+    dynamicHighlights.push({
+      type: "LOCATION",
+      icon: "📍",
+      title: "Nearby",
+      description:
+        distanceKm <= 1 ? "In your neighborhood" : `${distanceKm} km away`,
+    });
 
     if (profile.verification?.status === "approved") {
-      dynamicHighlights.push({ type: "VERIFIED", icon: "🛡️", title: "Verified", description: "Authenticity checked by MAFS" });
+      dynamicHighlights.push({
+        type: "VERIFIED",
+        icon: "🛡️",
+        title: "Verified",
+        description: "Authenticity checked by MAFS",
+      });
     }
 
     if (dynamicHighlights.length < 6) {
       if (profile.about && profile.about.length > 20) {
-        dynamicHighlights.push({ type: "BIO_PREVIEW", icon: "✍️", title: "About Me", description: profile.about.substring(0, 40) + "..." });
+        dynamicHighlights.push({
+          type: "BIO_PREVIEW",
+          icon: "✍️",
+          title: "About Me",
+          description: profile.about.substring(0, 40) + "...",
+        });
       }
-      dynamicHighlights.push({ type: "ACTIVITY", icon: "⚡", title: "Active Now", description: "This user is looking for a match!" });
+      dynamicHighlights.push({
+        type: "ACTIVITY",
+        icon: "⚡",
+        title: "Active Now",
+        description: "This user is looking for a match!",
+      });
     }
 
     return {
@@ -371,11 +479,11 @@ async function getFeedService(userId, limit, page) {
         bio: profile.about || null,
         city: profile.location?.city || null,
         distanceText: distanceKm <= 1 ? "1 km away" : `${distanceKm} km away`,
-        isVerified: profile.verification?.status === "approved"
+        isVerified: profile.verification?.status === "approved",
       },
       images: (profile.photos || [])
         .sort((a, b) => a.order - b.order)
-        .map(p => ({ url: p.url })),
+        .map((p) => ({ url: p.url })),
       relationshipGoal: targetGoal || "Not specified",
       attributes: targetAttr,
       discoveryFilters: {
@@ -386,9 +494,9 @@ async function getFeedService(userId, limit, page) {
         compatibilityLabel,
         isSuperLikeSender: isSuperliked,
         isBoosted: !!isBoosted,
-        commonInterests: allCommon
+        commonInterests: allCommon,
       },
-      dynamicHighlights: dynamicHighlights.slice(0, 6)
+      dynamicHighlights: dynamicHighlights.slice(0, 6),
     };
   });
 
@@ -409,8 +517,8 @@ async function getFeedService(userId, limit, page) {
     let newSeen = [
       ...new Set([
         ...seenProfiles,
-        ...finalResult.map(p => p.userId.toString())
-      ])
+        ...finalResult.map((p) => p.userId.toString()),
+      ]),
     ];
     if (newSeen.length > MAX_SEEN) {
       newSeen = newSeen.slice(-MAX_SEEN); // Keep most recent
@@ -443,8 +551,13 @@ async function doSwipe(swiperId, targetId, action) {
     throw new Error("Cannot swipe on your own profile");
   }
 
-  if (!mongoose.Types.ObjectId.isValid(targetId) || !/^[0-9a-fA-F]{24}$/.test(targetId.toString())) {
-    throw new Error("Invalid target user ID format. ID must be a 24-character hex string.");
+  if (
+    !mongoose.Types.ObjectId.isValid(targetId) ||
+    !/^[0-9a-fA-F]{24}$/.test(targetId.toString())
+  ) {
+    throw new Error(
+      "Invalid target user ID format. ID must be a 24-character hex string.",
+    );
   }
 
   const session = await mongoose.startSession();
@@ -454,9 +567,8 @@ async function doSwipe(swiperId, targetId, action) {
 
     // Sab kuch ek hi transaction block mein
     await session.withTransaction(async () => {
-
       // 2. Determine Usage Type
-      const usageType = action === 'superlike' ? 'SUPER_KEEN' : 'LIKE';
+      const usageType = action === "superlike" ? "SUPER_KEEN" : "LIKE";
 
       // 3. Target Profile aur Block Check
       const [targetProfile, blockExists] = await Promise.all([
@@ -464,50 +576,65 @@ async function doSwipe(swiperId, targetId, action) {
         Block.findOne({
           $or: [
             { blockerId: swiperId, blockedId: targetId },
-            { blockerId: targetId, blockedId: swiperId }
-          ]
-        }).session(session)
+            { blockerId: targetId, blockedId: swiperId },
+          ],
+        }).session(session),
       ]);
 
-      if (!targetProfile) throw new Error('Target profile not found');
-      if (blockExists) throw new Error("Action not allowed. User interaction is blocked.");
+      if (!targetProfile) throw new Error("Target profile not found");
+      if (blockExists)
+        throw new Error("Action not allowed. User interaction is blocked.");
 
       // 4. Avoid Duplicates
-      const existingSwipe = await Swipe.findOne({ swiperId, targetId }).session(session);
+      const existingSwipe = await Swipe.findOne({ swiperId, targetId }).session(
+        session,
+      );
       if (existingSwipe) {
-        result = { success: true, already: true, message: "Already swiped", match: false };
+        result = {
+          success: true,
+          already: true,
+          message: "Already swiped",
+          match: false,
+        };
         return;
       }
 
       // 5. GATEKEEPER CHECK (v3)
       let usageResult;
       try {
-        if (action !== 'pass') {
-          // Note: UsageService is not part of the transaction because it needs to persist 
+        if (action !== "pass") {
+          // Note: UsageService is not part of the transaction because it needs to persist
           // across failed transactions and manages its own atomic operations.
           usageResult = await UsageService.useItem(swiperId, usageType);
         }
       } catch (error) {
-        if (error.message === 'LIMIT_REACHED') {
+        if (error.message === "LIMIT_REACHED") {
           // Fetch current status for rich error response
           const status = await UsageService.getUsageStatus(swiperId);
           result = {
             success: false,
             // error: "LIMIT_REACHED",
-            message: action === 'like' ? "Daily likes limit reached!" : "No Super Keens left!",
+            message:
+              action === "like"
+                ? "Daily likes limit reached!"
+                : "No Super Keens left!",
             data: {
               isPremium: status.data.isPremium,
               showAds: status.data.showAds,
               premiumFeatures: status.data.premiumFeatures,
               allocations: status.data.allocations,
               wallet: status.data.wallet,
-              quotaStatus: status.data.allocations[usageType === 'LIKE' ? 'likes' : 'superKeens'],
+              quotaStatus:
+                status.data.allocations[
+                  usageType === "LIKE" ? "likes" : "superKeens"
+                ],
               upsell: {
                 title: "Don't stop swiping!",
-                description: "Upgrade now to get unlimited likes and more super keens.",
-                action: "SHOW_PREMIUM_MODAL"
-              }
-            }
+                description:
+                  "Upgrade now to get unlimited likes and more super keens.",
+                action: "SHOW_PREMIUM_MODAL",
+              },
+            },
           };
           return; // Exit transaction block gracefully
         }
@@ -515,25 +642,35 @@ async function doSwipe(swiperId, targetId, action) {
       }
 
       // 8. Create Swipe Record
-      await Swipe.create([{ swiperId, targetId, action, createdAt: new Date() }], { session });
+      await Swipe.create(
+        [{ swiperId, targetId, action, createdAt: new Date() }],
+        { session },
+      );
 
       // 9. Match Logic
       let mutualSwipe = null;
-      if (['like', 'superlike'].includes(action)) {
+      if (["like", "superlike"].includes(action)) {
         mutualSwipe = await Swipe.findOne({
           swiperId: targetId,
           targetId: swiperId,
-          action: { $in: ['like', 'superlike'] }
+          action: { $in: ["like", "superlike"] },
         }).session(session);
 
         if (mutualSwipe) {
-          const [match] = await Match.create([{
-            users: [swiperId, targetId],
-            status: 'matched',
-            lastActivity: new Date()
-          }], { session });
+          const [match] = await Match.create(
+            [
+              {
+                users: [swiperId, targetId],
+                status: "matched",
+                lastActivity: new Date(),
+              },
+            ],
+            { session },
+          );
 
-          const myProfile = await Profile.findOne({ userId: swiperId }).session(session);
+          const myProfile = await Profile.findOne({ userId: swiperId }).session(
+            session,
+          );
           const status = await UsageService.getUsageStatus(swiperId);
 
           result = {
@@ -547,18 +684,21 @@ async function doSwipe(swiperId, targetId, action) {
                 user: {
                   userId: targetId,
                   nickname: targetProfile.nickname,
-                  photoUrl: targetProfile.photos?.[0]?.url || null
+                  photoUrl: targetProfile.photos?.[0]?.url || null,
                 },
-                myPhotoUrl: myProfile?.photos?.[0]?.url || null
+                myPhotoUrl: myProfile?.photos?.[0]?.url || null,
               },
               isPremium: status.data.isPremium,
               showAds: status.data.showAds,
               premiumFeatures: status.data.premiumFeatures,
               allocations: status.data.allocations,
-              wallet: status.data.wallet
-            }
+              wallet: status.data.wallet,
+            },
           };
-          addNotificationJob('NEW_MATCH', { userId1: swiperId, userId2: targetId });
+          addNotificationJob("NEW_MATCH", {
+            userId1: swiperId,
+            userId2: targetId,
+          });
         } else {
           // 🔥 CASE 2: NO MATCH (Manager's exact request)
           const status = await UsageService.getUsageStatus(swiperId);
@@ -572,13 +712,16 @@ async function doSwipe(swiperId, targetId, action) {
               showAds: status.data.showAds,
               premiumFeatures: status.data.premiumFeatures,
               allocations: status.data.allocations,
-              wallet: status.data.wallet
-            }
+              wallet: status.data.wallet,
+            },
+          };
+          if (action === "like" || action === "superlike") {
+            addNotificationJob("NEW_LIKE", {
+              senderId: swiperId,
+              receiverId: targetId,
+            });
           }
-          if (action === 'like' || action === 'superlike') {
-            addNotificationJob('NEW_LIKE', { senderId: swiperId, receiverId: targetId });
-          }
-          //   partnerData: { 
+          //   partnerData: {
           //       name: targetProfile.nickname,
           //       image: targetProfile.photos?.[0]?.url
           //   }
@@ -593,16 +736,15 @@ async function doSwipe(swiperId, targetId, action) {
         if (result.data?.isMatch) {
           await Promise.all([
             redis.del(`matches:${swiperId}`),
-            redis.del(`matches:${targetId}`)
+            redis.del(`matches:${targetId}`),
           ]);
         }
       }
     });
 
     return result;
-
   } catch (error) {
-    console.error('Swipe error:', error);
+    console.error("Swipe error:", error);
     throw error;
   } finally {
     await session.endSession();
@@ -610,30 +752,31 @@ async function doSwipe(swiperId, targetId, action) {
 }
 
 async function undoSwipe(swiperId, targetId) {
-  // 1. Quota Check (v3) 
+  // 1. Quota Check (v3)
   try {
-    await UsageService.useItem(swiperId, 'REWIND');
+    await UsageService.useItem(swiperId, "REWIND");
   } catch (error) {
-    if (error.message === 'LIMIT_REACHED') {
+    if (error.message === "LIMIT_REACHED") {
       throw new Error("No Rewinds left for today!");
     }
     throw error;
   }
 
-  const lastSwipe = await Swipe.findOne({ swiperId, targetId })
-    .sort({ createdAt: -1 });
+  const lastSwipe = await Swipe.findOne({ swiperId, targetId }).sort({
+    createdAt: -1,
+  });
 
   if (!lastSwipe) throw new Error("No swipe to undo");
 
   if (lastSwipe.action === "superlike") {
-    // Note: Guide says super keens can be undone? 
-    // Usually Super Keens are high value, some apps block undo. 
+    // Note: Guide says super keens can be undone?
+    // Usually Super Keens are high value, some apps block undo.
     // Keeping existing behavior unless asked.
     throw new Error("Superlike undo not allowed");
   }
 
   const match = await Match.findOne({
-    users: { $all: [swiperId, targetId] }
+    users: { $all: [swiperId, targetId] },
   });
   if (match) throw new Error("Cannot undo after match");
 
@@ -642,7 +785,7 @@ async function undoSwipe(swiperId, targetId) {
   if (redis) {
     await Promise.all([
       redis.sRem(`swiped:${swiperId}`, targetId.toString()),
-      redis.del(`feed:${swiperId}`)
+      redis.del(`feed:${swiperId}`),
     ]);
   }
 
@@ -653,4 +796,4 @@ module.exports = {
   getFeedService,
   doSwipe,
   undoSwipe,
-}
+};

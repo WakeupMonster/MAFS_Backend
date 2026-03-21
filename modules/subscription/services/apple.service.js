@@ -1,7 +1,6 @@
 const iapConfig = require("../config/iap.config");
 const logger = require("../utils/logger");
 
-
 // === APPLE ROOT CA G3 CERTIFICATE (Do Not Modify) ===
 // Ye certificate directly Apple Inc. se issue hota hai. Duniya ki har Apple app webhook me yahi root hota hai.
 const APPLE_ROOT_CA_G3 = `-----BEGIN CERTIFICATE-----
@@ -19,9 +18,6 @@ EExK78rOInyIiyO/D3nZ0Kj7HjAKBggqhkjOPQQDAgNnADBEAiBsv0L0NlC4rVWe
 1F31FapbUAS0pE+BvntfM3X0d+VIdwIgeaVnL8sD2aX4S+O2A4dK9B1p4hYtqGgX
 P0t/h7iX/s8=
 -----END CERTIFICATE-----`;
-
-
-
 
 class AppleService {
   isReady() {
@@ -160,12 +156,15 @@ class AppleService {
 
       // Ensure that Apple sent all 3 certificates forming the chain
       if (!header.x5c || header.x5c.length < 3) {
-        throw new Error("Missing or incomplete certificate chain in JWS header");
+        throw new Error(
+          "Missing or incomplete certificate chain in JWS header"
+        );
       }
 
       // Sabko PEM format mein bind karna
       const certChain = header.x5c.map(
-        (cert) => "-----BEGIN CERTIFICATE-----\n" + cert + "\n-----END CERTIFICATE-----"
+        (cert) =>
+          "-----BEGIN CERTIFICATE-----\n" + cert + "\n-----END CERTIFICATE-----"
       );
 
       // Node.js crypto X509 Certificate parsing
@@ -176,17 +175,23 @@ class AppleService {
 
       // CHAIN RULE 1: Match the Root Certificate with Official Apple CA
       if (rootCert.fingerprint256 !== expectedRootCert.fingerprint256) {
-        throw new Error("SECURITY ALERT: Fake Apple Root CA detected. Webhook rejected.");
+        throw new Error(
+          "SECURITY ALERT: Fake Apple Root CA detected. Webhook rejected."
+        );
       }
 
       // CHAIN RULE 2: Root must verify Intermediate
       if (!intermediateCert.verify(rootCert.publicKey)) {
-        throw new Error("SECURITY ALERT: Intermediate certificate not signed by Apple.");
+        throw new Error(
+          "SECURITY ALERT: Intermediate certificate not signed by Apple."
+        );
       }
 
       // CHAIN RULE 3: Intermediate must verify Leaf
       if (!leafCert.verify(intermediateCert.publicKey)) {
-        throw new Error("SECURITY ALERT: Leaf certificate not signed by Intermediate.");
+        throw new Error(
+          "SECURITY ALERT: Leaf certificate not signed by Intermediate."
+        );
       }
 
       // Yaha tak aagaya matlab Apple Inc. ka saccha 100% verified webhook hai.
@@ -203,8 +208,6 @@ class AppleService {
       throw new Error("Invalid Apple signature");
     }
   }
-
-
 
   decodeJWS(token) {
     try {
@@ -223,7 +226,10 @@ class AppleService {
   }
 
   getMockTransactionData(transactionId, expectedProductId = null) {
-    const productId = expectedProductId || process.env.PRODUCT_MONTHLY_IOS || "com.myapp.premium.monthly";
+    const productId =
+      expectedProductId ||
+      process.env.PRODUCT_MONTHLY_IOS ||
+      "com.myapp.premium.monthly";
     return {
       transactionId: transactionId || "MOCK_TXN_001",
       originalTransactionId: "MOCK_ORIG_TXN_001",

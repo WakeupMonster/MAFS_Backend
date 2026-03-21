@@ -15,24 +15,24 @@ exports.activateBoost = async (req, res) => {
         message: "Boost already active",
         data: {
           boostDurationMinutes: 30,
-          ...fullStatus.data
-        }
+          ...fullStatus.data,
+        },
       });
     }
 
     // 2️⃣ Use Boost via UsageService (Quota check + Bucket logic)
     try {
-      await UsageService.useItem(userId, 'BOOST');
+      await UsageService.useItem(userId, "BOOST");
     } catch (error) {
-      if (error.message === 'LIMIT_REACHED') {
+      if (error.message === "LIMIT_REACHED") {
         const fullStatus = await UsageService.getUsageStatus(userId);
         return res.status(403).json({
           success: false,
           code: "LIMIT_REACHED",
           message: "No Boosts left! You can purchase more in the store.",
           data: {
-            ...fullStatus.data
-          }
+            ...fullStatus.data,
+          },
         });
       }
       throw error;
@@ -40,7 +40,7 @@ exports.activateBoost = async (req, res) => {
 
     // 4️⃣ Activate boost
     await redis.set(`boost:${userId}`, "1", { EX: BOOST_TTL_SECONDS });
-    console.log(`boost:${userId}`, "bosted user")
+    // console.log(`boost:${userId}`, "bosted user")
 
     // 5️⃣ Clear feed cache (VERY IMPORTANT)
     await redis.del(`feed:${userId}`);
@@ -52,12 +52,14 @@ exports.activateBoost = async (req, res) => {
       message: "Boost activated successfully",
       data: {
         boostDurationMinutes: 30,
-        ...fullStatus.data
-      }
+        ...fullStatus.data,
+      },
     });
   } catch (err) {
     console.error("Boost Error:", err);
-    return res.status(500).json({ success: false, message: "Internal server error" });
+    return res
+      .status(500)
+      .json({ success: false, message: "Internal server error" });
   }
 };
 
@@ -76,16 +78,18 @@ module.exports.unboostUser = async (req, res) => {
     if (result === 0) {
       return res.json({
         success: true,
-        message: "User was not boosted or boost already expired"
+        message: "User was not boosted or boost already expired",
       });
     }
 
     return res.json({
       success: true,
-      message: "Boost deactivated successfully"
+      message: "Boost deactivated successfully",
     });
   } catch (err) {
     console.error("Unboost Error:", err);
-    res.status(500).json({ success: false, message: "Failed to deactivate boost" });
+    res
+      .status(500)
+      .json({ success: false, message: "Failed to deactivate boost" });
   }
 };

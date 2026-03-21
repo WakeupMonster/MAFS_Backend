@@ -10,7 +10,7 @@ module.exports.getAllFWB = async (req, res) => {
     // 1️. Auto-disable expired offers (real-time update)
     await FWB.updateMany(
       { expire_time: { $lte: now }, is_active: true },
-      { $set: { is_active: false } }
+      { $set: { is_active: false } },
     );
 
     // 2️. Count active + expired
@@ -484,12 +484,12 @@ module.exports.deleteFWBImage = async (req, res) => {
     if (!fwb)
       return res.status(404).json({ success: false, message: "FWB not found" });
 
-    console.log("id: ", id);
-    console.log("type: ", type);
+    // console.log("id: ", id);
+    // console.log("type: ", type);
 
     const image = fwb[type];
 
-    console.log("image: ", image);
+    // console.log("image: ", image);
     if (!image?.publicId)
       return res
         .status(400)

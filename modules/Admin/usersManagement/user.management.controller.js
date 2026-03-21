@@ -1,17 +1,9 @@
 const mongoose = require("mongoose");
-const redis = require("../../../config/cache");
 const User = require("../../auth/auth.model");
-const { createCacheKey } = require("../../auth/auth.utils");
 const Profile = require("../../profile/profile.model");
-const {
-  adminUserListSchema,
-  updateUserSchema,
-} = require("./user.management.validation");
-const fs = require("fs");
-const path = require("path");
+const { updateUserSchema } = require("./user.management.validation");
 const { stringify } = require("csv-stringify");
 const { destroy } = require("../../upload/cloudinary.service");
-const { calculateAge } = require("../../../common/utils/calculate.age");
 
 /*
 For Data Table & Search or filters:- 
@@ -531,19 +523,19 @@ module.exports.GETAllUsers = async (req, res) => {
                   {
                     email: new RegExp(
                       searchTrimmed.replace(/[.*+?^${}()|[\\/]\\]/g, "\\$&"),
-                      "i",
+                      "i"
                     ),
                   },
                   {
                     phone: new RegExp(
                       searchTrimmed.replace(/[.*+?^${}()|[\\/]\\]/g, "\\$&"),
-                      "i",
+                      "i"
                     ),
                   },
                   {
                     "profile.nickname": new RegExp(
                       searchTrimmed.replace(/[.*+?^${}()|[\\/]\\]/g, "\\$&"),
-                      "i",
+                      "i"
                     ),
                   },
                   {
@@ -555,13 +547,13 @@ module.exports.GETAllUsers = async (req, res) => {
                   {
                     "profile.location.city": new RegExp(
                       searchTrimmed.replace(/[.*+?^${}()|[\\/]\\]/g, "\\$&"),
-                      "i",
+                      "i"
                     ),
                   },
                   {
                     "profile.location.country": new RegExp(
                       searchTrimmed.replace(/[.*+?^${}()|[\\/]\\]/g, "\\$&"),
-                      "i",
+                      "i"
                     ),
                   },
                   ...(!isNaN(parseInt(searchTrimmed))
@@ -906,30 +898,46 @@ module.exports.GETSingleUserDetails = async (req, res) => {
                 from: "blocks",
                 let: { currentUserId: "$_id" },
                 pipeline: [
-                  { $match: { $expr: { $eq: ["$blockerId", "$$currentUserId"] } } },
+                  {
+                    $match: {
+                      $expr: { $eq: ["$blockerId", "$$currentUserId"] },
+                    },
+                  },
                   {
                     $lookup: {
                       from: "profiles",
                       let: {
                         bId: {
-                          $convert: { input: "$blockedId", to: "objectId", onError: null, onNull: null }
-                        }
+                          $convert: {
+                            input: "$blockedId",
+                            to: "objectId",
+                            onError: null,
+                            onNull: null,
+                          },
+                        },
                       },
                       pipeline: [
-                        { $match: { $expr: { $eq: ["$userId", "$$bId"] } } }
+                        { $match: { $expr: { $eq: ["$userId", "$$bId"] } } },
                       ],
-                      as: "blockedProfile"
-                    }
+                      as: "blockedProfile",
+                    },
                   },
-                  { $unwind: { path: "$blockedProfile", preserveNullAndEmptyArrays: true } },
+                  {
+                    $unwind: {
+                      path: "$blockedProfile",
+                      preserveNullAndEmptyArrays: true,
+                    },
+                  },
                   {
                     $project: {
                       _id: "$blockedId",
                       nickname: { $ifNull: ["$blockedProfile.nickname", ""] },
-                      photo: { $arrayElemAt: ["$blockedProfile.photos.url", 0] },
-                      blockedAt: "$createdAt"
-                    }
-                  }
+                      photo: {
+                        $arrayElemAt: ["$blockedProfile.photos.url", 0],
+                      },
+                      blockedAt: "$createdAt",
+                    },
+                  },
                 ],
                 as: "blockedUsersData",
               },
@@ -1174,7 +1182,7 @@ module.exports.UPDATESingleUserDetail = async (req, res) => {
     if (error) {
       await session.abortTransaction();
       const errorMessages = error.details.map((detail) =>
-        detail.message.replace(/"/g, ""),
+        detail.message.replace(/"/g, "")
       );
       return res.status(400).json({
         success: false,
@@ -1186,7 +1194,7 @@ module.exports.UPDATESingleUserDetail = async (req, res) => {
     // Use 'value' (sanitized data) instead of 'req.body'
     const { accountStatus, isPremium, profile } = value;
 
-    console.log("profile: ", profile);
+    // console.log("profile: ", profile);
 
     if (!mongoose.Types.ObjectId.isValid(userId)) {
       return res
@@ -1204,7 +1212,7 @@ module.exports.UPDATESingleUserDetail = async (req, res) => {
     const user = await User.findOneAndUpdate(
       { _id: userId, role: "USER" },
       { $set: userUpdate },
-      { new: true, session },
+      { new: true, session }
     );
 
     if (!user) {
@@ -1238,16 +1246,6 @@ module.exports.UPDATESingleUserDetail = async (req, res) => {
         if (profile[field] !== undefined) profileUpdate[field] = profile[field];
       });
 
-      // Map Nested Objects (Attributes/Location) using Dot Notation
-      // ["attributes", "location"].forEach((parentKey) => {
-      //   if (profile[parentKey]) {
-      //     Object.keys(profile[parentKey]).forEach((childKey) => {
-      //       profileUpdate[`${parentKey}.${childKey}`] =
-      //         profile[parentKey][childKey];
-      //     });
-      //   }
-      // });
-
       // FIX: Include 'settings' in the nested mapping loop
       ["attributes", "location", "settings"].forEach((parentKey) => {
         if (profile[parentKey]) {
@@ -1261,7 +1259,7 @@ module.exports.UPDATESingleUserDetail = async (req, res) => {
                 (grandChildKey) => {
                   profileUpdate[`${parentKey}.${childKey}.${grandChildKey}`] =
                     profile[parentKey][childKey][grandChildKey];
-                },
+                }
               );
             } else {
               profileUpdate[`${parentKey}.${childKey}`] =
@@ -1276,7 +1274,7 @@ module.exports.UPDATESingleUserDetail = async (req, res) => {
         updatedProfile = await Profile.findOneAndUpdate(
           { userId },
           { $set: profileUpdate },
-          { new: true, runValidators: true, session },
+          { new: true, runValidators: true, session }
         );
       }
     }
@@ -1353,7 +1351,7 @@ module.exports.UPDATEUserStatus = async (req, res) => {
     const user = await User.findOneAndUpdate(
       { _id: userId, role: "USER" },
       { $set: { accountStatus } },
-      { new: true },
+      { new: true }
     );
 
     if (!user) {
@@ -1572,7 +1570,7 @@ module.exports.streamUsersExport = async (req, res) => {
     // Removed progress markers because they corrupt the CSV file structure
     res.setHeader(
       "Content-Disposition",
-      `attachment; filename=MAFS_Users_${Date.now()}.csv`,
+      `attachment; filename=MAFS_Users_${Date.now()}.csv`
     );
     res.setHeader("Content-Type", "text/csv");
     res.setHeader("X-Content-Type-Options", "nosniff");

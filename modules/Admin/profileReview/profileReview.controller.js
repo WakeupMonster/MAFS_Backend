@@ -166,15 +166,34 @@ const getProfileForReview = async (req, res) => {
     const { userId } = req.params;
 
     const [user, profile, reports] = await Promise.all([
-      User.findById(userId).select('email phone accountStatus isVerified banDetails lastActive deviceInfo').lean(),
+      User.findById(userId)
+        .select(
+          "email phone accountStatus isVerified banDetails lastActive deviceInfo",
+        )
+        .lean(),
       Profile.findOne({ userId }).lean(),
       Report.find({ reportedId: userId }).lean(),
     ]);
 
-    const reporterIds = [...new Set(reports.map(r => r.reporterId))];
-    const reporters = await Profile.find({ userId: { $in: reporterIds } }).select('userId nickname').lean();
-    const reporterMap = reporters.reduce((acc, reporter) => {
-      acc[reporter.userId.toString()] = reporter.nickname;
+    // const reporterIds = [...new Set(reports.map(r => r.reporterId))];
+    // const reporters = await Profile.find({ userId: { $in: reporterIds } }).select('userId nickname').lean();
+    // const reporterMap = reporters.reduce((acc, reporter) => {
+    //   acc[reporter.userId.toString()] = reporter.nickname;
+    //   return acc;
+    // }, {});
+
+    // 2. Reporters ki profiles fetch karein (Nickname + Photos)
+    const reporterIds = [...new Set(reports.map((r) => r.reporterId))];
+    const reporterProfiles = await Profile.find({ userId: { $in: reporterIds } })
+      .select("userId nickname photos")
+      .lean();
+
+    // 3. Ek map banayein jisme Reporter ki details ho
+    const reporterMap = reporterProfiles.reduce((acc, rep) => {
+      acc[rep.userId.toString()] = {
+        nickname: rep.nickname,
+        avatar: rep.photos?.[0]?.url || null,
+      };
       return acc;
     }, {});
 
@@ -183,23 +202,6 @@ const getProfileForReview = async (req, res) => {
         .status(404)
         .json({ success: false, message: "User or profile not found" });
     }
-
-    // 2. Reporters ki profiles fetch karein (Nickname + Photos)
-    const reporterIds = [...new Set(reports.map((r) => r.reporterId))];
-    const reporterProfiles = await Profile.find({
-      userId: { $in: reporterIds },
-    })
-      .select("userId nickname photos") // Photos ko select karna zaroori hai
-      .lean();
-
-    // 3. Ek map banayein jisme Reporter ki details ho
-    const reporterMap = reporterProfiles.reduce((acc, rep) => {
-      acc[rep.userId.toString()] = {
-        nickname: rep.nickname,
-        avatar: rep.photos?.[0]?.url || null, // Reporter ki pehli photo
-      };
-      return acc;
-    }, {});
 
     const response = {
       userId: user._id,
@@ -228,7 +230,7 @@ const getProfileForReview = async (req, res) => {
         details: report.details,
         reportedBy: {
           id: report.reporterId,
-          nickname: reporterMap[report.reporterId.toString()] || 'Unknown User'
+          nickname: reporterMap[report.reporterId.toString()] || "Unknown User",
         },
         status: report.status,
         createdAt: report.createdAt,

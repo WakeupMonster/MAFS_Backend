@@ -1093,10 +1093,10 @@ module.exports.disableCampaign = async (req, res) => {
 module.exports.pauseCampaign = async (req, res) => {
   try {
     const { id } = req.params;
-    console.log(id, "campaignId");
+    // console.log(id, "campaignId");
 
     const campaign = await GiveawayCampaign.findById(id);
-    console.log(campaign.isActive, "active");
+    // console.log(campaign.isActive, "active");
 
     if (!campaign) {
       return res.status(404).json({
@@ -1115,7 +1115,7 @@ module.exports.pauseCampaign = async (req, res) => {
     campaign.isActive = false;
     campaign.failureReason = "Paused by admin";
     await campaign.save();
-    console.log(campaign.isActive, "afteractive");
+    // console.log(campaign.isActive, "afteractive");
 
     return res.json({
       success: true,

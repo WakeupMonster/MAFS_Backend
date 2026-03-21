@@ -4,7 +4,6 @@ const { Match } = require("../swipe/swipe.model");
 const { isBlocked } = require("../../profile/block.service");
 const { DateTime } = require("luxon");
 
-
 // 1. SEND MESSAGE (Sabse important jo missing tha)
 module.exports.sendMessage = async (req, res) => {
   try {
@@ -13,33 +12,38 @@ module.exports.sendMessage = async (req, res) => {
 
     // Security: Check if match exists and user is part of it
     const match = await Match.findOne({ _id: matchId, users: sender });
-    if (!match) return res.status(403).json({ success: false, message: "Invalid Match" });
+    if (!match)
+      return res.status(403).json({ success: false, message: "Invalid Match" });
 
     const newMessage = await ChatMessage.create({
       matchId,
       sender,
       receiver: receiverId,
       text,
-      media
+      media,
     });
 
     // 🔥 VVIP: Match model update karo taaki Matches Tab mein chat upar aa jaye
     await Match.findByIdAndUpdate(matchId, {
       lastMessage: text || "Sent a media",
       lastMessageAt: new Date(),
-      lastMessageBy: sender
+      lastMessageBy: sender,
     });
 
     // TODO: Yahan Socket.io emit jayega real-time ke liye
-    
+
     const formattedMessage = {
       id: newMessage._id,
       text: newMessage.text,
       media: newMessage.media || [],
       isMine: true,
       status: "sent",
-      sentAt: DateTime.fromJSDate(new Date(newMessage.createdAt)).setZone("Asia/Kolkata").toString(),
-      sentAtFormatted: DateTime.fromJSDate(new Date(newMessage.createdAt)).setZone("Asia/Kolkata").toFormat("hh:mm a")
+      sentAt: DateTime.fromJSDate(new Date(newMessage.createdAt))
+        .setZone("Asia/Kolkata")
+        .toString(),
+      sentAtFormatted: DateTime.fromJSDate(new Date(newMessage.createdAt))
+        .setZone("Asia/Kolkata")
+        .toFormat("hh:mm a"),
     };
 
     return res.status(201).json({ success: true, data: formattedMessage });
@@ -52,29 +56,28 @@ module.exports.sendMessage = async (req, res) => {
 module.exports.getChatMessages = async (req, res) => {
   try {
     const userId = req.user._id;
-    // const { matchId } = req.body; 
-    // const { matchId } = req.query; 
+    // const { matchId } = req.body;
+    // const { matchId } = req.query;
     const { matchId } = req.params;
 
     const { page = 1, limit = 20 } = req.query;
-
 
     const match = await Match.findById(matchId).lean();
     if (!match) {
       return res.status(404).json({
         success: false,
-        message: "Match not found"
+        message: "Match not found",
       });
     }
 
-    if (!match.users.some(u => u.toString() === userId.toString())) {
+    if (!match.users.some((u) => u.toString() === userId.toString())) {
       return res.status(403).json({
         success: false,
-        message: "You are not part of this match"
+        message: "You are not part of this match",
       });
     }
     const otherUserId = match.users.find(
-      u => u.toString() !== userId.toString()
+      (u) => u.toString() !== userId.toString(),
     );
 
     // const blocked = await isBlocked(userId, otherUserId);
@@ -85,49 +88,46 @@ module.exports.getChatMessages = async (req, res) => {
     //   });
     // }
 
-       const blockStatus = await isBlocked(userId, otherUserId);
+    const blockStatus = await isBlocked(userId, otherUserId);
 
     if (blockStatus.isBlocked) {
       return res.status(403).json({
         success: false,
         message: "You cannot view messages",
-        errorType: "BLOCKED",                    // ✅ NEW
-        isBlockedByMe: blockStatus.blockedByMe,   // ✅ NEW — frontend needs this
-          blockedBy: blockStatus.blockedBy  
+        errorType: "BLOCKED", // ✅ NEW
+        isBlockedByMe: blockStatus.blockedByMe, // ✅ NEW — frontend needs this
+        blockedBy: blockStatus.blockedBy,
       });
     }
 
-
     const messages = await ChatMessage.find({
       matchId,
-      deletedFor: { $ne: userId }
+      deletedFor: { $ne: userId },
     })
-    .sort({ createdAt: -1 }) // Naye messages pehle
-    .skip((page - 1) * limit)
-    .limit(parseInt(limit))
-    .lean();
-     const formattedMessages = messages
-      .reverse()
-      .map(msg => ({
-        id: msg._id,
-        text: msg.text,
- media: msg.media || [], 
-        isMine: msg.sender.toString() === userId.toString(),
+      .sort({ createdAt: -1 }) // Naye messages pehle
+      .skip((page - 1) * limit)
+      .limit(parseInt(limit))
+      .lean();
+    const formattedMessages = messages.reverse().map((msg) => ({
+      id: msg._id,
+      text: msg.text,
+      media: msg.media || [],
+      isMine: msg.sender.toString() === userId.toString(),
 
-        status: msg.readAt
-          ? "read"
-          : msg.deliveredAt
-          ? "delivered"
-          : "sent",
+      status: msg.readAt ? "read" : msg.deliveredAt ? "delivered" : "sent",
 
-        sentAt: DateTime.fromJSDate(new Date(msg.createdAt)).setZone("Asia/Kolkata").toString(),
-        sentAtFormatted: DateTime.fromJSDate(new Date(msg.createdAt)).setZone("Asia/Kolkata").toFormat("hh:mm a")
-      }));
+      sentAt: DateTime.fromJSDate(new Date(msg.createdAt))
+        .setZone("Asia/Kolkata")
+        .toString(),
+      sentAtFormatted: DateTime.fromJSDate(new Date(msg.createdAt))
+        .setZone("Asia/Kolkata")
+        .toFormat("hh:mm a"),
+    }));
 
     // Frontend ko ascending order mein chahiye hote hain
     return res.json({
       success: true,
-      data: formattedMessages
+      data: formattedMessages,
     });
   } catch (err) {
     res.status(500).json({ success: false, message: "Server error" });
@@ -159,7 +159,7 @@ module.exports.updateChatMsgRead = async (req, res) => {
     // 3. Update unread messages where receiver = userId
     const result = await ChatMessage.updateMany(
       { matchId, receiver: userId, read: false },
-      { $set: { read: true, readAt: new Date() } }
+      { $set: { read: true, readAt: new Date() } },
     );
 
     return res.json({ success: true, readCount: result.modifiedCount });
@@ -175,9 +175,9 @@ module.exports.deleteChatMessage = async (req, res) => {
     const userId = req.user._id;
     const { matchId, messageId } = req.params;
 
-    console.log("matchId:", matchId);
-    console.log("messageId:", messageId);
-    console.log("userId:", userId.toString());
+    // console.log("matchId:", matchId);
+    // console.log("messageId:", messageId);
+    // console.log("userId:", userId.toString());
 
     // 1) Validate match
     const match = await Match.findById(matchId).lean();
@@ -215,7 +215,7 @@ module.exports.deleteChatMessage = async (req, res) => {
     const delUpdate = await ChatMessage.findByIdAndUpdate(
       messageId,
       { $addToSet: { deletedFor: userId } },
-      { new: true }
+      { new: true },
     ).lean();
 
     return res.json({
@@ -229,11 +229,8 @@ module.exports.deleteChatMessage = async (req, res) => {
   }
 };
 
-
-
 const redis = require("../../../config/cache");
 const Profile = require("../../../modules/profile/profile.model");
-
 
 module.exports.getChatList = async (req, res) => {
   try {
@@ -241,7 +238,7 @@ module.exports.getChatList = async (req, res) => {
 
     // 1️⃣ Fetch matches sorted by last message (TOP REORDER BASE)
     const matches = await Match.find({
-      users: userId
+      users: userId,
     })
       .sort({ lastMessageAt: -1 })
       .lean();
@@ -251,29 +248,26 @@ module.exports.getChatList = async (req, res) => {
     for (const match of matches) {
       // 2️⃣ Find other user
       const otherUserId = match.users.find(
-        u => u.toString() !== userId.toString()
+        (u) => u.toString() !== userId.toString(),
       );
 
       const profile = await Profile.findOne({ userId: otherUserId })
-  .select("nickname photos")
-  .lean();
-
+        .select("nickname photos")
+        .lean();
 
       // 3️⃣ Unread count
       const unreadCount = await ChatMessage.countDocuments({
         matchId: match._id,
         receiver: userId,
         readAt: null,
-        deletedFor: { $ne: userId }
+        deletedFor: { $ne: userId },
       });
 
       // 4️⃣ Online status (Redis)
-     const isOnline = await redis.redisClient.get(
-  `user:online:${otherUserId}`
-);
+      const isOnline = await redis.redisClient.get(
+        `user:online:${otherUserId}`,
+      );
 
-
-    
       chatList.push({
         matchId: match._id,
 
@@ -281,33 +275,34 @@ module.exports.getChatList = async (req, res) => {
           id: otherUserId,
           name: profile?.nickname || "User",
           avatarUrl: profile?.photos?.[0]?.url || null,
-          isOnline: Boolean(isOnline)
+          isOnline: Boolean(isOnline),
         },
 
         lastMessage: match.lastMessage
           ? {
               text: match.lastMessage,
               time: match.lastMessageAt,
-              formattedTime: match.lastMessageAt 
-                ? DateTime.fromJSDate(new Date(match.lastMessageAt)).setZone("Asia/Kolkata").toFormat("hh:mm a")
-                : null
+              formattedTime: match.lastMessageAt
+                ? DateTime.fromJSDate(new Date(match.lastMessageAt))
+                    .setZone("Asia/Kolkata")
+                    .toFormat("hh:mm a")
+                : null,
             }
           : null,
 
-        unreadCount
+        unreadCount,
       });
     }
 
     return res.json({
       success: true,
-      data: chatList
+      data: chatList,
     });
-
   } catch (err) {
     console.error("Chat list error:", err);
     return res.status(500).json({
       success: false,
-      message: "Server error"
+      message: "Server error",
     });
   }
 };
@@ -322,14 +317,14 @@ module.exports.uploadChatMediaController = async (req, res) => {
     if (!matchId || !receiverId) {
       return res.status(400).json({
         success: false,
-        message: "receiverId are required"
+        message: "receiverId are required",
       });
     }
 
     if (!files || files.length === 0) {
       return res.status(400).json({
         success: false,
-        message: "No media files uploaded"
+        message: "No media files uploaded",
       });
     }
 
@@ -338,7 +333,7 @@ module.exports.uploadChatMediaController = async (req, res) => {
     if (!matchExists) {
       return res.status(404).json({
         success: false,
-        message: "Match not found"
+        message: "Match not found",
       });
     }
 
@@ -348,7 +343,7 @@ module.exports.uploadChatMediaController = async (req, res) => {
         const result = await uploadStream(file.buffer, {
           folder: `mafs/chat/${matchId}`,
           resource_type: "auto",
-          transformation: [{ quality: "auto:good" }]
+          transformation: [{ quality: "auto:good" }],
         });
 
         return {
@@ -359,10 +354,10 @@ module.exports.uploadChatMediaController = async (req, res) => {
             result.resource_type === "video"
               ? "video"
               : file.mimetype === "image/gif"
-              ? "gif"
-              : "image"
+                ? "gif"
+                : "image",
         };
-      })
+      }),
     );
 
     // 🔥 Save chat message in DB
@@ -380,7 +375,7 @@ module.exports.uploadChatMediaController = async (req, res) => {
     await Match.findByIdAndUpdate(matchId, {
       lastMessage: "Sent a media",
       lastMessageAt: new Date(),
-      lastMessageBy: userId
+      lastMessageBy: userId,
     });
 
     const formattedMessage = {
@@ -389,25 +384,27 @@ module.exports.uploadChatMediaController = async (req, res) => {
       media: message.media || [],
       isMine: true,
       status: "sent",
-      sentAt: DateTime.fromJSDate(new Date(message.createdAt)).setZone("Asia/Kolkata").toString(),
-      sentAtFormatted: DateTime.fromJSDate(new Date(message.createdAt)).setZone("Asia/Kolkata").toFormat("hh:mm a")
+      sentAt: DateTime.fromJSDate(new Date(message.createdAt))
+        .setZone("Asia/Kolkata")
+        .toString(),
+      sentAtFormatted: DateTime.fromJSDate(new Date(message.createdAt))
+        .setZone("Asia/Kolkata")
+        .toFormat("hh:mm a"),
     };
 
     return res.json({
       success: true,
       message: "Media message sent successfully",
-      data: formattedMessage
+      data: formattedMessage,
     });
-
   } catch (err) {
     console.error("❌ uploadChatMediaController error:", err);
     return res.status(500).json({
       success: false,
-      message: err.message || "Failed to upload chat media"
+      message: err.message || "Failed to upload chat media",
     });
   }
 };
-
 
 const { destroy } = require("../../upload/cloudinary.service");
 
@@ -422,7 +419,7 @@ module.exports.deleteChatMessageWithMedia = async (req, res) => {
     if (!message) {
       return res.status(404).json({
         success: false,
-        message: "Message not found"
+        message: "Message not found",
       });
     }
 
@@ -433,7 +430,7 @@ module.exports.deleteChatMessageWithMedia = async (req, res) => {
     ) {
       return res.status(403).json({
         success: false,
-        message: "Not allowed to delete this message"
+        message: "Not allowed to delete this message",
       });
     }
 
@@ -441,21 +438,18 @@ module.exports.deleteChatMessageWithMedia = async (req, res) => {
        🔥 DELETE FOR EVERYONE
     ================================= */
     if (deleteForEveryone === "true") {
-
       // Only sender can delete for everyone
       if (message.sender.toString() !== userId.toString()) {
         return res.status(403).json({
           success: false,
-          message: "Only sender can delete for everyone"
+          message: "Only sender can delete for everyone",
         });
       }
 
       // 🔥 Delete media from Cloudinary
       if (message.media && message.media.length > 0) {
         await Promise.all(
-          message.media.map(m =>
-            m.publicId ? destroy(m.publicId) : null
-          )
+          message.media.map((m) => (m.publicId ? destroy(m.publicId) : null)),
         );
       }
 
@@ -467,7 +461,7 @@ module.exports.deleteChatMessageWithMedia = async (req, res) => {
 
       return res.json({
         success: true,
-        message: "Message deleted for everyone"
+        message: "Message deleted for everyone",
       });
     }
 
@@ -481,14 +475,13 @@ module.exports.deleteChatMessageWithMedia = async (req, res) => {
 
     return res.json({
       success: true,
-      message: "Message deleted for you"
+      message: "Message deleted for you",
     });
-
   } catch (err) {
     console.error("❌ deleteChatMessageWithMedia error:", err);
     return res.status(500).json({
       success: false,
-      message: err.message || "Failed to delete message"
+      message: err.message || "Failed to delete message",
     });
   }
 };

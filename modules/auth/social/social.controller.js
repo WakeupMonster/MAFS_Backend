@@ -8,23 +8,22 @@ const socialService = require("./social.service");
 /**
  * POST /api/v1/auth/social/login
  * Unified endpoint for Google, Facebook, and Apple login
- * 
+ *
  * @param {Object} req - Express request
  * @param {Object} res - Express response
  */
 module.exports.socialLogin = async (req, res) => {
   try {
     const { provider, idToken, accessToken, deviceId, fcmToken } = req.body;
-    console.log("idToken",idToken)
-    console.log("accessToken",accessToken)
-
+    // console.log("idToken",idToken)
+    // console.log("accessToken",accessToken)
 
     // ============ VALIDATION ============
     if (!provider) {
       return res.status(400).json({
         success: false,
         message: "Provider is required",
-        code: "MISSING_PROVIDER"
+        code: "MISSING_PROVIDER",
       });
     }
 
@@ -33,7 +32,7 @@ module.exports.socialLogin = async (req, res) => {
       return res.status(400).json({
         success: false,
         message: `Invalid provider. Must be one of: ${validProviders.join(", ")}`,
-        code: "INVALID_PROVIDER"
+        code: "INVALID_PROVIDER",
       });
     }
 
@@ -43,7 +42,7 @@ module.exports.socialLogin = async (req, res) => {
         return res.status(400).json({
           success: false,
           message: "Access token is required for Facebook",
-          code: "MISSING_ACCESS_TOKEN"
+          code: "MISSING_ACCESS_TOKEN",
         });
       }
     } else {
@@ -51,7 +50,7 @@ module.exports.socialLogin = async (req, res) => {
         return res.status(400).json({
           success: false,
           message: "ID token is required",
-          code: "MISSING_ID_TOKEN"
+          code: "MISSING_ID_TOKEN",
         });
       }
     }
@@ -60,7 +59,7 @@ module.exports.socialLogin = async (req, res) => {
     const result = await socialService.socialLogin(
       provider,
       idToken,
-      accessToken
+      accessToken,
     );
 
     // ============ OPTIONAL: SAVE FCM TOKEN ============
@@ -82,10 +81,9 @@ module.exports.socialLogin = async (req, res) => {
         isPhoneVerified: result.isPhoneVerified,
         isEmailVerified: result.isEmailVerified,
         nextStep: result.nextStep,
-        authMethod: result.authMethod
-      }
+        authMethod: result.authMethod,
+      },
     });
-
   } catch (error) {
     console.error("❌ Social login error:", error.message);
 
@@ -96,7 +94,7 @@ module.exports.socialLogin = async (req, res) => {
     return res.status(statusCode).json({
       success: false,
       message: error.message,
-      code: errorCode
+      code: errorCode,
     });
   }
 };
@@ -105,7 +103,7 @@ module.exports.socialLogin = async (req, res) => {
  * POST /api/v1/auth/social/link
  * Link a social account to existing user
  * Requires authentication
- * 
+ *
  * @param {Object} req - Express request
  * @param {Object} res - Express response
  */
@@ -119,7 +117,7 @@ module.exports.linkSocialAccount = async (req, res) => {
       return res.status(400).json({
         success: false,
         message: "Provider is required",
-        code: "MISSING_PROVIDER"
+        code: "MISSING_PROVIDER",
       });
     }
 
@@ -128,7 +126,7 @@ module.exports.linkSocialAccount = async (req, res) => {
         return res.status(400).json({
           success: false,
           message: "Access token is required for Facebook",
-          code: "MISSING_ACCESS_TOKEN"
+          code: "MISSING_ACCESS_TOKEN",
         });
       }
     } else {
@@ -136,7 +134,7 @@ module.exports.linkSocialAccount = async (req, res) => {
         return res.status(400).json({
           success: false,
           message: "ID token is required",
-          code: "MISSING_ID_TOKEN"
+          code: "MISSING_ID_TOKEN",
         });
       }
     }
@@ -146,7 +144,7 @@ module.exports.linkSocialAccount = async (req, res) => {
       userId,
       provider,
       idToken,
-      accessToken
+      accessToken,
     );
 
     // ============ RESPONSE ============
@@ -155,10 +153,9 @@ module.exports.linkSocialAccount = async (req, res) => {
       message: result.message,
       data: {
         provider: result.provider,
-        email: result.email
-      }
+        email: result.email,
+      },
     });
-
   } catch (error) {
     console.error("❌ Link social account error:", error.message);
 
@@ -168,7 +165,7 @@ module.exports.linkSocialAccount = async (req, res) => {
     return res.status(statusCode).json({
       success: false,
       message: error.message,
-      code: errorCode
+      code: errorCode,
     });
   }
 };
@@ -177,7 +174,7 @@ module.exports.linkSocialAccount = async (req, res) => {
  * POST /api/v1/auth/social/unlink
  * Unlink a social account from user
  * Requires authentication
- * 
+ *
  * @param {Object} req - Express request
  * @param {Object} res - Express response
  */
@@ -191,7 +188,7 @@ module.exports.unlinkSocialAccount = async (req, res) => {
       return res.status(400).json({
         success: false,
         message: "Provider is required",
-        code: "MISSING_PROVIDER"
+        code: "MISSING_PROVIDER",
       });
     }
 
@@ -201,9 +198,8 @@ module.exports.unlinkSocialAccount = async (req, res) => {
     // ============ RESPONSE ============
     return res.status(200).json({
       success: true,
-      message: result.message
+      message: result.message,
     });
-
   } catch (error) {
     console.error("❌ Unlink social account error:", error.message);
 
@@ -213,7 +209,7 @@ module.exports.unlinkSocialAccount = async (req, res) => {
     return res.status(statusCode).json({
       success: false,
       message: error.message,
-      code: errorCode
+      code: errorCode,
     });
   }
 };
@@ -222,7 +218,7 @@ module.exports.unlinkSocialAccount = async (req, res) => {
  * GET /api/v1/auth/social/accounts
  * Get user's linked social accounts
  * Requires authentication
- * 
+ *
  * @param {Object} req - Express request
  * @param {Object} res - Express response
  */
@@ -236,16 +232,15 @@ module.exports.getLinkedAccounts = async (req, res) => {
     // ============ RESPONSE ============
     return res.status(200).json({
       success: true,
-      data: linkedAccounts
+      data: linkedAccounts,
     });
-
   } catch (error) {
     console.error("❌ Get linked accounts error:", error.message);
 
     return res.status(500).json({
       success: false,
       message: error.message,
-      code: "INTERNAL_ERROR"
+      code: "INTERNAL_ERROR",
     });
   }
 };
@@ -265,19 +260,18 @@ module.exports.handleCallback = async (req, res) => {
     // Error handling
     if (error) {
       return res.redirect(
-        `http://localhost:3000/login?error=${error}&error_description=${req.query.error_description || ''}`
+        `http://localhost:3000/login?error=${error}&error_description=${req.query.error_description || ""}`,
       );
     }
 
     if (!code || !provider) {
-      return res.redirect('http://localhost:3000/login?error=missing_code');
+      return res.redirect("http://localhost:3000/login?error=missing_code");
     }
 
     // Note: This is a placeholder for server-side OAuth flow
     // For frontend-based flow, this endpoint is not needed
-    
-    return res.redirect('http://localhost:3000/login?success=true');
 
+    return res.redirect("http://localhost:3000/login?success=true");
   } catch (error) {
     console.error("❌ Callback error:", error.message);
     return res.redirect(`http://localhost:3000/login?error=${error.message}`);
@@ -286,7 +280,7 @@ module.exports.handleCallback = async (req, res) => {
 
 /**
  * Helper function to map error messages to error codes
- * 
+ *
  * @param {string} message - Error message
  * @returns {string} Error code
  */

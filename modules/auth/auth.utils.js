@@ -14,7 +14,7 @@ function initTwilio() {
   const twilio = require("twilio");
   twilioClient = twilio(
     process.env.TWILIO_ACCOUNT_SID,
-    process.env.TWILIO_AUTH_TOKEN
+    process.env.TWILIO_AUTH_TOKEN,
   );
   return twilioClient;
 }
@@ -109,7 +109,7 @@ module.exports.sendEmail = async (to, subject, text) => {
     console.log("👉 SMTP_HOST configured as:", transporter.options.host);
 
     const info = await transporter.sendMail(mailOptions);
-    
+
     console.log("✅ Mail sent successfully! MessageId:", info.messageId);
     console.log("✅ Sent to:", to);
 
@@ -135,10 +135,9 @@ module.exports.sendPrizeDeliveredEmail = async (toEmail, prizeTitle) => {
       <h2>Congratulations 🎉</h2>
       <p>Your prize <b>${prizeTitle}</b> has been successfully delivered.</p>
       <p>Thank you for participating!</p>
-    `
+    `,
   });
 };
-
 
 module.exports.sendReplyToReporterEmail = async ({
   to,
@@ -146,7 +145,7 @@ module.exports.sendReplyToReporterEmail = async ({
   reportedUserName,
   reportReason,
   adminReply,
-  reportDate
+  reportDate,
 }) => {
   try {
     const subject = "Update on your reported profile";
@@ -172,13 +171,13 @@ module.exports.sendReplyToReporterEmail = async ({
       from: process.env.SMTP_MAIL,
       to,
       subject,
-      html
+      html,
     };
 
     const info = await transporter.sendMail(mailOptions);
 
-    console.log("Mail sent:", info.messageId);
-    console.log("Sent to:", to);
+    // console.log("Mail sent:", info.messageId);
+    // console.log("Sent to:", to);
 
     return { ok: true, info };
   } catch (error) {
@@ -186,9 +185,6 @@ module.exports.sendReplyToReporterEmail = async ({
     throw new Error("Email sending failed");
   }
 };
-
-
-
 
 // module.exports.sendEmail = async (to, subject, text) => {
 

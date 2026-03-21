@@ -1,7 +1,6 @@
 /* eslint-disable no-unused-vars */
 const { sendEmail } = require("../../auth/auth.utils");
 const SupportTicket = require("./supportTicket.model");
-const { sendEmail } = require("../../auth/auth.utils");
 
 module.exports.contactSupport = async (req, res) => {
   try {
