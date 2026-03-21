@@ -13,7 +13,7 @@ const GiveawaySettings = require("../../modules/Admin/giveaways/giveawaySettings
 dayjs.extend(utc);
 dayjs.extend(timezone);
 
-const IST_TZ = "Asia/Kolkata";  
+const CURRENT_TZ = process.env.GIVEAWAY_TIMEZONE || "Australia/Sydney";
 
 module.exports = async function runGiveawayWorker() {
   console.log("🎯 Giveaway worker started at:", new Date().toISOString());
@@ -25,8 +25,8 @@ module.exports = async function runGiveawayWorker() {
     const todayUTC = new Date();
     todayUTC.setUTCHours(0, 0, 0, 0);
 
-    const startOfTodayIST = dayjs().tz(IST_TZ).startOf("day").toDate();
-    const endOfTodayIST = dayjs().tz(IST_TZ).endOf("day").toDate();
+    const startOfTodayTZ = dayjs().tz(CURRENT_TZ).startOf("day").toDate();
+    const endOfTodayTZ = dayjs().tz(CURRENT_TZ).endOf("day").toDate();
 
     const settings = await GiveawaySettings.findOne();
     const yearlyLimit = settings?.yearlyWinLimitPerUser || 2;
@@ -34,7 +34,7 @@ module.exports = async function runGiveawayWorker() {
     const campaign = await GiveawayCampaign.findOne({
       $or: [
         { date: todayUTC },
-        { date: { $gte: startOfTodayIST, $lt: endOfTodayIST } }
+        { date: { $gte: startOfTodayTZ, $lt: endOfTodayTZ } }
       ],
       isActive: true,
       drawStatus: "PENDING"
@@ -53,17 +53,14 @@ module.exports = async function runGiveawayWorker() {
     campaign.drawStatus = "PROCESSING";
     await campaign.save();
 
-    const nowIST = dayjs().tz(IST_TZ);
-    const currentYear = nowIST.year();
+    const nowTZ = dayjs().tz(CURRENT_TZ);
+    const currentYear = nowTZ.year();
 
     // ===============================
-    // 3️⃣ Match window = TODAY (IST)
+    // 3️⃣ Match window (LAST FRIDAY 00:00 To THURSDAY 23:59)
     // ===============================
-    // const giveawayStart = nowIST.startOf("day").toDate();
-    // const giveawayEnd = nowIST.endOf("day").toDate();
-
-    const giveawayStart = dayjs().tz(IST_TZ).subtract(1, "day").startOf("day").toDate();
-const giveawayEnd = dayjs().tz(IST_TZ).subtract(1, "day").endOf("day").toDate();
+    const giveawayStart = dayjs().tz(CURRENT_TZ).subtract(7, "day").startOf("day").toDate();
+    const giveawayEnd = dayjs().tz(CURRENT_TZ).subtract(1, "day").endOf("day").toDate();
 
     console.log("🎰 Match window:", giveawayStart, "→", giveawayEnd);
 

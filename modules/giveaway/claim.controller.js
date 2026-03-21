@@ -7,43 +7,17 @@ module.exports.getSpinWheelConfig = async (req, res) => {
     const userId = req.user._id;
 
     /**
-     * 1️⃣ Aaj ki date normalize karo
-     * (taaki date comparison exact ho)
+     * MAJOR BUG FIX:
+     * DONT check for 'today' campaign. User might spin the wheel on Saturday.
+     * Simply look if this user has any UNCLAIMED win waiting for them!
      */
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
+    const winHistory = await GiveawayWinHistory.findOne({
+      userId: userId,
+      claimedAt: null
+    }).sort({ createdAt: -1 });
 
-    /**
-     * 2️⃣ Aaj ka COMPLETED campaign nikaalo
-     */
-    const campaign = await GiveawayCampaign.findOne({
-      date: today,
-      isActive: true,
-      drawStatus: "COMPLETED",
-    });
-
-    const supportItem = await Prize.findOne({
-      isActive: true,
-    });
-
-    // Agar aaj koi campaign hi nahi
-    if (!campaign) {
-      return res.json({
-        available: false,
-        showSpin: false,
-        reason: "NO_CAMPAIGN_TODAY",
-      });
-    }
-
-    /**
-     * 3️⃣ Check karo: ye user winner hai ya nahi
-     */
-
-    if (
-      !campaign.winnerUserId ||
-      campaign.winnerUserId.toString() !== userId.toString()
-    ) {
-      // Non-winner ko spin nahi dikhega
+    if (!winHistory) {
+      // Non-winner (Ya already claimed winner) ko spin nahi dikhega
       return res.json({
         available: true,
         showSpin: false,
@@ -52,17 +26,14 @@ module.exports.getSpinWheelConfig = async (req, res) => {
     }
 
     /**
-     * 4️⃣ Prize ka data nikaalo
+     * 4️⃣ Prize ka data aur supportive wheel items nikaalo
      */
-    const prize = await Prize.findById(campaign.prizeId);
+    const prize = await Prize.findById(winHistory.prizeId);
+    const supportItem = await Prize.findOne({ isActive: true });
 
-    /**
-     * 5️⃣ Campaign ke supportive items lo
-     * (ye admin ne set kiye hote hain)
-     */
-    let supportiveItems = [...supportItem.supportiveItems];
-
-      let wheelItems = prize.supportiveItems.map((item) => ({
+    let supportiveItems = supportItem ? [...supportItem.supportiveItems] : ["Try Again", "Oops", "Next Time"];
+    
+    let wheelItems = prize.supportiveItems.map((item) => ({
       label: item,
     }));
 
@@ -75,12 +46,11 @@ module.exports.getSpinWheelConfig = async (req, res) => {
     );
 
     /**
-     * 7️⃣ Prize ka spin label
-     * us random index par insert karo
+     * 7️⃣ Prize ka spin label us random index par insert karo
      */
     supportiveItems.splice(winnerIndex, 0, prize.spinWheelLabel);
 
-      wheelItems.splice(winnerIndex, 0, {
+    wheelItems.splice(winnerIndex, 0, {
       label: prize.spinWheelLabel,
     });
 
@@ -90,15 +60,9 @@ module.exports.getSpinWheelConfig = async (req, res) => {
     return res.json({
       available: true,
       showSpin: true,
- items: wheelItems,
-      // Spin wheel ke saare labels
-      // items: supportiveItems.map((label) => ({ label })),
-        supportiveItems: prize.supportiveItems,
-
-      // Frontend isi index par wheel rokega
+      items: wheelItems,
+      supportiveItems: prize.supportiveItems,
       winnerIndex,
-
-      // Win screen ke liye prize info
       prize: {
         title: prize.title,
         value: prize.value,
@@ -117,51 +81,30 @@ module.exports.getSpinWheelConfig = async (req, res) => {
 module.exports.claimPrize = async (req, res) => {
   try {
     const userId = req.user._id;
+    const { claimEmail } = req.body;
 
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-
-    const campaign = await GiveawayCampaign.findOne({
-      date: today,
-      drawStatus: "COMPLETED",
-    });
-
-    if (!campaign) {
-      return res.status(400).json({
-        success: false,
-        message: "No active giveaway today",
-      });
-    }
-
-    if (campaign.winnerUserId.toString() !== userId.toString()) {
-      return res.status(403).json({
-        success: false,
-        message: "You are not the winner",
-      });
+    // Email validation (zaroori aur sahi format mein)
+    if (!claimEmail || typeof claimEmail !== "string" || !claimEmail.includes("@")) {
+       return res.status(400).json({
+          success: false,
+          message: "A valid email address is required to claim the prize",
+       });
     }
 
     /**
-     * Win history nikaalo
+     * MAJOR BUG FIX:
+     * DONT check for 'today' campaign. User might claim the prize on Saturday or Sunday.
+     * Simply look for the most recent unclaimed win for this user!
      */
     const winHistory = await GiveawayWinHistory.findOne({
-      userId,
-      campaignId: campaign._id,
-    });
+      userId: userId,
+      claimedAt: null // only unclaimed wins
+    }).sort({ createdAt: -1 });
 
     if (!winHistory) {
       return res.status(404).json({
         success: false,
-        message: "Win record not found",
-      });
-    }
-
-    /**
-     * 4Double claim protection
-     */
-    if (winHistory.claimedAt) {
-      return res.status(400).json({
-        success: false,
-        message: "Prize already claimed",
+        message: "No unclaimed prize found or already claimed",
       });
     }
 
@@ -170,6 +113,8 @@ module.exports.claimPrize = async (req, res) => {
      */
     winHistory.claimedAt = new Date();
     winHistory.deliveryStatus = "PENDING";
+    winHistory.claimEmail = claimEmail.toLowerCase().trim(); // Naya Email save karo!
+    
     await winHistory.save();
 
     return res.json({
@@ -178,6 +123,7 @@ module.exports.claimPrize = async (req, res) => {
       data: {
         claimedAt: winHistory.claimedAt,
         deliveryStatus: winHistory.deliveryStatus,
+        claimEmail: winHistory.claimEmail
       },
     });
   } catch (error) {

@@ -68,7 +68,7 @@ module.exports.getAllPrizes = async (req, res) => {
 
 module.exports.createPrize = async (req, res) => {
   try {
-    const { title, type, value, description, spinWheelLabel, supportiveItems } =
+    const { title, type, value, description, spinWheelLabel, supportiveItems, durationInDays, planType, giftCardExpiryDate } =
       req.body;
 
     if (!supportiveItems || supportiveItems.length < 2) {
@@ -85,6 +85,21 @@ module.exports.createPrize = async (req, res) => {
       });
     }
 
+    if (type === "FREE_PREMIUM" && !planType) {
+      return res.status(400).json({
+        success: false,
+        message: "planType is required for FREE_PREMIUM prizes",
+      });
+    }
+
+    // NAYA: Custom durationDays validation
+    if (type === "FREE_PREMIUM" && !durationInDays) {
+      return res.status(400).json({
+        success: false,
+        message: "durationInDays is required for FREE_PREMIUM prizes",
+      });
+    }
+
     const prize = await Prize.create({
       title,
       type,
@@ -92,6 +107,9 @@ module.exports.createPrize = async (req, res) => {
       description,
       spinWheelLabel,
       supportiveItems,
+      durationInDays: type === "FREE_PREMIUM" ? durationInDays : null,
+      planType: type === "FREE_PREMIUM" ? planType : null,
+      giftCardExpiryDate: type === "GIFT_CARD" ? giftCardExpiryDate : null
     });
 
     return res.status(201).json({
@@ -122,6 +140,8 @@ module.exports.updatePrize = async (req, res) => {
       supportiveItems,
       description,
       durationInDays,
+      planType,
+      giftCardExpiryDate,
       isActive,
     } = req.body;
 
@@ -137,6 +157,8 @@ module.exports.updatePrize = async (req, res) => {
           supportiveItems,
           description,
           durationInDays,
+          planType,
+          giftCardExpiryDate,
           isActive,
         },
       },
@@ -638,7 +660,7 @@ module.exports.resendPrize = async (req, res) => {
 
 module.exports.markPrizeAsDelivered = async (req, res) => {
   try {
-    const { winHistoryId } = req.body;
+    const { winHistoryId, deliveryNotes, actualDeliveredValue } = req.body;
 
     const winHistory = await GiveawayWinHistory.findById(winHistoryId);
 
@@ -663,11 +685,10 @@ module.exports.markPrizeAsDelivered = async (req, res) => {
       });
     }
 
-    const prize = await GiveawayCampaign.findById(winHistory.campaignId);
+    // 1. DONT mistake Campaign for Prize! Use the correct Prize ID.
+    const campaign = await GiveawayCampaign.findById(winHistory.campaignId);
+    const prize = await Prize.findById(winHistory.prizeId);
     const user = await User.findById(winHistory.userId);
-
-    // console.log(prize, "prize");
-    // console.log("user", user);
 
     if (!prize || !user) {
       return res
@@ -676,35 +697,43 @@ module.exports.markPrizeAsDelivered = async (req, res) => {
     }
 
     if (prize.type === "FREE_PREMIUM") {
-      const today = new Date();
-
-      const baseDate =
-        user.premiumExpiresAt && user.premiumExpiresAt > today
-          ? user.premiumExpiresAt
-          : today;
-
-      const extendedExpiry = new Date(baseDate);
-      extendedExpiry.setDate(extendedExpiry.getDate() + prize.durationInDays);
-
-      user.premiumExpiresAt = extendedExpiry;
-      await user.save();
+      const subscriptionService = require("../../subscription/services/subscription.service");
+      await subscriptionService.handleGiveawayGrant(
+        winHistory.userId.toString(),
+        prize.durationInDays,
+        prize.planType
+      );
     }
 
     winHistory.deliveryStatus = "DELIVERED";
     winHistory.deliveredAt = new Date();
+
+    if (deliveryNotes) winHistory.deliveryNotes = deliveryNotes;
+    if (actualDeliveredValue) winHistory.actualDeliveredValue = actualDeliveredValue;
     await winHistory.save();
 
     await notificationService.sendPrizeDeliveredNotification(winHistory.userId);
 
-    await utils.sendEmail(
-      user.email,
-      "🎉 Your Prize has been Delivered",
+    // 2. Safe Email Sending (Use Claim Email if provided, fallback to user email)
+    const emailToSend = winHistory.claimEmail || user.email;
+
+    if (emailToSend) {
+      try {
+        await utils.sendEmail(
+          emailToSend,
+          "🎉 Your Prize has been Delivered",
+          `
+        <h2>Congratulations 🎉</h2>
+        <p>Your prize <b>${prize.title}</b> has been successfully delivered.</p>
+        <p>Thank you for participating!</p>
       `
-    <h2>Congratulations 🎉</h2>
-    <p>Your prize <b>${prize.title}</b> has been successfully delivered.</p>
-    <p>Thank you for participating!</p>
-  `
-    );
+        );
+      } catch (emailErr) {
+        console.error("Failed to send delivery email, but prize is delivered:", emailErr.message);
+      }
+    } else {
+      console.log("No email found to notify user about delivery.");
+    }
 
     return res.json({
       success: true,

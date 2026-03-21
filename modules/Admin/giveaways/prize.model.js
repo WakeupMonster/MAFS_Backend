@@ -16,6 +16,17 @@ const prizeSchema = new mongoose.Schema(
       required: true,
     },
 
+    // ➕ NAYA: FREE_PREMIUM ke liye konsa tier ka plan hai ("1_MONTH", "3_MONTH" etc)
+    planType: {
+      type: String,
+      default: null
+    },
+    // ➕ NAYA: GIFT_CARD ke liye expiry date (optional)
+    giftCardExpiryDate: {
+      type: Date,
+      default: null
+    },
+
     // Monetary value (USD ya base currency)
     value: {
       type: Number,

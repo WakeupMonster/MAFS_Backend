@@ -644,11 +644,61 @@ class SubscriptionService {
 
       logger.info(`Milestone premium granted to user ${userId} (Rank: ${userCount})`);
       return subscription;
+
     } catch (err) {
       logger.error("Milestone grant failed:", err.message);
       return null;
     }
   }
+
+  // ─── ADMIN GRANTED GIVEAWAY (SAFE ISOLATED CREATION) ───
+  async handleGiveawayGrant(userId, durationInDays, planType) {
+    try {
+      const daysToAdd = durationInDays || 30; // Fallback to 30 days
+      
+      // 1. Calculate the start date. 
+      // Logically kicks in AFTER their current plan ends to ensure full benefit. 
+      const highestActiveSub = await Subscription.findOne({
+        userId: userId,
+        status: { $in: ["ACTIVE", "CANCELLED"] },
+        expiresAt: { $gt: new Date() },
+      }).sort({ expiresAt: -1 }).lean();
+
+      let baseDate = new Date(); // Default starts today
+      if (highestActiveSub && highestActiveSub.expiresAt > baseDate) {
+         baseDate = new Date(highestActiveSub.expiresAt); // Append to the end
+      }
+
+      const extendedExpiry = new Date(baseDate.getTime());
+      extendedExpiry.setDate(extendedExpiry.getDate() + daysToAdd);
+
+      // 2. ALWAYS create a standalone record. Modifying Apple/Google records 
+      // directly causes webhook tracking bugs via overwrites. A standalone record is 100% safe.
+      await Subscription.create({
+        userId: userId,
+        platform: "admin_granted",
+        productId: "giveaway_prize",
+        planType: planType || "1_MONTH",
+        status: "ACTIVE",
+        autoRenew: false,
+        startedAt: baseDate,
+        expiresAt: extendedExpiry,
+        grantReason: "giveaway_winner",
+        source: "GIVEAWAY",
+        environment: "production",
+      });
+
+      // 3. Synchronize premium state safely
+      const UsageService = require("./usage.service");
+      await UsageService._syncPremiumState(userId, true);
+
+    } catch (error) {
+       logger.error(`Error in handleGiveawayGrant for User ${userId}:`, error.message);
+       throw error;
+    }
+  }
+
 }
 
-module.exports = new SubscriptionService();
+const subscriptionService = new SubscriptionService();
+module.exports = subscriptionService;

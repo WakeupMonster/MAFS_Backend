@@ -35,6 +35,22 @@ const giveawayWinHistorySchema = new mongoose.Schema(
       default: "PENDING",
     },
 
+    // ➕ NAYA FIELDS
+    claimEmail: {
+      type: String,
+      trim: true,
+      lowercase: true,
+      default: null
+    },
+    deliveryNotes: {
+      type: String,
+      default: null
+    },
+    actualDeliveredValue: {
+      type: Number,
+      default: null
+    },
+
     // Year (fast yearly limit check ke liye)
     year: { type: Number, required: true, index: true },
   },
