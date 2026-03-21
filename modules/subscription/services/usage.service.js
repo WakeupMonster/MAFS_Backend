@@ -1,11 +1,12 @@
 const User = require("../../auth/auth.model");
-const Profile = require("../../profile/profile.model");
+// const Profile = require("../../profile/profile.model");
 const Subscription = require("../models/Subscription");
 const SubscriptionConfig = require("../models_v3/SubscriptionConfig");
 const UserDailyUsage = require("../models_v3/UserDailyUsage");
 const UserWeeklyUsage = require("../models_v3/UserWeeklyUsage");
 const UserMonthlyUsage = require("../models_v3/UserMonthlyUsage");
 const UserConsumableBalance = require("../models_v3/UserConsumableBalance");
+const Product = require("../models_v3/Product");
 const dateHelpers = require("../utils/dateHelpers");
 
 /**
@@ -22,7 +23,7 @@ class UsageService {
             userId,
             status: { $in: ['ACTIVE', 'CANCELLED'] },
             expiresAt: { $gt: new Date() }
-        }).lean();
+        }).sort({ expiresAt: -1 }).lean();
 
         const isPremium = !!activeSub;
 
@@ -49,7 +50,9 @@ class UsageService {
     async getUsageStatus(userId) {
         const [config, activeSub, daily, weekly, monthly, wallet] = await Promise.all([
             SubscriptionConfig.getOrCreate(),
-            Subscription.findOne({ userId, status: { $in: ['ACTIVE', 'CANCELLED'] }, expiresAt: { $gt: new Date() } }).lean(),
+            Subscription.findOne({ userId, status: { $in: ['ACTIVE', 'CANCELLED'] }, expiresAt: { $gt: new Date() } })
+              .sort({ expiresAt: -1 })
+              .lean(),
             UserDailyUsage.findOne({ userId, dateKey: dateHelpers.getDateKey() }).lean(),
             UserWeeklyUsage.findOne({ userId, weekKey: dateHelpers.getWeekKey() }).lean(),
             UserMonthlyUsage.findOne({ userId, monthKey: dateHelpers.getMonthKey() }).lean(),
@@ -59,37 +62,75 @@ class UsageService {
         const isPremium = !!activeSub;
         this._syncPremiumState(userId, isPremium).catch(err => console.error('Sync Error:', err));
 
+        // Fetch product details for displayName, subtitle, badge
+        let productInfo = null;
+        if (activeSub && activeSub.productId) {
+            productInfo = await Product.findOne({
+                $or: [
+                    { appleProductId: activeSub.productId },
+                    { googleProductId: activeSub.productId },
+                    { productKey: activeSub.productId }
+                ]
+            }).select('displayName subtitle badge durationDays').lean();
+        }
+
+        // Quota values
+        const likesLimit = isPremium ? config.premiumLimits.swipesPerDay : config.freeLimits.swipesPerDay;
+        const likesUsed = daily?.likesUsed || 0;
+
+        const rewindsLimit = isPremium ? config.premiumLimits.rewindsPerDay : config.freeLimits.rewindsPerDay;
+        const rewindsUsed = daily?.rewindsUsed || 0;
+
+        const skLimit = isPremium ? config.premiumLimits.superKeensPerDay : config.freeLimits.superKeensPerWeek;
+        const skUsed = isPremium ? (daily?.superKeensUsed || 0) : (weekly?.superKeensUsed || 0);
+
+        const boostsLimit = isPremium ? config.premiumLimits.boostsPerMonth : config.freeLimits.boostsPerMonth;
+        const boostsUsed = monthly?.boostsUsed || 0;
+
         return {
             success: true,
+            message: "Status fetched",
             data: {
                 isPremium,
-                activeSubscription: activeSub ? {
-                    planType: activeSub.planType,
-                    expiresAt: activeSub.expiresAt,
-                    status: activeSub.status
-                } : null,
+                planType: activeSub ? activeSub.planType : null,
+                displayName: productInfo?.displayName || null,
+                durationDays : productInfo?.durationDays || null,
+                subtitle: productInfo?.subtitle || null,
+                badge: productInfo?.badge || null,
+                status: activeSub ? activeSub.status : "NONE",
+                expiresAt: activeSub ? activeSub.expiresAt : null,
+                autoRenew: activeSub ? activeSub.autoRenew : false,
+                isCancelled: activeSub ? activeSub.status === 'CANCELLED' : false,
+                cancelledAt: (activeSub && activeSub.status === 'CANCELLED') ? activeSub.cancelledAt : null,
 
-                quotas: {
+                allocations: {
                     likes: {
-                        limit: isPremium ? config.premiumLimits.swipesPerDay : config.freeLimits.swipesPerDay,
-                        used: daily?.likesUsed || 0,
-                        resetAt: dateHelpers.getDailyResetTime()
-                    },
-                    superKeens: {
-                        limit: isPremium ? config.premiumLimits.superKeensPerDay : config.freeLimits.superKeensPerWeek,
-                        used: isPremium ? (daily?.superKeensUsed || 0) : (weekly?.superKeensUsed || 0),
-                        period: isPremium ? 'DAILY' : 'WEEKLY',
-                        resetAt: isPremium ? dateHelpers.getDailyResetTime() : dateHelpers.getWeeklyResetTime()
-                    },
-                    boosts: {
-                        limit: isPremium ? config.premiumLimits.boostsPerMonth : config.freeLimits.boostsPerMonth,
-                        used: monthly?.boostsUsed || 0,
-                        resetAt: dateHelpers.getMonthlyResetTime()
+                        limit: likesLimit,
+                        used: likesUsed,
+                        remaining: likesLimit === -1 ? -1 : Math.max(0, likesLimit - likesUsed),
+                        period: "daily",
+                        resetsAt: dateHelpers.getDailyResetTime()
                     },
                     rewinds: {
-                        limit: isPremium ? -1 : config.freeLimits.rewindsPerDay,
-                        used: daily?.rewindsUsed || 0,
-                        resetAt: dateHelpers.getDailyResetTime()
+                        limit: rewindsLimit,
+                        used: rewindsUsed,
+                        remaining: rewindsLimit === -1 ? -1 : Math.max(0, rewindsLimit - rewindsUsed),
+                        period: "daily",
+                        resetsAt: dateHelpers.getDailyResetTime()
+                    },
+                    superKeens: {
+                        limit: skLimit,
+                        used: skUsed,
+                        remaining: skLimit === -1 ? -1 : Math.max(0, skLimit - skUsed),
+                        period: isPremium ? "daily" : "weekly",
+                        resetsAt: isPremium ? dateHelpers.getDailyResetTime() : dateHelpers.getWeeklyResetTime()
+                    },
+                    boosts: {
+                        limit: boostsLimit,
+                        used: boostsUsed,
+                        remaining: boostsLimit === -1 ? -1 : Math.max(0, boostsLimit - boostsUsed),
+                        period: "monthly",
+                        resetsAt: dateHelpers.getMonthlyResetTime()
                     }
                 },
 
@@ -98,12 +139,14 @@ class UsageService {
                     boosts: wallet?.boostsBalance || 0
                 },
 
-                features: {
-                    canSeeWhoLiked: isPremium && config.premiumFeatures.seeWhoLikedYou,
-                    canPassport: isPremium && config.premiumFeatures.passport,
-                    canAdvancedFilter: isPremium && config.premiumFeatures.advancedFilters,
-                    showAds: !isPremium && config.premiumFeatures.noAds
-                }
+                premiumFeatures: {
+                    seeWhoLikedYou: isPremium && config.premiumFeatures.seeWhoLikedYou,
+                    passport: isPremium && config.premiumFeatures.passport,
+                    advancedFilters: isPremium && config.premiumFeatures.advancedFilters,
+                    noAds: isPremium && config.premiumFeatures.noAds
+                },
+
+                showAds: !isPremium || !config.premiumFeatures.noAds
             }
         };
     }

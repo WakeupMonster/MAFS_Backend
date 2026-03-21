@@ -1,3 +1,4 @@
+require("dotenv").config();
 const crypto = require("crypto");
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
@@ -102,13 +103,19 @@ module.exports.sendEmail = async (to, subject, text) => {
       html: text,
     };
 
+    console.log("🚀 [sendEmail API] Initiating email sending...");
+    console.log("👉 To:", to);
+    console.log("👉 From (SMTP_MAIL):", process.env.SMTP_MAIL);
+    console.log("👉 SMTP_HOST configured as:", transporter.options.host);
+
     const info = await transporter.sendMail(mailOptions);
-    console.log("Mail sent:", info.messageId);
-    console.log("Sent to:", to);
+    
+    console.log("✅ Mail sent successfully! MessageId:", info.messageId);
+    console.log("✅ Sent to:", to);
 
     return { ok: true, info };
   } catch (error) {
-    console.log("SMTP Error:", error.message);
+    console.error("❌ [sendEmail API] SMTP Error Detail:", error);
     throw new Error("Email sending failed");
   }
 };

@@ -2,6 +2,7 @@
 const ChatMessage = require("./chat.message.model");
 const { Match } = require("../swipe/swipe.model");
 const { isBlocked } = require("../../profile/block.service");
+const { DateTime } = require("luxon");
 
 
 // 1. SEND MESSAGE (Sabse important jo missing tha)
@@ -31,7 +32,17 @@ module.exports.sendMessage = async (req, res) => {
 
     // TODO: Yahan Socket.io emit jayega real-time ke liye
     
-    return res.status(201).json({ success: true, data: newMessage });
+    const formattedMessage = {
+      id: newMessage._id,
+      text: newMessage.text,
+      media: newMessage.media || [],
+      isMine: true,
+      status: "sent",
+      sentAt: DateTime.fromJSDate(new Date(newMessage.createdAt)).setZone("Asia/Kolkata").toString(),
+      sentAtFormatted: DateTime.fromJSDate(new Date(newMessage.createdAt)).setZone("Asia/Kolkata").toFormat("hh:mm a")
+    };
+
+    return res.status(201).json({ success: true, data: formattedMessage });
   } catch (err) {
     res.status(500).json({ success: false, message: "Chat failed" });
   }
@@ -109,11 +120,8 @@ module.exports.getChatMessages = async (req, res) => {
           ? "delivered"
           : "sent",
 
-        sentAt: msg.createdAt,
-        sentAtFormatted: new Date(msg.createdAt).toLocaleTimeString("en-IN", {
-          hour: "2-digit",
-          minute: "2-digit"
-        })
+        sentAt: DateTime.fromJSDate(new Date(msg.createdAt)).setZone("Asia/Kolkata").toString(),
+        sentAtFormatted: DateTime.fromJSDate(new Date(msg.createdAt)).setZone("Asia/Kolkata").toFormat("hh:mm a")
       }));
 
     // Frontend ko ascending order mein chahiye hote hain
@@ -280,10 +288,9 @@ module.exports.getChatList = async (req, res) => {
           ? {
               text: match.lastMessage,
               time: match.lastMessageAt,
-              formattedTime: new Date(match.lastMessageAt).toLocaleTimeString(
-                "en-IN",
-                { hour: "2-digit", minute: "2-digit" }
-              )
+              formattedTime: match.lastMessageAt 
+                ? DateTime.fromJSDate(new Date(match.lastMessageAt)).setZone("Asia/Kolkata").toFormat("hh:mm a")
+                : null
             }
           : null,
 
@@ -369,14 +376,27 @@ module.exports.uploadChatMediaController = async (req, res) => {
       // clientMessageId
     });
 
+    // 🔥 VVIP: Match model update karo
+    await Match.findByIdAndUpdate(matchId, {
+      lastMessage: "Sent a media",
+      lastMessageAt: new Date(),
+      lastMessageBy: userId
+    });
+
+    const formattedMessage = {
+      id: message._id,
+      text: message.text,
+      media: message.media || [],
+      isMine: true,
+      status: "sent",
+      sentAt: DateTime.fromJSDate(new Date(message.createdAt)).setZone("Asia/Kolkata").toString(),
+      sentAtFormatted: DateTime.fromJSDate(new Date(message.createdAt)).setZone("Asia/Kolkata").toFormat("hh:mm a")
+    };
+
     return res.json({
       success: true,
       message: "Media message sent successfully",
-      data: {
-        messageId: message._id,
-        media: message.media,
-        createdAt: message.createdAt
-      }
+      data: formattedMessage
     });
 
   } catch (err) {

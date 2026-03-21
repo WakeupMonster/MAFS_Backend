@@ -16,7 +16,7 @@ const SubscriptionTransactionSchema = new mongoose.Schema(
     },
     platform: {
       type: String,
-      enum: ["ios", "android"],
+      enum: ["ios", "android", "ADMIN"],
       required: true,
     },
     transactionId: {
@@ -47,11 +47,15 @@ const SubscriptionTransactionSchema = new mongoose.Schema(
         "PRICE_CHANGE",
         "BILLING_RETRY",
         "REVOKE",
+        "ADMIN_GRANT",
+        "EXTENSION",
+        "ADMIN_CONSUMABLE_GRANT",
       ],
       required: true,
     },
     amount: Number,
     currency: String,
+    reason: String, // For admin operations (grant reason, extension reason, etc.)
     refundReason: String,
     refundAmount: Number,
     rawResponse: {

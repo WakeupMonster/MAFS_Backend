@@ -10,6 +10,7 @@ const logger = require("../utils/logger");
 const Profile = require("../../profile/profile.model");
 
 class SubscriptionService {
+
   async _syncProfile(subscription) {
     try {
       console.log("🔄 Syncing Profile for User:", subscription.userId); // Debug 1
@@ -90,9 +91,24 @@ class SubscriptionService {
     } else if (catalogProduct.consumableType === "BOOST") {
       incrementField.boostsBalance = catalogProduct.quantity;
     } else {
-      throw new Error(
-        `Unknown consumable type: ${catalogProduct.consumableType}`
-      );
+      throw new Error(`Unknown consumable type: ${catalogProduct.consumableType}`);
+    }
+
+    // Idempotency Check (Prevent duplicate consumable granting)
+    const identifier = data.transactionId || data.purchaseToken || String(Date.now());
+    const eventType = "CONSUMABLE_PURCHASE";
+    const key = generateIdempotencyKey(data.platform, eventType, identifier);
+
+    // Using exists instead of findOne for performance, since we only need the boolean representation
+    const txnExists = await SubscriptionTransaction.exists({ idempotencyKey: key });
+    if (txnExists) {
+      logger.info("DOUBLE GRANT PREVENTED: Consumable already granted (Idempotency)", { key, userId: data.userId });
+      return {
+        type: 'CONSUMABLE',
+        consumableType: catalogProduct.consumableType,
+        quantity: catalogProduct.quantity,
+        status: "ALREADY_GRANTED"
+      };
     }
 
     // Atomic wallet update (upsert: creates wallet if first purchase)
@@ -129,10 +145,10 @@ class SubscriptionService {
       type: "CONSUMABLE",
       consumableType: catalogProduct.consumableType,
       quantity: catalogProduct.quantity,
-      wallet: {
-        superKeens: updatedWallet.superKeensBalance,
-        boosts: updatedWallet.boostsBalance,
-      },
+      // wallet: {
+      //   superKeens: updatedWallet.superKeensBalance,
+      //   boosts: updatedWallet.boostsBalance
+      // }
     };
   }
 
@@ -150,17 +166,31 @@ class SubscriptionService {
       orConditions.push({ purchaseToken: data.purchaseToken });
     }
 
+    // v3: Enhanced product lookup. Check DB Catalog first, fallback to config.
+    const dbProduct = await Product.findOne({
+      $or: [
+        { appleProductId: data.productId },
+        { googleProductId: data.productId }
+      ]
+    }).lean();
+
+    const configProduct = iapConfig.getProductDetails(data.productId);
+    const catalogPlanType = dbProduct ? dbProduct.planType : (configProduct ? configProduct.planType : "1_MONTH");
+
     let existing = null;
     if (orConditions.length > 0) {
       existing = await Subscription.findOne({ $or: orConditions });
     }
 
     if (existing) {
+      existing.userId = data.userId; // Ensure subscription belongs to current user
       existing.status = "ACTIVE";
       existing.expiresAt = new Date(data.expiresDate);
       existing.latestTransactionId =
         data.transactionId || existing.latestTransactionId;
       existing.previousStatus = existing.status;
+      existing.productId = data.productId; // Update the product ID in case of an upgrade/crossgrade
+      existing.planType = catalogPlanType; // v3: Ensure consistent planType on update/verify
       await existing.save();
 
       // v3 Sync: Use UsageService for consistent premium state
@@ -177,14 +207,11 @@ class SubscriptionService {
       return { type: "SUBSCRIPTION", subscription: existing };
     }
 
-    // Fallback: Check iapConfig for legacy product details
-    const product = iapConfig.getProductDetails(data.productId);
-
     const subscription = await Subscription.create({
       userId: data.userId,
       platform: data.platform,
       productId: data.productId,
-      planType: product ? product.planType : "monthly",
+      planType: catalogPlanType,
       status: "ACTIVE",
       autoRenew: true,
       startedAt: new Date(data.purchaseDate || Date.now()),
@@ -193,8 +220,12 @@ class SubscriptionService {
       latestTransactionId: data.transactionId || undefined,
       purchaseToken: data.purchaseToken || undefined,
       orderId: data.orderId || undefined,
+      source: "STORE",
       environment: iapConfig.apple.environment || "sandbox",
     });
+
+    const amount = dbProduct ? parseFloat(dbProduct.displayPrice.replace(/[^0-9.]/g, '')) : (configProduct ? configProduct.price : 0);
+    const currency = dbProduct ? dbProduct.currency : (configProduct ? configProduct.currency : "AUD");
 
     await this._logTransaction({
       subscriptionId: subscription._id,
@@ -204,8 +235,8 @@ class SubscriptionService {
       purchaseToken: data.purchaseToken,
       productId: data.productId,
       eventType: "PURCHASE",
-      amount: product ? product.price : 0,
-      currency: product ? product.currency : "USD",
+      amount: amount,
+      currency: currency,
       occurredAt: new Date(data.purchaseDate || Date.now()),
     });
 
@@ -238,7 +269,17 @@ class SubscriptionService {
       throw new Error("Subscription not found for renew");
     }
 
-    const product = iapConfig.getProductDetails(sub.productId);
+    // v3: Enhanced product lookup
+    const dbProduct = await Product.findOne({
+      $or: [
+        { appleProductId: sub.productId },
+        { googleProductId: sub.productId }
+      ]
+    }).lean();
+
+    const configProduct = iapConfig.getProductDetails(sub.productId);
+    const amount = dbProduct ? parseFloat(dbProduct.displayPrice.replace(/[^0-9.]/g, '')) : (configProduct ? configProduct.price : 0);
+    const currency = dbProduct ? dbProduct.currency : (configProduct ? configProduct.currency : "AUD");
 
     sub.previousStatus = sub.status;
     sub.status = "ACTIVE";
@@ -255,8 +296,8 @@ class SubscriptionService {
       transactionId: data.transactionId,
       productId: sub.productId,
       eventType: "RENEW",
-      amount: product ? product.price : 0,
-      currency: product ? product.currency : "USD",
+      amount: amount,
+      currency: currency,
       occurredAt: new Date(),
     });
 
@@ -292,6 +333,29 @@ class SubscriptionService {
     logger.info("Subscription cancelled", { subscriptionId: sub._id });
     return sub;
   }
+
+  // ─── RE-ACTIVATE (Un-cancel) ───
+  async handleReActivate(data) {
+    const sub = await this._findSubscription(data);
+    if (!sub) {
+      logger.error("Subscription not found for re-activate", data);
+      throw new Error("Subscription not found for re-activate");
+    }
+
+    sub.previousStatus = sub.status;
+    sub.status = "ACTIVE";
+    sub.autoRenew = true;
+    sub.cancellationReason = undefined;
+    sub.cancelledAt = undefined;
+    await sub.save();
+
+    await this._syncProfile(sub);
+    await UsageService._syncPremiumState(sub.userId, true).catch(err => logger.error('Sync Error:', err));
+
+    logger.info("Subscription re-activated", { subscriptionId: sub._id });
+    return sub;
+  }
+
 
   // ─── EXPIRE ───
   async handleExpire(data) {
@@ -353,6 +417,85 @@ class SubscriptionService {
     return sub;
   }
 
+  // ─── CONSUMABLE REFUND (WALLET SE WAPAS LENA) ───
+  async handleConsumableRefund(data) {
+    try {
+      // // 1. Kis user ne ye purchase kiya tha? (Transaction table se nikalna)
+      // const originalTx = await SubscriptionTransaction.findOne({
+      //   purchaseToken: data.purchaseToken,
+      //   eventType: "CONSUMABLE_PURCHASE"
+      // });
+
+      // 1. Kis user ne ye purchase kiya tha? (Transaction table se nikalna)
+      const originalTx = await SubscriptionTransaction.findOne({
+        $or: [
+          { purchaseToken: data.purchaseToken },
+          { transactionId: data.purchaseToken },      // Apple yaha catch hoga
+          { transactionId: data.transactionId },      // iOS fallback
+          { transactionId: data.originalTransactionId }
+        ],
+        eventType: "CONSUMABLE_PURCHASE"
+      });
+
+
+      if (!originalTx) {
+        logger.error("Consumable refund ke liye purani transaction nahi mili", data);
+        return;
+      }
+
+      // 2. Wo product (Boost/SuperKeen) kitne pack ka tha?
+      const catalogProduct = await Product.findOne({
+        $or: [
+          { appleProductId: data.productId },
+          { googleProductId: data.productId },
+          { productKey: data.productId }
+        ]
+      }).lean();
+
+      if (!catalogProduct) return;
+
+      // 3. Deduction (Minus) Field tayar karna
+      const decrementField = {};
+      if (catalogProduct.consumableType === 'SUPER_KEEN') {
+        decrementField.superKeensBalance = -catalogProduct.quantity; // Minus
+      } else if (catalogProduct.consumableType === 'BOOST') {
+        decrementField.boostsBalance = -catalogProduct.quantity; // Minus
+      }
+
+      // 4. User ke Wallet table se minus kar dena
+      await UserConsumableBalance.findOneAndUpdate(
+        { userId: originalTx.userId },
+        { $inc: decrementField }
+      );
+
+      // Agar user ne kharch kar diye the, toh -ve me na jaye
+      await UserConsumableBalance.updateMany(
+        { userId: originalTx.userId, superKeensBalance: { $lt: 0 } },
+        { $set: { superKeensBalance: 0 } }
+      );
+      await UserConsumableBalance.updateMany(
+        { userId: originalTx.userId, boostsBalance: { $lt: 0 } },
+        { $set: { boostsBalance: 0 } }
+      );
+
+      // 5. Fraud Log record kar lena (Record History)
+      await this._logTransaction({
+        userId: originalTx.userId,
+        platform: data.platform,
+        purchaseToken: data.purchaseToken,
+        productId: data.productId,
+        eventType: "CONSUMABLE_REFUND",
+        refundReason: "GOOGLE_CANCELED",
+      });
+
+      logger.info(`Fraud Roka Gaya: ${catalogProduct.quantity} ${catalogProduct.consumableType} kam kiye gaye`, { userId: originalTx.userId });
+
+    } catch (error) {
+      logger.error("Consumable refund handle error:", error.message);
+    }
+  }
+
+
   // ─── PAUSE ───
   async handlePause(data) {
     const sub = await this._findSubscription(data);
@@ -412,9 +555,14 @@ class SubscriptionService {
   // ─── GET TRANSACTION HISTORY ───
   async getTransactionHistory(userId, limit) {
     const safeLimit = limit || 50;
-    return SubscriptionTransaction.find({ userId: userId })
-      .sort({ occurredAt: -1 })
-      .limit(safeLimit);
+    const [transactions, total] = await Promise.all([
+      SubscriptionTransaction.find({ userId: userId })
+        .sort({ occurredAt: -1 })
+        .limit(safeLimit)
+        .lean(),
+      SubscriptionTransaction.countDocuments({ userId: userId })
+    ]);
+    return { transactions, total };
   }
 
   // ─── PRIVATE: Find subscription ───
@@ -511,7 +659,8 @@ class SubscriptionService {
         startedAt: new Date(),
         expiresAt: expiresAt,
         grantReason: "milestone_first_1000",
-        environment: "production",
+        source: "GIVEAWAY",
+        environment: "production"
       });
 
       // 5. Sync Premium State (User/Profile flags)

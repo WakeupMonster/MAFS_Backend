@@ -489,7 +489,7 @@ module.exports.GETAllUsers = async (req, res) => {
     const skip = (page - 1) * limit;
     const searchTrimmed = search?.trim();
 
-    const baseMatch = { role: "USER" };
+    const baseMatch = { role: "USER", isFake: { $ne: true } };
     if (accountStatus) baseMatch.accountStatus = accountStatus;
     if (isPremium) baseMatch.isPremium = isPremium === "true";
     if (isBanned !== undefined)
@@ -899,6 +899,47 @@ module.exports.GETSingleUserDetails = async (req, res) => {
                 localField: "reporterId",
                 foreignField: "userId",
                 as: "reporterInfo",
+              },
+            },
+            {
+              $lookup: {
+                from: "blocks",
+                let: { currentUserId: "$_id" },
+                pipeline: [
+                  { $match: { $expr: { $eq: ["$blockerId", "$$currentUserId"] } } },
+                  {
+                    $lookup: {
+                      from: "profiles",
+                      let: {
+                        bId: {
+                          $convert: { input: "$blockedId", to: "objectId", onError: null, onNull: null }
+                        }
+                      },
+                      pipeline: [
+                        { $match: { $expr: { $eq: ["$userId", "$$bId"] } } }
+                      ],
+                      as: "blockedProfile"
+                    }
+                  },
+                  { $unwind: { path: "$blockedProfile", preserveNullAndEmptyArrays: true } },
+                  {
+                    $project: {
+                      _id: "$blockedId",
+                      nickname: { $ifNull: ["$blockedProfile.nickname", ""] },
+                      photo: { $arrayElemAt: ["$blockedProfile.photos.url", 0] },
+                      blockedAt: "$createdAt"
+                    }
+                  }
+                ],
+                as: "blockedUsersData",
+              },
+            },
+            {
+              $lookup: {
+                from: "blockedcontacts",
+                localField: "_id",
+                foreignField: "userId",
+                as: "blockedContactsData",
               },
             },
             {

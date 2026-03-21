@@ -88,29 +88,9 @@ const monthlyAndroid =
 const yearlyAndroid =
   process.env.PRODUCT_YEARLY_ANDROID || "com.myapp.premium.yearly";
 
-config.products[monthlyIos] = {
-  planType: "monthly",
-  platform: "ios",
-  price: 9.99,
-  currency: "USD",
-};
-config.products[yearlyIos] = {
-  planType: "yearly",
-  platform: "ios",
-  price: 49.99,
-  currency: "USD",
-};
-config.products[monthlyAndroid] = {
-  planType: "monthly",
-  platform: "android",
-  price: 9.99,
-  currency: "USD",
-};
-config.products[yearlyAndroid] = {
-  planType: "yearly",
-  platform: "android",
-  price: 49.99,
-  currency: "USD",
-};
+config.products[monthlyIos] = { planType: "1_MONTH", platform: "ios", price: 9.99, currency: "USD" };
+config.products[yearlyIos] = { planType: "yearly", platform: "ios", price: 49.99, currency: "USD" };
+config.products[monthlyAndroid] = { planType: "1_MONTH", platform: "android", price: 9.99, currency: "USD" };
+config.products[yearlyAndroid] = { planType: "yearly", platform: "android", price: 49.99, currency: "USD" };
 
 module.exports = config;

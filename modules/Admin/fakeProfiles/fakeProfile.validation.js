@@ -13,8 +13,13 @@ const bulkCreateSchema = Joi.object({
 const listQuerySchema = Joi.object({
     page: Joi.number().integer().min(1).default(1),
     limit: Joi.number().integer().min(1).max(100).default(10),
-    gender: Joi.string().valid("men", "women", "all").default("all"),
-    batchId: Joi.string().optional()
+    gender: Joi.string().valid("men", "women", "non-binary", "trans-man", "trans-women", "genderqueer", "all").default("all"),
+    batchId: Joi.string().optional(),
+    status: Joi.string().valid("active", "deactivated", "all").default("all"),
+    search: Joi.string().trim().allow("").optional(),
+    city: Joi.string().valid("Sydney", "Melbourne", "Brisbane", "Perth", "Adelaide", "Gold Coast", "Canberra", "all").default("all"),
+    sortBy: Joi.string().valid("createdAt", "nickname", "gender", "city", "accountStatus").default("createdAt"),
+    sortOrder: Joi.string().valid("asc", "desc").default("desc")
 });
 
 module.exports = {

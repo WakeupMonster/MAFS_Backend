@@ -1,6 +1,7 @@
 const Profile = require("../../../modules/profile/profile.model");
 const User = require("../../../modules/auth/auth.model");
 const {
+  // eslint-disable-next-line no-unused-vars
   formatProfileResponse,
 } = require("../../../modules/profile/profile.formatter");
 const Report = require("../../../modules/profile/user.report");
@@ -164,16 +165,18 @@ const getProfileForReview = async (req, res) => {
   try {
     const { userId } = req.params;
 
-    // 1. Fetch main user, their profile, and reports against them
     const [user, profile, reports] = await Promise.all([
-      User.findById(userId)
-        .select(
-          "email phone accountStatus isVerified banDetails lastActive deviceInfo",
-        )
-        .lean(),
+      User.findById(userId).select('email phone accountStatus isVerified banDetails lastActive deviceInfo').lean(),
       Profile.findOne({ userId }).lean(),
       Report.find({ reportedId: userId }).lean(),
     ]);
+
+    const reporterIds = [...new Set(reports.map(r => r.reporterId))];
+    const reporters = await Profile.find({ userId: { $in: reporterIds } }).select('userId nickname').lean();
+    const reporterMap = reporters.reduce((acc, reporter) => {
+      acc[reporter.userId.toString()] = reporter.nickname;
+      return acc;
+    }, {});
 
     if (!user || !profile) {
       return res
@@ -219,22 +222,17 @@ const getProfileForReview = async (req, res) => {
         lastActive: user.lastActive,
       },
 
-      reports: reports.map((report) => {
-        const reporterData = reporterMap[report.reporterId.toString()] || {};
-        return {
-          _id: report._id,
-          reason: report.reason,
-          status: report.status,
-          severity: report.severity, // Schema mein severity hai toh add karein
-          description: report.description,
-          createdAt: report.createdAt,
-          reportedBy: {
-            id: report.reporterId,
-            nickname: reporterData.nickname || "Unknown User",
-            avatar: reporterData.avatar || null, // ✅ Ab ye Reporter ka avatar dikhayega
-          },
-        };
-      }),
+      reports: reports.map((report) => ({
+        _id: report._id,
+        reason: report.reason,
+        details: report.details,
+        reportedBy: {
+          id: report.reporterId,
+          nickname: reporterMap[report.reporterId.toString()] || 'Unknown User'
+        },
+        status: report.status,
+        createdAt: report.createdAt,
+      })),
 
       reportCount: reports.length,
     };

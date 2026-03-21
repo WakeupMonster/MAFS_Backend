@@ -2,7 +2,7 @@ const Joi = require("joi");
 
 module.exports.feed = (req, res, next) => {
   const schema = Joi.object({
-    limit: Joi.number().min(1).max(50).optional(),
+    limit: Joi.number().min(1).max(100).optional(),
     page: Joi.string().optional() // optional cursor for paging
   });
   const { error } = schema.validate(req.query);

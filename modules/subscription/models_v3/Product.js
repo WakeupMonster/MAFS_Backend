@@ -6,6 +6,8 @@ const productSchema = new mongoose.Schema({
     planType: { type: String }, // e.g. "1_MONTH", "3_MONTH" (for subscriptions)
     durationDays: { type: Number }, // for subscriptions
     displayName: { type: String, required: true },
+    subtitle: { type: String, default: null },   // e.g. "Most Popular", "Best Value"
+    badge: { type: String, default: null },       // e.g. "🔥 HOT", "💎 BEST VALUE", "⭐ POPULAR"
     displayPrice: { type: String, required: true }, // e.g. "$9.95"
     currency: { type: String, default: 'AUD' },
     quantity: { type: Number, default: 0 }, // for consumable packs (e.g. 5 Super Keens)
@@ -18,5 +20,4 @@ const productSchema = new mongoose.Schema({
     timestamps: true,
     collection: 'products'
 });
-
 module.exports = mongoose.model('Product', productSchema);

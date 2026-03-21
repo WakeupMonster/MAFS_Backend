@@ -33,12 +33,33 @@ const initCronJobs = () => {
       );
 
       // v3 Sync: Update isPremium flags for all affected users
-      const userIds = toExpire.map((s) => s.userId);
-      for (const uid of userIds) {
-        UsageService._syncPremiumState(uid, false).catch((err) =>
-          logger.error("[CRON] Sync error for user:", uid, err.message)
-        );
+      // const userIds = toExpire.map(s => s.userId);
+      // for (const uid of userIds) {
+      //   UsageService._syncPremiumState(uid, false).catch(err =>
+      //     logger.error("[CRON] Sync error for user:", uid, err.message)
+      //   );
+      // }
+
+
+      // NAYA CODE: Safe Sync (Checks for other active plans before revoking premium)
+      const uniqueUserIds = [...new Set(toExpire.map(s => s.userId.toString()))];
+
+      for (const uid of uniqueUserIds) {
+        try {
+          const anyActiveSub = await Subscription.findOne({
+            userId: uid,
+            status: { $in: ["ACTIVE", "CANCELLED"] },
+            expiresAt: { $gt: new Date() }
+          });
+
+          if (!anyActiveSub) {
+            await UsageService._syncPremiumState(uid, false);
+          }
+        } catch (err) {
+          logger.error("[CRON] Safe sync error for user:", uid, err.message);
+        }
       }
+
 
       logger.info(
         "[CRON] Expired ACTIVE subscriptions: " + result.modifiedCount

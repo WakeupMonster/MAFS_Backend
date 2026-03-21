@@ -18,21 +18,20 @@ const bulkCreate = async (req, res) => {
       adminId: req.user._id,
     });
 
-    // Format each profile in the result
-    const formattedProfiles = await Promise.all(
-      result.profiles.map(async (item) => {
-        return {
-          user: await formatProfileResponse(
-            item.user,
-            item.profile,
-            [],
-            [],
-            {},
-            req,
-          ),
-        };
-      }),
-    );
+        // Format each profile in the result
+        const formattedProfiles = await Promise.all(result.profiles.map(async (item) => {
+            const formatted = await formatProfileResponse(item.user, item.profile, [], [], {}, req);
+            formatted.account.email = item.user.email;
+            formatted.account.phone = item.user.phone;
+        
+        
+            
+            return {
+                user: formatted
+            };
+        }));
+
+        
 
     res.status(200).json({
       success: true,
@@ -59,30 +58,27 @@ const listAll = async (req, res) => {
 
     const result = await fakeProfileService.listFakeProfiles(value);
 
-    // Format each profile in the result
-    const formattedData = await Promise.all(
-      result.map(async (item) => {
-        return {
-          user: await formatProfileResponse(
-            item.user,
-            item.profile,
-            [],
-            [],
-            {},
-            req,
-          ),
-        };
-      }),
-    );
+        // Format each profile in the result
+        const formattedData = await Promise.all(result.data.map(async (item) => {
+            const formatted = await formatProfileResponse(item.user, item.profile, [], [], {}, req);
+            // Append sensitive details only for Admin response
+            formatted.account.email = item.user.email;
+            formatted.account.phone = item.user.phone;
+            
+            return {
+                user: formatted
+            };
+        }));
 
-    res.status(200).json({
-      success: true,
-      data: formattedData,
-    });
-  } catch (error) {
-    console.error("List Fake Profiles Error:", error);
-    res.status(500).json({ success: false, message: "Internal server error" });
-  }
+        res.status(200).json({
+            success: true,
+            data: formattedData,
+            pagination: result.pagination
+        });
+    } catch (error) {
+        console.error("List Fake Profiles Error:", error);
+        res.status(500).json({ success: false, message: "Internal server error" });
+    }
 };
 
 const toggleStatus = async (req, res) => {

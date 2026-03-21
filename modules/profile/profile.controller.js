@@ -1047,7 +1047,10 @@ exports.resetDiscoveryFilters = async (req, res) => {
 
     await profile.save();
 
-    if (redis) await redis.del(`feed:${userId.toString()}`);
+    if (redis) {
+      await redis.del(`feed:${userId.toString()}`);
+      await redis.del(`feed:seen:${userId.toString()}`);
+    }
 
     const formattedUser = await getFormattedUser(userId, req);
 
@@ -1093,7 +1096,10 @@ module.exports.updateDiscoveryFilters = async (req, res) => {
 
     await profile.save();
 
-    if (redis) await redis.del(`feed:${userId.toString()}`);
+    if (redis) {
+      await redis.del(`feed:${userId.toString()}`);
+      await redis.del(`feed:seen:${userId.toString()}`);
+    }
 
     const formattedUser = await getFormattedUser(userId, req);
 
