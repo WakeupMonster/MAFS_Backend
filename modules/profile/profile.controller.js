@@ -171,7 +171,7 @@ module.exports.updateProfile = async (req, res) => {
           data.blockedContacts,
           data.blockedUser,
           data.subData,
-          req
+          req,
         ),
 
         // onboarding: buildOnboardingResponse(req)
@@ -201,6 +201,8 @@ module.exports.getMyProfile = async (req, res) => {
         .status(404)
         .json({ success: false, message: "Profile not found" });
 
+    console.log("data: ", data);
+
     res.json({
       success: true,
       data: {
@@ -210,7 +212,7 @@ module.exports.getMyProfile = async (req, res) => {
           data.blockedContacts,
           data.blockedUser,
           data.subData,
-          req
+          req,
         ),
       },
     });
@@ -243,7 +245,7 @@ module.exports.uploadPhotos = async (req, res) => {
         transformation: [
           { width: 1080, height: 1350, crop: "fill", quality: "auto:good" },
         ],
-      })
+      }),
     );
 
     const newPhotosResults = await Promise.all(uploadPromises);
@@ -285,7 +287,7 @@ module.exports.uploadPhotos = async (req, res) => {
           data.blockedContacts,
           data.blockedUser,
           data.subData,
-          req
+          req,
         ),
         // onboarding: buildOnboardingResponse(req)
       },
@@ -304,7 +306,7 @@ module.exports.deletePhoto = async (req, res) => {
     const profile = await Profile.findOne({ userId });
 
     const photoIndex = profile?.photos.findIndex(
-      (p) => p.publicId === publicId
+      (p) => p.publicId === publicId,
     );
     if (photoIndex === -1 || !profile)
       return res
@@ -334,7 +336,7 @@ module.exports.deletePhoto = async (req, res) => {
           data.blockedContacts,
           data.blockedUser,
           data.subData,
-          req
+          req,
         ),
       },
     });
@@ -386,7 +388,7 @@ module.exports.reorderPhotos = async (req, res) => {
 
     // ✅ 5. Photo find karo — current index nikalo
     const currentIndex = profile.photos.findIndex(
-      (p) => p.publicId.toString() === cleanedPhotoId
+      (p) => p.publicId.toString() === cleanedPhotoId,
     );
 
     if (currentIndex === -1) {
@@ -437,7 +439,7 @@ module.exports.reorderPhotos = async (req, res) => {
           data.blockedContacts,
           data.blockedUser,
           data.subData,
-          req
+          req,
         ),
       },
     });
@@ -634,7 +636,7 @@ module.exports.uploadSelfie = async (req, res) => {
           data.blockedContacts,
           data.blockedUser,
           data.subData,
-          req
+          req,
         ),
         // onboarding: buildOnboardingResponse(req)
       },
@@ -656,7 +658,7 @@ module.exports.uploadSelfie = async (req, res) => {
               "verification.selfieUrl": result.secure_url,
               "verification.status": "pending",
             },
-          }
+          },
         );
         await cache.del(`profile:status:${userId}`);
         console.log(`Selfie processed for ${userId}`);
@@ -699,7 +701,7 @@ module.exports.uploadIDDocument = async (req, res) => {
           data.blockedContacts,
           data.blockedUser,
           data.subData,
-          req
+          req,
         ),
         // onboarding: buildOnboardingResponse(req)
       },
@@ -767,10 +769,10 @@ module.exports.getVerificationStatus = async (req, res) => {
       status === "pending"
         ? "Your verification is under review"
         : status === "approved"
-        ? "Your profile has been verified"
-        : status === "rejected"
-        ? "Your verification was rejected"
-        : "Verification not started";
+          ? "Your profile has been verified"
+          : status === "rejected"
+            ? "Your verification was rejected"
+            : "Verification not started";
 
     res.json({
       success: true,
@@ -846,7 +848,7 @@ module.exports.updateLocation = async (req, res) => {
           data.blockedContacts,
           data.blockedUser,
           data.subData,
-          req
+          req,
         ),
       },
     });
@@ -925,7 +927,7 @@ exports.getStatus = async (req, res) => {
       data.blockedContacts,
       data.blockedUser,
       data.subData,
-      req
+      req,
     );
 
     await cache.set(cacheKey, JSON.stringify(formatted), { EX: 30 });
@@ -977,7 +979,7 @@ module.exports.getUserProfile = async (req, res) => {
       targetProfile,
       swipeAction,
       matchRecord,
-      isBoosted
+      isBoosted,
     );
 
     res.json({ success: true, data: formattedData });
@@ -1147,7 +1149,7 @@ module.exports.updateVisibility = async (req, res) => {
           lastProfileUpdate: new Date(),
         },
       },
-      { new: true }
+      { new: true },
     ).lean();
 
     if (redis) await redis.del(`feed:${userId.toString()}`);

@@ -7,6 +7,12 @@ const ReportSchema = new mongoose.Schema(
       ref: "User",
       required: true,
     },
+    reporterProfile: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Profile",
+      required: true,
+    },
+
     reportedId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",

@@ -167,11 +167,7 @@ module.exports.sendEmailOTP = async (req, res, next) => {
 
     if (!otp) {
       // We use a generic message to prevent "Email Harvesting" (Security Best Practice)
-      throw new AppError(
-        "ADMIN_NOT_FOUND",
-        "If an account exists, an OTP has been sent.",
-        404,
-      );
+      throw new AppError("ADMIN_NOT_FOUND", "Your account is no exists.", 404);
     }
 
     /**

@@ -1,4 +1,5 @@
 /* eslint-disable no-unused-vars */
+const { sendEmail } = require("../../auth/auth.utils");
 const SupportTicket = require("./supportTicket.model");
 
 module.exports.contactSupport = async (req, res) => {
@@ -202,6 +203,43 @@ module.exports.getMyTicketById = async (req, res) => {
   }
 };
 
+// module.exports.replyToTicket = async (req, res) => {
+//   try {
+//     const { ticketId, reply, status } = req.body;
+
+//     if (!ticketId || !reply || !status) {
+//       return res.status(400).json({
+//         success: false,
+//         message: "ticketId, reply and status are required",
+//       });
+//     }
+
+//     const ticket = await SupportTicket.findById(ticketId);
+
+//     if (!ticket) {
+//       return res.status(404).json({
+//         success: false,
+//         message: "Ticket not found",
+//       });
+//     }
+
+//     ticket.adminReply = reply;
+//     ticket.status = status;
+//     ticket.repliedAt = new Date();
+
+//     await ticket.save();
+
+//     return res.json({
+//       success: true,
+//       message: "Reply sent successfully",
+//     });
+//   } catch (err) {
+//     return res.status(500).json({
+//       success: false,
+//       message: "Failed to reply to ticket",
+//     });
+//   }
+// };
 module.exports.replyToTicket = async (req, res) => {
   try {
     const { ticketId, reply, status } = req.body;
@@ -213,7 +251,10 @@ module.exports.replyToTicket = async (req, res) => {
       });
     }
 
-    const ticket = await SupportTicket.findById(ticketId);
+    const ticket = await SupportTicket.findById(ticketId).populate(
+      "userId",
+      "email",
+    );
 
     if (!ticket) {
       return res.status(404).json({
@@ -227,6 +268,30 @@ module.exports.replyToTicket = async (req, res) => {
     ticket.repliedAt = new Date();
 
     await ticket.save();
+
+    // 📧 SEND EMAIL TO THE USER
+    if (ticket.userId && ticket.userId.email) {
+      const emailSubject = `Update on your Support Ticket: ${ticket.subject || "MAFS Support"}`;
+      const emailHtml = `
+        <div style="font-family: Arial, sans-serif; padding: 20px; color: #333; line-height: 1.6;">
+          <h2 style="color: #00adef;">Support Ticket Update</h2>
+          <p>Hello,</p>
+          <p>Your support ticket has been updated to: <strong style="text-transform: capitalize;">${status.replace(/_/g, " ")}</strong></p>
+          <p><strong>Admin Reply:</strong></p>
+          <blockquote style="background: #f9f9f9; padding: 15px; border-left: 4px solid #00adef; margin: 10px 0;">
+            ${reply.replace(/\n/g, "<br/>")}
+          </blockquote>
+          <br/>
+          <p>Thank you for reaching out to us.</p>
+          <p>Best regards,<br/><strong>MAFS Support Team</strong></p>
+        </div>
+      `;
+      try {
+        await sendEmail(ticket.userId.email, emailSubject, emailHtml);
+      } catch (emailErr) {
+        console.error("Email sending failed for ticket reply:", emailErr);
+      }
+    }
 
     return res.json({
       success: true,

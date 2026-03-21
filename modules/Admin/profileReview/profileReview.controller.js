@@ -73,11 +73,98 @@ const Report = require("../../../modules/profile/user.report");
 //     });
 //   }
 // };
+// const getProfileForReview = async (req, res) => {
+//   try {
+//     const { userId } = req.params;
+//     console.log("userId: ", userId);
+
+//     const [user, profile, reports] = await Promise.all([
+//       User.findById(userId)
+//         .select(
+//           "email phone accountStatus isVerified banDetails lastActive deviceInfo",
+//         )
+//         .lean(),
+//       Profile.findOne({ userId }).lean(),
+//       Report.find({ reportedId: userId }).lean(),
+//     ]);
+
+//     const reporterIds = [...new Set(reports.map((r) => r.reporterId))];
+//     const reporters = await Profile.find({ userId: { $in: reporterIds } })
+//       .select("userId nickname")
+//       .lean();
+//     const reporterMap = reporters.reduce((acc, reporter) => {
+//       acc[reporter.userId.toString()] = reporter.nickname;
+//       return acc;
+//     }, {});
+
+//     if (!user || !profile) {
+//       return res.status(404).json({
+//         success: false,
+//         message: "User or profile not found",
+//       });
+//     }
+
+//     const response = {
+//       userId: user._id,
+//       email: user.email,
+//       phone: user.phone,
+//       accountStatus: user.accountStatus,
+//       isVerified: user.isVerified,
+//       isBanned: user.banDetails?.isBanned || false,
+//       banReason: user.banDetails?.reason || null,
+//       banDetails: user.banDetails || {},
+
+//       profile: {
+//         nickname: profile.nickname,
+//         photos: profile?.photos || [],
+//         bio: profile.about,
+//         interests: profile.interests || [],
+//         gender: profile.gender,
+//         age: profile.age,
+//         dob: profile.dob,
+//         location: profile?.location || {},
+//         verification: profile?.verification || {},
+//         createdAt: profile.createdAt,
+//         lastActive: user.lastActive || null,
+//         deviceInfo: user.deviceInfo || {},
+//       },
+
+//       reports: reports.map((report) => ({
+//         _id: report._id,
+//         reason: report.reason,
+//         details: report.details,
+//         reportedBy: {
+//           id: report.reporterId,
+//           nickname: reporterMap[report.reporterId.toString()] || "Unknown User",
+//           avatar: profile.photos?.[0]?.url || null,
+//         },
+//         status: report.status,
+//         description: report.description,
+//         createdAt: report.createdAt,
+//       })),
+
+//       reportCount: reports.length,
+//     };
+
+//     res.status(200).json({
+//       success: true,
+//       data: response,
+//     });
+//   } catch (error) {
+//     console.error("Error fetching profile for review:", error);
+//     res.status(500).json({
+//       success: false,
+//       message: "Failed to fetch profile for review",
+//       error: error.message,
+//     });
+//   }
+// };
+
 const getProfileForReview = async (req, res) => {
   try {
     const { userId } = req.params;
-    console.log("userId: ", userId);
 
+    // 1. Fetch main user, their profile, and reports against them
     const [user, profile, reports] = await Promise.all([
       User.findById(userId)
         .select(
@@ -88,21 +175,28 @@ const getProfileForReview = async (req, res) => {
       Report.find({ reportedId: userId }).lean(),
     ]);
 
+    if (!user || !profile) {
+      return res
+        .status(404)
+        .json({ success: false, message: "User or profile not found" });
+    }
+
+    // 2. Reporters ki profiles fetch karein (Nickname + Photos)
     const reporterIds = [...new Set(reports.map((r) => r.reporterId))];
-    const reporters = await Profile.find({ userId: { $in: reporterIds } })
-      .select("userId nickname")
+    const reporterProfiles = await Profile.find({
+      userId: { $in: reporterIds },
+    })
+      .select("userId nickname photos") // Photos ko select karna zaroori hai
       .lean();
-    const reporterMap = reporters.reduce((acc, reporter) => {
-      acc[reporter.userId.toString()] = reporter.nickname;
+
+    // 3. Ek map banayein jisme Reporter ki details ho
+    const reporterMap = reporterProfiles.reduce((acc, rep) => {
+      acc[rep.userId.toString()] = {
+        nickname: rep.nickname,
+        avatar: rep.photos?.[0]?.url || null, // Reporter ki pehli photo
+      };
       return acc;
     }, {});
-
-    if (!user || !profile) {
-      return res.status(404).json({
-        success: false,
-        message: "User or profile not found",
-      });
-    }
 
     const response = {
       userId: user._id,
@@ -111,51 +205,44 @@ const getProfileForReview = async (req, res) => {
       accountStatus: user.accountStatus,
       isVerified: user.isVerified,
       isBanned: user.banDetails?.isBanned || false,
-      banReason: user.banDetails?.reason || null,
       banDetails: user.banDetails || {},
 
       profile: {
         nickname: profile.nickname,
-        photos: profile?.photos || [],
+        photos: profile.photos?.[0]?.url || null,
         bio: profile.about,
         interests: profile.interests || [],
         gender: profile.gender,
         age: profile.age,
-        dob: profile.dob,
-        location: profile?.location || {},
-        verification: profile?.verification || {},
+        location: profile.location || {},
         createdAt: profile.createdAt,
-        lastActive: user.lastActive || null,
-        deviceInfo: user.deviceInfo || {},
+        lastActive: user.lastActive,
       },
 
-      reports: reports.map((report) => ({
-        _id: report._id,
-        reason: report.reason,
-        details: report.details,
-        reportedBy: {
-          id: report.reporterId,
-          nickname: reporterMap[report.reporterId.toString()] || "Unknown User",
-        },
-        status: report.status,
-        description: report.description,
-        createdAt: report.createdAt,
-      })),
+      reports: reports.map((report) => {
+        const reporterData = reporterMap[report.reporterId.toString()] || {};
+        return {
+          _id: report._id,
+          reason: report.reason,
+          status: report.status,
+          severity: report.severity, // Schema mein severity hai toh add karein
+          description: report.description,
+          createdAt: report.createdAt,
+          reportedBy: {
+            id: report.reporterId,
+            nickname: reporterData.nickname || "Unknown User",
+            avatar: reporterData.avatar || null, // ✅ Ab ye Reporter ka avatar dikhayega
+          },
+        };
+      }),
 
       reportCount: reports.length,
     };
 
-    res.status(200).json({
-      success: true,
-      data: response,
-    });
+    res.status(200).json({ success: true, data: response });
   } catch (error) {
-    console.error("Error fetching profile for review:", error);
-    res.status(500).json({
-      success: false,
-      message: "Failed to fetch profile for review",
-      error: error.message,
-    });
+    console.error("Error:", error);
+    res.status(500).json({ success: false, message: "Server Error" });
   }
 };
 

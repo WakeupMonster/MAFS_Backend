@@ -39,7 +39,7 @@ const SupportTicketSchema = new mongoose.Schema(
 
     repliedAt: Date,
   },
-  { timestamps: true }
+  { timestamps: true },
 );
 
 module.exports = mongoose.model("SupportTicket", SupportTicketSchema);

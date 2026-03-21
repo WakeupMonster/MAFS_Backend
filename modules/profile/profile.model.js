@@ -238,42 +238,110 @@ const ProfileSchema = new mongoose.Schema(
 
 ProfileSchema.index({ location: "2dsphere" });
 
+// ProfileSchema.pre("save", function (next) {
+//   const profile = this;
+
+//   const hasNickname = !!profile.nickname;
+//   const hasDob = !!profile.dob;
+//   const hasGender = !!profile.gender;
+//   const hasLocation = !!(profile.location && profile.location.city);
+//   const hasMinPhotos = !!(profile.photos && profile.photos.length >= 1);
+//   const hasGoal = !!profile.discovery?.relationshipGoal;
+//   const hasInterests = !!(
+//     profile.attributes?.interests && profile.attributes.interests.length >= 3
+//   );
+
+//   profile.onboardingProgress.nicknameSet = hasNickname;
+//   profile.onboardingProgress.dobSet = hasDob;
+//   profile.onboardingProgress.genderSet = hasGender;
+//   profile.onboardingProgress.photosUploaded = hasMinPhotos;
+//   profile.onboardingProgress.locationSet = hasLocation;
+//   profile.onboardingProgress.relationshipGoalSet = hasGoal;
+//   profile.onboardingProgress.interestsSet = hasInterests;
+
+//   let score = 0;
+//   if (hasNickname) score += 15;
+//   if (hasDob) score += 10;
+//   if (hasGender) score += 10;
+//   if (hasLocation) score += 10;
+//   if (hasMinPhotos) score += 25;
+//   if (hasGoal) score += 15;
+//   if (hasInterests) score += 15;
+
+//   profile.onboardingProgress.totalCompletion = score;
+
+//   const isProfileReady =
+//     hasNickname && hasDob && hasGender && hasMinPhotos && hasLocation;
+
+//   profile.isMandatoryComplete = isProfileReady;
+//   next();
+// });
+
 ProfileSchema.pre("save", function (next) {
   const profile = this;
+  const attr = profile.attributes || {};
 
-  const hasNickname = !!profile.nickname;
-  const hasDob = !!profile.dob;
-  const hasGender = !!profile.gender;
-  const hasLocation = !!(profile.location && profile.location.city);
-  const hasMinPhotos = !!(profile.photos && profile.photos.length >= 1);
-  const hasGoal = !!profile.discovery?.relationshipGoal;
-  const hasInterests = !!(
-    profile.attributes?.interests && profile.attributes.interests.length >= 3
+  let score = 0; // --- 1. MANDATORY CORE (Total: 70%) ---
+
+  if (profile.nickname) score += 10;
+  if (profile.dob) score += 10;
+  if (profile.gender) score += 10;
+  if (profile.location?.city) score += 10;
+  if (profile.photos?.length >= 1) score += 10;
+  if (profile.photos?.length >= 2) score += 10; // Extra for 2nd photo
+  if (profile.discovery?.relationshipGoal) score += 10; // --- 2. PROFILE DEPTH & TRAITS (Total: 30%) ---
+  // Basic Details (5%)
+
+  if (profile.about) score += 2;
+  if (profile.jobTitle || profile.school) score += 3; // Interests & Languages (10%)
+
+  if (attr.interests?.length >= 5) score += 5;
+  if (attr.languages?.length >= 1) score += 5; // Figma Traits - Chips (Total 15%)
+  // Hum har field ke liye 1-1 ya 2-2 points denge
+
+  const traits = [
+    "zodiac",
+    "education",
+    "familyPlans",
+    "personalityType",
+    "communicationStyle",
+    "loveStyle",
+    "pets",
+    "drinking",
+    "smoking",
+    "workout",
+    "dietary",
+    "religion",
+  ];
+
+  let filledTraits = 0;
+  traits.forEach((t) => {
+    if (attr[t]) filledTraits++;
+  }); // Scoring traits: 15 points total for 12 traits (~1.25 per trait)
+
+  score += Math.round((filledTraits / traits.length) * 15); // Final Score Cap
+
+  profile.onboardingProgress.totalCompletion = Math.min(score, 100); // --- 3. SYSTEM FLAGS (The "Swipe Gate") ---
+
+  const isProfileReady = !!(
+    profile.nickname &&
+    profile.dob &&
+    profile.gender &&
+    profile.photos?.length >= 2 &&
+    profile.location?.city
   );
+  const isVerified = profile.verification?.status === "approved";
 
-  profile.onboardingProgress.nicknameSet = hasNickname;
-  profile.onboardingProgress.dobSet = hasDob;
-  profile.onboardingProgress.genderSet = hasGender;
-  profile.onboardingProgress.photosUploaded = hasMinPhotos;
-  profile.onboardingProgress.locationSet = hasLocation;
-  profile.onboardingProgress.relationshipGoalSet = hasGoal;
-  profile.onboardingProgress.interestsSet = hasInterests;
+  profile.isMandatoryComplete = isProfileReady; // Swipe allowed only if Ready + Approved
 
-  let score = 0;
-  if (hasNickname) score += 15;
-  if (hasDob) score += 10;
-  if (hasGender) score += 10;
-  if (hasLocation) score += 10;
-  if (hasMinPhotos) score += 25;
-  if (hasGoal) score += 15;
-  if (hasInterests) score += 15;
+  if (isProfileReady && isVerified) {
+    profile.canAccessSwipe = true;
+    profile.isDiscoverable = true;
+  } else {
+    profile.canAccessSwipe = false;
+    profile.isDiscoverable = false;
+  }
 
-  profile.onboardingProgress.totalCompletion = score;
-
-  const isProfileReady =
-    hasNickname && hasDob && hasGender && hasMinPhotos && hasLocation;
-
-  profile.isMandatoryComplete = isProfileReady;
   next();
 });
 

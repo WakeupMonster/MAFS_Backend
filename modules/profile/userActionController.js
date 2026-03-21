@@ -142,7 +142,7 @@ module.exports.reportUser = async (req, res) => {
 };
 
 // 3. Get Blocked Users (Figma Design Format)
-module.exports.getBlockList = async (req, res) => {
+exports.getBlockList = async (req, res) => {
   console.log("enter");
   try {
     const myId = req.user._id; // Anubhav ki ID (6953b15de877bc37d35435e3)
