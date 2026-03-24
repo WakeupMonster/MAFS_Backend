@@ -523,19 +523,19 @@ module.exports.GETAllUsers = async (req, res) => {
                   {
                     email: new RegExp(
                       searchTrimmed.replace(/[.*+?^${}()|[\\/]\\]/g, "\\$&"),
-                      "i"
+                      "i",
                     ),
                   },
                   {
                     phone: new RegExp(
                       searchTrimmed.replace(/[.*+?^${}()|[\\/]\\]/g, "\\$&"),
-                      "i"
+                      "i",
                     ),
                   },
                   {
                     "profile.nickname": new RegExp(
                       searchTrimmed.replace(/[.*+?^${}()|[\\/]\\]/g, "\\$&"),
-                      "i"
+                      "i",
                     ),
                   },
                   {
@@ -547,13 +547,13 @@ module.exports.GETAllUsers = async (req, res) => {
                   {
                     "profile.location.city": new RegExp(
                       searchTrimmed.replace(/[.*+?^${}()|[\\/]\\]/g, "\\$&"),
-                      "i"
+                      "i",
                     ),
                   },
                   {
                     "profile.location.country": new RegExp(
                       searchTrimmed.replace(/[.*+?^${}()|[\\/]\\]/g, "\\$&"),
-                      "i"
+                      "i",
                     ),
                   },
                   ...(!isNaN(parseInt(searchTrimmed))
@@ -1110,7 +1110,7 @@ module.exports.GETSingleUserDetails = async (req, res) => {
             distanceRange: "$profile.discovery.distanceRange",
             ageRange: "$profile.discovery.ageRange",
             showMeGender: "$profile.discovery.showMeGender",
-            relationshipGoal: "$profile.discovery.relationshipGoal",
+            relationshipGoal: "$profile.discovery.filterRelationshipGoal",
             globalVisibility: "$profile.discovery.globalVisibility",
             discoveryFilters: "$profile.discovery.advancedFilters",
           },
@@ -1182,7 +1182,7 @@ module.exports.UPDATESingleUserDetail = async (req, res) => {
     if (error) {
       await session.abortTransaction();
       const errorMessages = error.details.map((detail) =>
-        detail.message.replace(/"/g, "")
+        detail.message.replace(/"/g, ""),
       );
       return res.status(400).json({
         success: false,
@@ -1212,7 +1212,7 @@ module.exports.UPDATESingleUserDetail = async (req, res) => {
     const user = await User.findOneAndUpdate(
       { _id: userId, role: "USER" },
       { $set: userUpdate },
-      { new: true, session }
+      { new: true, session },
     );
 
     if (!user) {
@@ -1259,7 +1259,7 @@ module.exports.UPDATESingleUserDetail = async (req, res) => {
                 (grandChildKey) => {
                   profileUpdate[`${parentKey}.${childKey}.${grandChildKey}`] =
                     profile[parentKey][childKey][grandChildKey];
-                }
+                },
               );
             } else {
               profileUpdate[`${parentKey}.${childKey}`] =
@@ -1274,7 +1274,7 @@ module.exports.UPDATESingleUserDetail = async (req, res) => {
         updatedProfile = await Profile.findOneAndUpdate(
           { userId },
           { $set: profileUpdate },
-          { new: true, runValidators: true, session }
+          { new: true, runValidators: true, session },
         );
       }
     }
@@ -1351,7 +1351,7 @@ module.exports.UPDATEUserStatus = async (req, res) => {
     const user = await User.findOneAndUpdate(
       { _id: userId, role: "USER" },
       { $set: { accountStatus } },
-      { new: true }
+      { new: true },
     );
 
     if (!user) {
@@ -1570,7 +1570,7 @@ module.exports.streamUsersExport = async (req, res) => {
     // Removed progress markers because they corrupt the CSV file structure
     res.setHeader(
       "Content-Disposition",
-      `attachment; filename=MAFS_Users_${Date.now()}.csv`
+      `attachment; filename=MAFS_Users_${Date.now()}.csv`,
     );
     res.setHeader("Content-Type", "text/csv");
     res.setHeader("X-Content-Type-Options", "nosniff");

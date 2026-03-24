@@ -76,6 +76,7 @@ module.exports.updateProfile = async (req, res) => {
       const basicFields = [
         "nickname",
         "dob",
+        "age",
         "gender",
         "height",
         "about",
@@ -201,9 +202,9 @@ module.exports.getMyProfile = async (req, res) => {
         .status(404)
         .json({ success: false, message: "Profile not found" });
 
-    console.log("data: ", data);
+    // console.log("data: ", data);
 
-    res.json({
+    res.status(200).json({
       success: true,
       data: {
         user: await formatProfileResponse(

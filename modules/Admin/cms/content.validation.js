@@ -20,7 +20,7 @@ module.exports.createFaq = Joi.object({
       "troubleshooting",
       "security_privacy",
       "safety_reporting",
-      "other"
+      "other",
     )
     .required(),
   order: Joi.number().integer().min(0).optional(),
@@ -38,7 +38,7 @@ module.exports.updateFaq = Joi.object({
       "troubleshooting",
       "security_privacy",
       "safety_reporting",
-      "other"
+      "other",
     )
     .required(),
   order: Joi.number().integer().min(0).optional(),

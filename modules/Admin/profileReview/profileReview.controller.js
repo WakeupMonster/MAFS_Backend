@@ -183,8 +183,12 @@ const getProfileForReview = async (req, res) => {
     // }, {});
 
     // 2. Reporters ki profiles fetch karein (Nickname + Photos)
-    const reporterIds = [...new Set(reports.map((r) => r.reporterId))];
-    const reporterProfiles = await Profile.find({ userId: { $in: reporterIds } })
+    const reporterIds = [
+      ...new Set(reports.map((r) => r.reporterId.toString())),
+    ];
+    const reporterProfiles = await Profile.find({
+      userId: { $in: reporterIds },
+    })
       .select("userId nickname photos")
       .lean();
 
@@ -224,17 +228,22 @@ const getProfileForReview = async (req, res) => {
         lastActive: user.lastActive,
       },
 
-      reports: reports.map((report) => ({
-        _id: report._id,
-        reason: report.reason,
-        details: report.details,
-        reportedBy: {
-          id: report.reporterId,
-          nickname: reporterMap[report.reporterId.toString()] || "Unknown User",
-        },
-        status: report.status,
-        createdAt: report.createdAt,
-      })),
+      reports: reports.map((report) => {
+        const reporterData = reporterMap[report.reporterId.toString()];
+        return {
+          _id: report._id,
+          reason: report.reason,
+          details: report.details,
+          reportedBy: {
+            id: report.reporterId,
+            // Safe checking here to prevent crash
+            nickname: reporterData?.nickname || "Unknown User",
+            avatar: reporterData?.avatar || null,
+          },
+          status: report.status,
+          createdAt: report.createdAt,
+        };
+      }),
 
       reportCount: reports.length,
     };
