@@ -12,12 +12,15 @@ function initTwilio() {
     return null;
   }
   const twilio = require("twilio");
-  twilioClient = twilio(process.env.TWILIO_ACCOUNT_SID, process.env.TWILIO_AUTH_TOKEN);
+  twilioClient = twilio(
+    process.env.TWILIO_ACCOUNT_SID,
+    process.env.TWILIO_AUTH_TOKEN,
+  );
   return twilioClient;
 }
 
 module.exports.generateOtp = () => {
-  return ("" + Math.floor(100000 + Math.random() * 900000)); // 6-digit string
+  return "" + Math.floor(100000 + Math.random() * 900000); // 6-digit string
 };
 
 module.exports.hashOtp = async (otp) => {
@@ -28,6 +31,15 @@ module.exports.hashOtp = async (otp) => {
 module.exports.verifyOtpHash = async (otp, hash) => {
   if (!hash) return false;
   return bcrypt.compare(otp, hash);
+};
+
+module.exports.passwordHashed = async (password) => {
+  const salt = await bcrypt.genSalt(10);
+  return bcrypt.hash(password, salt);
+};
+
+module.exports.passwordCompared = async (password, comparePwd) => {
+  return bcrypt.compare(password, comparePwd);
 };
 
 module.exports.hashToken = (token) => {
@@ -54,19 +66,14 @@ module.exports.verifyToken = (token) => {
   }
 };
 
-
-exports.hashToken = (token) => {
-  return crypto
-    .createHash("sha256")
-    .update(token)
-    .digest("hex");
+module.exports.hashToken = (token) => {
+  return crypto.createHash("sha256").update(token).digest("hex");
 };
 
 module.exports.sendSms = async (to, message) => {
   const client = initTwilio();
 
   if (!client) {
-
     // No Twilio configured — log and return
     console.warn("Twilio not configured. SMS not sent:", to, message);
 
@@ -102,7 +109,7 @@ module.exports.sendEmail = async (to, subject, text) => {
     console.log("👉 SMTP_HOST configured as:", transporter.options.host);
 
     const info = await transporter.sendMail(mailOptions);
-    
+
     console.log("✅ Mail sent successfully! MessageId:", info.messageId);
     console.log("✅ Sent to:", to);
 
@@ -119,7 +126,7 @@ module.exports.passwordCompared = async (plainPassword, hashedPassword) => {
 module.exports.passwordHashed = async (plainPassword) => {
   return bcrypt.hash(plainPassword, 10);
 };
-exports.sendPrizeDeliveredEmail = async (toEmail, prizeTitle) => {
+module.exports.sendPrizeDeliveredEmail = async (toEmail, prizeTitle) => {
   await transporter.sendMail({
     from: '"Giveaway Team" <no-reply@app.com>',
     to: toEmail,
@@ -128,10 +135,9 @@ exports.sendPrizeDeliveredEmail = async (toEmail, prizeTitle) => {
       <h2>Congratulations 🎉</h2>
       <p>Your prize <b>${prizeTitle}</b> has been successfully delivered.</p>
       <p>Thank you for participating!</p>
-    `
+    `,
   });
 };
-
 
 module.exports.sendReplyToReporterEmail = async ({
   to,
@@ -139,7 +145,7 @@ module.exports.sendReplyToReporterEmail = async ({
   reportedUserName,
   reportReason,
   adminReply,
-  reportDate
+  reportDate,
 }) => {
   try {
     const subject = "Update on your reported profile";
@@ -165,13 +171,13 @@ module.exports.sendReplyToReporterEmail = async ({
       from: process.env.SMTP_MAIL,
       to,
       subject,
-      html
+      html,
     };
 
     const info = await transporter.sendMail(mailOptions);
 
-    console.log("Mail sent:", info.messageId);
-    console.log("Sent to:", to);
+    // console.log("Mail sent:", info.messageId);
+    // console.log("Sent to:", to);
 
     return { ok: true, info };
   } catch (error) {
@@ -179,9 +185,6 @@ module.exports.sendReplyToReporterEmail = async ({
     throw new Error("Email sending failed");
   }
 };
-
-
-
 
 // module.exports.sendEmail = async (to, subject, text) => {
 

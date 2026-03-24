@@ -29,7 +29,7 @@ const SupportTicketSchema = new mongoose.Schema(
       required: false,
     },
 
-    subject: { type: String, required: false, trim: true },
+    // subject: { type: String, required: false, trim: true },
 
     message: { type: String, required: false },
 
@@ -49,7 +49,7 @@ const SupportTicketSchema = new mongoose.Schema(
 
     repliedAt: Date,
   },
-  { timestamps: true }
+  { timestamps: true },
 );
 
 module.exports = mongoose.model("SupportTicket", SupportTicketSchema);

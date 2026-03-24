@@ -1,14 +1,7 @@
 const mongoose = require("mongoose");
-const redis = require("../../../config/cache");
 const User = require("../../auth/auth.model");
-const { createCacheKey } = require("../../auth/auth.utils");
 const Profile = require("../../profile/profile.model");
-const {
-  adminUserListSchema,
-  updateUserSchema,
-} = require("./user.management.validation");
-const fs = require("fs");
-const path = require("path");
+const { updateUserSchema } = require("./user.management.validation");
 const { stringify } = require("csv-stringify");
 const { destroy } = require("../../upload/cloudinary.service");
 
@@ -27,177 +20,447 @@ For Bluk exports to get all Users Data:-
 API 4: POST api/v1/admin/user-management/export
 */
 
-/* ============================================
- * GET ALL USERS – ADMIN DATATABLE (REDIS) & Search or filters:-
- * API 1: GET api/v1/admin/user-management/user-list
- * ============================================ */
+/* =============== SAMPLE GET ALL USERS – ADMIN ================== */
+/* ======== GET ALL USERS – ADMIN DATATABLE (REDIS) & Search or filters:API 1: GET api/v1/admin/user-management/user-list ====== */
+// module.exports.GETAllUsers = async (req, res) => {
+//   try {
+//     const {
+//       page: reqPage,
+//       limit: reqLimit,
+//       search,
+//       accountStatus,
+//       isPremium,
+//       isBanned,
+//       last24Hours,
+//       gender,
+//       isDeactivated,
+//       isScheduledForDeletion,
+//     } = req.query;
+
+//     // 1. Generate a unique cache key based on query params
+//     // const cacheKey = `users:list:${JSON.stringify({
+//     //   reqPage,
+//     //   reqLimit,
+//     //   search,
+//     //   accountStatus,
+//     //   isPremium,
+//     //   isBanned,
+//     // })}`;
+
+//     // 2. Try to fetch from Redis
+//     // const cachedData = await redis.get(cacheKey);
+//     // if (cachedData) {
+//     //   console.log("CACHE HIT");
+//     //   return res.status(200).json({
+//     //     success: true,
+//     //     cached: true,
+//     //     ...JSON.parse(cachedData),
+//     //   });
+//     // }
+
+//     // --- YOUR EXISTING LOGIC START ---
+//     const page = Math.max(parseInt(reqPage) || 1, 1);
+//     const limit = Math.min(parseInt(reqLimit) || 10, 100);
+//     const skip = (page - 1) * limit;
+//     const searchTrimmed = search?.trim();
+
+//     const baseMatch = { role: "USER" };
+//     if (accountStatus) baseMatch.accountStatus = accountStatus;
+//     if (isPremium) baseMatch.isPremium = isPremium === "true";
+//     if (isBanned !== undefined)
+//       baseMatch["banDetails.isBanned"] = isBanned === "true";
+
+//     if (isDeactivated !== undefined) {
+//       baseMatch["deactivationDetails.isDeactivated"] = isDeactivated === "true";
+//     }
+
+//     if (isScheduledForDeletion !== undefined) {
+//       baseMatch["deletionDetails.isScheduledForDeletion"] =
+//         isScheduledForDeletion === "true";
+//     }
+
+//     if (last24Hours === "true") {
+//       const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
+//       baseMatch.lastLoginAt = { $gte: twentyFourHoursAgo };
+//     }
+
+//     // Your Pipeline (Keeping your existing pipeline structure)
+//     const pipeline = [
+//       { $match: baseMatch },
+//       {
+//         $lookup: {
+//           from: "profiles",
+//           localField: "_id",
+//           foreignField: "userId",
+//           as: "profile",
+//         },
+//       },
+//       { $unwind: { path: "$profile", preserveNullAndEmptyArrays: true } },
+//       // 2. NEW: Apply Gender Filter (Post-Lookup)
+//       ...(gender ? [{ $match: { "profile.gender": gender } }] : []),
+//       ...(searchTrimmed
+//         ? [
+//             {
+//               $match: {
+//                 $or: [
+//                   {
+//                     email: new RegExp(
+//                       searchTrimmed.replace(/[.*+?^${}()|[\\/]\\]/g, "\\$&"),
+//                       "i",
+//                     ),
+//                   },
+//                   {
+//                     phone: new RegExp(
+//                       searchTrimmed.replace(/[.*+?^${}()|[\\/]\\]/g, "\\$&"),
+//                       "i",
+//                     ),
+//                   },
+//                   {
+//                     "profile.nickname": new RegExp(
+//                       searchTrimmed.replace(/[.*+?^${}()|[\\/]\\]/g, "\\$&"),
+//                       "i",
+//                     ),
+//                   },
+//                   {
+//                     "profile.gender": new RegExp(
+//                       searchTrimmed.replace(/[.*+?^${}()|[\\/]\\]/g, "\\$&"),
+//                       "i",
+//                     ),
+//                   },
+//                   {
+//                     "profile.location.city": new RegExp(
+//                       searchTrimmed.replace(/[.*+?^${}()|[\\/]\\]/g, "\\$&"),
+//                       "i",
+//                     ),
+//                   },
+//                   {
+//                     "profile.location.country": new RegExp(
+//                       searchTrimmed.replace(/[.*+?^${}()|[\\/]\\]/g, "\\$&"),
+//                       "i",
+//                     ),
+//                   },
+//                   // Exact match for Age if search is a number
+//                   ...(!isNaN(parseInt(searchTrimmed))
+//                     ? [{ "profile.age": parseInt(searchTrimmed) }]
+//                     : []),
+//                 ],
+//               },
+//             },
+//           ]
+//         : [{ $sort: { createdAt: -1 } }]),
+//       {
+//         $lookup: {
+//           from: "accounts",
+//           localField: "_id",
+//           foreignField: "userId",
+//           as: "account",
+//         },
+//       },
+//       { $unwind: { path: "$account", preserveNullAndEmptyArrays: true } },
+//       {
+//         $lookup: {
+//           from: "subscriptions", // Look up the main subscription record
+//           localField: "_id",
+//           foreignField: "userId",
+//           as: "subscriptionInfo",
+//         },
+//       },
+//       {
+//         $addFields: {
+//           // Get the most recent/active subscription
+//           currentSubscription: {
+//             $arrayElemAt: [
+//               {
+//                 $filter: {
+//                   input: "$subscriptionInfo",
+//                   as: "sub",
+//                   cond: { $eq: ["$$sub.status", "ACTIVE"] }, // Prioritize active ones
+//                 },
+//               },
+//               0,
+//             ],
+//           },
+//           // If no active, just get the latest one by date
+//           latestSubscription: {
+//             $arrayElemAt: [
+//               {
+//                 $sortArray: {
+//                   input: "$subscriptionInfo",
+//                   sortBy: { expiresAt: -1 },
+//                 },
+//               },
+//               0,
+//             ],
+//           },
+//         },
+//       },
+//       {
+//         $lookup: {
+//           from: "subscriptiontransactions",
+//           localField: "_id",
+//           foreignField: "userId",
+//           as: "transactionHistory",
+//         },
+//       },
+//       {
+//         $addFields: {
+//           transactionHistory: {
+//             $sortArray: {
+//               input: "$transactionHistory",
+//               sortBy: { createdAt: -1 },
+//             },
+//           },
+//         },
+//       },
+//       {
+//         $facet: {
+//           data: [
+//             { $skip: skip },
+//             { $limit: limit },
+//             // 🔥 NEW STATS LOOKUPS: Swipe Stats
+//             {
+//               $lookup: {
+//                 from: "swipes",
+//                 let: { userId: "$_id" },
+//                 pipeline: [
+//                   { $match: { $expr: { $eq: ["$swiperId", "$$userId"] } } },
+//                   {
+//                     $group: {
+//                       _id: null,
+//                       totalSwipes: { $sum: 1 },
+//                       likes: {
+//                         $sum: { $cond: [{ $eq: ["$action", "like"] }, 1, 0] },
+//                       },
+//                       superLikes: {
+//                         $sum: {
+//                           $cond: [{ $eq: ["$action", "superlike"] }, 1, 0],
+//                         },
+//                       },
+//                     },
+//                   },
+//                 ],
+//                 as: "swipeStats",
+//               },
+//             },
+//             {
+//               $unwind: {
+//                 path: "$swipeStats",
+//                 preserveNullAndEmptyArrays: true,
+//               },
+//             },
+//             // 🔥 NEW STATS LOOKUPS: Match Stats HISTORY & COUNT
+//             {
+//               $lookup: {
+//                 from: "matches",
+//                 let: { currentUserId: "$_id" },
+//                 pipeline: [
+//                   { $match: { $expr: { $in: ["$$currentUserId", "$users"] } } },
+//                   { $sort: { matchedAt: -1 } },
+//                   // We identify the "Other User" and get their profile info
+//                   {
+//                     $addFields: {
+//                       otherUserId: {
+//                         $first: {
+//                           $filter: {
+//                             input: "$users",
+//                             as: "uId",
+//                             cond: { $ne: ["$$uId", "$$currentUserId"] },
+//                           },
+//                         },
+//                       },
+//                     },
+//                   },
+//                   {
+//                     $lookup: {
+//                       from: "profiles",
+//                       localField: "otherUserId",
+//                       foreignField: "userId",
+//                       as: "otherProfile",
+//                     },
+//                   },
+//                   {
+//                     $unwind: {
+//                       path: "$otherProfile",
+//                       preserveNullAndEmptyArrays: true,
+//                     },
+//                   },
+//                   {
+//                     $project: {
+//                       _id: 1,
+//                       matchedAt: 1,
+//                       ouserId: "$otherProfile.userId",
+//                       nickname: "$otherProfile.nickname",
+//                       photo: { $arrayElemAt: ["$otherProfile.photos.url", 0] },
+//                     },
+//                   },
+//                 ],
+//                 as: "matchData",
+//               },
+//             },
+//             {
+//               $project: {
+//                 _id: 1,
+//                 role: 1,
+//                 // 🔥 ADD THE STATS TO THE PROJECT OUTPUT
+//                 stats: {
+//                   totalSwipes: { $ifNull: ["$swipeStats.totalSwipes", 0] },
+//                   totalLikes: { $ifNull: ["$swipeStats.likes", 0] },
+//                   totalSuperLikes: { $ifNull: ["$swipeStats.superLikes", 0] },
+//                   totalMatches: { $size: "$matchData" },
+//                   totalTransactions: { $size: "$transactionHistory" }, // Useful stat
+//                 },
+//                 // Show only the 5 most recent matches in the array
+//                 recentMatches: { $slice: ["$matchData", 5] },
+//                 account: {
+//                   status: "$accountStatus",
+//                   isPremium: "$isPremium",
+//                   phone: "$phone",
+//                   email: "$email",
+//                   authMethod: "$authMethod",
+//                   banDetails: "$banDetails",
+//                   deactivationDetails: "$deactivationDetails",
+//                   deletionDetails: "$deletionDetails",
+//                   suspensionDetails: "$suspensionDetails",
+//                   createdAt: "$createdAt",
+//                 },
+//                 profile: {
+//                   profileId: "$profile._id",
+//                   nickname: "$profile.nickname",
+//                   dob: "$profile.dob",
+//                   age: "$profile.age",
+//                   gender: "$profile.gender",
+//                   height: "$profile.height",
+//                   about: "$profile.about",
+//                   jobTitle: "$profile.jobTitle",
+//                   company: "$profile.company",
+//                   totalCompletion:
+//                     "$profile.onboardingProgress.totalCompletion",
+//                 },
+//                 subscription: {
+//                   _id: {
+//                     $ifNull: [
+//                       "$currentSubscription._id",
+//                       "$latestSubscription._id",
+//                     ],
+//                   },
+//                   status: {
+//                     $ifNull: [
+//                       "$currentSubscription.status",
+//                       "$latestSubscription.status",
+//                     ],
+//                   },
+//                   planType: {
+//                     $ifNull: [
+//                       "$currentSubscription.planType",
+//                       "$latestSubscription.planType",
+//                     ],
+//                   },
+//                   platform: {
+//                     $ifNull: [
+//                       "$currentSubscription.platform",
+//                       "$latestSubscription.platform",
+//                     ],
+//                   },
+//                   startedAt: {
+//                     $ifNull: [
+//                       "$currentSubscription.startedAt",
+//                       "$latestSubscription.startedAt",
+//                     ],
+//                   },
+//                   expiresAt: {
+//                     $ifNull: [
+//                       "$currentSubscription.expiresAt",
+//                       "$latestSubscription.expiresAt",
+//                     ],
+//                   },
+//                   isCurrentlyActive: {
+//                     $and: [
+//                       {
+//                         $eq: [
+//                           { $ifNull: ["$currentSubscription.status", ""] },
+//                           "ACTIVE",
+//                         ],
+//                       },
+//                       { $gt: ["$currentSubscription.expiresAt", new Date()] },
+//                     ],
+//                   },
+//                 },
+//                 transactions: "$transactionHistory",
+//                 attributes: {
+//                   zodiac: "$profile.attributes.zodiac",
+//                   education: "$profile.attributes.education",
+//                   familyPlans: "$profile.attributes.familyPlans",
+//                   personalityType: "$profile.attributes.personalityType",
+//                   communicationStyle: "$profile.attributes.communicationStyle",
+//                   loveStyle: "$profile.attributes.loveStyle",
+//                   pets: "$profile.attributes.pets",
+//                   drinking: "$profile.attributes.drinking",
+//                   smoking: "$profile.attributes.smoking",
+//                   workout: "$profile.attributes.workout",
+//                   dietary: "$profile.attributes.dietary",
+//                   sleeping: "$profile.attributes.sleeping",
+//                   socialMedia: "$profile.attributes.socialMedia",
+//                   languages: "$profile.attributes.languages",
+//                   interests: "$profile.attributes.interests",
+//                   music: "$profile.attributes.music",
+//                   movies: "$profile.attributes.movies",
+//                   books: "$profile.attributes.books",
+//                   travel: "$profile.attributes.travel",
+//                   religion: "$profile.attributes.religion",
+//                 },
+//                 discovery: {
+//                   distanceRange: "$profile.discovery.distanceRange",
+//                   ageRange: "$profile.discovery.ageRange",
+//                   showMeGender: "$profile.discovery.showMeGender",
+//                   relationshipGoal: "$profile.discovery.relationshipGoal",
+//                   globalVisibility: "$profile.discovery.globalVisibility",
+//                   discoveryFilters: "$profile.discovery.advancedFilters",
+//                 },
+//                 location: "$profile.location",
+//                 photos: "$profile.photos",
+//                 verification: "$profile.verification",
+//                 lastProfileUpdate: "$profile.lastProfileUpdate",
+//                 createdAt: 1,
+//                 lastLoginAt: 1,
+//                 isPhoneVerified: 1,
+//                 isEmailVerified: 1,
+//               },
+//             },
+//           ],
+//           total: [{ $count: "count" }],
+//         },
+//       },
+//     ];
+
+//     const result = await User.aggregate(pipeline);
+//     const users = result[0]?.data || [];
+//     const total = result[0]?.total[0]?.count || 0;
+
+//     const responseData = {
+//       pagination: {
+//         page,
+//         limit,
+//         total,
+//         totalPages: Math.ceil(total / limit),
+//       },
+//       data: users,
+//     };
+//     // --- YOUR EXISTING LOGIC END ---
+
+//     // 3. Save to Redis with an expiration time (e.g., 5 minutes / 300 seconds)
+//     // await redis.set(cacheKey, responseData, "EX", 300);
+
+//     return res.status(200).json({
+//       success: true,
+//       cached: false,
+//       ...responseData,
+//     });
+//   } catch (error) {
+//     console.error("GET USER LIST ERROR:", error);
+//     res.status(500).json({ success: false, message: "Failed to fetch users" });
+//   }
+// };
 module.exports.GETAllUsers = async (req, res) => {
-  try {
-    /* -----------------------------
-     * 1️⃣ Joi Validation
-     * ----------------------------- */
-    const { error, value } = adminUserListSchema.validate(req.query);
-    if (error) {
-      return res.status(400).json({
-        success: false,
-        message: error.details[0].message.replace(/"/g, ""),
-      });
-    }
-
-    /* -----------------------------
-     * 2️⃣ Redis Cache Check
-     * ----------------------------- */
-    const cacheKey = createCacheKey("admin:users", value);
-    const cachedData = await redis.get(cacheKey);
-
-    if (cachedData) {
-      return res.status(200).json({
-        success: true,
-        cached: true,
-        message: "GET ALL Users List (cache)",
-        ...JSON.parse(cachedData),
-      });
-    }
-
-    const {
-      page,
-      limit,
-      search,
-      accountStatus,
-      isPremium,
-      gender,
-      kycStatus,
-      profileComplete,
-      sort,
-    } = value;
-
-    const skip = (page - 1) * limit;
-
-    /* -----------------------------
-     * 3️⃣ User Match
-     * ----------------------------- */
-    const userMatch = { role: "USER", isFake: { $ne: true } };
-
-    if (accountStatus) userMatch.accountStatus = accountStatus;
-    if (isPremium !== undefined) userMatch.isPremium = isPremium;
-
-    if (search) {
-      userMatch.$or = [{ phone: search }, { email: search }];
-    }
-
-    /* -----------------------------
-     * 4️⃣ Profile Match
-     * ----------------------------- */
-    const profileMatch = {};
-
-    if (gender) profileMatch.gender = gender;
-    if (profileComplete !== undefined)
-      profileMatch.isProfileComplete = profileComplete;
-
-    if (kycStatus) profileMatch["kyc.status"] = kycStatus;
-
-    if (search) {
-      profileMatch.fullName = { $regex: search, $options: "i" };
-    }
-
-    /* -----------------------------
-     * 5️⃣ Aggregation
-     * ----------------------------- */
-    const pipeline = [
-      { $match: userMatch },
-      {
-        $lookup: {
-          from: "profiles",
-          localField: "_id",
-          foreignField: "userId",
-          as: "profile",
-        },
-      },
-      { $unwind: { path: "$profile", preserveNullAndEmptyArrays: true } },
-      { $match: profileMatch },
-      {
-        $project: {
-          userId: "$_id",
-          phone: 1,
-          email: 1,
-          authMethod: 1,
-          accountStatus: 1,
-          isPremium: 1,
-          createdAt: 1,
-          lastProfileUpdate: 1,
-
-          avatar: "$profile.avatar",
-          fullName: "$profile.fullName",
-          nickname: "$profile.nickname",
-          gender: "$profile.gender",
-          dob: "$profile.dob",
-          age: "$profile.age",
-          kycStatus: "$profile.kyc.status",
-          profileCompletion: "$profile.onboardingProgress.totalCompletion",
-          isProfileComplete: "$profile.isProfileComplete",
-        },
-      },
-      { $sort: { [sort]: -1 } },
-      { $skip: skip },
-      { $limit: limit },
-    ];
-
-    const countPipeline = [
-      { $match: userMatch },
-      {
-        $lookup: {
-          from: "profiles",
-          localField: "_id",
-          foreignField: "userId",
-          as: "profile",
-        },
-      },
-      { $unwind: { path: "$profile", preserveNullAndEmptyArrays: true } },
-      { $match: profileMatch },
-      { $count: "total" },
-    ];
-
-    const [users, totalResult] = await Promise.all([
-      User.aggregate(pipeline),
-      User.aggregate(countPipeline),
-    ]);
-
-    const response = {
-      pagination: {
-        page,
-        limit,
-        total: totalResult[0]?.total || 0,
-      },
-      data: users,
-    };
-
-    /* -----------------------------
-     * 6️⃣ Save to Redis (TTL)
-     * ----------------------------- */
-    await redis.setex(
-      cacheKey,
-      60 * 2, // ⏱ 2 minutes (admin-safe)
-      JSON.stringify(response)
-    );
-
-    return res.status(200).json({
-      success: true,
-      message: "GET ALL Users List",
-      ...response,
-    });
-  } catch (error) {
-    return res.status(500).json({
-      success: false,
-      message: "Failed to fetch users",
-      error: error.message,
-    });
-  }
-};
-
-/* ============================================
- * SAMPLE GET ALL USERS – ADMIN
- * ============================================ */
-module.exports.SampleGETallUser = async (req, res) => {
   try {
     const {
       page: reqPage,
@@ -207,8 +470,12 @@ module.exports.SampleGETallUser = async (req, res) => {
       isPremium,
       isBanned,
       last24Hours,
+      gender,
+      isDeactivated,
+      isScheduledForDeletion,
     } = req.query;
 
+    // --- YOUR EXISTING LOGIC START ---
     const page = Math.max(parseInt(reqPage) || 1, 1);
     const limit = Math.min(parseInt(reqLimit) || 10, 100);
     const skip = (page - 1) * limit;
@@ -220,10 +487,21 @@ module.exports.SampleGETallUser = async (req, res) => {
     if (isBanned !== undefined)
       baseMatch["banDetails.isBanned"] = isBanned === "true";
 
+    if (isDeactivated !== undefined) {
+      baseMatch["deactivationDetails.isDeactivated"] = isDeactivated === "true";
+    }
+
+    if (isScheduledForDeletion !== undefined) {
+      baseMatch["deletionDetails.isScheduledForDeletion"] =
+        isScheduledForDeletion === "true";
+    }
+
     if (last24Hours === "true") {
       const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
       baseMatch.lastLoginAt = { $gte: twentyFourHoursAgo };
     }
+
+    // Your Pipeline (Keeping your existing pipeline structure)
     const pipeline = [
       { $match: baseMatch },
       {
@@ -235,49 +513,56 @@ module.exports.SampleGETallUser = async (req, res) => {
         },
       },
       { $unwind: { path: "$profile", preserveNullAndEmptyArrays: true } },
+      // 2. NEW: Apply Gender Filter (Post-Lookup)
+      ...(gender ? [{ $match: { "profile.gender": gender } }] : []),
       ...(searchTrimmed
         ? [
-          {
-            $match: {
-              $or: [
-                {
-                  email: new RegExp(
-                    searchTrimmed.replace(/[.*+?^${}()|[\\/]\\]/g, "\\$&"),
-                    "i"
-                  ),
-                },
-                {
-                  phone: new RegExp(
-                    searchTrimmed.replace(/[.*+?^${}()|[\\/]\\]/g, "\\$&"),
-                    "i"
-                  ),
-                },
-                {
-                  "profile.nickname": new RegExp(
-                    searchTrimmed.replace(/[.*+?^${}()|[\\/]\\]/g, "\\$&"),
-                    "i"
-                  ),
-                },
-                {
-                  "profile.gender": new RegExp(
-                    searchTrimmed.replace(/[.*+?^${}()|[\\/]\\]/g, "\\$&"),
-                    "i"
-                  ),
-                },
-                {
-                  "profile.location.address": new RegExp(
-                    searchTrimmed.replace(/[.*+?^${}()|[\\/]\\]/g, "\\$&"),
-                    "i"
-                  ),
-                },
-                // Exact match for Age if search is a number
-                ...(!isNaN(parseInt(searchTrimmed))
-                  ? [{ "profile.age": parseInt(searchTrimmed) }]
-                  : []),
-              ],
+            {
+              $match: {
+                $or: [
+                  {
+                    email: new RegExp(
+                      searchTrimmed.replace(/[.*+?^${}()|[\\/]\\]/g, "\\$&"),
+                      "i",
+                    ),
+                  },
+                  {
+                    phone: new RegExp(
+                      searchTrimmed.replace(/[.*+?^${}()|[\\/]\\]/g, "\\$&"),
+                      "i",
+                    ),
+                  },
+                  {
+                    "profile.nickname": new RegExp(
+                      searchTrimmed.replace(/[.*+?^${}()|[\\/]\\]/g, "\\$&"),
+                      "i",
+                    ),
+                  },
+                  {
+                    "profile.gender": {
+                      $regex: `^${searchTrimmed}$`,
+                      $options: "i",
+                    },
+                  },
+                  {
+                    "profile.location.city": new RegExp(
+                      searchTrimmed.replace(/[.*+?^${}()|[\\/]\\]/g, "\\$&"),
+                      "i",
+                    ),
+                  },
+                  {
+                    "profile.location.country": new RegExp(
+                      searchTrimmed.replace(/[.*+?^${}()|[\\/]\\]/g, "\\$&"),
+                      "i",
+                    ),
+                  },
+                  ...(!isNaN(parseInt(searchTrimmed))
+                    ? [{ "profile.age": parseInt(searchTrimmed) }]
+                    : []),
+                ],
+              },
             },
-          },
-        ]
+          ]
         : [{ $sort: { createdAt: -1 } }]),
       {
         $lookup: {
@@ -288,6 +573,255 @@ module.exports.SampleGETallUser = async (req, res) => {
         },
       },
       { $unwind: { path: "$account", preserveNullAndEmptyArrays: true } },
+      {
+        $facet: {
+          data: [
+            { $sort: { createdAt: -1 } },
+            { $skip: skip },
+            { $limit: limit },
+            {
+              $project: {
+                _id: 1,
+                role: 1,
+                account: {
+                  status: "$accountStatus",
+                  isPremium: "$isPremium",
+                  phone: "$phone",
+                  email: "$email",
+                  authMethod: "$authMethod",
+                  banDetails: "$banDetails",
+                  deactivationDetails: "$deactivationDetails",
+                  deletionDetails: "$deletionDetails",
+                  suspensionDetails: "$suspensionDetails",
+                  createdAt: "$createdAt",
+                },
+                profile: {
+                  profileId: "$profile._id",
+                  nickname: "$profile.nickname",
+                  dob: "$profile.dob",
+                  age: "$profile.age",
+                  gender: "$profile.gender",
+                  height: "$profile.height",
+                  about: "$profile.about",
+                  jobTitle: "$profile.jobTitle",
+                  company: "$profile.company",
+                  totalCompletion:
+                    "$profile.onboardingProgress.totalCompletion",
+                },
+                location: "$profile.location",
+                photos: { $arrayElemAt: ["$profile.photos.url", 0] },
+                // verification: "$profile.verification",
+                lastProfileUpdate: "$profile.lastProfileUpdate",
+                createdAt: 1,
+                lastLoginAt: 1,
+                // isPhoneVerified: 1,
+                // isEmailVerified: 1,
+              },
+            },
+          ],
+          total: [{ $count: "count" }],
+        },
+      },
+    ];
+
+    const result = await User.aggregate(pipeline);
+    const users = result[0]?.data || [];
+    const total = result[0]?.total[0]?.count || 0;
+
+    const responseData = {
+      pagination: {
+        page,
+        limit,
+        total,
+        totalPages: Math.ceil(total / limit),
+      },
+      data: users,
+    };
+
+    return res.status(200).json({
+      success: true,
+      cached: false,
+      ...responseData,
+    });
+  } catch (error) {
+    console.error("GET USER LIST ERROR:", error);
+    res.status(500).json({ success: false, message: "Failed to fetch users" });
+  }
+};
+
+/* ======: For GET SINGLE USER DETAILS – ADMIN:====API 2: GET api/v1/admin/user-management/:userId =========== */
+module.exports.GETSingleUserDetails = async (req, res) => {
+  try {
+    const { userId } = req.params;
+
+    // 1. Validation
+    if (!mongoose.Types.ObjectId.isValid(userId)) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid userId format",
+      });
+    }
+
+    // 2. Aggregation Pipeline
+    const pipeline = [
+      {
+        $match: {
+          _id: new mongoose.Types.ObjectId(userId),
+        },
+      },
+      // 1. Join Profile
+      {
+        $lookup: {
+          from: "profiles", // Collection name check karein (usually plural)
+          localField: "_id",
+          foreignField: "userId",
+          as: "profile",
+        },
+      },
+      {
+        $unwind: {
+          path: "$profile",
+          preserveNullAndEmptyArrays: true, // Profile nahi bani toh bhi user data milega
+        },
+      },
+      // 2. Join Account
+      {
+        $lookup: {
+          from: "accounts",
+          localField: "_id",
+          foreignField: "userId",
+          as: "account",
+        },
+      },
+      { $unwind: { path: "$account", preserveNullAndEmptyArrays: true } },
+      // 3. Swipe Stats
+      {
+        $lookup: {
+          from: "swipes",
+          let: { userId: "$_id" },
+          pipeline: [
+            { $match: { $expr: { $eq: ["$swiperId", "$$userId"] } } },
+            {
+              $group: {
+                _id: null,
+                totalSwipes: { $sum: 1 },
+                likes: {
+                  $sum: { $cond: [{ $eq: ["$action", "like"] }, 1, 0] },
+                },
+                superLikes: {
+                  $sum: { $cond: [{ $eq: ["$action", "superlike"] }, 1, 0] },
+                },
+                rejections: {
+                  $sum: { $cond: [{ $eq: ["$action", "pass"] }, 1, 0] },
+                },
+              },
+            },
+          ],
+          as: "swipeStats",
+        },
+      },
+      { $unwind: { path: "$swipeStats", preserveNullAndEmptyArrays: true } },
+      // 4. Match History
+      {
+        $lookup: {
+          from: "matches",
+          let: { currentUserId: "$_id" },
+          pipeline: [
+            { $match: { $expr: { $in: ["$$currentUserId", "$users"] } } },
+            { $sort: { matchedAt: -1 } },
+            {
+              $addFields: {
+                otherUserId: {
+                  $first: {
+                    $filter: {
+                      input: "$users",
+                      as: "uId",
+                      cond: { $ne: ["$$uId", "$$currentUserId"] },
+                    },
+                  },
+                },
+              },
+            },
+            {
+              $lookup: {
+                from: "profiles",
+                localField: "otherUserId",
+                foreignField: "userId",
+                as: "otherProfile",
+              },
+            },
+            {
+              $unwind: {
+                path: "$otherProfile",
+                preserveNullAndEmptyArrays: true,
+              },
+            },
+            {
+              $project: {
+                _id: 1,
+                matchedAt: 1,
+                ouserId: "$otherProfile.userId",
+                nickname: "$otherProfile.nickname",
+                photo: { $arrayElemAt: ["$otherProfile.photos.url", 0] },
+              },
+            },
+          ],
+          as: "matchData",
+        },
+      },
+      // 5. Blocked Users & Blocked Contacts.
+      {
+        $lookup: {
+          from: "blocks",
+          let: { currentUserId: "$_id" },
+          pipeline: [
+            { $match: { $expr: { $eq: ["$blockerId", "$$currentUserId"] } } },
+            {
+              $lookup: {
+                from: "profiles",
+                let: {
+                  bId: {
+                    $convert: {
+                      input: "$blockedId",
+                      to: "objectId",
+                      onError: null,
+                      onNull: null,
+                    },
+                  },
+                },
+                pipeline: [
+                  { $match: { $expr: { $eq: ["$userId", "$$bId"] } } },
+                ],
+                as: "blockedProfile",
+              },
+            },
+            {
+              $unwind: {
+                path: "$blockedProfile",
+                preserveNullAndEmptyArrays: true,
+              },
+            },
+            {
+              $project: {
+                _id: "$blockedId",
+                nickname: { $ifNull: ["$blockedProfile.nickname", ""] },
+                photo: { $arrayElemAt: ["$blockedProfile.photos.url", 0] },
+                blockedAt: "$createdAt",
+              },
+            },
+          ],
+          as: "blockedUsersData",
+        },
+      },
+      {
+        $lookup: {
+          from: "blockedcontacts",
+          localField: "_id",
+          foreignField: "userId",
+          as: "blockedContactsData",
+        },
+      },
+      // 6. Subscriptions & Transactions
       {
         $lookup: {
           from: "subscriptions", // Look up the main subscription record
@@ -343,85 +877,20 @@ module.exports.SampleGETallUser = async (req, res) => {
           },
         },
       },
+      // 7. Reports Against This User (New Stage)
       {
-        $facet: {
-          data: [
-            { $skip: skip },
-            { $limit: limit },
+        $lookup: {
+          from: "reports", // Collection name check karein (Report model ka plural)
+          let: { currentUserId: "$_id" },
+          pipeline: [
+            { $match: { $expr: { $eq: ["$reportedId", "$$currentUserId"] } } },
+            { $sort: { createdAt: -1 } }, // Latest reports pehle
             {
               $lookup: {
-                from: "swipes",
-                let: { userId: "$_id" },
-                pipeline: [
-                  { $match: { $expr: { $eq: ["$swiperId", "$$userId"] } } },
-                  {
-                    $group: {
-                      _id: null,
-                      totalSwipes: { $sum: 1 },
-                      likes: {
-                        $sum: { $cond: [{ $eq: ["$action", "like"] }, 1, 0] },
-                      },
-                      superLikes: {
-                        $sum: {
-                          $cond: [{ $eq: ["$action", "superlike"] }, 1, 0],
-                        },
-                      },
-                    },
-                  },
-                ],
-                as: "swipeStats",
-              },
-            },
-            {
-              $unwind: {
-                path: "$swipeStats",
-                preserveNullAndEmptyArrays: true,
-              },
-            },
-            {
-              $lookup: {
-                from: "matches",
-                let: { currentUserId: "$_id" },
-                pipeline: [
-                  { $match: { $expr: { $in: ["$$currentUserId", "$users"] } } },
-                  { $sort: { matchedAt: -1 } },
-                  {
-                    $addFields: {
-                      otherUserId: {
-                        $first: {
-                          $filter: {
-                            input: "$users",
-                            as: "uId",
-                            cond: { $ne: ["$$uId", "$$currentUserId"] },
-                          },
-                        },
-                      },
-                    },
-                  },
-                  {
-                    $lookup: {
-                      from: "profiles",
-                      localField: "otherUserId",
-                      foreignField: "userId",
-                      as: "otherProfile",
-                    },
-                  },
-                  {
-                    $unwind: {
-                      path: "$otherProfile",
-                      preserveNullAndEmptyArrays: true,
-                    },
-                  },
-                  {
-                    $project: {
-                      _id: 1,
-                      matchedAt: 1,
-                      nickname: "$otherProfile.nickname",
-                      photo: { $arrayElemAt: ["$otherProfile.photos.url", 0] },
-                    },
-                  },
-                ],
-                as: "matchData",
+                from: "profiles",
+                localField: "reporterId",
+                foreignField: "userId",
+                as: "reporterInfo",
               },
             },
             {
@@ -429,30 +898,46 @@ module.exports.SampleGETallUser = async (req, res) => {
                 from: "blocks",
                 let: { currentUserId: "$_id" },
                 pipeline: [
-                  { $match: { $expr: { $eq: ["$blockerId", "$$currentUserId"] } } },
+                  {
+                    $match: {
+                      $expr: { $eq: ["$blockerId", "$$currentUserId"] },
+                    },
+                  },
                   {
                     $lookup: {
                       from: "profiles",
                       let: {
                         bId: {
-                          $convert: { input: "$blockedId", to: "objectId", onError: null, onNull: null }
-                        }
+                          $convert: {
+                            input: "$blockedId",
+                            to: "objectId",
+                            onError: null,
+                            onNull: null,
+                          },
+                        },
                       },
                       pipeline: [
-                        { $match: { $expr: { $eq: ["$userId", "$$bId"] } } }
+                        { $match: { $expr: { $eq: ["$userId", "$$bId"] } } },
                       ],
-                      as: "blockedProfile"
-                    }
+                      as: "blockedProfile",
+                    },
                   },
-                  { $unwind: { path: "$blockedProfile", preserveNullAndEmptyArrays: true } },
+                  {
+                    $unwind: {
+                      path: "$blockedProfile",
+                      preserveNullAndEmptyArrays: true,
+                    },
+                  },
                   {
                     $project: {
                       _id: "$blockedId",
                       nickname: { $ifNull: ["$blockedProfile.nickname", ""] },
-                      photo: { $arrayElemAt: ["$blockedProfile.photos.url", 0] },
-                      blockedAt: "$createdAt"
-                    }
-                  }
+                      photo: {
+                        $arrayElemAt: ["$blockedProfile.photos.url", 0],
+                      },
+                      blockedAt: "$createdAt",
+                    },
+                  },
                 ],
                 as: "blockedUsersData",
               },
@@ -468,235 +953,59 @@ module.exports.SampleGETallUser = async (req, res) => {
             {
               $project: {
                 _id: 1,
-                role: 1,
-                stats: {
-                  totalSwipes: { $ifNull: ["$swipeStats.totalSwipes", 0] },
-                  totalLikes: { $ifNull: ["$swipeStats.likes", 0] },
-                  totalSuperLikes: { $ifNull: ["$swipeStats.superLikes", 0] },
-                  totalMatches: { $size: "$matchData" },
-                  totalTransactions: { $size: "$transactionHistory" }, // Useful stat
-                },
-                recentMatches: { $slice: ["$matchData", 5] },
-                account: {
-                  status: "$accountStatus",
-                  isPremium: "$isPremium",
-                  phone: "$phone",
-                  email: "$email",
-                  authMethod: "$authMethod",
-                  banDetails: "$banDetails",
-                  deactivationDetails: "$deactivationDetails",
-                  deletionDetails: "$deletionDetails",
-                  createdAt: "$createdAt",
-                },
-                profile: {
-                  profileId: "$profile._id",
-                  nickname: "$profile.nickname",
-                  dob: "$profile.dob",
-                  age: "$profile.age",
-                  gender: "$profile.gender",
-                  height: "$profile.height",
-                  about: "$profile.about",
-                  jobTitle: "$profile.jobTitle",
-                  company: "$profile.company",
-                  totalCompletion:
-                    "$profile.onboardingProgress.totalCompletion",
-                },
-                subscription: {
-                  _id: {
-                    $ifNull: [
-                      "$currentSubscription._id",
-                      "$latestSubscription._id",
-                    ],
-                  },
-                  status: {
-                    $ifNull: [
-                      "$currentSubscription.status",
-                      "$latestSubscription.status",
-                    ],
-                  },
-                  planType: {
-                    $ifNull: [
-                      "$currentSubscription.planType",
-                      "$latestSubscription.planType",
-                    ],
-                  },
-                  platform: {
-                    $ifNull: [
-                      "$currentSubscription.platform",
-                      "$latestSubscription.platform",
-                    ],
-                  },
-                  startedAt: {
-                    $ifNull: [
-                      "$currentSubscription.startedAt",
-                      "$latestSubscription.startedAt",
-                    ],
-                  },
-                  expiresAt: {
-                    $ifNull: [
-                      "$currentSubscription.expiresAt",
-                      "$latestSubscription.expiresAt",
-                    ],
-                  },
-                  isCurrentlyActive: {
-                    $and: [
-                      {
-                        $eq: [
-                          { $ifNull: ["$currentSubscription.status", ""] },
-                          "ACTIVE",
-                        ],
-                      },
-                      { $gt: ["$currentSubscription.expiresAt", new Date()] },
-                    ],
-                  },
-                },
-                transactions: "$transactionHistory",
-                attributes: {
-                  zodiac: "$profile.attributes.zodiac",
-                  education: "$profile.attributes.education",
-                  familyPlans: "$profile.attributes.familyPlans",
-                  personalityType: "$profile.attributes.personalityType",
-                  communicationStyle: "$profile.attributes.communicationStyle",
-                  loveStyle: "$profile.attributes.loveStyle",
-                  pets: "$profile.attributes.pets",
-                  drinking: "$profile.attributes.drinking",
-                  smoking: "$profile.attributes.smoking",
-                  workout: "$profile.attributes.workout",
-                  dietary: "$profile.attributes.dietary",
-                  sleeping: "$profile.attributes.sleeping",
-                  socialMedia: "$profile.attributes.socialMedia",
-                  languages: "$profile.attributes.languages",
-                  interests: "$profile.attributes.interests",
-                  music: "$profile.attributes.music",
-                  movies: "$profile.attributes.movies",
-                  books: "$profile.attributes.books",
-                  travel: "$profile.attributes.travel",
-                  religion: "$profile.attributes.religion",
-                },
-                discovery: {
-                  distanceRange: "$profile.discovery.distanceRange",
-                  ageRange: "$profile.discovery.ageRange",
-                  showMeGender: "$profile.discovery.showMeGender",
-                  relationshipGoal: "$profile.discovery.relationshipGoal",
-                  globalVisibility: "$profile.discovery.globalVisibility",
-                },
-                discoveryFilters: "$profile.discoveryFilters",
-                location: "$profile.location",
-                photos: "$profile.photos",
-                verification: "$profile.verification",
-                lastProfileUpdate: "$profile.lastProfileUpdate",
-                settings: {
-                  notifications: {
-                    push: { $ifNull: ["$profile.settings.notifications.push", true] },
-                    email: { $ifNull: ["$profile.settings.notifications.email", false] },
-                    matches: { $ifNull: ["$profile.settings.notifications.matches", true] },
-                    messages: { $ifNull: ["$profile.settings.notifications.messages", true] },
-                  },
-                  blockedContacts: {
-                    $map: {
-                      input: "$blockedContactsData",
-                      as: "bc",
-                      in: {
-                        name: "$$bc.blockedName",
-                        phone: "$$bc.blockedPhone",
-                        blockedPhoneHash: "$$bc.blockedPhoneHash",
-                        source: "$$bc.source",
-                        blockedAt: "$$bc.createdAt"
-                      }
-                    }
-                  },
-                  blockedUsers: "$blockedUsersData"
-                },
+                reason: 1,
+                type: 1,
+                status: 1,
+                severity: 1,
                 createdAt: 1,
-                lastLoginAt: 1,
-                isPhoneVerified: 1,
-                isEmailVerified: 1,
+                reporterNickname: {
+                  $arrayElemAt: ["$reporterInfo.nickname", 0],
+                },
               },
             },
           ],
-          total: [{ $count: "count" }],
+          as: "reportsReceived",
         },
       },
-    ];
-
-    const result = await User.aggregate(pipeline);
-    const users = result[0]?.data || [];
-    const total = result[0]?.total[0]?.count || 0;
-
-    const responseData = {
-      pagination: {
-        page,
-        limit,
-        total,
-        totalPages: Math.ceil(total / limit),
-      },
-      data: users,
-    };
-
-    return res.status(200).json({
-      success: true,
-      cached: false,
-      ...responseData,
-    });
-  } catch (error) {
-    console.error("GET USER LIST ERROR:", error);
-    res.status(500).json({ success: false, message: "Failed to fetch users" });
-  }
-};
-
-/* ============================================
- * For GET SINGLE USER DETAILS – ADMIN:-
- * API 2: GET api/v1/admin/user-management/:userId
- ============================================ */
-//  Pending This API/.
-module.exports.GETSingleUserDetails = async (req, res) => {
-  try {
-    /* -----------------------------
-     * 1️⃣ Params Validation
-     * ----------------------------- */
-    const { userId } = req.params;
-
-    if (!mongoose.Types.ObjectId.isValid(userId)) {
-      return res.status(400).json({
-        success: false,
-        message: "Invalid userId",
-      });
-    }
-
-    /* -----------------------------
-     * 2️⃣ Aggregation Pipeline
-     * ----------------------------- */
-    const pipeline = [
-      {
-        $match: {
-          _id: new mongoose.Types.ObjectId(userId),
-          // _id: userId,
-          role: "USER",
-        },
-      },
-
-      {
-        $lookup: {
-          from: "profiles",
-          localField: "_id",
-          foreignField: "userId",
-          as: "profile",
-        },
-      },
-
-      {
-        $unwind: {
-          path: "$profile",
-          preserveNullAndEmptyArrays: true,
-        },
-      },
-
       {
         $project: {
           _id: 1,
+          isPhoneVerified: 1,
+          isEmailVerified: 1,
           role: 1,
-
-          /* ---------------- ACCOUNT ---------------- */
+          lastLoginAt: 1,
+          // ============ NEW SECURITY & DEVICE DATA ============
+          security: {
+            currentIp: "$currentIp",
+            lastUsedDevice: "$lastUsedDevice",
+            activeSessions: "$sessions", // Saare active devices
+            history: "$loginHistory", // Poori login history list
+          },
+          // Statistics (total, swipe, likes, superlikes, rejection, matches, transactions, reports, login count)
+          stats: {
+            totalSwipes: { $ifNull: ["$swipeStats.totalSwipes", 0] },
+            totalLikes: { $ifNull: ["$swipeStats.likes", 0] },
+            totalSuperLikes: { $ifNull: ["$swipeStats.superLikes", 0] },
+            totalRejections: { $ifNull: ["$swipeStats.rejections", 0] },
+            totalMatches: { $size: "$matchData" },
+            totalTransactions: { $size: "$transactionHistory" }, // Useful stat
+            totalReports: { $size: "$reportsReceived" }, // Kitni reports hui total
+            pendingReports: {
+              $size: {
+                $filter: {
+                  input: "$reportsReceived",
+                  as: "r",
+                  cond: { $eq: ["$$r.status", "new"] },
+                },
+              },
+            },
+            totalSessions: { $size: { $ifNull: ["$sessions", []] } },
+          },
+          // Reports ka detail data
+          reports: "$reportsReceived",
+          // Show only the 5 most recent matches in the array
+          recentMatches: { $slice: ["$matchData", 5] },
+          // Flattened Account Info
           account: {
             status: "$accountStatus",
             isPremium: "$isPremium",
@@ -706,13 +1015,14 @@ module.exports.GETSingleUserDetails = async (req, res) => {
             banDetails: "$banDetails",
             deactivationDetails: "$deactivationDetails",
             deletionDetails: "$deletionDetails",
+            suspensionDetails: "$suspensionDetails",
             createdAt: "$createdAt",
           },
-
-          /* ---------------- PROFILE ---------------- */
+          // Profile Info
           profile: {
             profileId: "$profile._id",
             nickname: "$profile.nickname",
+            fullName: "$profile.fullName",
             dob: "$profile.dob",
             age: "$profile.age",
             gender: "$profile.gender",
@@ -721,9 +1031,57 @@ module.exports.GETSingleUserDetails = async (req, res) => {
             jobTitle: "$profile.jobTitle",
             company: "$profile.company",
             totalCompletion: "$profile.onboardingProgress.totalCompletion",
+            livingIn: "$profile.livingIn",
           },
-
-          /* ---------------- ATTRIBUTES ---------------- */
+          // Subscription Detail
+          subscription: {
+            _id: {
+              $ifNull: ["$currentSubscription._id", "$latestSubscription._id"],
+            },
+            status: {
+              $ifNull: [
+                "$currentSubscription.status",
+                "$latestSubscription.status",
+              ],
+            },
+            planType: {
+              $ifNull: [
+                "$currentSubscription.planType",
+                "$latestSubscription.planType",
+              ],
+            },
+            platform: {
+              $ifNull: [
+                "$currentSubscription.platform",
+                "$latestSubscription.platform",
+              ],
+            },
+            startedAt: {
+              $ifNull: [
+                "$currentSubscription.startedAt",
+                "$latestSubscription.startedAt",
+              ],
+            },
+            expiresAt: {
+              $ifNull: [
+                "$currentSubscription.expiresAt",
+                "$latestSubscription.expiresAt",
+              ],
+            },
+            isCurrentlyActive: {
+              $and: [
+                {
+                  $eq: [
+                    { $ifNull: ["$currentSubscription.status", ""] },
+                    "ACTIVE",
+                  ],
+                },
+                { $gt: ["$currentSubscription.expiresAt", new Date()] },
+              ],
+            },
+          },
+          transactions: "$transactionHistory",
+          // Attributes
           attributes: {
             zodiac: "$profile.attributes.zodiac",
             education: "$profile.attributes.education",
@@ -745,71 +1103,68 @@ module.exports.GETSingleUserDetails = async (req, res) => {
             books: "$profile.attributes.books",
             travel: "$profile.attributes.travel",
             religion: "$profile.attributes.religion",
+            relationshipGoal: "$profile.discovery.relationshipGoal",
           },
-
-          /* ---------------- DISCOVERY ---------------- */
+          // Discovery
           discovery: {
             distanceRange: "$profile.discovery.distanceRange",
             ageRange: "$profile.discovery.ageRange",
             showMeGender: "$profile.discovery.showMeGender",
-            relationshipGoal: "$profile.discovery.relationshipGoal",
+            relationshipGoal: "$profile.discovery.filterRelationshipGoal",
             globalVisibility: "$profile.discovery.globalVisibility",
+            discoveryFilters: "$profile.discovery.advancedFilters",
           },
-
-          discoveryFilters: "$profile.discoveryFilters",
-
-          /* ---------------- LOCATION ---------------- */
+          settings: {
+            notifications: "$profile.settings.notifications",
+            blockedContacts: {
+              $map: {
+                input: "$blockedContactsData",
+                as: "bc",
+                in: {
+                  name: "$$bc.blockedName",
+                  phone: "$$bc.blockedPhone",
+                  blockedPhoneHash: "$$bc.blockedPhoneHash",
+                  source: "$$bc.source",
+                  blockedAt: "$$bc.createdAt",
+                },
+              },
+            },
+            blockedUsers: "$blockedUsersData",
+          },
           location: "$profile.location",
-
-          /* ---------------- PHOTOS ---------------- */
           photos: "$profile.photos",
-
-          /* ---------------- VERIFICATION ---------------- */
+          // Verification Documents (KYC)
           verification: "$profile.verification",
-
-          /* ---------------- META ---------------- */
-          createdAt: 1,
           lastProfileUpdate: "$profile.lastProfileUpdate",
-          isPhoneVerified: 1,
-          isEmailVerified: 1,
         },
       },
     ];
 
-    /* -----------------------------
-     * 3️⃣ Execute Query
-     * ----------------------------- */
     const result = await User.aggregate(pipeline);
 
-    if (!result.length) {
+    if (!result || result.length === 0) {
       return res.status(404).json({
         success: false,
         message: "User not found",
       });
     }
 
-    /* -----------------------------
-     * 4️⃣ Response
-     * ----------------------------- */
     return res.status(200).json({
       success: true,
-      message: "Get User Detail",
+      message: "User details fetched successfully",
       data: result[0],
     });
   } catch (error) {
     console.error("GET SINGLE USER ERROR:", error);
     return res.status(500).json({
       success: false,
-      message: "Failed to fetch user details",
+      message: "Internal server error",
+      error: error.message,
     });
   }
 };
 
-/* ============================================
- * For Update Single User Detail:- 
- * API 3: PATCH api/v1/admin/user-management/:userId 
- * ----- PATCH api/v1/admin/user-management/:userId/status
- ============================================ */
+/* ======: For Update Single User Detail:====API 3: PATCH api/v1/admin/user-management/:userId/status =========== */
 module.exports.UPDATESingleUserDetail = async (req, res) => {
   const session = await mongoose.startSession();
   session.startTransaction();
@@ -827,7 +1182,7 @@ module.exports.UPDATESingleUserDetail = async (req, res) => {
     if (error) {
       await session.abortTransaction();
       const errorMessages = error.details.map((detail) =>
-        detail.message.replace(/"/g, "")
+        detail.message.replace(/"/g, ""),
       );
       return res.status(400).json({
         success: false,
@@ -838,6 +1193,8 @@ module.exports.UPDATESingleUserDetail = async (req, res) => {
 
     // Use 'value' (sanitized data) instead of 'req.body'
     const { accountStatus, isPremium, profile } = value;
+
+    // console.log("profile: ", profile);
 
     if (!mongoose.Types.ObjectId.isValid(userId)) {
       return res
@@ -855,7 +1212,7 @@ module.exports.UPDATESingleUserDetail = async (req, res) => {
     const user = await User.findOneAndUpdate(
       { _id: userId, role: "USER" },
       { $set: userUpdate },
-      { new: true, session }
+      { new: true, session },
     );
 
     if (!user) {
@@ -889,12 +1246,25 @@ module.exports.UPDATESingleUserDetail = async (req, res) => {
         if (profile[field] !== undefined) profileUpdate[field] = profile[field];
       });
 
-      // Map Nested Objects (Attributes/Location) using Dot Notation
-      ["attributes", "location"].forEach((parentKey) => {
+      // FIX: Include 'settings' in the nested mapping loop
+      ["attributes", "location", "settings"].forEach((parentKey) => {
         if (profile[parentKey]) {
           Object.keys(profile[parentKey]).forEach((childKey) => {
-            profileUpdate[`${parentKey}.${childKey}`] =
-              profile[parentKey][childKey];
+            // If it's a double-nested object (like settings.notifications)
+            if (
+              typeof profile[parentKey][childKey] === "object" &&
+              !Array.isArray(profile[parentKey][childKey])
+            ) {
+              Object.keys(profile[parentKey][childKey]).forEach(
+                (grandChildKey) => {
+                  profileUpdate[`${parentKey}.${childKey}.${grandChildKey}`] =
+                    profile[parentKey][childKey][grandChildKey];
+                },
+              );
+            } else {
+              profileUpdate[`${parentKey}.${childKey}`] =
+                profile[parentKey][childKey];
+            }
           });
         }
       });
@@ -904,7 +1274,7 @@ module.exports.UPDATESingleUserDetail = async (req, res) => {
         updatedProfile = await Profile.findOneAndUpdate(
           { userId },
           { $set: profileUpdate },
-          { new: true, runValidators: true, session }
+          { new: true, runValidators: true, session },
         );
       }
     }
@@ -935,6 +1305,7 @@ module.exports.UPDATESingleUserDetail = async (req, res) => {
         company: updatedProfile.company,
         totalCompletion: updatedProfile.onboardingProgress.totalCompletion,
       },
+      settings: updatedProfile.settings,
       attributes: updatedProfile.attributes,
       discoveryFilters: updatedProfile.discoveryFilters,
       location: updatedProfile.location,
@@ -964,9 +1335,7 @@ module.exports.UPDATESingleUserDetail = async (req, res) => {
   }
 };
 
-/*
- * ==== PATCH api/v1/admin/user-management/:userId/status
- */
+/*===== PATCH api/v1/admin/user-management/:userId/status======*/
 module.exports.UPDATEUserStatus = async (req, res) => {
   try {
     const { userId } = req.params;
@@ -982,7 +1351,7 @@ module.exports.UPDATEUserStatus = async (req, res) => {
     const user = await User.findOneAndUpdate(
       { _id: userId, role: "USER" },
       { $set: { accountStatus } },
-      { new: true }
+      { new: true },
     );
 
     if (!user) {
@@ -1008,32 +1377,45 @@ module.exports.UPDATEUserStatus = async (req, res) => {
 
 module.exports.DELETEPhoto = async (req, res) => {
   try {
-    const userId = req.user._id;
+    const userId = req.params.userId;
     const { publicId } = req.body;
     const profile = await Profile.findOne({ userId });
 
-    const photoIndex = profile?.photos.findIndex(
-      (p) => p.publicId === publicId
-    );
-    if (photoIndex === -1 || !profile)
+    if (!profile) {
       return res
         .status(404)
-        .json({ success: false, message: "Photo not found" });
+        .json({ success: false, message: "User profile not found" });
+    }
 
-    await destroy(publicId);
+    const photoIndex = profile.photos.findIndex((p) => p.publicId === publicId);
+
+    if (photoIndex === -1) {
+      return res
+        .status(404)
+        .json({ success: false, message: "Photo not found in profile" });
+    }
+
+    try {
+      await destroy(publicId);
+    } catch (cloudinaryErr) {
+      console.error("Cloudinary Error:", cloudinaryErr);
+    }
+
     profile.photos.splice(photoIndex, 1);
-    profile.photos.forEach((photo, index) => {
-      photo.order = index + 1;
-      photo.isPrimary = index === 0;
-    });
+
+    profile.photos = profile.photos.map((photo, index) => ({
+      ...photo.toObject(),
+      order: index + 1,
+      isPrimary: index === 0,
+    }));
 
     await profile.save();
 
-    res.json({
+    res.status(200).json({
       success: true,
-      message: "Photo deleted successfully",
+      message: "Photo deleted and order updated successfully",
       data: {
-        profile: profile, // This contains the updated photos array
+        profile: profile,
       },
     });
   } catch (err) {
@@ -1041,139 +1423,136 @@ module.exports.DELETEPhoto = async (req, res) => {
   }
 };
 
-/* ============================================
- * For Bluk exports in csv file to get all Users Data:-
- * API 4: GET api/v1/admin/user-management/export
- ============================================ */
-module.exports.GETExportAllUsers = async (req, res) => {
-  try {
-    // 1️⃣ CHANGE: Use req.query for GET requests (req.body is often empty in GET)
-    const filters = req.query || {};
+/* ======: For Bluk exports in csv file to get all Users Data: API 4: GET api/v1/admin/user-management/export =========== */
+// module.exports.GETExportAllUsers = async (req, res) => {
+//   try {
+//     // 1️⃣ CHANGE: Use req.query for GET requests (req.body is often empty in GET)
+//     const filters = req.query || {};
 
-    // USER MATCH
-    const userMatch = { role: "USER" };
-    if (filters.accountStatus) userMatch.accountStatus = filters.accountStatus;
-    if (filters.isPremium !== undefined)
-      userMatch.isPremium = filters.isPremium === "true";
+//     // USER MATCH
+//     const userMatch = { role: "USER" };
+//     if (filters.accountStatus) userMatch.accountStatus = filters.accountStatus;
+//     if (filters.isPremium !== undefined)
+//       userMatch.isPremium = filters.isPremium === "true";
 
-    // PROFILE MATCH
-    const profileMatch = {};
-    if (filters.gender) profileMatch["profile.gender"] = filters.gender;
+//     // PROFILE MATCH
+//     const profileMatch = {};
+//     if (filters.gender) profileMatch["profile.gender"] = filters.gender;
 
-    // FILE SETUP
-    const fileName = `users_export_${Date.now()}.csv`;
-    const exportDir = path.join(__dirname, "../../../exports");
-    const filePath = path.join(exportDir, fileName);
+//     // FILE SETUP
+//     const fileName = `users_export_${Date.now()}.csv`;
+//     const exportDir = path.join(__dirname, "../../../exports");
+//     const filePath = path.join(exportDir, fileName);
 
-    if (!fs.existsSync(exportDir)) fs.mkdirSync(exportDir, { recursive: true });
+//     if (!fs.existsSync(exportDir)) fs.mkdirSync(exportDir, { recursive: true });
 
-    const writableStream = fs.createWriteStream(filePath);
-    const csvStream = stringify({
-      header: true,
-      columns: [
-        "UserId",
-        "Email",
-        "Phone",
-        "AccountStatus",
-        "IsPremium",
-        "AuthMethod",
-        "CreatedAt",
-        "Nickname",
-        "Gender",
-        "Age",
-        "JobTitle",
-        "City",
-        "ProfileCompletion",
-        "KYCStatus",
-      ],
-    });
+//     const writableStream = fs.createWriteStream(filePath);
+//     const csvStream = stringify({
+//       header: true,
+//       columns: [
+//         "UserId",
+//         "Email",
+//         "Phone",
+//         "AccountStatus",
+//         "IsPremium",
+//         "AuthMethod",
+//         "CreatedAt",
+//         "Nickname",
+//         "Gender",
+//         "Age",
+//         "JobTitle",
+//         "City",
+//         "ProfileCompletion",
+//         "KYCStatus",
+//       ],
+//     });
 
-    csvStream.pipe(writableStream);
+//     csvStream.pipe(writableStream);
 
-    // AGGREGATION CURSOR
-    const cursor = User.aggregate([
-      { $match: userMatch },
-      {
-        $lookup: {
-          from: "profiles",
-          localField: "_id",
-          foreignField: "userId",
-          as: "profile",
-        },
-      },
-      { $unwind: { path: "$profile", preserveNullAndEmptyArrays: true } },
-      ...(Object.keys(profileMatch).length ? [{ $match: profileMatch }] : []),
-      {
-        $project: {
-          _id: 1,
-          email: 1,
-          phone: 1,
-          accountStatus: 1,
-          isPremium: 1,
-          authMethod: 1,
-          createdAt: 1,
-          nickname: "$profile.nickname",
-          gender: "$profile.gender",
-          age: "$profile.age",
-          jobTitle: "$profile.jobTitle",
-          city: "$profile.location.city",
-          profileCompletion: "$profile.onboardingProgress.totalCompletion",
-          kycStatus: "$profile.verification.status",
-        },
-      },
-    ]).cursor({ batchSize: 1000 });
+//     // AGGREGATION CURSOR
+//     const cursor = User.aggregate([
+//       { $match: userMatch },
+//       {
+//         $lookup: {
+//           from: "profiles",
+//           localField: "_id",
+//           foreignField: "userId",
+//           as: "profile",
+//         },
+//       },
+//       { $unwind: { path: "$profile", preserveNullAndEmptyArrays: true } },
+//       ...(Object.keys(profileMatch).length ? [{ $match: profileMatch }] : []),
+//       {
+//         $project: {
+//           _id: 1,
+//           email: 1,
+//           phone: 1,
+//           accountStatus: 1,
+//           isPremium: 1,
+//           authMethod: 1,
+//           createdAt: 1,
+//           nickname: "$profile.nickname",
+//           gender: "$profile.gender",
+//           age: "$profile.age",
+//           jobTitle: "$profile.jobTitle",
+//           city: "$profile.location.city",
+//           profileCompletion: "$profile.onboardingProgress.totalCompletion",
+//           kycStatus: "$profile.verification.status",
+//         },
+//       },
+//     ]).cursor({ batchSize: 1000 });
 
-    // STREAM DATA
-    for await (const doc of cursor) {
-      // 🛡️ SAFETY CHECK: Handle the Date properly
-      const formattedDate =
-        doc.createdAt instanceof Date
-          ? doc.createdAt.toISOString()
-          : doc.createdAt
-            ? new Date(doc.createdAt).toISOString()
-            : "";
+//     // STREAM DATA
+//     for await (const doc of cursor) {
+//       // 🛡️ SAFETY CHECK: Handle the Date properly
+//       const formattedDate =
+//         doc.createdAt instanceof Date
+//           ? doc.createdAt.toISOString()
+//           : doc.createdAt
+//             ? new Date(doc.createdAt).toISOString()
+//             : "";
 
-      csvStream.write({
-        UserId: doc._id.toString(),
-        Email: doc.email || "",
-        Phone: doc.phone || "",
-        AccountStatus: doc.accountStatus,
-        IsPremium: doc.isPremium ? "Yes" : "No",
-        AuthMethod: doc.authMethod,
-        CreatedAt: formattedDate, // Use the safe date string
-        Nickname: doc.nickname || "",
-        Gender: doc.gender || "",
-        Age: doc.age || "",
-        JobTitle: doc.jobTitle || "",
-        City: doc.city || "",
-        ProfileCompletion: `${doc.profileCompletion || 0}%`,
-        KYCStatus: doc.kycStatus || "not_started",
-      });
-    }
+//       csvStream.write({
+//         UserId: doc._id.toString(),
+//         Email: doc.email || "",
+//         Phone: doc.phone || "",
+//         AccountStatus: doc.accountStatus,
+//         IsPremium: doc.isPremium ? "Yes" : "No",
+//         AuthMethod: doc.authMethod,
+//         CreatedAt: formattedDate, // Use the safe date string
+//         Nickname: doc.nickname || "",
+//         Gender: doc.gender || "",
+//         Age: doc.age || "",
+//         JobTitle: doc.jobTitle || "",
+//         City: doc.city || "",
+//         ProfileCompletion: `${doc.profileCompletion || 0}%`,
+//         KYCStatus: doc.kycStatus || "not_started",
+//       });
+//     }
 
-    csvStream.end();
+//     csvStream.end();
 
-    return new Promise((resolve, reject) => {
-      writableStream.on("finish", () => {
-        res.status(200).json({
-          success: true,
-          message: "User export completed successfully",
-          fileName: fileName,
-          downloadUrl: `/api/v1/admin/user-management/download/${fileName}`,
-        });
-        resolve();
-      });
-      writableStream.on("error", (err) => reject(err));
-    });
-  } catch (error) {
-    console.error("EXPORT USERS ERROR:", error);
-    if (!res.headersSent) {
-      return res
-        .status(500)
-        .json({ success: false, message: "Failed to export users" });
-    }
-  }
-};
+//     return new Promise((resolve, reject) => {
+//       writableStream.on("finish", () => {
+//         res.status(200).json({
+//           success: true,
+//           message: "User export completed successfully",
+//           fileName: fileName,
+//           downloadUrl: `/api/v1/admin/user-management/download/${fileName}`,
+//         });
+//         resolve();
+//       });
+//       writableStream.on("error", (err) => reject(err));
+//     });
+//   } catch (error) {
+//     console.error("EXPORT USERS ERROR:", error);
+//     if (!res.headersSent) {
+//       return res
+//         .status(500)
+//         .json({ success: false, message: "Failed to export users" });
+//     }
+//   }
+// };
 
 module.exports.streamUsersExport = async (req, res) => {
   try {
@@ -1191,7 +1570,7 @@ module.exports.streamUsersExport = async (req, res) => {
     // Removed progress markers because they corrupt the CSV file structure
     res.setHeader(
       "Content-Disposition",
-      `attachment; filename=MAFS_Users_${Date.now()}.csv`
+      `attachment; filename=MAFS_Users_${Date.now()}.csv`,
     );
     res.setHeader("Content-Type", "text/csv");
     res.setHeader("X-Content-Type-Options", "nosniff");

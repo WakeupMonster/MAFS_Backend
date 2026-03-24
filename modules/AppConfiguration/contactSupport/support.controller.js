@@ -3,16 +3,16 @@ const crypto = require("crypto");
 const SupportTicket = require("./supportTicket.model");
 const { sendEmail } = require("../../auth/auth.utils");
 
-/* 
+
 module.exports.contactSupport = async (req, res) => {
   try {
     const userId = req.user._id;
-    const { category, subject, message } = req.body;
+    const { category, message } = req.body;
 
-    if (!category || !subject || !message) {
+    if (!category || !message) {
       return res.status(400).json({
         success: false,
-        message: "Category, subject and message are required",
+        message: "Category and message are required",
       });
     }
 
@@ -22,7 +22,6 @@ module.exports.contactSupport = async (req, res) => {
       ticketId,
       userId,
       category,
-      subject,
       message,
     });
 
@@ -41,45 +40,44 @@ module.exports.contactSupport = async (req, res) => {
     });
   }
 };
-*/
 
-module.exports.contactSupport = async (req, res) => {
-  try {
-    const userId = req.user._id;
-    const { reason, description } = req.body;
 
-    if (!reason || !description) {
-      return res.status(400).json({
-        success: false,
-        message: "Reason and description are required",
-      });
-    }
+// module.exports.contactSupport = async (req, res) => {
+//   try {
+//     const userId = req.user._id;
+//     const { reason, description } = req.body;
 
-    const ticketId = `TKT-${crypto.randomBytes(4).toString("hex").toUpperCase()}`;
+//     if (!reason || !description) {
+//       return res.status(400).json({
+//         success: false,
+//         message: "Reason and description are required",
+//       });
+//     }
 
-    const newTicket = await SupportTicket.create({
-      ticketId,
-      userId,
-      reason,
-      description,
-    });
+//     const ticketId = `TKT-${crypto.randomBytes(4).toString("hex").toUpperCase()}`;
 
-    return res.json({
-      success: true,
-      message: "Your request has been submitted to support",
-      data: {
-        ticketId: newTicket.ticketId,
-      }
-    });
-  } catch (err) {
-    console.error("Contact support error:", err);
-    return res.status(500).json({
-      success: false,
-      message: "Failed to submit support request",
-    });
-  }
-};
+//     const newTicket = await SupportTicket.create({
+//       ticketId,
+//       userId,
+//       reason,
+//       description,
+//     });
 
+//     return res.json({
+//       success: true,
+//       message: "Your request has been submitted to support",
+//       data: {
+//         ticketId: newTicket.ticketId,
+//       }
+//     });
+//   } catch (err) {
+//     console.error("Contact support error:", err);
+//     return res.status(500).json({
+//       success: false,
+//       message: "Failed to submit support request",
+//     });
+//   }
+// };
 
 module.exports.getAllTickets = async (req, res) => {
   try {
@@ -97,16 +95,18 @@ module.exports.getAllTickets = async (req, res) => {
     }
 
     // 3. Search Query Logic
-    let searchQuery = {};
+    let searchFilter = {};
     if (search?.trim()) {
       const safeSearch = search.trim().replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
       const regex = { $regex: safeSearch, $options: "i" };
-      searchQuery = {
+
+      searchFilter = {
         $or: [
           { ticketId: regex },
           { subject: regex },
           { reason: regex },
           { "userDetails.email": regex },
+          { "userDetails.phone": regex },
           { "profileDetails.nickname": regex },
         ],
       };
@@ -125,7 +125,6 @@ module.exports.getAllTickets = async (req, res) => {
         },
       },
       { $unwind: { path: "$userDetails", preserveNullAndEmptyArrays: true } },
-
       // Join with Profile Collection
       {
         $lookup: {
@@ -139,10 +138,38 @@ module.exports.getAllTickets = async (req, res) => {
         $unwind: { path: "$profileDetails", preserveNullAndEmptyArrays: true },
       },
 
-      // Apply Search Filter after Lookups
-      { $match: searchQuery },
+      // 3. Apply the Search Filter (Now includes Subject + Joined fields)
+      ...(Object.keys(searchFilter).length > 0
+        ? [{ $match: searchFilter }]
+        : []),
 
       // 4. Facet for Metadata and Data
+      // {
+      //   $facet: {
+      //     metadata: [{ $count: "total" }],
+      //     data: [
+      //       { $sort: { createdAt: -1 } },
+      //       { $skip: skip },
+      //       { $limit: limitNum },
+      //       {
+      //         $project: {
+      //           _id: 1,
+      //           subject: 1,
+      //           category: 1,
+      //           status: 1,
+      //           createdAt: 1,
+      //           user: {
+      //             email: "$userDetails.email",
+      //             phone: "$userDetails.phone",
+      //             nickname: "$profileDetails.nickname",
+      //             avatar: { $arrayElemAt: ["$profileDetails.photos.url", 0] },
+      //           },
+      //         },
+      //       },
+      //     ],
+      //   },
+      // },
+
       {
         $facet: {
           metadata: [{ $count: "total" }],
@@ -164,6 +191,7 @@ module.exports.getAllTickets = async (req, res) => {
                   email: "$userDetails.email",
                   phone: "$userDetails.phone",
                   nickname: "$profileDetails.nickname",
+                  // Note: Make sure photos.url exists in your profile schema
                   avatar: { $arrayElemAt: ["$profileDetails.photos.url", 0] },
                 },
               },
@@ -225,6 +253,43 @@ module.exports.getMyTicketById = async (req, res) => {
   }
 };
 
+// module.exports.replyToTicket = async (req, res) => {
+//   try {
+//     const { ticketId, reply, status } = req.body;
+
+//     if (!ticketId || !reply || !status) {
+//       return res.status(400).json({
+//         success: false,
+//         message: "ticketId, reply and status are required",
+//       });
+//     }
+
+//     const ticket = await SupportTicket.findById(ticketId);
+
+//     if (!ticket) {
+//       return res.status(404).json({
+//         success: false,
+//         message: "Ticket not found",
+//       });
+//     }
+
+//     ticket.adminReply = reply;
+//     ticket.status = status;
+//     ticket.repliedAt = new Date();
+
+//     await ticket.save();
+
+//     return res.json({
+//       success: true,
+//       message: "Reply sent successfully",
+//     });
+//   } catch (err) {
+//     return res.status(500).json({
+//       success: false,
+//       message: "Failed to reply to ticket",
+//     });
+//   }
+// };
 module.exports.replyToTicket = async (req, res) => {
   try {
     const { ticketId, reply, status } = req.body;
@@ -236,7 +301,10 @@ module.exports.replyToTicket = async (req, res) => {
       });
     }
 
-    const ticket = await SupportTicket.findById(ticketId).populate("userId", "email");
+    const ticket = await SupportTicket.findById(ticketId).populate(
+      "userId",
+      "email",
+    );
 
     if (!ticket) {
       return res.status(404).json({
@@ -253,7 +321,7 @@ module.exports.replyToTicket = async (req, res) => {
 
     // 📧 SEND EMAIL TO THE USER
     if (ticket.userId && ticket.userId.email) {
-      const emailSubject = `Update on your Support Ticket: ${ticket.subject || 'MAFS Support'}`;
+      const emailSubject = `Update on your Support Ticket: ${ticket.subject || "MAFS Support"}`;
       const emailHtml = `
         <div style="font-family: Arial, sans-serif; padding: 20px; color: #333; line-height: 1.6;">
           <h2 style="color: #00adef;">Support Ticket Update</h2>

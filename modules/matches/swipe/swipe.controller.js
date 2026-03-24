@@ -7,7 +7,7 @@ const Swipe = require("./swipe.model");
 const redis = require("../../../config/cache");
 const Profile = require("../../profile/profile.model");
 
-exports.getFeed = async (req, res) => {
+module.exports.getFeed = async (req, res) => {
   try {
     const userId = req.user._id;
     const limit = Number(req.query.limit) || 20;
@@ -49,11 +49,12 @@ exports.getFeed = async (req, res) => {
     console.error("GET FEED ERROR:", err);
     return res.status(500).json({
       success: false,
-      message: err.message
+      message: err.message,
     });
   }
 };
-exports.action = async (req, res) => {
+
+module.exports.action = async (req, res) => {
   try {
     const userId = req.user._id;
     const { targetId, action } = req.body;
@@ -110,7 +111,8 @@ exports.action = async (req, res) => {
     });
   }
 };
-exports.unmatchUser = async (req, res) => {
+
+module.exports.unmatchUser = async (req, res) => {
   const session = await mongoose.startSession();
   try {
     const { matchId } = req.body;
@@ -124,7 +126,9 @@ exports.unmatchUser = async (req, res) => {
         throw new Error("Match not found or already unmatched");
       }
 
-      const otherUserId = match.users.find(u => u.toString() !== userId.toString());
+      const otherUserId = match.users.find(
+        (u) => u.toString() !== userId.toString()
+      );
 
       // 2. Match delete karo
       await Match.deleteOne({ _id: matchId }).session(session);
@@ -134,8 +138,8 @@ exports.unmatchUser = async (req, res) => {
       await Swipe.deleteMany({
         $or: [
           { swiperId: userId, targetId: otherUserId },
-          { swiperId: otherUserId, targetId: userId }
-        ]
+          { swiperId: otherUserId, targetId: userId },
+        ],
       }).session(session);
     });
     if (redis) {
@@ -146,14 +150,14 @@ exports.unmatchUser = async (req, res) => {
 
     session.endSession();
     return res.json({ success: true, message: "Unmatched successfully" });
-
   } catch (err) {
     await session.abortTransaction();
     session.endSession();
     return res.status(400).json({ success: false, message: err.message });
   }
 };
-exports.getMatches = async (req, res) => {
+
+module.exports.getMatches = async (req, res) => {
   try {
     const userId = req.user._id;
 
@@ -161,7 +165,7 @@ exports.getMatches = async (req, res) => {
       .sort({ lastMessageAt: -1, createdAt: -1 })
       .populate({
         path: "users",
-        select: "_id"
+        select: "_id",
       })
       .lean();
 
@@ -169,7 +173,7 @@ exports.getMatches = async (req, res) => {
       matches.map(async (match) => {
         // Partner ID
         const partnerId = match.users.find(
-          u => u._id.toString() !== userId.toString()
+          (u) => u._id.toString() !== userId.toString()
         )?._id;
 
         if (!partnerId) return null;
@@ -195,7 +199,7 @@ exports.getMatches = async (req, res) => {
           isNew: !match.lastMessageAt,
           lastMessage: match.lastMessage || null,
           lastMessageTime: match.lastMessageAt || null,
-          matchedAt: match.createdAt
+          matchedAt: match.createdAt,
         };
       })
     );
@@ -203,18 +207,18 @@ exports.getMatches = async (req, res) => {
     return res.json({
       success: true,
       data: {
-        conversations: conversations.filter(Boolean)
-      }
+        conversations: conversations.filter(Boolean),
+      },
     });
-
   } catch (err) {
     console.error("getMatches error:", err);
     return res.status(500).json({
       success: false,
-      message: "Internal Server Error"
+      message: "Internal Server Error",
     });
   }
 };
+
 function calculateDistance(lat1, lon1, lat2, lon2) {
   const R = 6371;
   const dLat = (lat2 - lat1) * (Math.PI / 180);
@@ -225,13 +229,14 @@ function calculateDistance(lat1, lon1, lat2, lon2) {
   const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
   return Math.round(R * c);
 }
+
 function calculateAge(dob) {
   if (!dob) return 0;
   const diff = Date.now() - new Date(dob).getTime();
   return Math.floor(diff / 31557600000); // Years in ms
 }
 
-exports.getKeenData = async (req, res, actionType) => {
+module.exports.getKeenData = async (req, res, actionType) => {
   try {
     const userId = req.user._id;
 
@@ -251,7 +256,9 @@ exports.getKeenData = async (req, res, actionType) => {
     const skip = (parseInt(page) - 1) * parseInt(limit);
 
     // 1. Un IDs ko nikalna jinhe user ne already swipe kiya hai
-    const mySwipedIds = await Swipe.find({ swiperId: userId }).distinct("targetId");
+    const mySwipedIds = await Swipe.find({ swiperId: userId }).distinct(
+      "targetId"
+    );
 
     const matchedUserIds = await Match.find({ users: userId })
       .lean()
@@ -295,16 +302,18 @@ exports.getKeenData = async (req, res, actionType) => {
     const formattedData = keens.map(item => {
       const profile = item.swiperId;
 
-      if (!profile || !profile.nickname) return null;
+        if (!profile || !profile.nickname) return null;
 
-      const age = calculateAge(profile.dob);
-      let distance = 0;
-      if (req.user.location?.coordinates && profile.location?.coordinates) {
-        distance = calculateDistance(
-          req.user.location.coordinates[1], req.user.location.coordinates[0],
-          profile.location.coordinates[1], profile.location.coordinates[0]
-        );
-      }
+        const age = calculateAge(profile.dob);
+        let distance = 0;
+        if (req.user.location?.coordinates && profile.location?.coordinates) {
+          distance = calculateDistance(
+            req.user.location.coordinates[1],
+            req.user.location.coordinates[0],
+            profile.location.coordinates[1],
+            profile.location.coordinates[0]
+          );
+        }
 
       // 🔥 EXACT MANAGER RESPONSE FORMAT
       return {
@@ -334,7 +343,6 @@ exports.getKeenData = async (req, res, actionType) => {
         hasMore: hasMore
       }
     });
-
   } catch (err) {
     console.error("Keen API Error:", err);
     res.status(500).json({ success: false, message: "Server Error" });
@@ -386,7 +394,7 @@ exports.undo = async (req, res) => {
       // 2️⃣ Agar LIKE / SUPERLIKE tha → match check karo
       if (action === "like" || action === "superlike") {
         const match = await Match.findOne({
-          users: { $all: [userId, targetId] }
+          users: { $all: [userId, targetId] },
         }).session(session);
 
         if (match) {
@@ -397,8 +405,8 @@ exports.undo = async (req, res) => {
           await Swipe.deleteMany({
             $or: [
               { swiperId: userId, targetId },
-              { swiperId: targetId, targetId: userId }
-            ]
+              { swiperId: targetId, targetId: userId },
+            ],
           }).session(session);
 
           return; // yahin exit
@@ -430,14 +438,18 @@ exports.undo = async (req, res) => {
         wallet: status.data.wallet
       }
     });
-
   } catch (err) {
     // await session.abortTransaction();
     session.endSession();
 
     return res.status(400).json({
       success: false,
-      message: err.message
+      message: err.message,
     });
   }
 };
+
+module.exports.getKeen = (req, res) =>
+  module.exports.getKeenData(req, res, "like");
+module.exports.getSuperKeen = (req, res) =>
+  module.exports.getKeenData(req, res, "superlike");

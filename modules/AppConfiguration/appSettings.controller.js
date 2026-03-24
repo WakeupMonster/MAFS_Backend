@@ -3,46 +3,43 @@ const AppSettings = require("./appSettings.model");
 module.exports.getSocialLinks = async (req, res) => {
   try {
     const setting = await AppSettings.findOne({
-      key: "social_links"
+      key: "social_links",
     }).lean();
 
     if (!setting || !Array.isArray(setting.value)) {
       return res.json({
         success: true,
         data: {
-          socialMedia: []
-        }
+          socialMedia: [],
+        },
       });
     }
 
     // only active + sorted
     const socialMedia = setting.value
-      .filter(item => item.isActive)
+      .filter((item) => item.isActive)
       .sort((a, b) => a.order - b.order)
-      .map(item => ({
+      .map((item) => ({
         platform: item.platform,
         title: item.title,
         url: item.url,
-        icon: item.icon
+        icon: item.icon,
       }));
 
     return res.json({
       success: true,
       data: {
-        socialMedia
-      }
+        socialMedia,
+      },
     });
-
   } catch (err) {
     console.error("Get social links error:", err);
     return res.status(500).json({
       success: false,
-      message: "Failed to load social media links"
+      message: "Failed to load social media links",
     });
   }
 };
-
-
 
 module.exports.upsertSocialLinks = async (req, res) => {
   try {
@@ -51,7 +48,7 @@ module.exports.upsertSocialLinks = async (req, res) => {
     if (!Array.isArray(socialMedia)) {
       return res.status(400).json({
         success: false,
-        message: "socialMedia must be an array"
+        message: "socialMedia must be an array",
       });
     }
 
@@ -63,14 +60,13 @@ module.exports.upsertSocialLinks = async (req, res) => {
 
     return res.json({
       success: true,
-      message: "Social media links updated successfully"
+      message: "Social media links updated successfully",
     });
-
   } catch (err) {
     console.error("Upsert social links error:", err);
     return res.status(500).json({
       success: false,
-      message: "Failed to update social media links"
+      message: "Failed to update social media links",
     });
   }
 };

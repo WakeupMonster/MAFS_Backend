@@ -3,16 +3,11 @@ const router = express.Router();
 const adminController = require("./user.management.controller");
 
 // List all users
-router.get("/", adminController.SampleGETallUser);
+router.get("/", adminController.GETAllUsers);
 
-/*
- * ============= GET API FOR EXPORT USERS DATA IN CSV FILE =====================
- */
+/*====== GET API FOR EXPORT USERS DATA IN CSV FILE =========*/
 // Export users (Streamed for performance with large datasets)
-// Note: Placed above /:userId to prevent "export" being treated as an ID
 router.get("/export/stream", adminController.streamUsersExport);
-
-/* @section Individual User Operations */
 
 // Get specific user details
 router.get("/:userId", adminController.GETSingleUserDetails);

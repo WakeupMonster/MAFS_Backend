@@ -190,11 +190,11 @@ const restorePurchases = async (req, res, next) => {
 
         const result = await subscriptionService.handlePurchase(purchaseData);
 
-        if (result.type === 'SUBSCRIPTION') {
+        if (result.type === "SUBSCRIPTION") {
           restoredItems.push({
             productId: item.productId,
             status: result.subscription.status,
-            expiresAt: result.subscription.expiresAt
+            expiresAt: result.subscription.expiresAt,
           });
         }
       } catch (err) {
@@ -589,18 +589,18 @@ const getAllSubscriptions = async (req, res, next) => {
       // 3. Advanced Searching (Search across Subscriptions AND Profiles)
       ...(search
         ? [
-          {
-            $match: {
-              $or: [
-                { originalTransactionId: { $regex: search, $options: "i" } },
-                { orderId: { $regex: search, $options: "i" } },
-                { "profile.nickname": { $regex: search, $options: "i" } },
-                { "userDetails.email": { $regex: search, $options: "i" } },
-                { "userDetails.phone": { $regex: search, $options: "i" } },
-              ],
+            {
+              $match: {
+                $or: [
+                  { originalTransactionId: { $regex: search, $options: "i" } },
+                  { orderId: { $regex: search, $options: "i" } },
+                  { "profile.nickname": { $regex: search, $options: "i" } },
+                  { "userDetails.email": { $regex: search, $options: "i" } },
+                  { "userDetails.phone": { $regex: search, $options: "i" } },
+                ],
+              },
             },
-          },
-        ]
+          ]
         : []),
 
       // 4. Multi-faceted Output (Data + Pagination in one query)
@@ -1284,7 +1284,7 @@ const makeMePremiumTemp = async (req, res, next) => {
     const userId = req.user._id;
 
     // Purane agar koi hain toh unko expire kardo
-    await Subscription.updateMany({ userId }, { status: 'EXPIRED' });
+    await Subscription.updateMany({ userId }, { status: "EXPIRED" });
 
     const oneMonthFromNow = new Date();
     oneMonthFromNow.setMonth(oneMonthFromNow.getMonth() + 1);
@@ -1300,7 +1300,11 @@ const makeMePremiumTemp = async (req, res, next) => {
       environment: "sandbox",
     });
 
-    return res.json({ success: true, message: "Aap ab 1 mahine ke liye premium hain!", data: subscription });
+    return res.json({
+      success: true,
+      message: "Aap ab 1 mahine ke liye premium hain!",
+      data: subscription,
+    });
   } catch (err) {
     return next(err);
   }
@@ -1321,5 +1325,5 @@ module.exports = {
   getAllTransactions,
   makeMePremiumTemp,
   getCatalog,
-  restorePurchases
+  restorePurchases,
 };

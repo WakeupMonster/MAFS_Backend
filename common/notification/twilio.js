@@ -1,6 +1,6 @@
 let twilioClient = null;
 
-exports.getTwilioClient = () => {
+module.exports.getTwilioClient = () => {
   if (twilioClient) return twilioClient;
 
   if (!process.env.TWILIO_ACCOUNT_SID || !process.env.TWILIO_AUTH_TOKEN) {

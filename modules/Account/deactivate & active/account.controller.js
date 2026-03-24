@@ -37,8 +37,8 @@ exports.deleteAccount = async (req, res) => {
       "+deleteAccountOtp +deleteAccountOtpExpires"
     );
 
-    console.log(user.deleteAccountOtp);
-    console.log(otp);
+    // console.log(user.deleteAccountOtp);
+    // console.log(otp);
 
     if (!user) {
       return res.status(404).json({

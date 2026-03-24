@@ -16,7 +16,9 @@ const initCronJobs = () => {
         status: "ACTIVE",
         autoRenew: false,
         expiresAt: { $lte: new Date() },
-      }).select('userId').lean();
+      })
+        .select("userId")
+        .lean();
 
       if (toExpire.length === 0) return;
 
@@ -59,7 +61,9 @@ const initCronJobs = () => {
       }
 
 
-      logger.info("[CRON] Expired ACTIVE subscriptions: " + result.modifiedCount);
+      logger.info(
+        "[CRON] Expired ACTIVE subscriptions: " + result.modifiedCount
+      );
     } catch (err) {
       logger.error("[CRON] Expire check error:", err.message);
     }
@@ -73,7 +77,9 @@ const initCronJobs = () => {
       const toExpire = await Subscription.find({
         status: "CANCELLED",
         expiresAt: { $lte: new Date() },
-      }).select('userId').lean();
+      })
+        .select("userId")
+        .lean();
 
       if (toExpire.length === 0) return;
 
@@ -86,14 +92,16 @@ const initCronJobs = () => {
       );
 
       // v3 Sync: Update isPremium flags for all affected users
-      const userIds = toExpire.map(s => s.userId);
+      const userIds = toExpire.map((s) => s.userId);
       for (const uid of userIds) {
-        UsageService._syncPremiumState(uid, false).catch(err =>
+        UsageService._syncPremiumState(uid, false).catch((err) =>
           logger.error("[CRON] Sync error for user:", uid, err.message)
         );
       }
 
-      logger.info("[CRON] Expired CANCELLED subscriptions: " + result.modifiedCount);
+      logger.info(
+        "[CRON] Expired CANCELLED subscriptions: " + result.modifiedCount
+      );
     } catch (err) {
       logger.error("[CRON] Cancelled expire check error:", err.message);
     }
@@ -109,14 +117,18 @@ const initCronJobs = () => {
       });
 
       if (failedCount > 0) {
-        logger.warn("[CRON] " + failedCount + " permanently failed events need attention");
+        logger.warn(
+          "[CRON] " + failedCount + " permanently failed events need attention"
+        );
       }
     } catch (err) {
       logger.error("[CRON] Failed events check error:", err.message);
     }
   });
 
-  logger.info("[CRON] Subscription cron jobs initialized (v3 - No Grace Period)");
+  logger.info(
+    "[CRON] Subscription cron jobs initialized (v3 - No Grace Period)"
+  );
 };
 
 module.exports = { initCronJobs };

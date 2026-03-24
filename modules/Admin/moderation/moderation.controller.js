@@ -1,4 +1,3 @@
-/* eslint-disable no-undef */
 /* eslint-disable no-unused-vars */
 // controllers/admin/admin.kpi.controller.js
 
@@ -7,6 +6,7 @@ const Profile = require("../../profile/profile.model");
 const Report = require("../../profile/user.report");
 const redis = require("../../../config/cache");
 const Block = require("../../profile/user.block");
+const utils = require("../../auth/auth.utils");
 
 module.exports.verifyUserProfile = async (req, res) => {
   const adminId = req.user.id;
@@ -35,12 +35,12 @@ module.exports.verifyUserProfile = async (req, res) => {
     });
   }
 
-  // if (profile.verification.status !== "pending") {
-  //   return res.status(409).json({
-  //     success: false,
-  //     message: `Profile already ${profile.verification.status}`,
-  //   });
-  // }
+  if (profile.verification.status !== "pending") {
+    return res.status(409).json({
+      success: false,
+      message: `Profile already ${profile.verification.status}`,
+    });
+  }
 
   // const before = {
   //   status: profile.verification.status
@@ -151,18 +151,11 @@ module.exports.banUser = async (req, res) => {
     if (redis) {
       await redis.del("admin:kpi:overview");
       await redis.del(`user:${userId}`);
-      await redis.del("users:list");
     }
 
     return res.json({
       success: true,
       message: "User banned successfully",
-      // Returning data helps Redux update the state without a full refresh
-      data: {
-        userId,
-        accountStatus: "banned",
-        banDetails: user.banDetails,
-      },
     });
   } catch (err) {
     console.error("Ban user error:", err);
@@ -173,96 +166,20 @@ module.exports.banUser = async (req, res) => {
   }
 };
 
-// module.exports.unbanUser = async (req, res) => {
-//   try {
-//     const adminId = req.user._id;
-//     const userId = req.params.id;
-//     // const { reason } = req.body;
-
-//     if (!adminId)
-//       return res.status(401).json({ success: false, message: "Unauthorized" });
-
-//     // Safe Comparison
-//     if (adminId.toString() === userId.toString()) {
-//       return res
-//         .status(403)
-//         .json({ success: false, message: "You cannot unban yourself" });
-//     }
-
-//     const user = await User.findById(userId);
-//     if (!user)
-//       return res
-//         .status(404)
-//         .json({ success: false, message: "User not found" });
-
-//     // Safe check for ban status
-//     if (!user.banDetails?.isBanned || !user.accountStatus === "suspended") {
-//       return res
-//         .status(409)
-//         .json({ success: false, message: "User is not banned and suspended" });
-//     }
-
-//     // const before = { isBanned: true };
-
-//     // Update with safety for undefined banDetails
-//     user.banDetails = {
-//       ...user.banDetails,
-//       isBanned: false,
-//       unbannedBy: adminId,
-//       unbannedAt: new Date(),
-//       reason: null,
-//       bannedBy: null,
-//       bannedAt: null,
-//     };
-
-//     user.accountStatus = "active";
-//     await user.save();
-
-//     // Audit log
-//     // await AuditLog.create({
-//     //   actorId: adminId,
-//     //   actorRole: "ADMIN",
-//     //   action: "USER_UNBAN",
-//     //   entityType: "USER",
-//     //   entityId: userId,
-//     //   before,
-//     //   after: { isBanned: false },
-//     //   reason
-//     // });
-
-//     // Invalidate caches
-//     if (redis) {
-//       await redis.del("admin:kpi:overview");
-//       await redis.del(`user:${userId}`);
-//     }
-
-//     return res.json({
-//       success: true,
-//       message: "User unbanned successfully",
-//     });
-//   } catch (err) {
-//     console.error("Unban user error:", err);
-//     return res.status(500).json({
-//       success: false,
-//       message: "Failed to unban user",
-//     });
-//   }
-// };
-
 module.exports.unbanUser = async (req, res) => {
   try {
     const adminId = req.user._id;
     const userId = req.params.id;
-    const { reason } = req.body; // Good to capture why the admin is activating them
+    // const { reason } = req.body;
 
     if (!adminId)
       return res.status(401).json({ success: false, message: "Unauthorized" });
 
+    // Safe Comparison
     if (adminId.toString() === userId.toString()) {
-      return res.status(403).json({
-        success: false,
-        message: "Action not permitted on own account",
-      });
+      return res
+        .status(403)
+        .json({ success: false, message: "You cannot unban yourself" });
     }
 
     const user = await User.findById(userId);
@@ -271,76 +188,57 @@ module.exports.unbanUser = async (req, res) => {
         .status(404)
         .json({ success: false, message: "User not found" });
 
-    // 🔥 IMPROVED LOGIC: Check if user actually needs activating
-    const isBanned = user.banDetails?.isBanned;
-    const isSuspended = user.accountStatus === "suspended";
-
-    if (!isBanned && !isSuspended) {
-      return res.status(409).json({
-        success: false,
-        message: "User account is already active",
-      });
+    // Safe check for ban status
+    if (!user.banDetails?.isBanned) {
+      return res
+        .status(409)
+        .json({ success: false, message: "User is not banned" });
     }
 
-    // Prepare Audit Data
-    const before = {
-      accountStatus: user.accountStatus,
-      isBanned: user.banDetails?.isBanned,
-    };
+    // const before = { isBanned: true };
 
-    // 🔥 RESET BAN DETAILS
+    // Update with safety for undefined banDetails
     user.banDetails = {
+      ...user.banDetails,
       isBanned: false,
       unbannedBy: adminId,
       unbannedAt: new Date(),
       reason: null,
-      category: null,
+      bannedBy: null,
+      bannedAt: null,
     };
 
-    // 🔥 RESET SUSPENSION DETAILS (If you have a suspensionDetails object)
-    if (user.suspensionDetails) {
-      user.suspensionDetails.isSuspended = false;
-      user.suspensionDetails.restoredAt = new Date();
-    }
-
-    // 🔥 SET STATUS TO ACTIVE
     user.accountStatus = "active";
-
     await user.save();
 
-    // Audit log (Recommended to uncomment this for tracking)
-    /*
-    await AuditLog.create({
-      actorId: adminId,
-      action: isBanned ? "USER_UNBAN" : "USER_UNSUSPEND",
-      entityId: userId,
-      before,
-      after: { accountStatus: "active", isBanned: false },
-      reason
-    });
-    */
+    // Audit log
+    // await AuditLog.create({
+    //   actorId: adminId,
+    //   actorRole: "ADMIN",
+    //   action: "USER_UNBAN",
+    //   entityType: "USER",
+    //   entityId: userId,
+    //   before,
+    //   after: { isBanned: false },
+    //   reason
+    // });
 
+    // Invalidate caches
     if (redis) {
       await redis.del("admin:kpi:overview");
-      // Use a pattern or specific key to clear user lists
       await redis.del(`user:${userId}`);
     }
 
     return res.json({
       success: true,
-      message: isBanned
-        ? "User unbanned successfully"
-        : "User suspension lifted",
-      data: {
-        userId: user._id,
-        accountStatus: user.accountStatus,
-      },
+      message: "User unbanned successfully",
     });
   } catch (err) {
-    console.error("Activation error:", err);
-    return res
-      .status(500)
-      .json({ success: false, message: "Failed to activate user" });
+    console.error("Unban user error:", err);
+    return res.status(500).json({
+      success: false,
+      message: "Failed to unban user",
+    });
   }
 };
 
@@ -483,11 +381,11 @@ module.exports.replyToReport = async (req, res) => {
       await utils.sendEmail(
         reporter.email,
         "We are reviewing your report",
-        `<p>${message}</p><p>— Support Team</p>`
+        `<p>${message}</p><p>— Support Team</p>`,
       );
     } else {
       console.log(
-        `Report reply skipped email: reporter ${report.reporterId} has no email`
+        `Report reply skipped email: reporter ${report.reporterId} has no email`,
       );
     }
 
@@ -535,7 +433,7 @@ module.exports.updateReportStatus = async (req, res) => {
         await utils.sendEmail(
           report.reporterId.email,
           "Your report has been resolved",
-          "Thanks for reporting. We have taken appropriate action."
+          "Thanks for reporting. We have taken appropriate action.",
         );
       }
     }
@@ -593,51 +491,6 @@ module.exports.getBlockedUsers = async (req, res) => {
   }
 };
 
-// module.exports.getPendingVerifications = async (req, res, next) => {
-//   try {
-//     // Find all profiles with pending verification
-//     const pendingProfiles = await Profile.aggregate([
-//       {
-//         $match: {
-//           "verification.status": "pending",
-//         },
-//       },
-//       {
-//         $lookup: {
-//           from: "users",
-//           localField: "userId",
-//           foreignField: "_id",
-//           as: "user",
-//         },
-//       },
-//       { $unwind: "$user" },
-//       {
-//         $project: {
-//           _id: 1,
-//           userId: 1,
-//           verification: 1,
-//           "user.email": 1,
-//           "user.phone": 1,
-//           "user.createdAt": 1,
-//           profilePhoto: 1,
-//           fullName: 1,
-//         },
-//       },
-//       { $sort: { createdAt: -1 } },
-//     ]);
-//     res.json({
-//       success: true,
-//       count: pendingProfiles.length,
-//       data: pendingProfiles,
-//     });
-//   } catch (error) {
-//     res.status(500).json({
-//       success: false,
-//       message: "Failed to fetch pending verifications",
-//     });
-//   }
-// };
-
 module.exports.getPendingVerifications = async (req, res, next) => {
   try {
     const page = parseInt(req.query.page) || 1;
@@ -687,6 +540,17 @@ module.exports.getPendingVerifications = async (req, res, next) => {
         },
       },
       { $unwind: "$user" },
+      {
+        $lookup: {
+          from: "profiles",
+          localField: "userId",
+          foreignField: "userId",
+          as: "profileDetails",
+        },
+      },
+      {
+        $unwind: { path: "$profileDetails", preserveNullAndEmptyArrays: true },
+      },
       { $match: matchStage }, // ✅ Match runs AFTER lookup/unwind to see the role
       {
         $facet: {
@@ -701,10 +565,29 @@ module.exports.getPendingVerifications = async (req, res, next) => {
                 userId: 1,
                 verification: 1,
                 nickname: 1,
-                "user.email": 1,
-                "user.phone": 1,
-                "user.role": 1, // Optional: project role for debugging
                 createdAt: 1,
+                // avatar: {
+                //   $ifNull: [
+                //     { $arrayElemAt: ["$photos", 0] }, // Photos array ki 0 index wali URL
+                //     null, // Agar photo nahi hai to empty string
+                //   ],
+                // },
+                // "user.email": 1,
+                // "user.phone": 1,
+                // "user.role": 1, // Optional: project role for debugging
+
+                user: {
+                  email: "$user.email",
+                  phone: "$user.phone",
+                  nickname: "$profileDetails.nickname",
+                  // avatar: {
+                  //   $ifNull: [
+                  //     { $arrayElemAt: ["$photos", 0] }, // Photos array ki 0 index wali URL
+                  //     null, // Agar photo nahi hai to empty string
+                  //   ],
+                  // },
+                  avatar: { $arrayElemAt: ["$profileDetails.photos.url", 0] },
+                },
               },
             },
           ],

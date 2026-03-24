@@ -34,7 +34,9 @@ const config = {
       : null,
     environment: process.env.GOOGLE_ENVIRONMENT || "sandbox",
     isConfigured() {
-      return this.serviceAccountKeyPath && fs.existsSync(this.serviceAccountKeyPath);
+      return (
+        this.serviceAccountKeyPath && fs.existsSync(this.serviceAccountKeyPath)
+      );
     },
   },
 
@@ -78,10 +80,13 @@ const config = {
 };
 
 // Products dynamically set karo
-const monthlyIos = process.env.PRODUCT_MONTHLY_IOS || "com.myapp.premium.monthly";
+const monthlyIos =
+  process.env.PRODUCT_MONTHLY_IOS || "com.myapp.premium.monthly";
 const yearlyIos = process.env.PRODUCT_YEARLY_IOS || "com.myapp.premium.yearly";
-const monthlyAndroid = process.env.PRODUCT_MONTHLY_ANDROID || "com.myapp.premium.monthly";
-const yearlyAndroid = process.env.PRODUCT_YEARLY_ANDROID || "com.myapp.premium.yearly";
+const monthlyAndroid =
+  process.env.PRODUCT_MONTHLY_ANDROID || "com.myapp.premium.monthly";
+const yearlyAndroid =
+  process.env.PRODUCT_YEARLY_ANDROID || "com.myapp.premium.yearly";
 
 config.products[monthlyIos] = { planType: "1_MONTH", platform: "ios", price: 9.99, currency: "USD" };
 config.products[yearlyIos] = { planType: "yearly", platform: "ios", price: 49.99, currency: "USD" };

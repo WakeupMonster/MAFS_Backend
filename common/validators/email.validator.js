@@ -1,6 +1,6 @@
 const dns = require("dns").promises;
 
-exports.validateEmailDomain = async (email) => {
+module.exports.validateEmailDomain = async (email) => {
   const domain = email.split("@")[1];
 
   if (!domain) return false;

@@ -2,9 +2,8 @@ const redis = require("../../../config/cache");
 
 module.exports.rateLimit = (action, limit, windowSeconds) => {
   return async (req, res, next) => {
-    console.log("ratemiddle")
+    console.log("ratemiddle");
     try {
-
       if (!redis || !redis.isOpen) {
         // Redis down → allow request (fail open)
         return next();
@@ -26,7 +25,7 @@ module.exports.rateLimit = (action, limit, windowSeconds) => {
       if (current > limit) {
         return res.status(429).json({
           success: false,
-          message: `Too many ${action} attempts. Please try again later.`
+          message: `Too many ${action} attempts. Please try again later.`,
         });
       }
 

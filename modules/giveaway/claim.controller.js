@@ -1,6 +1,7 @@
+// eslint-disable-next-line no-unused-vars
 const GiveawayCampaign = require("../Admin/giveaways/giveawayCampaign.model");
 const Prize = require("../Admin/giveaways/prize.model");
-const GiveawayWinHistory = require("../Admin/giveaways/giveawayWinHistory.model")
+const GiveawayWinHistory = require("../Admin/giveaways/giveawayWinHistory.model");
 
 module.exports.getSpinWheelConfig = async (req, res) => {
   try {
@@ -30,6 +31,7 @@ module.exports.getSpinWheelConfig = async (req, res) => {
      */
     const prize = await Prize.findById(winHistory.prizeId);
     const supportItem = await Prize.findOne({ isActive: true });
+
 
     let supportiveItems = supportItem ? [...supportItem.supportiveItems] : ["Try Again", "Oops", "Next Time"];
     

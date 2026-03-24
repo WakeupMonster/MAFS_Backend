@@ -29,57 +29,53 @@ SwipeSchema.index({ swiperId: 1, targetId: 1 }, { unique: true });
 
 module.exports = mongoose.model("Swipe", SwipeSchema);
 
-
 const MatchSchema = new mongoose.Schema(
   {
     users: [
       {
         type: mongoose.Schema.Types.ObjectId,
         ref: "User",
-        required: true
-      }
+        required: true,
+      },
     ],
 
     matchedAt: {
       type: Date,
-      default: Date.now
+      default: Date.now,
     },
 
     // 🔥 CHAT LIST OPTIMIZATION
     lastMessage: {
       type: String,
-      default: ""
+      default: "",
     },
 
     lastMessageAt: {
       type: Date,
       default: null,
-      index: true
+      index: true,
     },
 
     lastMessageBy: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",
-      default: null
+      default: null,
     },
 
     // 🔥 OPTIONAL (future unread optimization)
     unreadCount: {
       type: Map,
       of: Number,
-      default: {}
-    }
+      default: {},
+    },
   },
   {
-    timestamps: true // createdAt + updatedAt
+    timestamps: true, // createdAt + updatedAt
   }
 );
 
 // 🔥 UNIQUE MATCH PAIR (ORDER-INDEPENDENT)
-MatchSchema.index(
-  { "users.0": 1, "users.1": 1 },
-  { unique: true }
-);
+MatchSchema.index({ "users.0": 1, "users.1": 1 }, { unique: true });
 
 // 🔥 FAST CHAT LIST FETCH
 MatchSchema.index({ users: 1, lastMessageAt: -1 });

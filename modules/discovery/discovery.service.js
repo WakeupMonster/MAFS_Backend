@@ -2,7 +2,7 @@ const Discovery = require("./discovery.model");
 const redisClient = require("../../config/cache");
 
 // discovery preference update
-exports.upsertPreference = async (userId, payload) => {
+module.exports.upsertPreference = async (userId, payload) => {
   const pref = await Discovery.findOneAndUpdate(
     { userId },
     payload,
@@ -16,6 +16,6 @@ exports.upsertPreference = async (userId, payload) => {
 };
 
 // discovery preference get
-exports.getPreference = async (userId) => {
+module.exports.getPreference = async (userId) => {
   return Discovery.findOne({ userId }).lean();
 };
