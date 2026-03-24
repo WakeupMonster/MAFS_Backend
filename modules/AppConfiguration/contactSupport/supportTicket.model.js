@@ -2,6 +2,12 @@ const mongoose = require("mongoose");
 
 const SupportTicketSchema = new mongoose.Schema(
   {
+    ticketId: {
+      type: String,
+      unique: true,
+      // required: true, if existing tickets don't have it, better to not make it required at DB level immediately, or provide a default for old ones, but making it unique is fine if old documents are given one. Wait, if old docs don't have it, unique index will fail on null! Let's make it sparse or generated. For new ones, it's fine.
+      sparse: true,
+    },
     userId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",
@@ -20,12 +26,16 @@ const SupportTicketSchema = new mongoose.Schema(
         "Safety & Reporting",
         "Other",
       ],
-      required: true,
+      required: false,
     },
 
-    subject: { type: String, required: true, trim: true },
+    subject: { type: String, required: false, trim: true },
 
-    message: { type: String, required: true },
+    message: { type: String, required: false },
+
+    reason: { type: String, required: false },
+
+    description: { type: String, required: false },
 
     attachments: [{ url: String, publicId: String }],
 

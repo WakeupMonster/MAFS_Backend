@@ -88,6 +88,10 @@ const SubscriptionSchema = new mongoose.Schema(
                 _id: false,
             },
         ],
+        // ➕ NAYA: Dynamic naming and tracking for Giveaways/Milestones
+        customDisplayName: { type: String, default: null },
+        source: { type: String, enum: ["STORE_PURCHASE", "GIVEAWAY", "MILESTONE"], default: "STORE_PURCHASE" },
+        prizeId: { type: mongoose.Schema.Types.ObjectId, ref: "GiveawayPrize", default: null }
     },
     {
         timestamps: true,

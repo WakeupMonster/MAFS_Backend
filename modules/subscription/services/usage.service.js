@@ -51,8 +51,8 @@ class UsageService {
         const [config, activeSub, daily, weekly, monthly, wallet] = await Promise.all([
             SubscriptionConfig.getOrCreate(),
             Subscription.findOne({ userId, status: { $in: ['ACTIVE', 'CANCELLED'] }, expiresAt: { $gt: new Date() } })
-              .sort({ expiresAt: -1 })
-              .lean(),
+                .sort({ expiresAt: -1 })
+                .lean(),
             UserDailyUsage.findOne({ userId, dateKey: dateHelpers.getDateKey() }).lean(),
             UserWeeklyUsage.findOne({ userId, weekKey: dateHelpers.getWeekKey() }).lean(),
             UserMonthlyUsage.findOne({ userId, monthKey: dateHelpers.getMonthKey() }).lean(),
@@ -72,6 +72,25 @@ class UsageService {
                     { productKey: activeSub.productId }
                 ]
             }).select('displayName subtitle badge durationDays').lean();
+
+            // --- SMART MAPPER FOR ADMIN GRANTS (No Store DB Entry) ---
+            if (!productInfo) {
+                // Exact calculation of days granted to avoid UI conflict with expiresAt
+                const diffTime = Math.abs(new Date(activeSub.expiresAt) - new Date(activeSub.startedAt));
+                const exactDuration = Math.round(diffTime / (1000 * 60 * 60 * 24));
+
+                if (activeSub.source === 'GIVEAWAY') {
+                    productInfo = {
+                        displayName: activeSub.customDisplayName || "Giveaway Winner (trail price giveaway)",
+                        durationDays: exactDuration,
+                    };
+                } else if (activeSub.source === 'MILESTONE') {
+                    productInfo = {
+                        displayName: activeSub.customDisplayName || "Early Adopter Premium",
+                        durationDays: exactDuration,
+                    };
+                }
+            }
         }
 
         // Quota values
@@ -93,10 +112,11 @@ class UsageService {
             data: {
                 isPremium,
                 planType: activeSub ? activeSub.planType : null,
-                displayName: productInfo?.displayName || null,
-                durationDays : productInfo?.durationDays || null,
+                displayName: activeSub.customDisplayName || productInfo?.displayName || "Support Team Grant",
+                durationDays: productInfo?.durationDays || null,
                 subtitle: productInfo?.subtitle || null,
                 badge: productInfo?.badge || null,
+                source: activeSub ? (activeSub.source || "STORE_PURCHASE") : null,
                 status: activeSub ? activeSub.status : "NONE",
                 expiresAt: activeSub ? activeSub.expiresAt : null,
                 autoRenew: activeSub ? activeSub.autoRenew : false,
@@ -157,6 +177,22 @@ class UsageService {
     async _syncPremiumState(userId, isPremium) {
         await User.updateOne({ _id: userId, isPremium: { $ne: isPremium } }, { isPremium });
     }
+
+
+    //     async _syncPremiumState(userId, isPremium) {
+    //     if (isPremium === false) {
+    //         // Stop! Agar webhook ne bola 'false' karo, toh pehle check karo:
+    //         // "Kya iske database mein koi aur (Giveaway/Store) ACTIVE plan toh nahi bacha?"
+    //         const anyActiveSub = await Subscription.findActiveByUser(userId);
+    //         if (anyActiveSub) {
+    //              console.log("Bach gaye! Iske paas ek aur subscription hai.");
+    //              isPremium = true; // Override kardo!
+    //         }
+    //     }
+
+    //     await User.updateOne({ _id: userId }, { isPremium });
+    // }
+
 
     // --- Helpers ---
 

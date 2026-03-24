@@ -109,12 +109,35 @@ module.exports.claimPrize = async (req, res) => {
     }
 
     /**
+     * Check if user has an active store subscription (Apple/Google)
+     */
+    const Subscription = require("../../modules/subscription/models/Subscription");
+    const Prize = require("../../modules/Admin/giveaways/prize.model");
+    
+    const activeStoreSub = await Subscription.findOne({
+      userId: userId,
+      platform: { $in: ["ios", "android"] },
+      status: { $in: ["ACTIVE", "CANCELLED"] },
+      autoRenew: true,
+      expiresAt: { $gt: new Date() }
+    }).lean();
+
+    const prizeDetails = await Prize.findById(winHistory.prizeId).select("type").lean();
+
+    /**
      * Claim prize (LOCK)
      */
     winHistory.claimedAt = new Date();
-    winHistory.deliveryStatus = "PENDING";
-    winHistory.claimEmail = claimEmail.toLowerCase().trim(); // Naya Email save karo!
-    
+    winHistory.claimEmail = claimEmail.toLowerCase().trim();
+
+    // 🔒 If user has active store sub and won Premium, put in QUEUE
+    if (activeStoreSub && prizeDetails?.type === "FREE_PREMIUM") {
+      winHistory.deliveryStatus = "QUEUED";
+      winHistory.queueReason = "User has an active Apple/Google subscription.";
+    } else {
+      winHistory.deliveryStatus = "PENDING";
+    }
+
     await winHistory.save();
 
     return res.json({

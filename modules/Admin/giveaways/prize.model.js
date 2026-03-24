@@ -21,6 +21,12 @@ const prizeSchema = new mongoose.Schema(
       type: String,
       default: null
     },
+    // Reference to actual product config for FREE_PREMIUM
+    productId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Product",
+      default: null
+    },
     // ➕ NAYA: GIFT_CARD ke liye expiry date (optional)
     giftCardExpiryDate: {
       type: Date,

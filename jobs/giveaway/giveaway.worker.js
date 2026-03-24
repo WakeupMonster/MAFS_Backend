@@ -5,7 +5,7 @@ const timezone = require("dayjs/plugin/timezone");
 const GiveawayCampaign = require("../../modules/Admin/giveaways/giveawayCampaign.model");
 const GiveawayWinHistory = require("../../modules/Admin/giveaways/giveawayWinHistory.model");
 const User = require("../../modules/auth/auth.model");
-const {Match} = require("../../modules/matches/swipe/swipe.model");
+const { Match } = require("../../modules/matches/swipe/swipe.model");
 const notificationService = require("../../modules/notifications/notification.service");
 const Prize = require("../../modules/Admin/giveaways/prize.model");
 const GiveawaySettings = require("../../modules/Admin/giveaways/giveawaySettings.model");
@@ -22,20 +22,15 @@ module.exports = async function runGiveawayWorker() {
     // ===============================
     // 1️⃣ Find today's campaign
     // ===============================
-    const todayUTC = new Date();
-    todayUTC.setUTCHours(0, 0, 0, 0);
-
     const startOfTodayTZ = dayjs().tz(CURRENT_TZ).startOf("day").toDate();
     const endOfTodayTZ = dayjs().tz(CURRENT_TZ).endOf("day").toDate();
 
     const settings = await GiveawaySettings.findOne();
     const yearlyLimit = settings?.yearlyWinLimitPerUser || 2;
 
+    // 🔒 Find any campaign whose scheduled date falls exactly in today's AEST timezone window
     const campaign = await GiveawayCampaign.findOne({
-      $or: [
-        { date: todayUTC },
-        { date: { $gte: startOfTodayTZ, $lt: endOfTodayTZ } }
-      ],
+      date: { $gte: startOfTodayTZ, $lt: endOfTodayTZ },
       isActive: true,
       drawStatus: "PENDING"
     });
@@ -57,12 +52,36 @@ module.exports = async function runGiveawayWorker() {
     const currentYear = nowTZ.year();
 
     // ===============================
-    // 3️⃣ Match window (LAST FRIDAY 00:00 To THURSDAY 23:59)
+    // 3️⃣ Match window (LAST COMPLETE Friday 00:00 → Thursday 23:59 AEST)
+    // Client Rule: "Friday 00:00 to Thursday 23:59 (AEST/AEDT)"
     // ===============================
-    const giveawayStart = dayjs().tz(CURRENT_TZ).subtract(7, "day").startOf("day").toDate();
-    const giveawayEnd = dayjs().tz(CURRENT_TZ).subtract(1, "day").endOf("day").toDate();
+    // dayjs .day(): 0=Sun, 1=Mon, 2=Tue, 3=Wed, 4=Thu, 5=Fri, 6=Sat
+    const currentDay = nowTZ.day();
 
-    console.log("🎰 Match window:", giveawayStart, "→", giveawayEnd);
+    // Step A: Find the most recent COMPLETED Thursday (end of last full week)
+    // If today is Friday(5): Thursday was 1 day ago ✅
+    // If today is Thursday(4): go back 7 days to LAST Thursday (current week not done yet)
+    const daysSinceThursday = (currentDay - 4 + 7) % 7 || 7;
+    const lastThursday = nowTZ.subtract(daysSinceThursday, "day");
+
+    // Step B: Friday is exactly 6 days before that Thursday
+    const lastFriday = lastThursday.subtract(6, "day");
+
+    // const giveawayStart = lastFriday.startOf("day").toDate();
+    // const giveawayEnd = lastThursday.endOf("day").toDate();
+
+    // console.log("🎰 Match window (AEST):", lastFriday.format("ddd DD-MMM"), "→", lastThursday.format("ddd DD-MMM"));
+    // console.log("🎰 Match window (UTC):", giveawayStart, "→", giveawayEnd);
+
+
+
+    const giveawayStart = nowTZ.subtract(7, "day").startOf("day").toDate();
+
+    // END: Aaj raat 11:59 baje tak
+    const giveawayEnd = nowTZ.endOf("day").toDate();
+    console.log("🎰 [TESTING] Match window (AEST):", dayjs(giveawayStart).format("ddd DD-MMM"), "→", dayjs(giveawayEnd).format("ddd DD-MMM"));
+    console.log("🎰 Match window (UTC):", giveawayStart, "→", giveawayEnd);
+
 
     // ===============================
     // 4️⃣ ALL matched users in window

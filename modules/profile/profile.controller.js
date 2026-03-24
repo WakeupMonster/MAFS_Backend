@@ -502,27 +502,22 @@ exports.reorderPhotos = async (req, res) => {
 //   }
 // };
 
+/*
 module.exports.uploadSelfie = async (req, res) => {
   try {
     const userId = req.user._id;
     if (!req.file) return res.status(400).json({ success: false, message: "No file" });
 
-    // Step 1: Pehle hi baki data fetch karlo parallel mein
     const data = await getFullUserData(userId);
 
-    // Step 2: IMMEDIATE RESPONSE (Milli-seconds)
-    // Hum user ko response bhej rahe hain, upload background mein chalta rahega
     res.json({
       success: true,
       message: "Selfie upload started...",
       data: {
         user: await formatProfileResponse(data.user, data.profile, data.blockedContacts, data.blockedUser, data.subData, req),
-        // onboarding: buildOnboardingResponse(req)
       }
     });
 
-    // Step 3: BACKGROUND PROCESSING (No 'await' for the response)
-    // Ye line response bhejne ke BAAD execute hogi
     uploadStream(req.file.buffer, {
       folder: `mafs/users/${userId}/kyc`,
       transformation: [{ width: 800, height: 800, crop: "fill", quality: "auto:best" }]
@@ -544,101 +539,168 @@ module.exports.uploadSelfie = async (req, res) => {
     if (!res.headersSent) res.status(500).json({ success: false, message: "Server Error" });
   }
 };
+*/
 
-module.exports.uploadIDDocument = async (req, res) => {
+module.exports.uploadSelfie = async (req, res) => {
   try {
     const userId = req.user._id;
-    const frontFile = req.files?.front?.[0];
-
-    // Basic Validation - Ye turant check hoga
-    if (!frontFile) {
-      return res.status(400).json({ success: false, message: "Document front image is required" });
+    if (!req.file) {
+      return res.status(400).json({ success: false, message: "Selfie image is required" });
     }
 
-    // 1. Parallel Context Fetching (Milli-seconds)
-    const data = await getFullUserData(userId);
-    if (!data.profile) return res.status(404).json({ success: false, message: "Profile not found" });
+    const profile = await Profile.findOne({ userId });
+    if (!profile) return res.status(404).json({ success: false, message: "Profile not found" });
 
-    // 2. IMMEDIATE RESPONSE
-    // Frontend ko data turant mil jayega, loading spinner hat jayega
+    // Parallel processing for speed: Upload image and fetch full user data simultaneously
+    const [uploadResult, data] = await Promise.all([
+      uploadStream(req.file.buffer, {
+        folder: `mafs/users/${userId}/kyc`,
+        transformation: [{ width: 800, height: 800, crop: "fill", quality: "auto:best" }]
+      }),
+      getFullUserData(userId, profile)
+    ]);
+
+    // DB Update
+    if (!profile.verification) profile.verification = {};
+    profile.verification.selfieUrl = uploadResult.secure_url;
+    // Agar donuments dono hain, tabhi 'pending' mark karo (ya fir logic ke according adjust karo)
+    profile.verification.status = profile.verification.docUrl ? "pending" : "not_started";
+
+    await profile.save();
+    await clearProfileCache(userId);
+
+    // Format new user object before sending response
+    const formattedUser = await formatProfileResponse(
+      data.user,
+      profile,
+      data.blockedContacts,
+      data.blockedUser,
+      data.subData,
+      req
+    );
+
     res.json({
       success: true,
-      message: "ID upload started. We will notify you once verified.",
+      message: "Selfie uploaded successfully",
       data: {
-        user: await formatProfileResponse(data.user, data.profile, data.blockedContacts, data.blockedUser, data.subData, req),
-        // onboarding: buildOnboardingResponse(req)
+        user: formattedUser
       }
     });
 
-    // 3. BACKGROUND PROCESSING (Network I/O)
-    // Cloudinary upload aur DB update response ke BAAD honge
-    (async () => {
-      try {
-        const result = await uploadStream(frontFile.buffer, {
-          folder: `mafs/users/${userId}/kyc`,
-          transformation: [{ width: 1200, height: 800, crop: "limit", quality: "auto:best" }]
-        });
-
-        // Atomic update taaki pre-save hook skip ho aur speed mile
-        const updateFields = {
-          "verification.docUrl": result.secure_url,
-          "onboardingProgress.idDocumentUploaded": true
-        };
-
-        // Agar selfie pehle se hai, toh status pending kar do
-        if (data.profile.verification?.selfieUrl) {
-          updateFields["verification.status"] = "pending";
-        }
-
-        await Profile.updateOne({ userId }, { $set: updateFields });
-        await cache.del(`profile:status:${userId}`);
-
-        console.log(`ID Document processed in background for: ${userId}`);
-      } catch (bgError) {
-        console.error("ID Upload Background Error:", bgError);
-      }
-    })();
-
   } catch (err) {
-    console.error("ID Upload Controller Error:", err);
-    if (!res.headersSent) {
-      res.status(500).json({ success: false, message: "Failed to initiate ID upload" });
-    }
+    console.error("Selfie Upload Controller Error:", err);
+    res.status(500).json({ success: false, message: "Failed to upload selfie" });
   }
 };
-// exports.uploadIDDocument = async (req, res) => {
+
+// module.exports.uploadIDDocument = async (req, res) => {
 //   try {
 //     const userId = req.user._id;
 //     const frontFile = req.files?.front?.[0];
-//     if (!frontFile) return res.status(400).json({ success: false, message: "Document front image is required" });
 
-//     const profile = await Profile.findOne({ userId });
-//     if (!profile) return res.status(404).json({ success: false, message: "Profile not found" });
+//     // Basic Validation - Ye turant check hoga
+//     if (!frontFile) {
+//       return res.status(400).json({ success: false, message: "Document front image is required" });
+//     }
 
-//     const [uploadResult, data] = await Promise.all([
-//       uploadStream(frontFile.buffer, {
-//         folder: `mafs/users/${userId}/kyc`,
-//         transformation: [{ width: 1200, height: 800, crop: "limit", quality: "auto:best" }]
-//       }),
-//       getFullUserData(userId, profile)
-//     ]);
+//     // 1. Parallel Context Fetching (Milli-seconds)
+//     const data = await getFullUserData(userId);
+//     if (!data.profile) return res.status(404).json({ success: false, message: "Profile not found" });
 
-//     if (!profile.verification) profile.verification = {};
-//     profile.verification.docUrl = uploadResult.secure_url;
-//     profile.verification.status = profile.verification.selfieUrl ? "pending" : "not_started";
-
-//     await profile.save();
-//     await clearProfileCache(userId);
-
+//     // 2. IMMEDIATE RESPONSE
+//     // Frontend ko data turant mil jayega, loading spinner hat jayega
 //     res.json({
 //       success: true,
-//       message: "ID document uploaded successfully.",
-//       data: { user: formatProfileResponse(data.user, profile, data.blockedContacts, data.blockedUser, data.subData) }
+//       message: "ID upload started. We will notify you once verified.",
+//       data: {
+//         user: await formatProfileResponse(data.user, data.profile, data.blockedContacts, data.blockedUser, data.subData, req),
+//         // onboarding: buildOnboardingResponse(req)
+//       }
 //     });
+
+//     // 3. BACKGROUND PROCESSING (Network I/O)
+//     // Cloudinary upload aur DB update response ke BAAD honge
+//     (async () => {
+//       try {
+//         const result = await uploadStream(frontFile.buffer, {
+//           folder: `mafs/users/${userId}/kyc`,
+//           transformation: [{ width: 1200, height: 800, crop: "limit", quality: "auto:best" }]
+//         });
+
+//         // Atomic update taaki pre-save hook skip ho aur speed mile
+//         const updateFields = {
+//           "verification.docUrl": result.secure_url,
+//           "onboardingProgress.idDocumentUploaded": true
+//         };
+
+//         // Agar selfie pehle se hai, toh status pending kar do
+//         if (data.profile.verification?.selfieUrl) {
+//           updateFields["verification.status"] = "pending";
+//         }
+
+//         await Profile.updateOne({ userId }, { $set: updateFields });
+//         await cache.del(`profile:status:${userId}`);
+
+//         console.log(`ID Document processed in background for: ${userId}`);
+//       } catch (bgError) {
+//         console.error("ID Upload Background Error:", bgError);
+//       }
+//     })();
+
 //   } catch (err) {
-//     res.status(500).json({ success: false, message: "Failed to upload ID document" });
+//     console.error("ID Upload Controller Error:", err);
+//     if (!res.headersSent) {
+//       res.status(500).json({ success: false, message: "Failed to initiate ID upload" });
+//     }
 //   }
 // };
+
+
+exports.uploadIDDocument = async (req, res) => {
+  try {
+    const userId = req.user._id;
+    const frontFile = req.files?.front?.[0];
+    if (!frontFile) return res.status(400).json({ success: false, message: "Document front image is required" });
+
+    const profile = await Profile.findOne({ userId });
+    if (!profile) return res.status(404).json({ success: false, message: "Profile not found" });
+
+    const [uploadResult, data] = await Promise.all([
+      uploadStream(frontFile.buffer, {
+        folder: `mafs/users/${userId}/kyc`,
+        transformation: [{ width: 1200, height: 800, crop: "limit", quality: "auto:best" }]
+      }),
+      getFullUserData(userId, profile)
+    ]);
+
+    if (!profile.verification) profile.verification = {};
+    profile.verification.docUrl = uploadResult.secure_url;
+    profile.verification.status = profile.verification.selfieUrl ? "pending" : "not_started";
+
+    await profile.save();
+    await clearProfileCache(userId);
+
+    const formattedUser = await formatProfileResponse(
+      data.user,
+      profile,
+      data.blockedContacts,
+      data.blockedUser,
+      data.subData,
+      req
+    );
+
+    res.json({
+      success: true,
+      message: "ID document uploaded successfully.",
+      data: {
+        user: formattedUser
+      }
+    }
+    );
+  } catch (err) {
+    res.status(500).json({ success: false, message: "Failed to upload ID document" });
+  }
+};
 
 exports.getVerificationStatus = async (req, res) => {
   try {
@@ -931,12 +993,12 @@ exports.updateDiscoveryFilters = async (req, res) => {
     const userId = req.user._id;
     const { discoveryFilters } = req.body;
     let profile = await Profile.findOne({ userId });
-console.log(discoveryFilters.distanceRange,"dis")
+    console.log(discoveryFilters.distanceRange, "dis")
     if (discoveryFilters) {
       if (discoveryFilters.interests) profile.discovery.preferredInterests = discoveryFilters.interests;
       if (discoveryFilters.relationshipGoal) profile.discovery.filterRelationshipGoal = discoveryFilters.relationshipGoal;
       if (discoveryFilters.ageRange) profile.discovery.ageRange = discoveryFilters.ageRange;
-      if(discoveryFilters.distanceRange) profile.discovery.distanceRange = discoveryFilters.distanceRange
+      if (discoveryFilters.distanceRange) profile.discovery.distanceRange = discoveryFilters.distanceRange
       if (discoveryFilters.advanced) {
         profile.discovery.advancedFilters = { ...profile.discovery.advancedFilters, ...discoveryFilters.advanced };
       };

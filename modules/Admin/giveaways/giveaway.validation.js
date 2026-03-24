@@ -5,11 +5,11 @@ module.exports = {
     body: Joi.object({
       title: Joi.string().trim().required(),
       type: Joi.string().valid("GIFT_CARD", "FREE_PREMIUM").required(),
-      value: Joi.number().positive().required(),
+      value: Joi.number().positive().when("type", { is: "GIFT_CARD", then: Joi.required(), otherwise: Joi.optional() }),
+      planType: Joi.string().when("type", { is: "FREE_PREMIUM", then: Joi.required(), otherwise: Joi.optional() }),
       description: Joi.string().allow("", null),
       spinWheelLabel: Joi.string().required(),
-      durationInDays: Joi.number().allow(null),
-      planType: Joi.string().allow(null, ""),
+      durationInDays: Joi.number().when("type", { is: "FREE_PREMIUM", then: Joi.required(), otherwise: Joi.optional() }),
       giftCardExpiryDate: Joi.date().allow(null, "")
     })
   },

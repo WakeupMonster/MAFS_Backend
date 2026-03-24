@@ -239,7 +239,7 @@ const SubscriptionSchema = new mongoose.Schema(
         // Tracks how the subscription was created
         source: {
             type: String,
-            enum: ["STORE", "ADMIN", "GIVEAWAY"],
+            enum: ["STORE", "ADMIN", "GIVEAWAY", "MILESTONE"],
             default: "STORE"
         },
 
@@ -257,6 +257,9 @@ const SubscriptionSchema = new mongoose.Schema(
                 _id: false,
             },
         ],
+        // ➕ NAYA: Dynamic naming and tracking for Giveaways/Milestones
+        customDisplayName: { type: String, default: null },
+        prizeId: { type: mongoose.Schema.Types.ObjectId, ref: "GiveawayPrize", default: null }
     },
     {
         timestamps: true,

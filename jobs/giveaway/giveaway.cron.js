@@ -32,8 +32,8 @@ const CURRENT_TZ = process.env.GIVEAWAY_TIMEZONE || "Australia/Sydney";
 */
 
 const cronSchedule = process.env.NODE_ENV === "development"
-  ? "*/1 * * * *"   // <-- APP TESTING KE LIYE (Har 5 Minute chalegi test server par)
-  : "0 18 * * 5";   // <-- PRODUCTION KE LIYE (Har Friday shaam 6 baje)
+  ? "*/1 * * * *"
+  : "0 18 * * 5";
 
 cron.schedule(cronSchedule, async () => {
   console.log(`🎯 Giveaway CRON triggered in Timezone: ${CURRENT_TZ}`);

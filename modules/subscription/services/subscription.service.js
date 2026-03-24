@@ -634,7 +634,7 @@ class SubscriptionService {
         startedAt: new Date(),
         expiresAt: expiresAt,
         grantReason: "milestone_first_1000",
-        source: "GIVEAWAY",
+        source: "MILESTONE",
         environment: "production"
       });
 
@@ -652,10 +652,11 @@ class SubscriptionService {
   }
 
   // ─── ADMIN GRANTED GIVEAWAY (SAFE ISOLATED CREATION) ───
-  async handleGiveawayGrant(userId, durationInDays, planType) {
+  async handleGiveawayGrant(userId, durationInDays, planType, prizeTitle, prizeId) {
+    console.log("prizeTitle function", prizeTitle)
     try {
       const daysToAdd = durationInDays || 30; // Fallback to 30 days
-      
+
       // 1. Calculate the start date. 
       // Logically kicks in AFTER their current plan ends to ensure full benefit. 
       const highestActiveSub = await Subscription.findOne({
@@ -666,7 +667,7 @@ class SubscriptionService {
 
       let baseDate = new Date(); // Default starts today
       if (highestActiveSub && highestActiveSub.expiresAt > baseDate) {
-         baseDate = new Date(highestActiveSub.expiresAt); // Append to the end
+        baseDate = new Date(highestActiveSub.expiresAt); // Append to the end
       }
 
       const extendedExpiry = new Date(baseDate.getTime());
@@ -677,6 +678,8 @@ class SubscriptionService {
       await Subscription.create({
         userId: userId,
         platform: "admin_granted",
+        customDisplayName: prizeTitle,
+        prizeId: prizeId || null,
         productId: "giveaway_prize",
         planType: planType || "1_MONTH",
         status: "ACTIVE",
@@ -693,8 +696,8 @@ class SubscriptionService {
       await UsageService._syncPremiumState(userId, true);
 
     } catch (error) {
-       logger.error(`Error in handleGiveawayGrant for User ${userId}:`, error.message);
-       throw error;
+      logger.error(`Error in handleGiveawayGrant for User ${userId}:`, error.message);
+      throw error;
     }
   }
 

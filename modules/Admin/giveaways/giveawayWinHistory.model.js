@@ -31,11 +31,23 @@ const giveawayWinHistorySchema = new mongoose.Schema(
 
     deliveryStatus: {
       type: String,
-      enum: ["PENDING", "DELIVERED"],
+      enum: ["PENDING", "QUEUED", "DELIVERED", "FORFEITED"],
       default: "PENDING",
     },
-
-    // ➕ NAYA FIELDS
+    // When prize is QUEUED, reason stored here for admin visibility
+    queueReason: {
+      type: String,
+      default: null
+    },
+    // When prize is FORFEITED, reason stored here
+    forfeitReason: {
+      type: String,
+      default: null
+    },
+    deliveredAt: {
+      type: Date,
+      default: null
+    },
     claimEmail: {
       type: String,
       trim: true,

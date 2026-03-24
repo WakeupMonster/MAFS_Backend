@@ -59,6 +59,7 @@ const logger = require("./modules/subscription/utils/logger");
 
 // ─── Existing Cron Jobs & Workers ───
 require("./jobs/giveaway/giveaway.cron");
+require("./jobs/giveaway/queuedPrize.cron");
 require("./jobs/unsuspendUsers.job");
 require("./jobs/adminNotification/premiumExpiryReminder.cron");
 require("./workers/emailnotification.worker");
@@ -81,7 +82,7 @@ app.use(express.urlencoded({ extended: true }));
 app.use(
   cors({
     // origin: process.env.FRONTEND_URL || "http://localhost:5174",
-    origin : "*",
+    origin: "*",
     credentials: true,
     methods: ["GET", "POST", "PUT", "DELETE", "PATCH"],
   })

@@ -7,6 +7,14 @@ const Prize = require("./prize.model");
 const utils = require("../../auth/auth.utils");
 const Profile = require("../../profile/profile.model"); // adjust path
 
+const dayjs = require("dayjs");
+const utc = require("dayjs/plugin/utc");
+const timezone = require("dayjs/plugin/timezone");
+dayjs.extend(utc);
+dayjs.extend(timezone);
+
+const CURRENT_TZ = process.env.GIVEAWAY_TIMEZONE || "Australia/Sydney";
+
 module.exports.getAllPrizes = async (req, res) => {
   try {
     const page = parseInt(req.query.page) || 1;
@@ -68,47 +76,56 @@ module.exports.getAllPrizes = async (req, res) => {
 
 module.exports.createPrize = async (req, res) => {
   try {
-    const { title, type, value, description, spinWheelLabel, supportiveItems, durationInDays, planType, giftCardExpiryDate } =
+    let { title, type, value, description, spinWheelLabel, supportiveItems, durationInDays, planType, giftCardExpiryDate } =
       req.body;
 
     if (!supportiveItems || supportiveItems.length < 2) {
-      return res.status(400).json({
-        success: false,
-        message: "At least 2 supportive items are required",
-      });
+      return res.status(400).json({ success: false, message: "At least 2 supportive items are required" });
     }
 
-    if (!title || !type || !value || !spinWheelLabel) {
-      return res.status(400).json({
-        success: false,
-        message: "Missing required prize fields",
-      });
+    if (!title || !type || !spinWheelLabel) {
+      return res.status(400).json({ success: false, message: "Missing required prize fields" });
     }
 
-    if (type === "FREE_PREMIUM" && !planType) {
-      return res.status(400).json({
-        success: false,
-        message: "planType is required for FREE_PREMIUM prizes",
-      });
+    if (type === "GIFT_CARD" && !value) {
+      return res.status(400).json({ success: false, message: "value is required for GIFT_CARD" });
     }
 
-    // NAYA: Custom durationDays validation
-    if (type === "FREE_PREMIUM" && !durationInDays) {
-      return res.status(400).json({
-        success: false,
-        message: "durationInDays is required for FREE_PREMIUM prizes",
-      });
+    let productId = null;
+
+    // SMART PRODUCT SYNCHRONIZATION
+    if (type === "FREE_PREMIUM") {
+      if (!planType || !durationInDays) {
+        return res.status(400).json({ success: false, message: "planType and durationInDays are required for FREE_PREMIUM prizes" });
+      }
+
+      const Product = require("../../subscription/models_v3/Product");
+      // 👉 NAYA: Frontend sirf "1_MONTH" bhejega, backend chuppe se productId pata laga lega
+      const productInfo = await Product.findOne({ planType: planType, isActive: true });
+
+      if (!productInfo) {
+        return res.status(404).json({ success: false, message: "Selected Plan Type Not Found in Database" });
+      }
+
+      productId = productInfo._id;
+
+      // Since your product price format is "$29.99", extract only the number 29.99
+      value = parseFloat(productInfo.displayPrice.replace(/[^0-9.]/g, '')) || 0;
+
+      // 🔥 Note: durationInDays aap wala hi rahega (Admin ka diya hua 10 din, 12 din etc)
+      // Original product table ka durationDays chhuenge bhi nahi!
     }
 
     const prize = await Prize.create({
       title,
       type,
-      value,
+      value: value || 0,
       description,
       spinWheelLabel,
       supportiveItems,
       durationInDays: type === "FREE_PREMIUM" ? durationInDays : null,
       planType: type === "FREE_PREMIUM" ? planType : null,
+      productId: type === "FREE_PREMIUM" ? productId : null,
       giftCardExpiryDate: type === "GIFT_CARD" ? giftCardExpiryDate : null
     });
 
@@ -240,8 +257,8 @@ module.exports.createCampaign = async (req, res) => {
   try {
     const { date, prizeId } = req.body;
 
-    const campaignDate = new Date(date);
-    campaignDate.setHours(0, 0, 0, 0);
+    // 🔒 Strictly parse date string as Midnight in target timezone (AEST)
+    const campaignDate = dayjs.tz(date, CURRENT_TZ).startOf("day").toDate();
 
     const existingCampaign = await GiveawayCampaign.findOne({
       date: campaignDate,
@@ -685,6 +702,13 @@ module.exports.markPrizeAsDelivered = async (req, res) => {
       });
     }
 
+    if (winHistory.deliveryStatus === "QUEUED") {
+      return res.status(400).json({
+        success: false,
+        message: "This prize is QUEUED because the user has an active Apple/Google subscription. It will auto-deliver when the subscription expires. Manual delivery is blocked.",
+      });
+    }
+
     // 1. DONT mistake Campaign for Prize! Use the correct Prize ID.
     const campaign = await GiveawayCampaign.findById(winHistory.campaignId);
     const prize = await Prize.findById(winHistory.prizeId);
@@ -701,9 +725,13 @@ module.exports.markPrizeAsDelivered = async (req, res) => {
       await subscriptionService.handleGiveawayGrant(
         winHistory.userId.toString(),
         prize.durationInDays,
-        prize.planType
+        prize.planType,
+        prize.title,
+        prize._id
       );
     }
+
+    console.log(prize.title, "prize title")
 
     winHistory.deliveryStatus = "DELIVERED";
     winHistory.deliveredAt = new Date();
@@ -719,15 +747,49 @@ module.exports.markPrizeAsDelivered = async (req, res) => {
 
     if (emailToSend) {
       try {
-        await utils.sendEmail(
-          emailToSend,
-          "🎉 Your Prize has been Delivered",
-          `
-        <h2>Congratulations 🎉</h2>
-        <p>Your prize <b>${prize.title}</b> has been successfully delivered.</p>
-        <p>Thank you for participating!</p>
-      `
-        );
+        let emailSubject = "🎉 Your Prize has been Delivered";
+        let emailBody = "";
+
+        if (prize.type === "FREE_PREMIUM") {
+          const expiresAt = winHistory.deliveredAt
+            ? new Date(new Date(winHistory.deliveredAt).getTime() + (prize.durationInDays || 30) * 24 * 60 * 60 * 1000)
+            : null;
+          const expiryStr = expiresAt ? expiresAt.toLocaleDateString("en-AU", { day: "numeric", month: "long", year: "numeric" }) : "N/A";
+
+          emailSubject = "🎉 Your Free Premium Has Been Activated!";
+          emailBody = `
+            <h2>🎉 Congratulations! You've Won Premium!</h2>
+            <p>Your prize <b>"${prize.title}"</b> has been activated on your account.</p>
+            <table style="border-collapse:collapse; margin:16px 0;">
+              <tr><td style="padding:8px; font-weight:bold;">Plan:</td><td style="padding:8px;">${prize.planType || "Premium"}</td></tr>
+              <tr><td style="padding:8px; font-weight:bold;">Duration:</td><td style="padding:8px;">${prize.durationInDays} Days</td></tr>
+              <tr><td style="padding:8px; font-weight:bold;">Valid Until:</td><td style="padding:8px;">${expiryStr}</td></tr>
+            </table>
+            <p>Open the app and enjoy your premium features now! 🚀</p>
+            <p>Thank you for participating!</p>
+          `;
+        } else if (prize.type === "GIFT_CARD") {
+          const giftCode = deliveryNotes || "Please contact support for your code.";
+          const expiryDate = prize.giftCardExpiryDate
+            ? new Date(prize.giftCardExpiryDate).toLocaleDateString("en-AU", { day: "numeric", month: "long", year: "numeric" })
+            : null;
+
+          emailSubject = "🎁 Your Gift Card Prize Has Arrived!";
+          emailBody = `
+            <h2>🎁 Your Gift Card Prize Has Arrived!</h2>
+            <p>You won: <b>"${prize.title}"</b></p>
+            <p><b>Value:</b> $${prize.value || 0}</p>
+            <div style="background:#f4f4f4; padding:16px; border-radius:8px; margin:16px 0; text-align:center;">
+              <p style="margin:0 0 4px 0; font-size:14px; color:#666;">Your Gift Card Code:</p>
+              <p style="margin:0; font-size:22px; font-weight:bold; letter-spacing:2px; color:#333;">${giftCode}</p>
+            </div>
+            ${expiryDate ? `<p>⚠️ This code expires on: <b>${expiryDate}</b></p>` : ""}
+            <p>If you have any issues, contact our support team.</p>
+            <p>Thank you for participating! 🎉</p>
+          `;
+        }
+
+        await utils.sendEmail(emailToSend, emailSubject, emailBody);
       } catch (emailErr) {
         console.error("Failed to send delivery email, but prize is delivered:", emailErr.message);
       }
@@ -986,9 +1048,8 @@ module.exports.bulkCreateCampaignByRanges = async (req, res) => {
       });
     }
 
-    // 🔒 Today (local midnight)
-    const now = new Date();
-    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    // 🔒 Today (midnight in target timezone)
+    const todayAEST = dayjs().tz(CURRENT_TZ).startOf("day");
 
     const campaignsToInsert = [];
     const skippedDates = [];
@@ -1004,13 +1065,10 @@ module.exports.bulkCreateCampaignByRanges = async (req, res) => {
         });
       }
 
-      const [sy, sm, sd] = startDate.split("-").map(Number);
-      const [ey, em, ed] = endDate.split("-").map(Number);
+      const start = dayjs.tz(startDate, CURRENT_TZ).startOf("day");
+      const end = dayjs.tz(endDate, CURRENT_TZ).startOf("day");
 
-      const start = new Date(sy, sm - 1, sd);
-      const end = new Date(ey, em - 1, ed);
-
-      if (start > end) {
+      if (start.isAfter(end)) {
         return res.status(400).json({
           success: false,
           message: "Start date cannot be after end date",
@@ -1021,19 +1079,17 @@ module.exports.bulkCreateCampaignByRanges = async (req, res) => {
         ? supportiveItems.filter(Boolean)
         : [];
 
-      for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
-        const campaignDate = new Date(
-          d.getFullYear(),
-          d.getMonth(),
-          d.getDate()
-        );
+      let current = start;
+      while (current.isBefore(end) || current.isSame(end)) {
+        const campaignDate = current.toDate();
 
         // ❌ Skip past dates
-        if (campaignDate < today) {
+        if (current.isBefore(todayAEST)) {
           skippedDates.push({
             date: campaignDate,
             reason: "Past date",
           });
+          current = current.add(1, "day");
           continue;
         }
 
@@ -1047,6 +1103,7 @@ module.exports.bulkCreateCampaignByRanges = async (req, res) => {
             date: campaignDate,
             reason: "Campaign already exists",
           });
+          current = current.add(1, "day");
           continue;
         }
 
@@ -1057,6 +1114,8 @@ module.exports.bulkCreateCampaignByRanges = async (req, res) => {
           isActive,
           drawStatus: "PENDING",
         });
+
+        current = current.add(1, "day");
       }
     }
 

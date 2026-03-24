@@ -203,3 +203,44 @@
 {"level":"error","message":"[CRON] Expire check error:","service":"iap-service","timestamp":"2026-03-21 16:00:05"}
 {"level":"error","message":"[CRON] Expire check error:","service":"iap-service","timestamp":"2026-03-21 18:45:05"}
 {"level":"error","message":"[CRON] Cancelled expire check error:","service":"iap-service","timestamp":"2026-03-21 18:45:05"}
+{"level":"error","message":"Milestone grant failed:","service":"iap-service","timestamp":"2026-03-23 11:06:41"}
+{"level":"error","message":"Error in handleGiveawayGrant for User 69bbcacb55d67ba9fc9a1ed5:","service":"iap-service","timestamp":"2026-03-23 11:52:16"}
+{"level":"error","message":"Error in handleGiveawayGrant for User 69bbcacb55d67ba9fc9a1ed5:","service":"iap-service","timestamp":"2026-03-23 11:52:33"}
+{"level":"error","message":"Error in handleGiveawayGrant for User 69b98f0c7ab7e7b8f8ea9fa5:","service":"iap-service","timestamp":"2026-03-23 13:00:43"}
+{"level":"error","message":"[CRON] Expire check error:","service":"iap-service","timestamp":"2026-03-23 16:55:05"}
+{"level":"error","message":"[CRON] Cancelled expire check error:","service":"iap-service","timestamp":"2026-03-23 16:55:05"}
+{"level":"error","message":"[CRON] Failed events check error:","service":"iap-service","timestamp":"2026-03-23 17:00:05"}
+{"level":"error","message":"[CRON] Cancelled expire check error:","service":"iap-service","timestamp":"2026-03-23 17:00:05"}
+{"level":"error","message":"[CRON] Expire check error:","service":"iap-service","timestamp":"2026-03-23 17:00:05"}
+{"level":"error","message":"[CRON] Cancelled expire check error:","service":"iap-service","timestamp":"2026-03-24 10:20:31"}
+{"level":"error","message":"[CRON] Failed events check error:","service":"iap-service","timestamp":"2026-03-24 10:20:36"}
+{"level":"error","message":"[CRON] Expire check error:","service":"iap-service","timestamp":"2026-03-24 10:20:44"}
+{"level":"error","message":"[CRON] Failed events check error:","service":"iap-service","timestamp":"2026-03-24 14:00:05"}
+{"level":"error","message":"[CRON] Expire check error:","service":"iap-service","timestamp":"2026-03-24 14:00:05"}
+{"level":"error","message":"[CRON] Cancelled expire check error:","service":"iap-service","timestamp":"2026-03-24 14:00:05"}
+{"level":"error","message":"[CRON] Expire check error:","service":"iap-service","timestamp":"2026-03-24 14:05:05"}
+{"level":"error","message":"[CRON] Cancelled expire check error:","service":"iap-service","timestamp":"2026-03-24 14:05:05"}
+{"level":"error","message":"[CRON] Failed events check error:","service":"iap-service","timestamp":"2026-03-24 14:10:05"}
+{"level":"error","message":"[CRON] Expire check error:","service":"iap-service","timestamp":"2026-03-24 14:10:05"}
+{"level":"error","message":"[CRON] Cancelled expire check error:","service":"iap-service","timestamp":"2026-03-24 14:10:05"}
+{"level":"error","message":"[CRON] Expire check error:","service":"iap-service","timestamp":"2026-03-24 14:15:05"}
+{"level":"error","message":"[CRON] Cancelled expire check error:","service":"iap-service","timestamp":"2026-03-24 14:15:05"}
+{"level":"error","message":"[CRON] Failed events check error:","service":"iap-service","timestamp":"2026-03-24 14:20:05"}
+{"level":"error","message":"[CRON] Expire check error:","service":"iap-service","timestamp":"2026-03-24 14:20:05"}
+{"level":"error","message":"[CRON] Cancelled expire check error:","service":"iap-service","timestamp":"2026-03-24 14:20:05"}
+{"level":"error","message":"[CRON] Expire check error:","service":"iap-service","timestamp":"2026-03-24 14:25:05"}
+{"level":"error","message":"[CRON] Cancelled expire check error:","service":"iap-service","timestamp":"2026-03-24 14:25:05"}
+{"level":"error","message":"[CRON] Failed events check error:","service":"iap-service","timestamp":"2026-03-24 14:30:05"}
+{"level":"error","message":"[CRON] Expire check error:","service":"iap-service","timestamp":"2026-03-24 14:30:05"}
+{"level":"error","message":"[CRON] Cancelled expire check error:","service":"iap-service","timestamp":"2026-03-24 14:30:05"}
+{"level":"error","message":"[CRON] Expire check error:","service":"iap-service","timestamp":"2026-03-24 14:35:05"}
+{"level":"error","message":"[CRON] Cancelled expire check error:","service":"iap-service","timestamp":"2026-03-24 14:35:05"}
+{"level":"error","message":"[CRON] Failed events check error:","service":"iap-service","timestamp":"2026-03-24 14:40:05"}
+{"level":"error","message":"[CRON] Expire check error:","service":"iap-service","timestamp":"2026-03-24 14:40:05"}
+{"level":"error","message":"[CRON] Cancelled expire check error:","service":"iap-service","timestamp":"2026-03-24 14:40:05"}
+{"level":"error","message":"[CRON] Expire check error:","service":"iap-service","timestamp":"2026-03-24 14:45:05"}
+{"level":"error","message":"[CRON] Cancelled expire check error:","service":"iap-service","timestamp":"2026-03-24 14:45:05"}
+{"level":"error","message":"Get status error:","service":"iap-service","timestamp":"2026-03-24 15:37:07"}
+{"level":"error","message":"Get status error:","service":"iap-service","timestamp":"2026-03-24 15:37:11"}
+{"level":"error","message":"Get status error:","service":"iap-service","timestamp":"2026-03-24 15:37:13"}
+{"level":"error","message":"Get status error:","service":"iap-service","timestamp":"2026-03-24 15:37:25"}

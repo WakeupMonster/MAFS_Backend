@@ -1,7 +1,9 @@
 /* eslint-disable no-unused-vars */
+const crypto = require("crypto");
 const SupportTicket = require("./supportTicket.model");
 const { sendEmail } = require("../../auth/auth.utils");
 
+/* 
 module.exports.contactSupport = async (req, res) => {
   try {
     const userId = req.user._id;
@@ -14,7 +16,10 @@ module.exports.contactSupport = async (req, res) => {
       });
     }
 
-    await SupportTicket.create({
+    const ticketId = `TKT-${crypto.randomBytes(4).toString("hex").toUpperCase()}`;
+
+    const newTicket = await SupportTicket.create({
+      ticketId,
       userId,
       category,
       subject,
@@ -24,6 +29,47 @@ module.exports.contactSupport = async (req, res) => {
     return res.json({
       success: true,
       message: "Your request has been submitted to support",
+      data: {
+        ticketId: newTicket.ticketId,
+      }
+    });
+  } catch (err) {
+    console.error("Contact support error:", err);
+    return res.status(500).json({
+      success: false,
+      message: "Failed to submit support request",
+    });
+  }
+};
+*/
+
+module.exports.contactSupport = async (req, res) => {
+  try {
+    const userId = req.user._id;
+    const { reason, description } = req.body;
+
+    if (!reason || !description) {
+      return res.status(400).json({
+        success: false,
+        message: "Reason and description are required",
+      });
+    }
+
+    const ticketId = `TKT-${crypto.randomBytes(4).toString("hex").toUpperCase()}`;
+
+    const newTicket = await SupportTicket.create({
+      ticketId,
+      userId,
+      reason,
+      description,
+    });
+
+    return res.json({
+      success: true,
+      message: "Your request has been submitted to support",
+      data: {
+        ticketId: newTicket.ticketId,
+      }
     });
   } catch (err) {
     console.error("Contact support error:", err);
@@ -57,7 +103,9 @@ module.exports.getAllTickets = async (req, res) => {
       const regex = { $regex: safeSearch, $options: "i" };
       searchQuery = {
         $or: [
+          { ticketId: regex },
           { subject: regex },
+          { reason: regex },
           { "userDetails.email": regex },
           { "profileDetails.nickname": regex },
         ],
@@ -105,8 +153,11 @@ module.exports.getAllTickets = async (req, res) => {
             {
               $project: {
                 _id: 1,
+                ticketId: 1,
                 subject: 1,
                 category: 1,
+                reason: 1,
+                description: 1,
                 status: 1,
                 createdAt: 1,
                 user: {
