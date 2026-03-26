@@ -175,13 +175,6 @@ const getProfileForReview = async (req, res) => {
       Report.find({ reportedId: userId }).lean(),
     ]);
 
-    // const reporterIds = [...new Set(reports.map(r => r.reporterId))];
-    // const reporters = await Profile.find({ userId: { $in: reporterIds } }).select('userId nickname').lean();
-    // const reporterMap = reporters.reduce((acc, reporter) => {
-    //   acc[reporter.userId.toString()] = reporter.nickname;
-    //   return acc;
-    // }, {});
-
     // 2. Reporters ki profiles fetch karein (Nickname + Photos)
     const reporterIds = [
       ...new Set(reports.map((r) => r.reporterId.toString())),
