@@ -2,8 +2,6 @@ const AdminNotificationCampaign = require("../../modules/Admin/adminNotification
 const User = require("../../modules/auth/auth.model");
 const notificationService = require("../../modules/notifications/notification.service");
 
-
-
 module.exports = async function runPremiumExpiryReminderJob() {
     try {
         const today = new Date();
@@ -36,44 +34,64 @@ module.exports = async function runPremiumExpiryReminderJob() {
             const end = new Date(targetDate);
             end.setHours(23, 59, 59, 999);
 
-            const users = await User.find({
+            const query = {
                 isPremium: true,
                 accountStatus: "active",
                 premiumExpiresAt: { $gte: start, $lte: end },
                 "banDetails.isBanned": { $ne: true }
-            })
-                .select("_id premiumExpiresAt")
-                .lean();
+            };
 
-
+            const BATCH_SIZE = 500;
+            let lastId = null;
             let sentCount = 0;
+            let failedCount = 0;
 
-            for (const user of users) {
-                const daysLeft = Math.max(
-                    0,
-                    Math.ceil(
-                        (user.premiumExpiresAt - new Date()) /
-                        (1000 * 60 * 60 * 24)
-                    )
-                );
+            while (true) {
+                const cursorQuery = lastId ? { ...query, _id: { $gt: lastId } } : query;
 
-                const finalMessage = campaign.message.replace(
-                    "{{daysLeft}}",
-                    daysLeft
-                );
+                const users = await User.find(cursorQuery)
+                    .sort({ _id: 1 })
+                    .select("_id premiumExpiresAt")
+                    .limit(BATCH_SIZE)
+                    .lean();
 
-                await notificationService.sendAdminNotification({
-                    userId: user._id,
-                    title : campaign.title,
-                    message: finalMessage,
-                    respectUserSettings: true,
-                    data: {
-                        type: "PREMIUM_BROADCAST",
-                        campaignId: campaign._id,
-                         cta: campaign.cta,
+                if (users.length === 0) break;
+
+                for (const user of users) {
+                    const daysLeft = Math.max(
+                        0,
+                        Math.ceil(
+                            (user.premiumExpiresAt - new Date()) /
+                            (1000 * 60 * 60 * 24)
+                        )
+                    );
+
+                    const finalMessage = campaign.message.replace(
+                        "{{daysLeft}}",
+                        daysLeft
+                    );
+
+                    try {
+                        await notificationService.sendAdminNotification({
+                            userId: user._id,
+                            title: campaign.title,
+                            message: finalMessage,
+                            respectUserSettings: true,
+                            data: {
+                                type: "PREMIUM_EXPIRY",
+                                campaignId: campaign._id.toString(),
+                                cta: campaign.cta,
+                                daysLeft
+                            }
+                        });
+                        sentCount++;
+                    } catch (e) {
+                        failedCount++;
+                        console.error("Firebase push failed for expiry reminder user:", user._id);
                     }
-                });
-                sentCount++;
+                }
+
+                lastId = users[users.length - 1]._id;
             }
 
             // Update campaign run info
@@ -81,7 +99,7 @@ module.exports = async function runPremiumExpiryReminderJob() {
                 campaign._id,
                 {
                     lastRunAt: new Date(),
-                    $inc: { sentCount }
+                    $inc: { sentCount, failedCount }
                 }
             );
         }

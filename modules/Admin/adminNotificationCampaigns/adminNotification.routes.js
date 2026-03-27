@@ -4,6 +4,7 @@ const {
   broadcastNotification,
   sendNotificationToPremiumUsers,
   createPremiumExpiryCampaign,
+  sendPremiumExpiryNow,
   getNotificationHistory,
 } = require("./adminNotification.controller");
 
@@ -16,6 +17,8 @@ router.post("/broadcastemail", createEmailCampaign);
 router.post("/premium/send", sendNotificationToPremiumUsers);
 
 router.post("/premium-expiry/send", createPremiumExpiryCampaign);
+
+router.post("/premium-expiry/:campaignId/trigger", sendPremiumExpiryNow);
 
 router.get("/notifications/history", getNotificationHistory);
 

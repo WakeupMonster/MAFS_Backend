@@ -20,9 +20,12 @@ module.exports.getSpinWheelConfig = async (req, res) => {
     if (!winHistory) {
       // Non-winner (Ya already claimed winner) ko spin nahi dikhega
       return res.json({
-        available: true,
-        showSpin: false,
+        success: false,
         message: "Better luck next time",
+        data: {
+          available: true,
+          showSpin: false
+        }
       });
     }
 
@@ -34,7 +37,7 @@ module.exports.getSpinWheelConfig = async (req, res) => {
 
 
     let supportiveItems = supportItem ? [...supportItem.supportiveItems] : ["Try Again", "Oops", "Next Time"];
-    
+
     let wheelItems = prize.supportiveItems.map((item) => ({
       label: item,
     }));
@@ -60,16 +63,20 @@ module.exports.getSpinWheelConfig = async (req, res) => {
      * 8️⃣ Final response frontend ko bhejo
      */
     return res.json({
-      available: true,
-      showSpin: true,
-      items: wheelItems,
-      supportiveItems: prize.supportiveItems,
-      winnerIndex,
-      prize: {
-        title: prize.title,
-        value: prize.value,
-        type: prize.type,
-      },
+      success: true,
+      message: "Spin wheel loaded successfully",
+      data: {
+        available: true,
+        showSpin: true,
+        winnerIndex,
+        items: wheelItems,
+        supportiveItems: prize.supportiveItems,
+        prize: {
+          title: prize.title,
+          value: prize.value,
+          type: prize.type,
+        },
+      }
     });
   } catch (error) {
     console.error("Spin wheel API error:", error);
@@ -87,10 +94,10 @@ module.exports.claimPrize = async (req, res) => {
 
     // Email validation (zaroori aur sahi format mein)
     if (!claimEmail || typeof claimEmail !== "string" || !claimEmail.includes("@")) {
-       return res.status(400).json({
-          success: false,
-          message: "A valid email address is required to claim the prize",
-       });
+      return res.status(400).json({
+        success: false,
+        message: "A valid email address is required to claim the prize",
+      });
     }
 
     /**
@@ -115,7 +122,7 @@ module.exports.claimPrize = async (req, res) => {
      */
     const Subscription = require("../../modules/subscription/models/Subscription");
     const Prize = require("../../modules/Admin/giveaways/prize.model");
-    
+
     const activeStoreSub = await Subscription.findOne({
       userId: userId,
       platform: { $in: ["ios", "android"] },

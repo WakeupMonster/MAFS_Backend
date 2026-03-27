@@ -24,9 +24,9 @@ function calculateDistance(lat1, lon1, lat2, lon2) {
   const a =
     Math.sin(dLat / 2) * Math.sin(dLat / 2) +
     Math.cos(lat1 * (Math.PI / 180)) *
-      Math.cos(lat2 * (Math.PI / 180)) *
-      Math.sin(dLon / 2) *
-      Math.sin(dLon / 2);
+    Math.cos(lat2 * (Math.PI / 180)) *
+    Math.sin(dLon / 2) *
+    Math.sin(dLon / 2);
   const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
   return Math.round(R * c);
 }
@@ -270,25 +270,30 @@ async function getFeedService(userId, limit, page) {
 
   // Fetch remaining profiles
   const remainingLimit = limit - profiles.length;
+  let additionalProfiles = [];
   if (remainingLimit > 0) {
     const currentExclude = [
       ...new Set([...excludeIds, ...profiles.map((p) => p.userId.toString())]),
     ];
     queryFilters.userId = { $nin: currentExclude };
-    const additionalProfiles = await runQuery(queryFilters);
+    additionalProfiles = await runQuery(queryFilters);
     profiles = [...profiles, ...additionalProfiles];
   }
 
   // 7. HANDLE EXHAUSTION (RETRY)
-  if (profiles.length === 0 && seenProfiles.length > 0 && page === 1) {
+  // Check if normal db pool exhausted (ignoring explicitly fetched superlikes)
+  if (additionalProfiles.length === 0 && seenProfiles.length > 0 && page === 1) {
     console.log(
       `Pool exhausted for ${userId}. Resetting seenProfiles and retrying immediately...`,
     );
     if (redis) await redis.del(SEEN_KEY);
     seenProfiles = [];
 
-    queryFilters.userId = { $nin: [...baseExcludeSet] };
-    profiles = await runQuery(queryFilters);
+    // Make sure we still exclude any superlikers/boosted users we just grabbed above!
+    const excludeForRetry = [...new Set([...baseExcludeSet, ...profiles.map(p => p.userId.toString())])];
+    queryFilters.userId = { $nin: excludeForRetry };
+    const retryProfiles = await runQuery(queryFilters);
+    profiles = [...profiles, ...retryProfiles];
   }
 
   if (profiles.length === 0) {
@@ -626,7 +631,7 @@ async function doSwipe(swiperId, targetId, action) {
               wallet: status.data.wallet,
               quotaStatus:
                 status.data.allocations[
-                  usageType === "LIKE" ? "likes" : "superKeens"
+                usageType === "LIKE" ? "likes" : "superKeens"
                 ],
               upsell: {
                 title: "Don't stop swiping!",

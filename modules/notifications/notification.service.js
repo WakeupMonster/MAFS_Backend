@@ -226,12 +226,12 @@ class NotificationService {
     data = {},
     respectUserSettings = true,
   }) {
-    console.log("Start sending push");
+    // console.log("Start sending push");
     try {
       const user = await User.findById(userId).select(
         "fcmTokens notificationSettings",
       );
-      console.log(userId, "userId in sendAdminNotification");
+      // console.log(userId, "userId in sendAdminNotification");
       if (!user) return;
 
       if (respectUserSettings && user.notificationSettings?.push === false) {
@@ -241,7 +241,7 @@ class NotificationService {
       if (!user.fcmTokens || user.fcmTokens.length === 0) {
         return;
       }
-      console.log("Sending admin notification", user);
+      // console.log("Sending admin notification", user);
 
       await sendNotificationToMultiple(
         user.fcmTokens,
@@ -252,7 +252,7 @@ class NotificationService {
         {
           type: data.type || "ADMIN_NOTIFICATION",
           campaignId: data.campaignId?.toString(),
-          cta: data.cta || null,
+          cta: data.cta ? (typeof data.cta === "string" ? data.cta : JSON.stringify(data.cta)) : "",
           ...data.extra,
         },
       );
@@ -263,6 +263,7 @@ class NotificationService {
         title,
         message,
         type: data.type,
+        cta: data.cta,
         status: "sent",
       });
 

@@ -29,8 +29,8 @@ module.exports.sendNotificationToPremiumUsers = async (req, res) => {
       campaignName,
       title,
       message,
-      cta,
-      target: "premium_users",
+      cta: typeof cta === "string" ? undefined : cta,
+      target: "premium",
       mode: "manual",
       scheduleAt: sendNow ? null : scheduleAt,
       status: sendNow ? "sent" : "scheduled",
@@ -46,40 +46,79 @@ module.exports.sendNotificationToPremiumUsers = async (req, res) => {
       });
     }
 
-    // 3️Fetch premium users
-    const premiumUsers = await User.find({
+    const totalTargeted = await User.countDocuments({
       isPremium: true,
       accountStatus: "active",
       "banDetails.isBanned": { $ne: true },
-    })
-      .select("_id")
-      .lean();
+    });
 
-    // 4️Push notification jobs
-    for (const user of premiumUsers) {
-      await notificationService.sendAdminNotification({
-        userId: user._id,
-        title,
-        message,
-        respectUserSettings: true,
-        data: {
-          type: "PREMIUM_BROADCAST",
-          campaignId: campaign._id,
-          cta,
-        },
+    if (totalTargeted === 0) {
+      return res.json({
+        success: true,
+        message: "No premium users found to notify",
+        sentCount: 0,
       });
     }
 
-    // 5️Update sent count
-    await AdminNotificationCampaign.findByIdAndUpdate(campaign._id, {
-      sentCount: premiumUsers.length,
+    // 5️Update sent count background processing completely
+    res.json({
+      success: true,
+      message: "Notification queued for premium users",
+      totalTargetedUsers: totalTargeted,
     });
 
-    return res.json({
-      success: true,
-      message: "Notification sent to premium users",
-      sentCount: premiumUsers.length,
-    });
+    (async () => {
+      let sentCount = 0;
+      let failedCount = 0;
+      let lastId = null;
+      const BATCH_SIZE = 500;
+
+      while (true) {
+        const query = {
+          isPremium: true,
+          accountStatus: "active",
+          "banDetails.isBanned": { $ne: true },
+        };
+        if (lastId) query._id = { $gt: lastId };
+
+        const premiumUsers = await User.find(query)
+          .sort({ _id: 1 })
+          .select("_id")
+          .limit(BATCH_SIZE)
+          .lean();
+
+        if (premiumUsers.length === 0) break;
+
+        for (const user of premiumUsers) {
+          try {
+            await notificationService.sendAdminNotification({
+              userId: user._id,
+              title,
+              message,
+              respectUserSettings: true,
+              data: {
+                type: "PREMIUM_BROADCAST",
+                campaignId: campaign._id,
+                cta,
+              },
+            });
+            sentCount++;
+          } catch (e) {
+            failedCount++;
+            console.error("Failed to send to user:", user._id);
+          }
+        }
+        
+        lastId = premiumUsers[premiumUsers.length - 1]._id;
+      }
+
+      await AdminNotificationCampaign.findByIdAndUpdate(campaign._id, {
+        sentCount,
+        failedCount,
+        status: "completed",
+        lastRunAt: new Date(),
+      });
+    })().catch((err) => console.error("Background premium push error:", err));
   } catch (err) {
     console.error("Admin premium notification error:", err);
     return res.status(500).json({
@@ -112,7 +151,7 @@ module.exports.createPremiumExpiryCampaign = async (req, res) => {
       campaignName,
       title,
       message,
-      cta,
+      cta: typeof cta === "string" ? undefined : cta,
       target: "premium_expiry",
       expiryRule: {
         daysBeforeExpiry,
@@ -182,60 +221,84 @@ module.exports.sendPremiumExpiryNow = async (req, res) => {
     const end = new Date(targetDate);
     end.setHours(23, 59, 59, 999);
 
-    const users = await User.find({
+    const query = {
       isPremium: true,
       accountStatus: "active",
       premiumExpiresAt: { $gte: start, $lte: end },
       "banDetails.isBanned": { $ne: true },
-    })
-      .select("_id premiumExpiresAt")
-      .lean();
+    };
 
-    let sentCount = 0;
+    const totalTargeted = await User.countDocuments(query);
 
-    for (const user of users) {
-      const daysLeft = Math.max(
-        0,
-        Math.ceil(
-          (user.account.premiumExpiry - new Date()) / (1000 * 60 * 60 * 24)
-        )
-      );
-
-      const finalMessage = campaign.message.replace("{{daysLeft}}", daysLeft);
-      await notificationService.sendAdminNotification({
-        userId: user._id,
-        title: campaign.title,
-        message: finalMessage,
-        respectUserSettings: true,
-        data: {
-          type: "PREMIUM_EXPIRY",
-          campaignId: campaign._id,
-          cta: campaign.cta,
-          daysLeft,
-        },
+    if (totalTargeted === 0) {
+      return res.json({
+        success: true,
+        message: "No users matching expiry criteria found",
+        sentCount: 0,
       });
-
-      //   await notificationService.add("admin_campaign", {
-      //     userId: user._id,
-      //     title: campaign.title,
-      //     message: finalMessage,
-      //     cta: campaign.cta,
-      //     type: "PREMIUM_EXPIRY"
-      //   });
-
-      sentCount++;
     }
 
-    campaign.status = "sent";
-    campaign.lastRunAt = new Date();
-    campaign.sentCount += sentCount;
-    await campaign.save();
-
-    return res.json({
+    res.json({
       success: true,
-      message: "Premium expiry reminder sent successfully",
-      sentCount,
+      message: "Premium expiry reminder queued",
+      targetedUsers: totalTargeted,
     });
+
+    (async () => {
+      let sentCount = 0;
+      let failedCount = 0;
+      let lastId = null;
+      const BATCH_SIZE = 500;
+
+      while (true) {
+        const cursorQuery = lastId ? { ...query, _id: { $gt: lastId } } : query;
+
+        const users = await User.find(cursorQuery)
+          .sort({ _id: 1 })
+          .select("_id premiumExpiresAt")
+          .limit(BATCH_SIZE)
+          .lean();
+
+        if (users.length === 0) break;
+
+        for (const user of users) {
+          const daysLeft = Math.max(
+            0,
+            Math.ceil(
+              (user.premiumExpiresAt - new Date()) / (1000 * 60 * 60 * 24)
+            )
+          );
+
+          const finalMessage = campaign.message.replace("{{daysLeft}}", daysLeft);
+          try {
+            await notificationService.sendAdminNotification({
+              userId: user._id,
+              title: campaign.title,
+              message: finalMessage,
+              respectUserSettings: true,
+              data: {
+                type: "PREMIUM_EXPIRY",
+                campaignId: campaign._id,
+                cta: campaign.cta,
+                daysLeft,
+              },
+            });
+            sentCount++;
+          } catch (e) {
+            failedCount++;
+            console.error("Failed to send premium expiry reminder to:", user._id);
+          }
+        }
+
+        lastId = users[users.length - 1]._id;
+      }
+
+      campaign.status = "completed";
+      campaign.lastRunAt = new Date();
+      campaign.sentCount += sentCount;
+      campaign.failedCount = (campaign.failedCount || 0) + failedCount;
+      await campaign.save();
+    })().catch((err) => console.error("Background expiry reminder error:", err));
   } catch (err) {
     console.error("Manual premium expiry send error:", err);
     return res.status(500).json({
@@ -265,7 +328,7 @@ module.exports.broadcastNotification = async (req, res) => {
       });
     }
 
-    if (!["all_users", "free_users", "premium_users"].includes(target)) {
+    if (!["all", "free", "premium"].includes(target)) {
       return res.status(400).json({
         success: false,
         message: "Invalid target audience",
@@ -277,7 +340,7 @@ module.exports.broadcastNotification = async (req, res) => {
       title,
       message,
       target,
-      cta,
+      cta: typeof cta === "string" ? undefined : cta,
       mode: "manual",
       status: "sent",
       createdBy: adminId,
@@ -289,17 +352,17 @@ module.exports.broadcastNotification = async (req, res) => {
       "banDetails.isBanned": { $ne: true },
     };
 
-    if (target === "premium_users") {
+    if (target === "premium") {
       userQuery.isPremium = true;
     }
 
-    if (target === "free_users") {
+    if (target === "free") {
       userQuery.isPremium = false;
     }
 
-    const users = await User.find(userQuery).select("_id").lean();
+    const totalTargeted = await User.countDocuments(userQuery);
 
-    if (!users.length) {
+    if (totalTargeted === 0) {
       return res.json({
         success: true,
         message: "No users matched the criteria",
@@ -307,45 +370,61 @@ module.exports.broadcastNotification = async (req, res) => {
       });
     }
 
-    let sentCount = 0;
-
-    // for (const user of users) {
-    //   await notificationService.sendAdminNotification("admin_broadcast", {
-    //     userId: user._id,
-    //     title,
-    //     message,
-    //     cta,
-    //     type: "ADMIN_BROADCAST",
-    //     campaignId: campaign._id
-    //   });
-
-    //   sentCount++;
-    // }
-
-    for (const user of users) {
-      console.log(user._id, "userId from broadcastNotification");
-      await notificationService.sendAdminNotification({
-        userId: user._id,
-        title,
-        message,
-        respectUserSettings: true, // user settings ka respect
-        data: {
-          type: "ADMIN_BROADCAST",
-          campaignId: campaign._id.toString(),
-          cta,
-        },
-      });
-      sentCount++;
-    }
-
-    campaign.sentCount = sentCount;
-    await campaign.save();
-
-    return res.json({
+    res.json({
       success: true,
-      message: "Notification sent successfully",
-      sentCount,
+      message: "Notification queued successfully",
+      totalTargetedUsers: totalTargeted,
     });
+
+    // Run sending process in the background with cursor-based batching
+    const BATCH_SIZE = 500;
+    (async () => {
+      let sentCount = 0;
+      let failedCount = 0;
+      let lastId = null;
+
+      while (true) {
+        const query = lastId
+          ? { ...userQuery, _id: { $gt: lastId } }
+          : userQuery;
+
+        const users = await User.find(query)
+          .sort({ _id: 1 })
+          .select("_id")
+          .limit(BATCH_SIZE)
+          .lean();
+
+        if (users.length === 0) break;
+
+        for (const user of users) {
+          try {
+            await notificationService.sendAdminNotification({
+              userId: user._id,
+              title,
+              message,
+              respectUserSettings: true,
+              data: {
+                type: "ADMIN_BROADCAST",
+                campaignId: campaign._id.toString(),
+                cta,
+              },
+            });
+            sentCount++;
+          } catch (e) {
+            failedCount++;
+            console.error("Failed to send broadcast to user:", user._id);
+          }
+        }
+
+        lastId = users[users.length - 1]._id;
+      }
+
+      campaign.sentCount = sentCount;
+      campaign.failedCount = failedCount;
+      campaign.status = "completed";
+      campaign.lastRunAt = new Date();
+      await campaign.save();
+    })().catch((err) => console.error("Background broadcast push error:", err));
   } catch (err) {
     console.error("❌ broadcastNotification error:", err);
     return res.status(500).json({

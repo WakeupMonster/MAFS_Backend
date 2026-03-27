@@ -14,7 +14,7 @@ const AdminNotificationSchema = new mongoose.Schema(
 
     target: {
       type: String,
-      enum: ["premium_users", "premium_expiry", "all_users", "free_users"],
+      enum: ["all", "free", "premium", "premium_expiry"],
       required: true,
     },
 
@@ -37,11 +37,13 @@ const AdminNotificationSchema = new mongoose.Schema(
 
     status: {
       type: String,
-      enum: ["pending", "scheduled", "sent"],
+      enum: ["pending", "scheduled", "sent", "processing", "completed", "failed"],
       default: "pending",
     },
 
     sentCount: { type: Number, default: 0 },
+    failedCount: { type: Number, default: 0 },
+    lastRunAt: { type: Date, default: null },
 
     createdBy: {
       type: mongoose.Schema.Types.ObjectId,
@@ -56,40 +58,3 @@ module.exports = mongoose.model(
   "AdminNotificationCampaign",
   AdminNotificationSchema
 );
-
-// {
-//   "campaignName": "Premium Offer July",
-//   "title": "Premium Exclusive 🎉",
-//   "message": "Unlock more matches & boosts. Limited time!",
-//   "cta": {
-//     "label": "Buy Premium",
-//     "action": "BUY_PREMIUM"
-//   },
-//   "sendNow": true
-// }
-
-// {
-//   "campaignName": "Premium Expiry Reminder",
-//   "title": "Premium Ending Soon ⏰",
-//   "message": "Your premium expires in 2 days. Renew now!",
-//   "cta": {
-//     "label": "Renew",
-//     "action": "BUY_PREMIUM"
-//   },
-//   "sendNow": false,
-//   "scheduleAt": "2026-01-26T20:00:00.000Z"
-// }
-
-// PREMIUM EXPIRE DATA
-
-// {
-//   "campaignName": "Premium Expiry Reminder - 2 Days",
-//   "title": "Premium Ending Soon ⏰",
-//   "message": "Your premium expires in {{daysLeft}} days. Renew now to keep matching!",
-//   "cta": {
-//     "label": "Renew Premium",
-//     "action": "BUY_PREMIUM"
-//   },
-//   "daysBeforeExpiry": 2,
-//   "auto": true
-// }

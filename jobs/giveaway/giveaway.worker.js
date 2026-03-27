@@ -30,12 +30,12 @@ module.exports = async function runGiveawayWorker() {
     const settings = await GiveawaySettings.findOne();
     const yearlyLimit = settings?.yearlyWinLimitPerUser || 2;
 
-    // 🔒 Find any campaign whose scheduled date falls exactly in today's AEST timezone window
+    // 🔒 Find the earliest active pending campaign (created for today or any previous day this week)
     const campaign = await GiveawayCampaign.findOne({
-      date: { $gte: startOfTodayTZ, $lt: endOfTodayTZ },
+      date: { $lte: endOfTodayTZ },
       isActive: true,
       drawStatus: "PENDING",
-    });
+    }).sort({ date: 1 });
 
     if (!campaign) {
       console.log("ℹ️ No pending giveaway campaign today");

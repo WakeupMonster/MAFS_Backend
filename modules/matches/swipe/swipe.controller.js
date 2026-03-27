@@ -89,7 +89,7 @@ module.exports.action = async (req, res) => {
     if (swiperProfile.verification?.status !== "approved") {
       return res.status(403).json({
         success: false,
-        message: "Verify your identity to unlock swiping! Upload your selfie and ID to get started.",
+        message: "Verify your identity to unlock swiping",
         data: {
           actionAllowed: false,
           reason: "VERIFICATION_PENDING",

@@ -112,7 +112,7 @@ class UsageService {
             data: {
                 isPremium,
                 planType: activeSub ? activeSub.planType : null,
-                displayName: activeSub.customDisplayName || productInfo?.displayName || "Support Team Grant",
+                displayName: activeSub?.customDisplayName || productInfo?.displayName || (activeSub ? "Support Team Grant" : null),
                 durationDays: productInfo?.durationDays || null,
                 subtitle: productInfo?.subtitle || null,
                 badge: productInfo?.badge || null,
@@ -175,7 +175,25 @@ class UsageService {
      * Syncs isPremium flag across User and Profile models.
      */
     async _syncPremiumState(userId, isPremium) {
-        await User.updateOne({ _id: userId, isPremium: { $ne: isPremium } }, { isPremium });
+        let premiumExpiresAt = null;
+
+        if (isPremium) {
+            const SubscriptionModel = require("../models/Subscription");
+            const activeSub = await SubscriptionModel.findOne({
+                userId,
+                status: { $in: ['ACTIVE', 'CANCELLED'] },
+                expiresAt: { $gt: new Date() }
+            }).sort({ expiresAt: -1 }).lean();
+
+            if (activeSub) {
+                premiumExpiresAt = activeSub.expiresAt;
+            }
+        }
+
+        await User.updateOne(
+            { _id: userId },
+            { $set: { isPremium, premiumExpiresAt } }
+        );
     }
 
 

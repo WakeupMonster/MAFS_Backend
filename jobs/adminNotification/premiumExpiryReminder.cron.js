@@ -1,11 +1,11 @@
 const cron = require("node-cron");
-const  runPremiumExpiryReminderJob  = require("./premiumExpiryReminder.job");
+const runPremiumExpiryReminderJob = require("./premiumExpiryReminder.job");
 
-cron.schedule("11 13 * * *", async () => {
+cron.schedule("2 16 * * *", async () => {
   console.log("🎯 premim cron started");
   await runPremiumExpiryReminderJob();
 },
- {
+  {
     timezone: "Asia/Kolkata"
   }
 );

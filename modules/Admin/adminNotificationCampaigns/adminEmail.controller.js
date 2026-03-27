@@ -4,6 +4,7 @@ const emailQueue = require("../../../queues/email.queue");
 module.exports.createEmailCampaign = async (req, res) => {
   try {
     const adminId = req.user._id;
+    console.log(adminId, "adminId")
     const { campaignName, subject, body, target } = req.body;
 
     if (!campaignName || !subject || !body || !target) {
