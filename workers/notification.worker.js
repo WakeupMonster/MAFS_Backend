@@ -4,7 +4,7 @@
 
 // const worker = new Worker('notification-queue', async (job) => {
 //   const { type, data } = job;
-  
+
 //   console.log(`🚀 Processing ${type} for job ${job.id}`);
 
 //   try {
@@ -37,8 +37,8 @@
 
 
 const { Worker } = require('bullmq');
-// const notificationService = require('./notification.service');
 const notificationService = require('../modules/notifications/notification.service');
+const { NOTIFICATION_TYPES } = require('../modules/notifications/notification.enums');
 
 const connection = {
     host: process.env.REDIS_HOST || '127.0.0.1',
@@ -46,26 +46,26 @@ const connection = {
 };
 
 const worker = new Worker('notification-queue', async (job) => {
-    const { type } = job.name; // Job name as type
+    const type = job.name; // Job name as type
     const data = job.data;
 
     console.log(`Processing ${job.name} for Job ID: ${job.id}`);
 
     try {
         switch (type) {
-            case 'NEW_MATCH':
+            case NOTIFICATION_TYPES.NEW_MATCH:
                 await notificationService.sendNewMatchNotification(data.userId1, data.userId2);
                 break;
-            case 'NEW_MESSAGE':
+            case NOTIFICATION_TYPES.NEW_MESSAGE:
                 await notificationService.sendNewMessageNotification(data.senderId, data.receiverId, data.messageText);
                 break;
-            case 'NEW_LIKE':
+            case NOTIFICATION_TYPES.NEW_LIKE:
                 await notificationService.sendLikeNotification(data.senderId, data.receiverId);
                 break;
-            case 'GIVEAWAY_WINNER':
+            case NOTIFICATION_TYPES.GIVEAWAY_WINNER:
                 await notificationService.sendGiveawayWinnerNotification(data.userId, data.prizeTitle);
                 break;
-            case 'PRIZE_DELIVERED':
+            case NOTIFICATION_TYPES.PRIZE_DELIVERED:
                 await notificationService.sendPrizeDeliveredNotification(data.userId);
                 break;
             default:

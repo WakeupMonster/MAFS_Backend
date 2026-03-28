@@ -99,7 +99,7 @@ const worker = new Worker(
 
     const totalUsers = await User.countDocuments(filter);
 
-    let lastId = null;
+    let lastId = campaign.lastProcessedUserId || null;
     let totalSent = 0;
     let totalFailed = 0;
 
@@ -119,25 +119,32 @@ const worker = new Worker(
       totalSent += sent;
       totalFailed += failed;
 
-      // Update progress on the job for monitoring
+      const totalProcessedSoFar = (campaign.sentCount || 0) + (campaign.failedCount || 0) + totalSent + totalFailed;
       await job.updateProgress(
-        Math.round(((totalSent + totalFailed) / totalUsers) * 100)
+        Math.round((totalProcessedSoFar / totalUsers) * 100)
       );
 
-      // Track lastId for cursor pagination
       lastId = users[users.length - 1]._id;
+
+      // Checkpoint progress to Database (Crash Resilience)
+      campaign.lastProcessedUserId = lastId;
+      campaign.sentCount = (campaign.sentCount || 0) + totalSent;
+      campaign.failedCount = (campaign.failedCount || 0) + totalFailed;
+      await campaign.save();
+
+      // Reset local counts for next batch
+      totalSent = 0;
+      totalFailed = 0;
     }
 
     campaign.status = "completed";
-    campaign.sentCount = totalSent;
-    campaign.failedCount = totalFailed;
-    campaign.totalUsers = totalUsers;
+    campaign.lastProcessedUserId = null;
     await campaign.save();
 
     console.log(
-      `✅ Email campaign ${campaignId} complete: ${totalSent} sent, ${totalFailed} failed out of ${totalUsers}`
+      `✅ Email campaign ${campaignId} complete: ${campaign.sentCount || 0} sent, ${campaign.failedCount || 0} failed out of ${totalUsers}`
     );
-    return { sent: totalSent, failed: totalFailed, total: totalUsers };
+    return { sent: campaign.sentCount || 0, failed: campaign.failedCount || 0, total: totalUsers };
   },
   {
     connection: {

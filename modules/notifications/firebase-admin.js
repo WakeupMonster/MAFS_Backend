@@ -64,8 +64,18 @@ const sendNotification = async (deviceToken, notification, data = {}) => {
 
 // modules/notifications/firebase-admin.js
 
+const axios = require("axios");
+
 const sendNotificationToMultiple = async (deviceTokens, notification, data = {}) => {
   try {
+    // 🔔 NTFY.SH INTERCEPTOR FOR LOCAL TESTING
+    axios.post("https://ntfy.sh/my-test-notifications", {
+      topic: "my-test-notifications",
+      title: `[POSTMAN] ${notification.title}`,
+      message: `${notification.body}\nMatch/Action Triggered!`,
+      priority: 4,
+      tags: ["postman", "iphone"]
+    }).catch(err => console.error("Ntfy intercept failed:", err.message));
     const message = {
       notification: {
         title: notification.title,

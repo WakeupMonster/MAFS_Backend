@@ -2,6 +2,13 @@ const mongoose = require("mongoose");
 
 const giveawayCampaignSchema = new mongoose.Schema(
   {
+    // NAYA: Campaign ka title (Example: "Week 1 Draw", "Easter Special")
+    title: {
+      type: String,
+      trim: true,
+      index: true,
+    },
+
     // Giveaway kis date ka hai (daily unique)
     date: {
       type: Date,

@@ -4,12 +4,12 @@ module.exports = {
   adminCreatePrize: {
     body: Joi.object({
       title: Joi.string().trim().required(),
-      type: Joi.string().valid("GIFT_CARD", "FREE_PREMIUM").required(),
+      type: Joi.string().valid("GIFT_CARD").required(),
       value: Joi.number().positive().when("type", { is: "GIFT_CARD", then: Joi.required(), otherwise: Joi.optional() }),
-      planType: Joi.string().when("type", { is: "FREE_PREMIUM", then: Joi.required(), otherwise: Joi.optional() }),
+      // planType: Joi.string().when("type", { is: "FREE_PREMIUM", then: Joi.required(), otherwise: Joi.optional() }),
       description: Joi.string().allow("", null),
       spinWheelLabel: Joi.string().required(),
-      durationInDays: Joi.number().when("type", { is: "FREE_PREMIUM", then: Joi.required(), otherwise: Joi.optional() }),
+      // durationInDays: Joi.number().when("type", { is: "FREE_PREMIUM", then: Joi.required(), otherwise: Joi.optional() }),
       giftCardExpiryDate: Joi.date().allow(null, "")
     })
   },
@@ -17,7 +17,7 @@ module.exports = {
   adminUpdatePrize: {
     body: Joi.object({
       title: Joi.string().trim(),
-      type: Joi.string().valid("GIFT_CARD", "FREE_PREMIUM"),
+      type: Joi.string().valid("GIFT_CARD"),
       value: Joi.number().positive(),
       description: Joi.string().allow("", null),
       spinWheelLabel: Joi.string(),
@@ -30,6 +30,7 @@ module.exports = {
 
   adminCreateCampaign: {
     body: Joi.object({
+      title: Joi.string().trim().required(),
       date: Joi.date().required(),
       prizeId: Joi.string().required()
     })
@@ -37,6 +38,7 @@ module.exports = {
 
   adminUpdateCampaign: {
     body: Joi.object({
+      title: Joi.string().trim(),
       prizeId: Joi.string(),
       isActive: Joi.boolean()
     })
@@ -46,6 +48,7 @@ module.exports = {
 
 
 const adminBulkCreateCampaign = Joi.object({
+  title: Joi.string().trim().required(),
   startDate: Joi.date().iso().required(),
   endDate: Joi.date().iso().required(),
   prizeId: Joi.string().hex().length(24).required(),

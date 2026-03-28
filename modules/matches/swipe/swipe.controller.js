@@ -241,16 +241,20 @@ module.exports.getKeenData = async (req, res, actionType) => {
     const userId = req.user._id;
 
     // 1. Premium Check for normal likes (v3 Requirements)
-    if (actionType === 'like') {
-      const usageStatus = await UsageService.getUsageStatus(userId);
-      if (!usageStatus.data.premiumFeatures.seeWhoLikedYou) {
-        return res.status(403).json({
-          success: false,
-          code: "PREMIUM_REQUIRED",
-          message: "See who liked you is a premium feature."
-        });
-      }
-    }
+    // if (actionType === 'like') {
+    //   const usageStatus = await UsageService.getUsageStatus(userId);
+    //   if (!usageStatus.data.premiumFeatures.seeWhoLikedYou) {
+    //     return res.status(200).json({
+    //       success: true,
+    //       code: "PREMIUM_REQUIRED",
+    //       message: "See who liked you is a premium feature.",
+    //       data: {
+    //         actionAllowed: false,
+    //         reason: "PREMIUM_REQUIRED"
+    //       }
+    //     });
+    //   }
+    // }
 
     const { page = 1, limit = 20 } = req.query;
     const skip = (parseInt(page) - 1) * parseInt(limit);
@@ -302,18 +306,18 @@ module.exports.getKeenData = async (req, res, actionType) => {
     const formattedData = keens.map(item => {
       const profile = item.swiperId;
 
-        if (!profile || !profile.nickname) return null;
+      if (!profile || !profile.nickname) return null;
 
-        const age = calculateAge(profile.dob);
-        let distance = 0;
-        if (req.user.location?.coordinates && profile.location?.coordinates) {
-          distance = calculateDistance(
-            req.user.location.coordinates[1],
-            req.user.location.coordinates[0],
-            profile.location.coordinates[1],
-            profile.location.coordinates[0]
-          );
-        }
+      const age = calculateAge(profile.dob);
+      let distance = 0;
+      if (req.user.location?.coordinates && profile.location?.coordinates) {
+        distance = calculateDistance(
+          req.user.location.coordinates[1],
+          req.user.location.coordinates[0],
+          profile.location.coordinates[1],
+          profile.location.coordinates[0]
+        );
+      }
 
       // 🔥 EXACT MANAGER RESPONSE FORMAT
       return {

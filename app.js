@@ -7,7 +7,7 @@ const logger = require("./modules/subscription/utils/logger");
 
 // ─── Existing Cron Jobs & Workers ───
 require("./jobs/giveaway/giveaway.cron");
-require("./jobs/giveaway/queuedPrize.cron");
+// require("./jobs/giveaway/queuedPrize.cron");
 require("./jobs/unsuspendUsers.job");
 require("./jobs/adminNotification/premiumExpiryReminder.cron");
 require("./workers/emailnotification.worker");

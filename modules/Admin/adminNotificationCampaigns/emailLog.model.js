@@ -13,5 +13,4 @@ const EmailLogSchema = new mongoose.Schema(
   },
   { timestamps: true }
 );
-
 module.exports = mongoose.model("EmailLog", EmailLogSchema);

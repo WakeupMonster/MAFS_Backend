@@ -3,6 +3,7 @@ const User = require("../../../modules/auth/auth.model");
 const AdminNotificationCampaign = require("./admin.notification.model");
 const notificationService = require("../../../modules/notifications/notification.service");
 const NotificationLog = require("./notificationLog.model");
+const { addAdminPushJob } = require("../../../queues/adminPush.queue");
 
 module.exports.sendNotificationToPremiumUsers = async (req, res) => {
   try {
@@ -60,65 +61,19 @@ module.exports.sendNotificationToPremiumUsers = async (req, res) => {
       });
     }
 
-    // 5️Update sent count background processing completely
     res.json({
       success: true,
       message: "Notification queued for premium users",
       totalTargetedUsers: totalTargeted,
     });
 
-    (async () => {
-      let sentCount = 0;
-      let failedCount = 0;
-      let lastId = null;
-      const BATCH_SIZE = 500;
-
-      while (true) {
-        const query = {
-          isPremium: true,
-          accountStatus: "active",
-          "banDetails.isBanned": { $ne: true },
-        };
-        if (lastId) query._id = { $gt: lastId };
-
-        const premiumUsers = await User.find(query)
-          .sort({ _id: 1 })
-          .select("_id")
-          .limit(BATCH_SIZE)
-          .lean();
-
-        if (premiumUsers.length === 0) break;
-
-        for (const user of premiumUsers) {
-          try {
-            await notificationService.sendAdminNotification({
-              userId: user._id,
-              title,
-              message,
-              respectUserSettings: true,
-              data: {
-                type: "PREMIUM_BROADCAST",
-                campaignId: campaign._id,
-                cta,
-              },
-            });
-            sentCount++;
-          } catch (e) {
-            failedCount++;
-            console.error("Failed to send to user:", user._id);
-          }
-        }
-        
-        lastId = premiumUsers[premiumUsers.length - 1]._id;
-      }
-
-      await AdminNotificationCampaign.findByIdAndUpdate(campaign._id, {
-        sentCount,
-        failedCount,
-        status: "completed",
-        lastRunAt: new Date(),
+    try {
+      await addAdminPushJob("PREMIUM_BROADCAST", {
+        campaignId: campaign._id.toString(),
       });
-    })().catch((err) => console.error("Background premium push error:", err));
+    } catch (err) {
+      console.error("Queue to premium users failed:", err);
+    }
   } catch (err) {
     console.error("Admin premium notification error:", err);
     return res.status(500).json({
@@ -244,61 +199,14 @@ module.exports.sendPremiumExpiryNow = async (req, res) => {
       targetedUsers: totalTargeted,
     });
 
-    (async () => {
-      let sentCount = 0;
-      let failedCount = 0;
-      let lastId = null;
-      const BATCH_SIZE = 500;
-
-      while (true) {
-        const cursorQuery = lastId ? { ...query, _id: { $gt: lastId } } : query;
-
-        const users = await User.find(cursorQuery)
-          .sort({ _id: 1 })
-          .select("_id premiumExpiresAt")
-          .limit(BATCH_SIZE)
-          .lean();
-
-        if (users.length === 0) break;
-
-        for (const user of users) {
-          const daysLeft = Math.max(
-            0,
-            Math.ceil(
-              (user.premiumExpiresAt - new Date()) / (1000 * 60 * 60 * 24)
-            )
-          );
-
-          const finalMessage = campaign.message.replace("{{daysLeft}}", daysLeft);
-          try {
-            await notificationService.sendAdminNotification({
-              userId: user._id,
-              title: campaign.title,
-              message: finalMessage,
-              respectUserSettings: true,
-              data: {
-                type: "PREMIUM_EXPIRY",
-                campaignId: campaign._id,
-                cta: campaign.cta,
-                daysLeft,
-              },
-            });
-            sentCount++;
-          } catch (e) {
-            failedCount++;
-            console.error("Failed to send premium expiry reminder to:", user._id);
-          }
-        }
-
-        lastId = users[users.length - 1]._id;
-      }
-
-      campaign.status = "completed";
-      campaign.lastRunAt = new Date();
-      campaign.sentCount += sentCount;
-      campaign.failedCount = (campaign.failedCount || 0) + failedCount;
-      await campaign.save();
-    })().catch((err) => console.error("Background expiry reminder error:", err));
+    try {
+      await addAdminPushJob("PREMIUM_EXPIRY", {
+        campaignId: campaign._id.toString(),
+        todayTimestamp: Date.now(),
+      });
+    } catch (err) {
+      console.error("Queue premium expiry failed:", err);
+    }
   } catch (err) {
     console.error("Manual premium expiry send error:", err);
     return res.status(500).json({
@@ -376,55 +284,13 @@ module.exports.broadcastNotification = async (req, res) => {
       totalTargetedUsers: totalTargeted,
     });
 
-    // Run sending process in the background with cursor-based batching
-    const BATCH_SIZE = 500;
-    (async () => {
-      let sentCount = 0;
-      let failedCount = 0;
-      let lastId = null;
-
-      while (true) {
-        const query = lastId
-          ? { ...userQuery, _id: { $gt: lastId } }
-          : userQuery;
-
-        const users = await User.find(query)
-          .sort({ _id: 1 })
-          .select("_id")
-          .limit(BATCH_SIZE)
-          .lean();
-
-        if (users.length === 0) break;
-
-        for (const user of users) {
-          try {
-            await notificationService.sendAdminNotification({
-              userId: user._id,
-              title,
-              message,
-              respectUserSettings: true,
-              data: {
-                type: "ADMIN_BROADCAST",
-                campaignId: campaign._id.toString(),
-                cta,
-              },
-            });
-            sentCount++;
-          } catch (e) {
-            failedCount++;
-            console.error("Failed to send broadcast to user:", user._id);
-          }
-        }
-
-        lastId = users[users.length - 1]._id;
-      }
-
-      campaign.sentCount = sentCount;
-      campaign.failedCount = failedCount;
-      campaign.status = "completed";
-      campaign.lastRunAt = new Date();
-      await campaign.save();
-    })().catch((err) => console.error("Background broadcast push error:", err));
+    try {
+      await addAdminPushJob("ADMIN_BROADCAST", {
+        campaignId: campaign._id.toString(),
+      });
+    } catch (err) {
+      console.error("Queue broadcast push error:", err);
+    }
   } catch (err) {
     console.error("❌ broadcastNotification error:", err);
     return res.status(500).json({

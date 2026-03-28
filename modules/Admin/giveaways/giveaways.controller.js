@@ -94,27 +94,27 @@ module.exports.createPrize = async (req, res) => {
     let productId = null;
 
     // SMART PRODUCT SYNCHRONIZATION
-    if (type === "FREE_PREMIUM") {
-      if (!planType || !durationInDays) {
-        return res.status(400).json({ success: false, message: "planType and durationInDays are required for FREE_PREMIUM prizes" });
-      }
+    // if (type === "FREE_PREMIUM") {
+    //   if (!planType || !durationInDays) {
+    //     return res.status(400).json({ success: false, message: "planType and durationInDays are required for FREE_PREMIUM prizes" });
+    //   }
 
-      const Product = require("../../subscription/models_v3/Product");
-      // 👉 NAYA: Frontend sirf "1_MONTH" bhejega, backend chuppe se productId pata laga lega
-      const productInfo = await Product.findOne({ planType: planType, isActive: true });
+    //   const Product = require("../../subscription/models_v3/Product");
+    //   // 👉 NAYA: Frontend sirf "1_MONTH" bhejega, backend chuppe se productId pata laga lega
+    //   const productInfo = await Product.findOne({ planType: planType, isActive: true });
 
-      if (!productInfo) {
-        return res.status(404).json({ success: false, message: "Selected Plan Type Not Found in Database" });
-      }
+    //   if (!productInfo) {
+    //     return res.status(404).json({ success: false, message: "Selected Plan Type Not Found in Database" });
+    //   }
 
-      productId = productInfo._id;
+    //   productId = productInfo._id;
 
-      // Since your product price format is "$29.99", extract only the number 29.99
-      value = parseFloat(productInfo.displayPrice.replace(/[^0-9.]/g, '')) || 0;
+    //   // Since your product price format is "$29.99", extract only the number 29.99
+    //   value = parseFloat(productInfo.displayPrice.replace(/[^0-9.]/g, '')) || 0;
 
-      // 🔥 Note: durationInDays aap wala hi rahega (Admin ka diya hua 10 din, 12 din etc)
-      // Original product table ka durationDays chhuenge bhi nahi!
-    }
+    //   // 🔥 Note: durationInDays aap wala hi rahega (Admin ka diya hua 10 din, 12 din etc)
+    //   // Original product table ka durationDays chhuenge bhi nahi!
+    // }
 
     const prize = await Prize.create({
       title,
@@ -123,9 +123,9 @@ module.exports.createPrize = async (req, res) => {
       description,
       spinWheelLabel,
       supportiveItems,
-      durationInDays: type === "FREE_PREMIUM" ? durationInDays : null,
-      planType: type === "FREE_PREMIUM" ? planType : null,
-      productId: type === "FREE_PREMIUM" ? productId : null,
+      // durationInDays: type === "FREE_PREMIUM" ? durationInDays : null,
+      // planType: type === "FREE_PREMIUM" ? planType : null,
+      // productId: type === "FREE_PREMIUM" ? productId : null,
       giftCardExpiryDate: type === "GIFT_CARD" ? giftCardExpiryDate : null
     });
 
@@ -255,7 +255,7 @@ module.exports.deletePrize = async (req, res, next) => {
 
 module.exports.createCampaign = async (req, res) => {
   try {
-    const { date, prizeId } = req.body;
+    const { title, date, prizeId } = req.body;
 
     // 🔒 Strictly parse date string as Midnight in target timezone (AEST)
     const campaignDate = dayjs.tz(date, CURRENT_TZ).startOf("day");
@@ -286,6 +286,7 @@ module.exports.createCampaign = async (req, res) => {
     }
 
     const campaign = await GiveawayCampaign.create({
+      title,
       date: campaignDateQuery,
       prizeId: prize._id,
     });
@@ -315,6 +316,7 @@ module.exports.createCampaign = async (req, res) => {
     });
   }
 };
+
 
 exports.getAllCampaigns = async (req, res) => {
   try {
@@ -384,6 +386,7 @@ exports.getAllCampaigns = async (req, res) => {
       pipeline.push({
         $match: {
           $or: [
+            { title: regex }, // NAYA: Campaign title search
             { "prize.title": regex },
             { "prize.spinWheelLabel": regex }, // Added search field
             { "winner.email": regex },
@@ -403,6 +406,7 @@ exports.getAllCampaigns = async (req, res) => {
           { $limit: limit },
           {
             $project: {
+              title: 1, // NAYA
               date: 1,
               drawStatus: 1,
               isActive: 1,
@@ -676,10 +680,9 @@ module.exports.resendPrize = async (req, res) => {
     });
   }
 };
-
 module.exports.markPrizeAsDelivered = async (req, res) => {
   try {
-    const { winHistoryId, deliveryNotes, actualDeliveredValue } = req.body;
+    const { winHistoryId, deliveryNotes, actualDeliveredValue, emailTemplate } = req.body;
 
     const winHistory = await GiveawayWinHistory.findById(winHistoryId);
 
@@ -704,12 +707,12 @@ module.exports.markPrizeAsDelivered = async (req, res) => {
       });
     }
 
-    if (winHistory.deliveryStatus === "QUEUED") {
-      return res.status(400).json({
-        success: false,
-        message: "This prize is QUEUED because the user has an active Apple/Google subscription. It will auto-deliver when the subscription expires. Manual delivery is blocked.",
-      });
-    }
+    // if (winHistory.deliveryStatus === "QUEUED") {
+    //   return res.status(400).json({
+    //     success: false,
+    //     message: "This prize is QUEUED because the user has an active Apple/Google subscription. It will auto-deliver when the subscription expires. Manual delivery is blocked.",
+    //   });
+    // }
 
     // 1. DONT mistake Campaign for Prize! Use the correct Prize ID.
     const campaign = await GiveawayCampaign.findById(winHistory.campaignId);
@@ -722,16 +725,24 @@ module.exports.markPrizeAsDelivered = async (req, res) => {
         .json({ success: false, message: "Prize or User not found" });
     }
 
-    if (prize.type === "FREE_PREMIUM") {
-      const subscriptionService = require("../../subscription/services/subscription.service");
-      await subscriptionService.handleGiveawayGrant(
-        winHistory.userId.toString(),
-        prize.durationInDays,
-        prize.planType,
-        prize.title,
-        prize._id
-      );
+    // 🔒 Edge Case 4: GIFT_CARD ke liye voucher code mandatory hai
+    if (prize.type === "GIFT_CARD" && !deliveryNotes) {
+      return res.status(400).json({
+        success: false,
+        message: "Voucher/Gift Card code (deliveryNotes) is required for GIFT_CARD prizes.",
+      });
     }
+
+    // if (prize.type === "FREE_PREMIUM") {
+    //   const subscriptionService = require("../../subscription/services/subscription.service");
+    //   await subscriptionService.handleGiveawayGrant(
+    //     winHistory.userId.toString(),
+    //     prize.durationInDays,
+    //     prize.planType,
+    //     prize.title,
+    //     prize._id
+    //   );
+    // }
 
     console.log(prize.title, "prize title")
 
@@ -746,54 +757,98 @@ module.exports.markPrizeAsDelivered = async (req, res) => {
 
     // 2. Safe Email Sending (Use Claim Email if provided, fallback to user email)
     const emailToSend = winHistory.claimEmail || user.email;
+    let emailSent = false;
 
     if (emailToSend) {
       try {
         let emailSubject = "🎉 Your Prize has been Delivered";
         let emailBody = "";
 
-        if (prize.type === "FREE_PREMIUM") {
-          const expiresAt = winHistory.deliveredAt
-            ? new Date(new Date(winHistory.deliveredAt).getTime() + (prize.durationInDays || 30) * 24 * 60 * 60 * 1000)
-            : null;
-          const expiryStr = expiresAt ? expiresAt.toLocaleDateString("en-AU", { day: "numeric", month: "long", year: "numeric" }) : "N/A";
+        // if (prize.type === "FREE_PREMIUM") {
+        //   const expiresAt = winHistory.deliveredAt
+        //     ? new Date(new Date(winHistory.deliveredAt).getTime() + (prize.durationInDays || 30) * 24 * 60 * 60 * 1000)
+        //     : null;
+        //   const expiryStr = expiresAt ? expiresAt.toLocaleDateString("en-AU", { day: "numeric", month: "long", year: "numeric" }) : "N/A";
 
-          emailSubject = "🎉 Your Free Premium Has Been Activated!";
-          emailBody = `
-            <h2>🎉 Congratulations! You've Won Premium!</h2>
-            <p>Your prize <b>"${prize.title}"</b> has been activated on your account.</p>
-            <table style="border-collapse:collapse; margin:16px 0;">
-              <tr><td style="padding:8px; font-weight:bold;">Plan:</td><td style="padding:8px;">${prize.planType || "Premium"}</td></tr>
-              <tr><td style="padding:8px; font-weight:bold;">Duration:</td><td style="padding:8px;">${prize.durationInDays} Days</td></tr>
-              <tr><td style="padding:8px; font-weight:bold;">Valid Until:</td><td style="padding:8px;">${expiryStr}</td></tr>
-            </table>
-            <p>Open the app and enjoy your premium features now! 🚀</p>
-            <p>Thank you for participating!</p>
-          `;
-        } else if (prize.type === "GIFT_CARD") {
+        //   emailSubject = "🎉 Your Free Premium Has Been Activated!";
+        //   emailBody = `
+        //     <h2>🎉 Congratulations! You've Won Premium!</h2>
+        //     <p>Your prize <b>"${prize.title}"</b> has been activated on your account.</p>
+        //     <table style="border-collapse:collapse; margin:16px 0;">
+        //       <tr><td style="padding:8px; font-weight:bold;">Plan:</td><td style="padding:8px;">${prize.planType || "Premium"}</td></tr>
+        //       <tr><td style="padding:8px; font-weight:bold;">Duration:</td><td style="padding:8px;">${prize.durationInDays} Days</td></tr>
+        //       <tr><td style="padding:8px; font-weight:bold;">Valid Until:</td><td style="padding:8px;">${expiryStr}</td></tr>
+        //     </table>
+        //     <p>Open the app and enjoy your premium features now! 🚀</p>
+        //     <p>Thank you for participating!</p>
+        //   `;
+        // } else 
+
+        if (prize.type === "GIFT_CARD") {
           const giftCode = deliveryNotes || "Please contact support for your code.";
           const expiryDate = prize.giftCardExpiryDate
             ? new Date(prize.giftCardExpiryDate).toLocaleDateString("en-AU", { day: "numeric", month: "long", year: "numeric" })
             : null;
 
-          emailSubject = "🎁 Your Gift Card Prize Has Arrived!";
-          emailBody = `
-            <h2>🎁 Your Gift Card Prize Has Arrived!</h2>
-            <p>You won: <b>"${prize.title}"</b></p>
-            <p><b>Value:</b> $${prize.value || 0}</p>
-            <div style="background:#f4f4f4; padding:16px; border-radius:8px; margin:16px 0; text-align:center;">
-              <p style="margin:0 0 4px 0; font-size:14px; color:#666;">Your Gift Card Code:</p>
-              <p style="margin:0; font-size:22px; font-weight:bold; letter-spacing:2px; color:#333;">${giftCode}</p>
-            </div>
-            ${expiryDate ? `<p>⚠️ This code expires on: <b>${expiryDate}</b></p>` : ""}
-            <p>If you have any issues, contact our support team.</p>
-            <p>Thank you for participating! 🎉</p>
-          `;
+          if (emailTemplate) {
+            // 🚀 New dynamic email payload logic
+            emailSubject = emailTemplate.subject || "🎉 Congratulations! Your Prize Awaits";
+
+            // Format steps into a clean HTML ordered list
+            let stepsHtml = "";
+            if (Array.isArray(emailTemplate.steps) && emailTemplate.steps.length > 0) {
+              stepsHtml = `
+                <div style="margin: 20px 0; padding: 16px; background: #f9f9f9; border-radius: 8px;">
+                  <h3 style="margin-top: 0; color: #333;">How to claim your prize:</h3>
+                  <ol style="margin: 0; padding-left: 20px; color: #555; line-height: 1.6;">
+                    ${emailTemplate.steps.map(step => `<li style="margin-bottom: 8px;">${step}</li>`).join('')}
+                  </ol>
+                </div>
+              `;
+            }
+
+            // Compile the final HTML Body
+            emailBody = `
+              <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; color: #333;">
+                <h2 style="color: #222; text-align: center;">${emailTemplate.title || "Your Gift Card is Here!"}</h2>
+                <p style="font-size: 16px; color: #444; line-height: 1.5; text-align: center;">${emailTemplate.description || ""}</p>
+                
+                <div style="background:#f4f4f4; padding:20px; border-radius:12px; margin:24px 0; text-align:center; border: 1px dashed #ccc;">
+                  <p style="margin:0 0 8px 0; font-size:14px; color:#666; text-transform: uppercase; font-weight: bold;">Your Gift Card Code</p>
+                  <p style="margin:0; font-size:26px; font-weight:bold; letter-spacing:2px; color:#111;">${giftCode}</p>
+                </div>
+                
+                ${stepsHtml}
+                ${expiryDate ? `<p style="color: #e74c3c; font-size: 14px; text-align: center; margin-top: 20px;">⚠️ This code expires on: <b>${expiryDate}</b></p>` : ""}
+                
+                <hr style="border: none; border-top: 1px solid #eee; margin: 30px 0;" />
+                <p style="font-size: 12px; color: #999; text-align: center; margin: 0;">If you have any issues, contact our support team.</p>
+                <p style="font-size: 12px; color: #999; text-align: center; margin: 4px 0 0 0;">Thank you for participating! 🎉</p>
+              </div>
+            `;
+          } else {
+            // 🛡️ Fallback: Existing Default Layout
+            emailSubject = "🎁 Your Gift Card Prize Has Arrived!";
+            emailBody = `
+              <h2>🎁 Your Gift Card Prize Has Arrived!</h2>
+              <p>You won: <b>"${prize.title}"</b></p>
+              <p><b>Value:</b> $${prize.value || 0}</p>
+              <div style="background:#f4f4f4; padding:16px; border-radius:8px; margin:16px 0; text-align:center;">
+                <p style="margin:0 0 4px 0; font-size:14px; color:#666;">Your Gift Card Code:</p>
+                <p style="margin:0; font-size:22px; font-weight:bold; letter-spacing:2px; color:#333;">${giftCode}</p>
+              </div>
+              ${expiryDate ? `<p>⚠️ This code expires on: <b>${expiryDate}</b></p>` : ""}
+              <p>If you have any issues, contact our support team.</p>
+              <p>Thank you for participating! 🎉</p>
+            `;
+          }
         }
 
         await utils.sendEmail(emailToSend, emailSubject, emailBody);
+        emailSent = true;
       } catch (emailErr) {
         console.error("Failed to send delivery email, but prize is delivered:", emailErr.message);
+        emailSent = false;
       }
     } else {
       console.log("No email found to notify user about delivery.");
@@ -801,7 +856,10 @@ module.exports.markPrizeAsDelivered = async (req, res) => {
 
     return res.json({
       success: true,
-      message: "Prize marked as delivered",
+      message: emailSent
+        ? "Prize marked as delivered and email sent successfully"
+        : "Prize marked as delivered, but email could not be sent",
+      emailSent,
       data: {
         deliveredAt: winHistory.deliveredAt,
       },
@@ -1041,7 +1099,7 @@ module.exports.getGiveawayAuditReport = async (req, res) => {
 
 module.exports.bulkCreateCampaignByRanges = async (req, res) => {
   try {
-    const { ranges, isActive = true } = req.body;
+    const { title, ranges, isActive = true } = req.body;
 
     if (!Array.isArray(ranges) || ranges.length === 0) {
       return res.status(400).json({
@@ -1116,6 +1174,7 @@ module.exports.bulkCreateCampaignByRanges = async (req, res) => {
         }
 
         campaignsToInsert.push({
+          title,
           date: campaignDate,
           prizeId,
           supportiveItems: normalizedSupportiveItems, // 🔥 FIXED
@@ -1414,6 +1473,152 @@ module.exports.getParticipants = async (req, res) => {
     return res.status(500).json({
       success: false,
       message: error.message || "Failed to fetch participants",
+    });
+  }
+};
+
+// ===============================
+// 🏆 Campaign Winners API
+// ===============================
+module.exports.getCampaignWinners = async (req, res) => {
+  try {
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 10;
+    const skip = (page - 1) * limit;
+    const search = (req.query.search || "").trim();
+    const status = (req.query.status || "").toUpperCase();
+
+    // ─── 1. Stats (always unfiltered, for top cards) ───
+    const [statsResult] = await GiveawayCampaign.aggregate([
+      {
+        $facet: {
+          totalCampaigns: [{ $count: "count" }],
+          completed: [
+            { $match: { drawStatus: "COMPLETED" } },
+            { $count: "count" },
+          ],
+          pending: [
+            { $match: { drawStatus: { $in: ["PENDING", "PROCESSING"] } } },
+            { $count: "count" },
+          ],
+          withWinner: [
+            { $match: { winnerUserId: { $ne: null } } },
+            { $count: "count" },
+          ],
+        },
+      },
+    ]);
+
+    const stats = {
+      totalCampaigns: statsResult.totalCampaigns[0]?.count || 0,
+      completed: statsResult.completed[0]?.count || 0,
+      pending: statsResult.pending[0]?.count || 0,
+      withWinner: statsResult.withWinner[0]?.count || 0,
+    };
+
+    // ─── 2. Build aggregation pipeline (filtered) ───
+    const pipeline = [];
+
+    // Status filter
+    if (status && ["PENDING", "PROCESSING", "COMPLETED"].includes(status)) {
+      pipeline.push({ $match: { drawStatus: status } });
+    }
+
+    // Populate prize
+    pipeline.push({
+      $lookup: {
+        from: "giveawayprizes",
+        localField: "prizeId",
+        foreignField: "_id",
+        as: "prizeInfo",
+      },
+    });
+    pipeline.push({
+      $unwind: { path: "$prizeInfo", preserveNullAndEmptyArrays: true },
+    });
+
+    // Populate winner (User)
+    pipeline.push({
+      $lookup: {
+        from: "users",
+        localField: "winnerUserId",
+        foreignField: "_id",
+        as: "winnerInfo",
+      },
+    });
+    pipeline.push({
+      $unwind: { path: "$winnerInfo", preserveNullAndEmptyArrays: true },
+    });
+
+    // Search filter (title, prize.title, winner.phone, winner.email)
+    if (search) {
+      pipeline.push({
+        $match: {
+          $or: [
+            { title: { $regex: search, $options: "i" } },
+            { "prizeInfo.title": { $regex: search, $options: "i" } },
+            { "winnerInfo.phone": { $regex: search, $options: "i" } },
+            { "winnerInfo.email": { $regex: search, $options: "i" } },
+          ],
+        },
+      });
+    }
+
+    // ─── 3. Faceted output (data + count in single query) ───
+    pipeline.push({
+      $facet: {
+        metadata: [{ $count: "total" }],
+        data: [
+          { $sort: { date: -1 } },
+          { $skip: skip },
+          { $limit: limit },
+          {
+            $project: {
+              _id: 1,
+              title: 1,
+              date: 1,
+              drawStatus: 1,
+              prize: {
+                _id: "$prizeInfo._id",
+                title: { $ifNull: ["$prizeInfo.title", "Unknown Prize"] },
+                value: { $ifNull: ["$prizeInfo.value", 0] },
+              },
+              winner: {
+                $cond: {
+                  if: { $ifNull: ["$winnerInfo", false] },
+                  then: {
+                    _id: "$winnerInfo._id",
+                    phone: { $ifNull: ["$winnerInfo.phone", null] },
+                    email: { $ifNull: ["$winnerInfo.email", null] },
+                  },
+                  else: null,
+                },
+              },
+            },
+          },
+        ],
+      },
+    });
+
+    const [result] = await GiveawayCampaign.aggregate(pipeline);
+    const total = result.metadata[0]?.total || 0;
+
+    return res.status(200).json({
+      success: true,
+      stats,
+      pagination: {
+        total,
+        page,
+        limit,
+        totalPages: Math.ceil(total / limit),
+      },
+      data: result.data,
+    });
+  } catch (error) {
+    console.error("Get campaign winners error:", error);
+    return res.status(500).json({
+      success: false,
+      message: error.message || "Failed to fetch campaign winners",
     });
   }
 };

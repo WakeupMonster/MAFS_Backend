@@ -1,6 +1,7 @@
 const ChatMessage = require("../modules/matches/chat/chat.message.model");
 const { Match } = require("../modules/matches/swipe/swipe.model");
-const notificationService = require("../modules/notifications/notification.service");
+const { addNotificationJob } = require("../queues/notification.queue");
+const { NOTIFICATION_TYPES } = require("../modules/notifications/notification.enums");
 const { isBlocked } = require("../modules/profile/block.service");
 
 // TODO: Uncomment after verifying correct import path
@@ -398,12 +399,10 @@ module.exports = function chatSocket(io, redisClient) {
 
           /* Push notification (background worker) */
           try {
-            await notificationService.add("new_message", {
+            await addNotificationJob(NOTIFICATION_TYPES.NEW_MESSAGE, {
               senderId: currentUserId,
               receiverId: receiverId.toString(),
-              matchId,
-              messageId: msg._id,
-              text: lastMessagePreview,
+              messageText: lastMessagePreview,
             });
           } catch (notifErr) {
             console.error("❌ Notification queue error:", notifErr);

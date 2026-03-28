@@ -21,6 +21,7 @@ router.patch("/campaigns/:id/disable", ctrl.disableCampaign);
 router.patch("/campaigns/:id/pause", ctrl.pauseCampaign);
 
 /** @section Winners & Claims */
+router.get("/campaigns/winner", ctrl.getCampaignWinners);
 // router.get("/campaigns/winner", ctrl.getWinners);
 // router.get("/campaigns/winner", ctrl.getAllWinners);
 router.post("/campaigns/:id/resend-prize", ctrl.resendPrize);

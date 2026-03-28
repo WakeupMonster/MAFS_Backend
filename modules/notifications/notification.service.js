@@ -2,11 +2,17 @@
 // eslint-disable-next-line no-unused-vars
 const { sendNotificationToMultiple } = require("./firebase-admin");
 const User = require("../../modules/auth/auth.model");
+const Profile = require("../../modules/profile/profile.model");
 const NotificationLog = require("../../modules/Admin/adminNotificationCampaigns/notificationLog.model");
+const { NOTIFICATION_TYPES } = require("./notification.enums");
 
 class NotificationService {
-  async _executePush(userId, tokens, notification, data) {
-    if (!tokens || tokens.length === 0) return;
+  async _executePush(userId, tokensObj, notification, data) {
+    if (!tokensObj || tokensObj.length === 0) return;
+
+    // Map `[{token, deviceId}]` to `['actual_token_string']`
+    const tokens = tokensObj.map(t => (typeof t === 'object' && t.token) ? t.token : t).filter(Boolean);
+    if (tokens.length === 0) return;
 
     const result = await sendNotificationToMultiple(tokens, notification, data);
 
@@ -16,20 +22,27 @@ class NotificationService {
       );
       await User.updateOne(
         { _id: userId },
-        { $pull: { fcmTokens: { $in: result.failedTokens } } },
+        { $pull: { fcmTokens: { token: { $in: result.failedTokens } } } },
       );
     }
     return result;
   }
   async sendNewMatchNotification(userId1, userId2) {
     try {
-      // Get both users' FCM tokens
-      const users = await User.find({
-        _id: { $in: [userId1, userId2] },
-      }).select("fcmTokens firstName notificationSettings");
+      // Get users and their profiles
+      const [users, profiles] = await Promise.all([
+        User.find({ _id: { $in: [userId1, userId2] } }).select("fcmTokens notificationSettings"),
+        Profile.find({ userId: { $in: [userId1, userId2] } }).select("userId nickname")
+      ]);
 
       const user1 = users.find((u) => u._id.toString() === userId1.toString());
       const user2 = users.find((u) => u._id.toString() === userId2.toString());
+      
+      const profile1 = profiles.find((p) => p.userId.toString() === userId1.toString());
+      const profile2 = profiles.find((p) => p.userId.toString() === userId2.toString());
+
+      const name1 = profile1?.nickname || "Someone";
+      const name2 = profile2?.nickname || "Someone";
 
       if (!user1 || !user2) {
         throw new Error("One or both users not found");
@@ -43,14 +56,15 @@ class NotificationService {
         user1.notificationSettings?.matches !== false &&
         user1.notificationSettings?.push !== false
       ) {
-        await sendNotificationToMultiple(
+        await this._executePush(
+          user1._id,
           user1.fcmTokens,
           {
             title: "It's a match! 🔥",
-            body: `You and ${user2.firstName} have liked each other. Start a conversation now!`,
+            body: `You and ${name2} have liked each other. Start a conversation now!`,
           },
           {
-            type: "NEW_MATCH",
+            type: NOTIFICATION_TYPES.NEW_MATCH,
             matchId: userId2.toString(),
           },
         );
@@ -61,16 +75,17 @@ class NotificationService {
         user2.fcmTokens &&
         user2.fcmTokens.length > 0 &&
         user2.notificationSettings?.matches !== false &&
-        user1.notificationSettings?.push !== false
+        user2.notificationSettings?.push !== false
       ) {
-        await sendNotificationToMultiple(
+        await this._executePush(
+          user2._id,
           user2.fcmTokens,
           {
             title: "It's a match! 🔥",
-            body: `You and ${user1.firstName} have liked each other. Start a conversation now!`,
+            body: `You and ${name1} have liked each other. Start a conversation now!`,
           },
           {
-            type: "NEW_MATCH",
+            type: NOTIFICATION_TYPES.NEW_MATCH,
             matchId: userId1.toString(),
           },
         );
@@ -86,8 +101,8 @@ class NotificationService {
   // Send a new message notification
   async sendNewMessageNotification(senderId, receiverId, messageText) {
     try {
-      const [sender, receiver] = await Promise.all([
-        User.findById(senderId).select("firstName"),
+      const [senderProfile, receiver] = await Promise.all([
+        Profile.findOne({ userId: senderId }).select("nickname"),
         User.findById(receiverId).select("fcmTokens notificationSettings"),
       ]);
 
@@ -99,17 +114,20 @@ class NotificationService {
       }
       if (!receiver?.fcmTokens?.length) return;
 
-      await sendNotificationToMultiple(
+      const senderName = senderProfile?.nickname || "Someone";
+
+      await this._executePush(
+        receiverId,
         receiver.fcmTokens,
         {
-          title: `New message from ${sender.firstName}`,
+          title: `New message from ${senderName}`,
           body:
             messageText.length > 100
               ? `${messageText.substring(0, 100)}...`
               : messageText,
         },
         {
-          type: "NEW_MESSAGE",
+          type: NOTIFICATION_TYPES.NEW_MESSAGE,
           senderId: senderId.toString(),
           conversationId: [senderId, receiverId].sort().join("_"),
         },
@@ -123,8 +141,8 @@ class NotificationService {
   // Send a like notification
   async sendLikeNotification(senderId, receiverId) {
     try {
-      const [sender, receiver] = await Promise.all([
-        User.findById(senderId).select("firstName photos"),
+      const [senderProfile, receiver] = await Promise.all([
+        Profile.findOne({ userId: senderId }).select("nickname photos"),
         User.findById(receiverId).select("fcmTokens notificationSettings"),
       ]);
 
@@ -138,17 +156,19 @@ class NotificationService {
 
       if (!receiver?.fcmTokens?.length) return;
 
-      const senderPhoto = sender.photos?.[0]?.url || null;
+      const senderPhoto = senderProfile?.photos?.[0]?.url || null;
+      const senderName = senderProfile?.nickname || "Someone";
 
-      await sendNotificationToMultiple(
+      await this._executePush(
+        receiverId,
         receiver.fcmTokens,
         {
           title: "New like! 💖",
-          body: `${sender.firstName} liked your profile`,
+          body: `${senderName} liked your profile`,
           imageUrl: senderPhoto,
         },
         {
-          type: "NEW_LIKE",
+          type: NOTIFICATION_TYPES.NEW_LIKE,
           senderId: senderId.toString(),
         },
       );
@@ -173,14 +193,15 @@ class NotificationService {
       if (user.notificationSettings?.push === false) {
         return;
       }
-      await sendNotificationToMultiple(
+      await this._executePush(
+        userId,
         user.fcmTokens,
         {
           title: "🎉 Congratulations!",
           body: `You won today's giveaway: ${prizeTitle}`,
         },
         {
-          type: "GIVEAWAY_WINNER",
+          type: NOTIFICATION_TYPES.GIVEAWAY_WINNER,
         },
       );
 
@@ -204,14 +225,15 @@ class NotificationService {
         return;
       }
 
-      await sendNotificationToMultiple(
+      await this._executePush(
+        userId,
         user.fcmTokens,
         {
           title: "🎉 Prize Delivered!",
           body: "Your giveaway prize has been successfully delivered.",
         },
         {
-          type: "PRIZE_DELIVERED",
+          type: NOTIFICATION_TYPES.PRIZE_DELIVERED,
         },
       );
     } catch (error) {
@@ -243,14 +265,15 @@ class NotificationService {
       }
       // console.log("Sending admin notification", user);
 
-      await sendNotificationToMultiple(
+      await this._executePush(
+        userId,
         user.fcmTokens,
         {
           title,
           body: message,
         },
         {
-          type: data.type || "ADMIN_NOTIFICATION",
+          type: data.type || NOTIFICATION_TYPES.ADMIN_NOTIFICATION,
           campaignId: data.campaignId?.toString(),
           cta: data.cta ? (typeof data.cta === "string" ? data.cta : JSON.stringify(data.cta)) : "",
           ...data.extra,

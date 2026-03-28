@@ -86,21 +86,20 @@ exports.deleteAccount = async (req, res) => {
             deleteAccountOtpExpires: null,
 
             fcmTokens: [],
+            "notificationSettings.push": false,
+            "notificationSettings.email": false,
+            "notificationSettings.matches": false,
+            "notificationSettings.messages": false,
           },
         }
       ),
 
-      // hide profile + disable notifications
+      // hide profile
       Profile.updateOne(
         { userId },
         {
           $set: {
             "discovery.globalVisibility": "nobody",
-
-            "settings.notifications.push": false,
-            "settings.notifications.email": false,
-            "settings.notifications.matches": false,
-            "settings.notifications.messages": false,
           },
         }
       ),
@@ -255,12 +254,6 @@ exports.deactivateAccount = async (req, res) => {
         $set: {
           // Hide profile from discovery
           "discovery.globalVisibility": "nobody",
-
-          // Disable ALL notifications
-          "settings.notifications.push": false,
-          "settings.notifications.email": false,
-          "settings.notifications.matches": false,
-          "settings.notifications.messages": false,
         },
       }
     );
@@ -279,6 +272,12 @@ exports.deactivateAccount = async (req, res) => {
 
           // remove push tokens
           fcmTokens: [],
+          
+          // Disable ALL notifications
+          "notificationSettings.push": false,
+          "notificationSettings.email": false,
+          "notificationSettings.matches": false,
+          "notificationSettings.messages": false,
         },
       }
     );
@@ -334,12 +333,6 @@ exports.reactivateAccount = async (req, res) => {
       {
         $set: {
           "discovery.globalVisibility": "everyone",
-
-          // Restore default notifications
-          "settings.notifications.push": true,
-          "settings.notifications.email": false,
-          "settings.notifications.matches": true,
-          "settings.notifications.messages": true,
         },
       }
     );
@@ -355,6 +348,12 @@ exports.reactivateAccount = async (req, res) => {
             reason: null,
             deactivatedAt: null,
           },
+
+          // Restore default notifications
+          "notificationSettings.push": true,
+          "notificationSettings.email": false,
+          "notificationSettings.matches": true,
+          "notificationSettings.messages": true,
         },
       }
     );
@@ -479,21 +478,21 @@ exports.restoreAccount = async (req, res) => {
               isScheduledForDeletion: false,
               scheduledAt: null,
             },
+
+            "notificationSettings.push": true,
+            "notificationSettings.email": false,
+            "notificationSettings.matches": true,
+            "notificationSettings.messages": true,
           },
         }
       ),
 
-      // restore profile visibility and notifications
+      // restore profile visibility
       Profile.updateOne(
         { userId },
         {
           $set: {
             "discovery.globalVisibility": "everyone",
-
-            "settings.notifications.push": true,
-            "settings.notifications.email": false,
-            "settings.notifications.matches": true,
-            "settings.notifications.messages": true,
           },
         }
       ),

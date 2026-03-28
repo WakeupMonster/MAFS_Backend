@@ -79,43 +79,47 @@ const unregisterDeviceToken = async (req, res) => {
 const updateNotificationSettings = async (req, res) => {
   try {
     const userId = req.user._id;
-    const { push, email, matches, messages } = req.body;
+    const { push, email, matches, messages, likes } = req.body;
 
     const update = {};
 
     if (push !== undefined) {
-      update["settings.notifications.push"] = push;
+      update["notificationSettings.push"] = push;
     }
 
     if (email !== undefined) {
-      update["settings.notifications.email"] = email;
+      update["notificationSettings.email"] = email;
     }
 
     if (matches !== undefined) {
-      update["settings.notifications.matches"] = matches;
+      update["notificationSettings.matches"] = matches;
     }
 
     if (messages !== undefined) {
-      update["settings.notifications.messages"] = messages;
+      update["notificationSettings.messages"] = messages;
     }
 
-    const profile = await Profile.findOneAndUpdate(
-      { userId },
+    if (likes !== undefined) {
+      update["notificationSettings.likes"] = likes;
+    }
+
+    const user = await User.findByIdAndUpdate(
+      userId,
       { $set: update },
       { new: true }
-    ).select("settings.notifications");
+    ).select("notificationSettings");
 
-    if (!profile) {
+    if (!user) {
       return res.status(404).json({
         success: false,
-        message: "Profile not found"
+        message: "User not found"
       });
     }
 
     return res.json({
       success: true,
       message: "Notification settings updated",
-      data: profile.settings.notifications
+      data: user.notificationSettings
     });
   } catch (err) {
     return res.status(500).json({
@@ -125,27 +129,24 @@ const updateNotificationSettings = async (req, res) => {
   }
 };
 
-
-
-
 const getNotificationSettings = async (req, res) => {
   try {
     const userId = req.user._id;
 
-    const profile = await Profile.findOne({ userId })
-      .select("settings.notifications")
+    const user = await User.findById(userId)
+      .select("notificationSettings")
       .lean();
 
-    if (!profile) {
+    if (!user) {
       return res.status(404).json({
         success: false,
-        message: "Profile not found"
+        message: "User not found"
       });
     }
 
     return res.json({
       success: true,
-      data: profile.settings.notifications
+      data: user.notificationSettings
     });
   } catch (err) {
     return res.status(500).json({

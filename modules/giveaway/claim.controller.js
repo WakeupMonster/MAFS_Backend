@@ -140,12 +140,14 @@ module.exports.claimPrize = async (req, res) => {
     winHistory.claimEmail = claimEmail.toLowerCase().trim();
 
     // 🔒 If user has active store sub and won Premium, put in QUEUE
-    if (activeStoreSub && prizeDetails?.type === "FREE_PREMIUM") {
-      winHistory.deliveryStatus = "QUEUED";
-      winHistory.queueReason = "User has an active Apple/Google subscription.";
-    } else {
-      winHistory.deliveryStatus = "PENDING";
-    }
+    // if (activeStoreSub && prizeDetails?.type === "FREE_PREMIUM") {
+    //   winHistory.deliveryStatus = "QUEUED";
+    //   winHistory.queueReason = "User has an active Apple/Google subscription.";
+    // } else {
+    //   winHistory.deliveryStatus = "PENDING";
+    // }
+
+     winHistory.deliveryStatus = "PENDING";
 
     await winHistory.save();
 

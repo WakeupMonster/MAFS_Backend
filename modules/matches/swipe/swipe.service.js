@@ -14,6 +14,7 @@ const redis = require("../../../config/cache");
 const BlockedContact = require("../../BlockedContact/blockedContacts.model");
 const { canUserAccessFeed } = require("../../../common/utils/profileAccess");
 const { addNotificationJob } = require("../../../queues/notification.queue");
+const { NOTIFICATION_TYPES } = require("../../notifications/notification.enums");
 const UsageService = require("../../subscription/services/usage.service");
 const Subscription = require("../../subscription/models/Subscription");
 
@@ -236,37 +237,37 @@ async function getFeedService(userId, limit, page) {
   }
 
   // // Fetch Boosted Profiles to ensure they are at the top alongside superlikes
-  // if (limit - profiles.length > 0) {
-  //   try {
-  //     if (redis && redis.redisClient && typeof redis.redisClient.keys === 'function') {
-  //       const keys = await redis.redisClient.keys('boost:*');
-  //       if (keys && keys.length > 0) {
-  //         // Exclude already seen superlikes and base exclusions
-  //         const currentExcludeSet = new Set([...baseExcludeSet, ...profiles.map(p => p.userId.toString())]);
-  //         const boostedUserIds = keys.map(k => k.split(':')[1]).filter(id => !currentExcludeSet.has(id.toString()));
+  if (limit - profiles.length > 0) {
+    try {
+      if (redis && redis.redisClient && typeof redis.redisClient.keys === 'function') {
+        const keys = await redis.redisClient.keys('boost:*');
+        if (keys && keys.length > 0) {
+          // Exclude already seen superlikes and base exclusions
+          const currentExcludeSet = new Set([...baseExcludeSet, ...profiles.map(p => p.userId.toString())]);
+          const boostedUserIds = keys.map(k => k.split(':')[1]).filter(id => !currentExcludeSet.has(id.toString()));
 
-  //         if (boostedUserIds.length > 0) {
-  //           const boostQuery = {
-  //             userId: { $in: boostedUserIds },
-  //             isMandatoryComplete: true,
-  //             "discovery.globalVisibility": "everyone"
-  //           };
-  //           if (discovery.showMeGender?.length && !discovery.showMeGender.includes("everyone")) {
-  //             boostQuery.gender = { $in: discovery.showMeGender };
-  //           }
-  //           if (queryFilters.dob) boostQuery.dob = queryFilters.dob;
+          if (boostedUserIds.length > 0) {
+            const boostQuery = {
+              userId: { $in: boostedUserIds },
+              isMandatoryComplete: true,
+              "discovery.globalVisibility": "everyone"
+            };
+            if (discovery.showMeGender?.length && !discovery.showMeGender.includes("everyone")) {
+              boostQuery.gender = { $in: discovery.showMeGender };
+            }
+            if (queryFilters.dob) boostQuery.dob = queryFilters.dob;
 
-  //           // Limit to max 5 boosted profiles per page so it doesn't flood the limit
-  //           const maxBoosted = Math.min(5, limit - profiles.length);
-  //           const boostedProfiles = await Profile.find(boostQuery).limit(maxBoosted).lean();
-  //           profiles = [...profiles, ...boostedProfiles];
-  //         }
-  //       }
-  //     }
-  //   } catch (err) {
-  //     console.error("Error explicitly fetching boosted profiles:", err);
-  //   }
-  // }
+            // Limit to max 5 boosted profiles per page so it doesn't flood the limit
+            const maxBoosted = Math.min(5, limit - profiles.length);
+            const boostedProfiles = await Profile.find(boostQuery).limit(maxBoosted).lean();
+            profiles = [...profiles, ...boostedProfiles];
+          }
+        }
+      }
+    } catch (err) {
+      console.error("Error explicitly fetching boosted profiles:", err);
+    }
+  }
 
   // Fetch remaining profiles
   const remainingLimit = limit - profiles.length;
@@ -700,7 +701,7 @@ async function doSwipe(swiperId, targetId, action) {
               wallet: status.data.wallet,
             },
           };
-          addNotificationJob("NEW_MATCH", {
+          addNotificationJob(NOTIFICATION_TYPES.NEW_MATCH, {
             userId1: swiperId,
             userId2: targetId,
           });
@@ -721,7 +722,7 @@ async function doSwipe(swiperId, targetId, action) {
             },
           };
           if (action === "like" || action === "superlike") {
-            addNotificationJob("NEW_LIKE", {
+            addNotificationJob(NOTIFICATION_TYPES.NEW_LIKE, {
               senderId: swiperId,
               receiverId: targetId,
             });

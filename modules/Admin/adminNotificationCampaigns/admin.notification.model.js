@@ -44,6 +44,11 @@ const AdminNotificationSchema = new mongoose.Schema(
     sentCount: { type: Number, default: 0 },
     failedCount: { type: Number, default: 0 },
     lastRunAt: { type: Date, default: null },
+    lastProcessedUserId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+      default: null,
+    },
 
     createdBy: {
       type: mongoose.Schema.Types.ObjectId,

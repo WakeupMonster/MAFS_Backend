@@ -22,6 +22,7 @@ const PORT = process.env.PORT || 3001;
 const MONGODB_URI = process.env.MONGODB_URI;
 
 require("./workers/notification.worker");
+require("./workers/adminPush.worker");
 
 const io = new Server(http, {
   cors: {

@@ -18,6 +18,11 @@ const AdminEmailCampaignSchema = new mongoose.Schema(
     totalUsers: { type: Number, default: 0 },
     sentCount: { type: Number, default: 0 },
     failedCount: { type: Number, default: 0 },
+    lastProcessedUserId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+      default: null,
+    },
     createdBy: { type: mongoose.Schema.Types.ObjectId, ref: "Admin" }
   },
   { timestamps: true }

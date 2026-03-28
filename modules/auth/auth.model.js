@@ -86,26 +86,21 @@ const userSchema = new mongoose.Schema(
     },
 
     // ============ TOKENS & SESSIONS ============
-    // fcmTokens: [{
-    //   token: String,
-    //   deviceId: String,
-    //   createdAt: { type: Date, default: Date.now }
-    // }],
+    fcmTokens: [{
+      token: String,
+      deviceId: String,
+      createdAt: { type: Date, default: Date.now }
+    }],
     refreshTokens: [refreshTokenSchema],
 
     // ============ NOTIFICATION SETTINGS ============
-    // notificationSettings: {
-    //   likes: { type: Boolean, default: true },
-    //   messages: { type: Boolean, default: true },
-    //   matches: { type: Boolean, default: true }
-    // },
-
-    //   notificationSettings: {
-    //   push: { type: Boolean, default: true },
-    //   email: { type: Boolean, default: false },
-    //   matches: { type: Boolean, default: true },
-    //   messages: { type: Boolean, default: true }
-    // },
+    notificationSettings: {
+      push: { type: Boolean, default: true },
+      email: { type: Boolean, default: false },
+      likes: { type: Boolean, default: true },
+      messages: { type: Boolean, default: true },
+      matches: { type: Boolean, default: true }
+    },
 
     // ============ STATUS FLAGS ============
 

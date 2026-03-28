@@ -24,8 +24,8 @@ const { allowDating } = require("../../../common/middlewares/allowDating.middlew
 router.use(auth);
 router.use(allowDating)
 router.get("/feed", validation.feed, controllerOld.getFeed);
-router.post("/action",  controllerOld.action);
-router.post("/unmatch",  controllerOld.unmatchUser);
+router.post("/action", controllerOld.action);
+router.post("/unmatch", controllerOld.unmatchUser);
 router.get("/matches", controllerOld.getMatches);
 router.post("/undo", validation.undo, controllerOld.undo);
 
