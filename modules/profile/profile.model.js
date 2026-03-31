@@ -116,15 +116,15 @@ const ProfileSchema = new mongoose.Schema({
     }
   },
 
-    photos: [
-      {
-        id: { type: String },
-        url: { type: String },
-        publicId: { type: String },
-        order: { type: Number }, // 0 is Main
-        uploadedAt: { type: Date, default: Date.now },
-      },
-    ],
+  photos: [
+    {
+      id: { type: String },
+      url: { type: String },
+      publicId: { type: String },
+      order: { type: Number }, // 0 is Main
+      uploadedAt: { type: Date, default: Date.now },
+    },
+  ],
 
   location: {
     type: { type: String, default: "Point" },
@@ -224,21 +224,21 @@ const ProfileSchema = new mongoose.Schema({
   },
 
 
-    settings: {
-      notifications: {
-        push: { type: Boolean, default: true },
-        email: { type: Boolean, default: false },
-        matches: { type: Boolean, default: true },
-        messages: { type: Boolean, default: true },
-      },
-      blockedUsers: [{ type: String }], // Array of User IDs
-      blockedContacts: [{ type: String }], // Array of Phone Hashes/Numbers
+  settings: {
+    notifications: {
+      push: { type: Boolean, default: true },
+      email: { type: Boolean, default: false },
+      matches: { type: Boolean, default: true },
+      messages: { type: Boolean, default: true },
     },
-
-    isMandatoryComplete: { type: Boolean, default: false },
-    isProfileComplete: { type: Boolean, default: false },
-    lastProfileUpdate: { type: Date },
+    blockedUsers: [{ type: String }], // Array of User IDs
+    blockedContacts: [{ type: String }], // Array of Phone Hashes/Numbers
   },
+
+  isMandatoryComplete: { type: Boolean, default: false },
+  isProfileComplete: { type: Boolean, default: false },
+  lastProfileUpdate: { type: Date },
+},
   { timestamps: true },
 );
 

@@ -46,7 +46,7 @@ const User = require("../modules/auth/auth.model");
 const runUnsuspendUsersJob = () => {
   console.log("[UNSUSPEND JOB] ✅ Cron job registered, waiting for 11:30 PM IST...");
 
-  cron.schedule("31 23 * * *", async () => {
+  cron.schedule("55 16 * * *", async () => {
     console.log("[UNSUSPEND JOB] 🚀 Job STARTED at:", new Date().toISOString());
     try {
       const now = new Date();

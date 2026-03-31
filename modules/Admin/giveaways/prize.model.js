@@ -27,11 +27,6 @@ const prizeSchema = new mongoose.Schema(
       ref: "Product",
       default: null
     },
-    // ➕ NAYA: GIFT_CARD ke liye expiry date (optional)
-    giftCardExpiryDate: {
-      type: Date,
-      default: null
-    },
 
     // Monetary value (USD ya base currency)
     value: {

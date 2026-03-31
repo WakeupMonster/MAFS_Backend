@@ -30,9 +30,32 @@ module.exports = async function runGiveawayWorker() {
     const settings = await GiveawaySettings.findOne();
     const yearlyLimit = settings?.yearlyWinLimitPerUser || 2;
 
-    // 🔒 Find the earliest active pending campaign (created for today or any previous day this week)
+    // [COMMENTED OUT] Old query - picked ANY old pending campaign, not just current week
+    // This caused issues when stale campaigns from previous weeks remained PENDING
+    // const campaign = await GiveawayCampaign.findOne({
+    //   date: { $lte: endOfTodayTZ },
+    //   isActive: true,
+    //   drawStatus: "PENDING",
+    // }).sort({ date: 1 });
+
+    // SELF-HEALING: Mark stale campaigns from previous weeks as COMPLETED
+    const nowTZWorker = dayjs().tz(CURRENT_TZ);
+    const nowDayWorker = nowTZWorker.day();
+    const mondayOffset = nowDayWorker === 0 ? -6 : 1 - nowDayWorker;
+    const currentWeekMonday = nowTZWorker.add(mondayOffset, "day").startOf("day").toDate();
+    const currentWeekSunday = dayjs(currentWeekMonday).tz(CURRENT_TZ).add(6, "day").endOf("day").toDate();
+
+    const staleResult = await GiveawayCampaign.updateMany(
+      { drawStatus: "PENDING", isActive: true, date: { $lt: currentWeekMonday } },
+      { $set: { drawStatus: "COMPLETED", failureReason: "Auto-skipped: Missed cron window from previous week" } }
+    );
+    if (staleResult.modifiedCount > 0) {
+      console.log("Self-healed " + staleResult.modifiedCount + " stale pending campaign(s).");
+    }
+
+    // Strict current-week-only query (Monday-Sunday)
     const campaign = await GiveawayCampaign.findOne({
-      date: { $lte: endOfTodayTZ },
+      date: { $gte: currentWeekMonday, $lte: currentWeekSunday },
       isActive: true,
       drawStatus: "PENDING",
     }).sort({ date: 1 });

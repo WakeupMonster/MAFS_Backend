@@ -54,10 +54,15 @@ const giveawayWinHistorySchema = new mongoose.Schema(
       lowercase: true,
       default: null
     },
-    deliveryNotes: {
-      type: String,
+    giftCardExpiryDate: {
+      type: Date,
       default: null
     },
+    couponCode: {
+      type: String,
+      default: "", // Empty string by default
+    },
+
     actualDeliveredValue: {
       type: Number,
       default: null

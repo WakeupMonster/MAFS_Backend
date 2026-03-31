@@ -276,9 +276,9 @@ module.exports.refreshToken = async (req, res) => {
 
 module.exports.logout = async (req, res) => {
   try {
-    const { refreshToken } = req.body;
-
-    await authService.logout(refreshToken);
+    const { refreshToken, deviceId } = req.body;
+    
+    await authService.logout(refreshToken, deviceId);
 
     return res.json({
       success: true,

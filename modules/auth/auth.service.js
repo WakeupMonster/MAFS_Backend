@@ -746,7 +746,7 @@ async function refreshAccessToken(refreshTokenRaw, req) {
   };
 }
 
-async function logout(refreshTokenRaw) {
+async function logout(refreshTokenRaw, deviceId) {
   const incomingHash = utils.hashToken(refreshTokenRaw);
 
   const user = await User.findOne({
@@ -759,9 +759,17 @@ async function logout(refreshTokenRaw) {
     return;
   }
 
+  // 1. Remove refresh token session
   user.refreshTokens = user.refreshTokens.filter(
     (rt) => rt.tokenHash !== incomingHash,
   );
+  
+  // 2. Remove FCM token for this specific device
+  if (deviceId) {
+    user.fcmTokens = (user.fcmTokens || []).filter(
+        (t) => t.deviceId !== deviceId
+    );
+  }
 
   await user.save();
 }

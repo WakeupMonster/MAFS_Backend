@@ -399,11 +399,22 @@ module.exports = function chatSocket(io, redisClient) {
 
           /* Push notification (background worker) */
           try {
-            await addNotificationJob(NOTIFICATION_TYPES.NEW_MESSAGE, {
-              senderId: currentUserId,
-              receiverId: receiverId.toString(),
-              messageText: lastMessagePreview,
-            });
+            // 🧠 PRESENCE CHECK: Check if receiver is actively watching this chat room
+            const receiverSockets = await io.in(`user:${receiverId}`).fetchSockets();
+            const isReceiverWatchingChat = receiverSockets.some(s => s.rooms.has(`chat:${matchId}`));
+
+            if (!isReceiverWatchingChat) {
+              // 📱 User is NOT on the chat screen (either minimized or on another page) -> SEND PUSH
+              await addNotificationJob(NOTIFICATION_TYPES.NEW_MESSAGE, {
+                senderId: currentUserId,
+                receiverId: receiverId.toString(),
+                messageText: lastMessagePreview,
+              });
+              console.log(`📩 Push queued: User ${receiverId} is not in chat:${matchId}`);
+            } else {
+              // 🔇 User is actively looking at the chat screen -> SKIP PUSH
+              console.log(`🔇 Push skipped: User ${receiverId} is actively watching chat:${matchId}`);
+            }
           } catch (notifErr) {
             console.error("❌ Notification queue error:", notifErr);
           }

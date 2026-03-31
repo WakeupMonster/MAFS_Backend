@@ -46,7 +46,8 @@ module.exports.refreshTokenSchema = Joi.object({
 
 
 module.exports.logoutSchema = Joi.object({
-  refreshToken: Joi.string().required()
+  refreshToken: Joi.string().required(),
+  deviceId: Joi.string().required(), // Added deviceId to accurately unregister FCM token
 });
 
 

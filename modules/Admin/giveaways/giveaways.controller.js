@@ -15,6 +15,20 @@ dayjs.extend(timezone);
 
 const CURRENT_TZ = process.env.GIVEAWAY_TIMEZONE || "Australia/Sydney";
 
+// ═══════════════════════════════════════════
+// 🛡️ HELPER: Weekly Boundary Calculator
+// Calculates the Monday 00:00 → Sunday 23:59 boundaries for any given date.
+// Used by createCampaign & bulkCreate to enforce "1 campaign per week" rule.
+// ═══════════════════════════════════════════
+function getWeekBoundaries(dateInput) {
+  const d = dayjs(dateInput).tz(CURRENT_TZ).startOf("day");
+  const dayOfWeek = d.day(); // 0=Sun, 1=Mon, ..., 6=Sat
+  const mondayOffset = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
+  const weekStart = d.add(mondayOffset, "day").startOf("day").toDate();
+  const weekEnd = d.add(mondayOffset + 6, "day").endOf("day").toDate();
+  return { weekStart, weekEnd };
+}
+
 module.exports.getAllPrizes = async (req, res) => {
   try {
     const page = parseInt(req.query.page) || 1;
@@ -76,7 +90,7 @@ module.exports.getAllPrizes = async (req, res) => {
 
 module.exports.createPrize = async (req, res) => {
   try {
-    let { title, type, value, description, spinWheelLabel, supportiveItems, durationInDays, planType, giftCardExpiryDate } =
+    let { title, type, value, description, spinWheelLabel, supportiveItems, } =
       req.body;
 
     if (!supportiveItems || supportiveItems.length < 2) {
@@ -126,7 +140,6 @@ module.exports.createPrize = async (req, res) => {
       // durationInDays: type === "FREE_PREMIUM" ? durationInDays : null,
       // planType: type === "FREE_PREMIUM" ? planType : null,
       // productId: type === "FREE_PREMIUM" ? productId : null,
-      giftCardExpiryDate: type === "GIFT_CARD" ? giftCardExpiryDate : null
     });
 
     return res.status(201).json({
@@ -158,7 +171,6 @@ module.exports.updatePrize = async (req, res) => {
       description,
       durationInDays,
       planType,
-      giftCardExpiryDate,
       isActive,
     } = req.body;
 
@@ -175,7 +187,6 @@ module.exports.updatePrize = async (req, res) => {
           description,
           durationInDays,
           planType,
-          giftCardExpiryDate,
           isActive,
         },
       },
@@ -259,19 +270,62 @@ module.exports.createCampaign = async (req, res) => {
 
     // 🔒 Strictly parse date string as Midnight in target timezone (AEST)
     const campaignDate = dayjs.tz(date, CURRENT_TZ).startOf("day");
-
     const campaignDateQuery = campaignDate.toDate();
 
-    const existingCampaign = await GiveawayCampaign.findOne({
-      date: campaignDateQuery,
+    // ═══════════════════════════════════════════
+    // 🛡️ EDGE CASE 1: Weekly Boundary Guard
+    // Ek week (Monday 00:00 → Sunday 23:59) mein sirf ek hi campaign ban sakta hai.
+    // Purana logic sirf exact date check karta tha, jisse ek week mein Mon + Wed + Fri
+    // teenon pe campaign ban sakta tha → multiple winners → galat push notifications.
+    // Ab hum full week range check karte hain.
+    // ═══════════════════════════════════════════
+    const { weekStart, weekEnd } = getWeekBoundaries(campaignDateQuery);
+
+    const existingWeekCampaign = await GiveawayCampaign.findOne({
+      date: { $gte: weekStart, $lte: weekEnd },
     });
 
-    if (existingCampaign) {
+    if (existingWeekCampaign) {
+      const existingDateStr = dayjs(existingWeekCampaign.date).tz(CURRENT_TZ).format("dddd, DD MMM YYYY");
       return res.status(400).json({
         success: false,
-        message: "Giveaway campaign already exists for this date",
+        message: `A campaign already exists for this week (${existingDateStr}). Only one campaign per week is allowed.`,
       });
     }
+
+    // ═══════════════════════════════════════════
+    // 🛡️ EDGE CASE 2: Friday Time Lock (Race Condition Guard)
+    // Agar aaj Friday hai aur cron execution window (5:50 PM - 6:10 PM AEST)
+    // ke andar hai, toh current week ke liye campaign create karna block kar do
+    // taaki worker aur admin ka conflict (race condition) na ho.
+    // ═══════════════════════════════════════════
+    const nowTZ = dayjs().tz(CURRENT_TZ);
+    const { weekStart: currentWeekStart, weekEnd: currentWeekEnd } = getWeekBoundaries(nowTZ.toDate());
+    const isCurrentWeek = campaignDateQuery >= currentWeekStart && campaignDateQuery <= currentWeekEnd;
+
+    if (isCurrentWeek && nowTZ.day() === 5) {
+      const nowTimeInMinutes = nowTZ.hour() * 60 + nowTZ.minute();
+      // 5:50 PM = 1070 minutes, 6:10 PM = 1090 minutes
+      if (nowTimeInMinutes >= 1070 && nowTimeInMinutes <= 1090) {
+        return res.status(400).json({
+          success: false,
+          message: "Draw is currently in progress. Please try again after 6:10 PM AEST or create for next week.",
+        });
+      }
+    }
+
+    // [COMMENTED OUT] Old exact-date duplicate check
+    // Replaced by weekly boundary check above. Old logic allowed multiple
+    // campaigns in the same week on different dates which caused multiple winners.
+    // const existingCampaign = await GiveawayCampaign.findOne({
+    //   date: campaignDateQuery,
+    // });
+    // if (existingCampaign) {
+    //   return res.status(400).json({
+    //     success: false,
+    //     message: "Giveaway campaign already exists for this date",
+    //   });
+    // }
 
     const prize = await Prize.findOne({
       _id: prizeId,
@@ -682,7 +736,7 @@ module.exports.resendPrize = async (req, res) => {
 };
 module.exports.markPrizeAsDelivered = async (req, res) => {
   try {
-    const { winHistoryId, deliveryNotes, actualDeliveredValue, emailTemplate } = req.body;
+    const { winHistoryId, couponCode, actualDeliveredValue, emailTemplate, giftCardExpiryDate } = req.body;
 
     const winHistory = await GiveawayWinHistory.findById(winHistoryId);
 
@@ -706,14 +760,6 @@ module.exports.markPrizeAsDelivered = async (req, res) => {
         message: "Prize already delivered",
       });
     }
-
-    // if (winHistory.deliveryStatus === "QUEUED") {
-    //   return res.status(400).json({
-    //     success: false,
-    //     message: "This prize is QUEUED because the user has an active Apple/Google subscription. It will auto-deliver when the subscription expires. Manual delivery is blocked.",
-    //   });
-    // }
-
     // 1. DONT mistake Campaign for Prize! Use the correct Prize ID.
     const campaign = await GiveawayCampaign.findById(winHistory.campaignId);
     const prize = await Prize.findById(winHistory.prizeId);
@@ -726,31 +772,23 @@ module.exports.markPrizeAsDelivered = async (req, res) => {
     }
 
     // 🔒 Edge Case 4: GIFT_CARD ke liye voucher code mandatory hai
-    if (prize.type === "GIFT_CARD" && !deliveryNotes) {
+    if (prize.type === "GIFT_CARD" && !couponCode) {
       return res.status(400).json({
         success: false,
-        message: "Voucher/Gift Card code (deliveryNotes) is required for GIFT_CARD prizes.",
+        message: "Gift Card code (coupenCode) is required for GIFT_CARD prizes.",
       });
     }
 
-    // if (prize.type === "FREE_PREMIUM") {
-    //   const subscriptionService = require("../../subscription/services/subscription.service");
-    //   await subscriptionService.handleGiveawayGrant(
-    //     winHistory.userId.toString(),
-    //     prize.durationInDays,
-    //     prize.planType,
-    //     prize.title,
-    //     prize._id
-    //   );
-    // }
-
     console.log(prize.title, "prize title")
+
 
     winHistory.deliveryStatus = "DELIVERED";
     winHistory.deliveredAt = new Date();
 
-    if (deliveryNotes) winHistory.deliveryNotes = deliveryNotes;
     if (actualDeliveredValue) winHistory.actualDeliveredValue = actualDeliveredValue;
+    if (couponCode) winHistory.couponCode = couponCode.trim();
+    if (giftCardExpiryDate) winHistory.giftCardExpiryDate = giftCardExpiryDate
+
     await winHistory.save();
 
     await notificationService.sendPrizeDeliveredNotification(winHistory.userId);
@@ -763,31 +801,10 @@ module.exports.markPrizeAsDelivered = async (req, res) => {
       try {
         let emailSubject = "🎉 Your Prize has been Delivered";
         let emailBody = "";
-
-        // if (prize.type === "FREE_PREMIUM") {
-        //   const expiresAt = winHistory.deliveredAt
-        //     ? new Date(new Date(winHistory.deliveredAt).getTime() + (prize.durationInDays || 30) * 24 * 60 * 60 * 1000)
-        //     : null;
-        //   const expiryStr = expiresAt ? expiresAt.toLocaleDateString("en-AU", { day: "numeric", month: "long", year: "numeric" }) : "N/A";
-
-        //   emailSubject = "🎉 Your Free Premium Has Been Activated!";
-        //   emailBody = `
-        //     <h2>🎉 Congratulations! You've Won Premium!</h2>
-        //     <p>Your prize <b>"${prize.title}"</b> has been activated on your account.</p>
-        //     <table style="border-collapse:collapse; margin:16px 0;">
-        //       <tr><td style="padding:8px; font-weight:bold;">Plan:</td><td style="padding:8px;">${prize.planType || "Premium"}</td></tr>
-        //       <tr><td style="padding:8px; font-weight:bold;">Duration:</td><td style="padding:8px;">${prize.durationInDays} Days</td></tr>
-        //       <tr><td style="padding:8px; font-weight:bold;">Valid Until:</td><td style="padding:8px;">${expiryStr}</td></tr>
-        //     </table>
-        //     <p>Open the app and enjoy your premium features now! 🚀</p>
-        //     <p>Thank you for participating!</p>
-        //   `;
-        // } else 
-
         if (prize.type === "GIFT_CARD") {
-          const giftCode = deliveryNotes || "Please contact support for your code.";
-          const expiryDate = prize.giftCardExpiryDate
-            ? new Date(prize.giftCardExpiryDate).toLocaleDateString("en-AU", { day: "numeric", month: "long", year: "numeric" })
+          const giftCode = couponCode || "Please contact support for your code.";
+          const expiryDate = giftCardExpiryDate
+            ? new Date(giftCardExpiryDate).toLocaleDateString("en-AU", { day: "numeric", month: "long", year: "numeric" })
             : null;
 
           if (emailTemplate) {
@@ -937,6 +954,15 @@ module.exports.getPendingDeliveries = async (req, res) => {
       { $unwind: { path: "$user", preserveNullAndEmptyArrays: true } },
       {
         $lookup: {
+          from: "profiles",
+          localField: "userId",
+          foreignField: "userId", // 🐛 FIX: `profiles` table uses `userId`, not `_id`
+          as: "profile",
+        },
+      },
+      { $unwind: { path: "$profile", preserveNullAndEmptyArrays: true } },
+      {
+        $lookup: {
           from: "giveawaycampaigns",
           localField: "campaignId",
           foreignField: "_id",
@@ -987,9 +1013,12 @@ module.exports.getPendingDeliveries = async (req, res) => {
               claimedAt: 1,
               wonAt: 1,
               year: 1,
-              user: { _id: 1, nickname: 1, email: 1, phone: 1 },
+              user: { _id: 1, email: 1, phone: 1 },
+              profile: { _id: 1, nickname: 1 },
               campaign: { _id: 1, date: 1 },
-              prize: { _id: 1, title: 1, value: 1, type: 1 },
+              prize: {
+                _id: 1, title: 1, value: 1, type: 1,
+              },
             },
           },
         ],
@@ -1159,19 +1188,61 @@ module.exports.bulkCreateCampaignByRanges = async (req, res) => {
           continue;
         }
 
-        // ❌ Skip if campaign already exists
-        const exists = await GiveawayCampaign.findOne({
-          date: campaignDate,
+        // ═══════════════════════════════════════════
+        // 🛡️ EDGE CASE: Weekly Boundary Guard for Bulk Create
+        // Ek week mein sirf ek campaign banega. Agar is Friday ki week mein
+        // pehle se campaign hai (ya isi bulk batch mein already add ho chuka hai),
+        // toh skip kar do.
+        // ═══════════════════════════════════════════
+        const { weekStart: bulkWeekStart, weekEnd: bulkWeekEnd } = getWeekBoundaries(campaignDate);
+
+        // Check DB for existing campaign in this week
+        const existsInWeekDB = await GiveawayCampaign.findOne({
+          date: { $gte: bulkWeekStart, $lte: bulkWeekEnd },
         }).lean();
 
-        if (exists) {
+        // Also check if we already queued a campaign for this week in the current batch
+        const existsInBatch = campaignsToInsert.some((c) => {
+          return c.date >= bulkWeekStart && c.date <= bulkWeekEnd;
+        });
+
+        if (existsInWeekDB || existsInBatch) {
           skippedDates.push({
             date: campaignDate,
-            reason: "Campaign already exists",
+            reason: existsInWeekDB
+              ? `Campaign already exists for this week (${dayjs(existsInWeekDB.date).tz(CURRENT_TZ).format("DD MMM")})`
+              : "Another campaign for this week already added in this batch",
           });
           current = current.add(1, "day");
           continue;
         }
+
+        // 🛡️ Friday Time Lock: Skip if this date falls in current week during cron window
+        const bulkNowTZ = dayjs().tz(CURRENT_TZ);
+        const { weekStart: bulkCurrentWeekStart, weekEnd: bulkCurrentWeekEnd } = getWeekBoundaries(bulkNowTZ.toDate());
+        const isBulkCurrentWeek = campaignDate >= bulkCurrentWeekStart && campaignDate <= bulkCurrentWeekEnd;
+
+        if (isBulkCurrentWeek && bulkNowTZ.day() === 5) {
+          const bulkNowMins = bulkNowTZ.hour() * 60 + bulkNowTZ.minute();
+          if (bulkNowMins >= 1070 && bulkNowMins <= 1090) {
+            skippedDates.push({
+              date: campaignDate,
+              reason: "Skipped: Draw is currently in progress for this week",
+            });
+            current = current.add(1, "day");
+            continue;
+          }
+        }
+
+        // [COMMENTED OUT] Old exact-date check
+        // Replaced by week-level check above. Old logic only checked if the exact same
+        // date had a campaign, but allowed Mon + Fri campaigns in the same week.
+        // const exists = await GiveawayCampaign.findOne({ date: campaignDate }).lean();
+        // if (exists) {
+        //   skippedDates.push({ date: campaignDate, reason: "Campaign already exists" });
+        //   current = current.add(1, "day");
+        //   continue;
+        // }
 
         campaignsToInsert.push({
           title,
