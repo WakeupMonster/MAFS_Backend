@@ -46,7 +46,7 @@ module.exports.getAppConfig = async (req, res) => {
     // 1. Grouping Logic
     const groupedData = allItems.reduce((acc, item) => {
       if (!acc[item.category]) acc[item.category] = [];
-      
+
       const itemObj = {
         id: item.value, // Manager wants "id"
         label: item.label
@@ -54,6 +54,7 @@ module.exports.getAppConfig = async (req, res) => {
 
       // Agar subtitle hai toh hi add karo
       if (item.subtitle) itemObj.subtitle = item.subtitle;
+      if (item.link) itemObj.link = item.link
 
       acc[item.category].push(itemObj);
       return acc;
@@ -90,7 +91,7 @@ module.exports.bulkAddMasterData = async (req, res) => {
     // "bulkWrite" use karna best hai production mein speed ke liye
     const operations = items.map((item) => ({
       updateOne: {
-        filter: { category: item.category, value: item.value },
+        filter: { category: item.category, value: item.value, link: item.link },
         update: { $set: item },
         upsert: true, // Agar nahi mila toh create kar dega
       },

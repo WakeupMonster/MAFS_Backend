@@ -102,10 +102,16 @@ async function verifyPhoneOtpUnified(phone, otp, req) {
         isNewUser: false,
         lastLoginAt: new Date(),
       },
+      // $push: {
+      //   refreshTokens: {
+      //     tokenHash: refreshHash,
+      //     expiresAt,
+      //   },
+      // },
       $push: {
         refreshTokens: {
-          tokenHash: refreshHash,
-          expiresAt,
+          $each: [{ tokenHash: refreshHash, expiresAt }],
+          $slice: -5 // Sirf maximum 5 latest active devices/logins save karega
         },
       },
     },
@@ -634,6 +640,16 @@ async function loginSendOtp(phone, ip) {
   const redisKey = `login:${phone}`;
   await redis.set(redisKey, otp, "EX", OTP_TTL);
 
+  // --- AUTH TEST BYPASS GUARD ---
+  const isBypassEnabled = process.env.NODE_ENV !== "production" && process.env.AUTH_TEST_BYPASS_SMS === "true";
+  const isTestNumber = phone.startsWith("+1000");
+
+  if (isBypassEnabled && isTestNumber) {
+    console.log(`[AUTH_TEST_BYPASS] Skipping SMS Queue for ${phone}. OTP stored in Redis.`);
+    return { ok: true, isMocked: true };
+  }
+  // ------------------------------
+
   // Queue SMS job
   await smsQueue.add("send-otp", { phone, otp });
 
@@ -763,11 +779,11 @@ async function logout(refreshTokenRaw, deviceId) {
   user.refreshTokens = user.refreshTokens.filter(
     (rt) => rt.tokenHash !== incomingHash,
   );
-  
+
   // 2. Remove FCM token for this specific device
   if (deviceId) {
     user.fcmTokens = (user.fcmTokens || []).filter(
-        (t) => t.deviceId !== deviceId
+      (t) => t.deviceId !== deviceId
     );
   }
 

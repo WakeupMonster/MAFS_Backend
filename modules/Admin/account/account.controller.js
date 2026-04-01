@@ -1,4 +1,4 @@
-const bcrypt = require("bcryptjs");
+const bcrypt = require("bcrypt");
 const Profile = require("../../profile/profile.model");
 const User = require("../../auth/auth.model");
 const { uploadStream } = require("../../upload/cloudinary.service");

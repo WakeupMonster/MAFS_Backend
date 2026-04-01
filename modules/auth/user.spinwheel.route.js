@@ -8,4 +8,9 @@ router.use(auth);
 router.get("/spin-wheel", giveawayController.getSpinWheelConfig);
 router.post("/claim", giveawayController.claimPrize);
 
+router.get("/info", giveawayController.getGiveawayInfo);
+router.post("/info", giveawayController.updateGiveawayInfo);
+
+router.get("/my-giveaways", giveawayController.getMyGiveaways);
+
 module.exports = router;

@@ -1,6 +1,6 @@
 require("dotenv").config();
 const crypto = require("crypto");
-const bcrypt = require("bcryptjs");
+const bcrypt = require("bcrypt");
 const jwt = require("jsonwebtoken");
 const nodemailer = require("nodemailer");
 let twilioClient = null;
@@ -24,8 +24,8 @@ module.exports.generateOtp = () => {
 };
 
 module.exports.hashOtp = async (otp) => {
-  // bcrypt to hash short OTP
-  return bcrypt.hash(otp, 10);
+  // Use optimal salt rounds (4) for short-lived 6-digit OTPs to prevent CPU starvation
+  return bcrypt.hash(otp, 4);
 };
 
 module.exports.verifyOtpHash = async (otp, hash) => {

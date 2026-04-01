@@ -197,6 +197,7 @@ const userSchema = new mongoose.Schema(
       enum: ["phone", "email", "google", "facebook", "apple", "password"],
       default: "phone",
     },
+    isTest: { type: Boolean, default: false, index: true },
   },
   { timestamps: true },
 );

@@ -26,5 +26,4 @@ router.post(
   auth,
   controller.markAsMarried
 );
-
 module.exports = router;

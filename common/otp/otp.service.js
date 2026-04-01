@@ -24,10 +24,25 @@ module.exports.sendOtp = async ({
   messageFn,    // template fn
   ttl = DEFAULT_TTL
 }) => {
-  const otp = utils.generateOtp();
-  const hash = await utils.hashOtp(otp);
+  let otp = utils.generateOtp();
 
+  // --- AUTH TEST BYPASS GUARD ---
+  const isBypassEnabled = process.env.NODE_ENV !== "production" && process.env.AUTH_TEST_BYPASS_SMS === "true";
+  const isTestNumber = target.startsWith("+1000");
+
+  if (isBypassEnabled && isTestNumber) {
+    otp = "123456"; // Force hardcoded OTP specifically for load-testing the verification flow
+  }
+  // ------------------------------
+
+  const hash = await utils.hashOtp(otp);
   const key = otpKey(scope, type, target);
+
+  if (isBypassEnabled && isTestNumber) {
+    console.log(`[AUTH_TEST_BYPASS] Skipping ${type} dispatch for ${target}. OTP hash stored in Redis.`);
+    await redis.set(key, hash, { EX: ttl });
+    return { ok: true, isMocked: true };
+  }
 
   try {
     await redis.set(key, hash, { EX: ttl });

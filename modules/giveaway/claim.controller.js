@@ -2,6 +2,7 @@
 const GiveawayCampaign = require("../Admin/giveaways/giveawayCampaign.model");
 const Prize = require("../Admin/giveaways/prize.model");
 const GiveawayWinHistory = require("../Admin/giveaways/giveawayWinHistory.model");
+const GiveawayInfo = require("../Admin/giveaways/giveawayInfo.model");
 
 module.exports.getSpinWheelConfig = async (req, res) => {
   try {
@@ -147,7 +148,7 @@ module.exports.claimPrize = async (req, res) => {
     //   winHistory.deliveryStatus = "PENDING";
     // }
 
-     winHistory.deliveryStatus = "PENDING";
+    winHistory.deliveryStatus = "PENDING";
 
     await winHistory.save();
 
@@ -165,6 +166,150 @@ module.exports.claimPrize = async (req, res) => {
     return res.status(500).json({
       success: false,
       message: "Failed to claim prize",
+    });
+  }
+};
+
+
+module.exports.getGiveawayInfo = async (req, res) => {
+  try {
+    let info = await GiveawayInfo.findOne();
+    if (!info) {
+      // Create with default values if not exists
+      info = await GiveawayInfo.create({});
+    }
+
+    const responseData = {
+      brands: info.brands?.map(item => ({
+        heading: item.heading,
+        subheading: item.subheading
+      })) || [],
+      howItWorks: info.howItWorks.map(item => ({
+        heading: item.heading,
+        subheading: item.subheading
+      })),
+      importantInfo: {
+        heading: info.importantInfo?.heading,
+        points: info.importantInfo?.points || []
+      }
+    };
+
+    return res.status(200).json({
+      success: true,
+      message: "Giveaway info fetched successfully",
+      data: responseData
+    });
+  } catch (error) {
+    return res.status(500).json({
+      success: false,
+      message: "Internal server error",
+      error: error.message
+    });
+  }
+};
+
+module.exports.updateGiveawayInfo = async (req, res) => {
+  try {
+    const { brands, howItWorks, importantInfo } = req.body;
+    let info = await GiveawayInfo.findOne();
+
+    if (!info) {
+      info = new GiveawayInfo({});
+    }
+
+    if (brands !== undefined) info.brands = brands;
+    if (howItWorks !== undefined) info.howItWorks = howItWorks;
+    if (importantInfo !== undefined) info.importantInfo = importantInfo;
+
+    await info.save();
+
+    const responseData = {
+      brands: info.brands?.map(item => ({
+        heading: item.heading,
+        subheading: item.subheading
+      })) || [],
+      howItWorks: info.howItWorks.map(item => ({
+        heading: item.heading,
+        subheading: item.subheading
+      })),
+      importantInfo: {
+        heading: info.importantInfo?.heading,
+        points: info.importantInfo?.points || []
+      }
+    };
+
+    return res.status(200).json({
+      success: true,
+      message: "Giveaway info updated successfully",
+      data: responseData
+    });
+  } catch (error) {
+    return res.status(500).json({
+      success: false,
+      message: "Internal server error",
+      error: error.message
+    });
+  }
+};
+
+/**
+ * @desc    Get the logged-in user's giveaway history (Wins, claimed status, and prizes)
+ * @route   GET /api/v1/user/spinwheel/my-giveaway
+ */
+module.exports.getMyGiveaways = async (req, res) => {
+  try {
+    const userId = req.user._id;
+
+    // Fetch all win histories for the user
+    // Populate prize and campaign details for rich frontend rendering
+    const winHistories = await GiveawayWinHistory.find({ userId: userId })
+      .populate("prizeId", "title value type description")
+      .populate("campaignId", "title date drawStatus")
+      .sort({ createdAt: -1 })
+      .lean();
+
+    // Format the response securely and cleanly
+    const formattedData = winHistories.map(win => {
+      // Security Check: Only expose the actual gift card codes if the status is DELIVERED
+      const isDelivered = win.deliveryStatus === "DELIVERED";
+
+      return {
+        id: win._id,
+        wonAt: win.wonAt || win.createdAt,
+        claimedAt: win.claimedAt,
+        claimEmail: win.claimEmail,
+        deliveryStatus: win.deliveryStatus,
+        couponCode: isDelivered ? win.couponCode : null,
+        giftCardExpiryDate: isDelivered ? win.giftCardExpiryDate : null,
+        deliveredAt: win.deliveredAt,
+
+        prize: win.prizeId ? {
+          title: win.prizeId.title,
+          value: win.prizeId.value,
+          type: win.prizeId.type,
+          description: win.prizeId.description
+        } : null,
+
+
+        campaign: win.campaignId ? {
+          title: win.campaignId.title,
+          date: win.campaignId.date,
+          drawStatus: win.campaignId.drawStatus
+        } : null
+      };
+    });
+
+    return res.status(200).json({
+      success: true,
+      message: "User giveaway history fetched successfully",
+      totalWins: winHistories.length,
+      data: formattedData
+    });
+  } catch (error) {
+    console.error("Get my giveaways error:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Failed to fetch giveaway history"
     });
   }
 };
