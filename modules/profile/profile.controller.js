@@ -64,7 +64,7 @@ exports.updateProfile = async (req, res) => {
 
     if (updateData.profile) {
       const p = updateData.profile;
-      const basicFields = ['nickname', 'dob', 'gender', 'height', 'about', 'jobTitle', 'company', 'school', 'pronouns', 'weight'];
+      const basicFields = ['nickname', 'dob', 'gender', 'height', 'about', 'jobTitle', 'company', 'school', 'pronouns', 'weight', 'livingIn'];
       basicFields.forEach(field => { if (p[field] !== undefined) profile[field] = p[field]; });
 
       // if (p.nickname) {

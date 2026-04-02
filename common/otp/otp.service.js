@@ -39,7 +39,7 @@ module.exports.sendOtp = async ({
   const key = otpKey(scope, type, target);
 
   if (isBypassEnabled && isTestNumber) {
-    console.log(`[AUTH_TEST_BYPASS] Skipping ${type} dispatch for ${target}. OTP hash stored in Redis.`);
+    // console.log(`[AUTH_TEST_BYPASS] Skipping ${type} dispatch for ${target}. OTP hash stored in Redis.`);
     await redis.set(key, hash, { EX: ttl });
     return { ok: true, isMocked: true };
   }

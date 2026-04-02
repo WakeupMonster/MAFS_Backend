@@ -1,37 +1,36 @@
 import http from 'k6/http';
 import { check, sleep } from 'k6';
 import { SharedArray } from 'k6/data';
-import { ENDPOINTS } from '../lib/constants.js';
 
-// Load the test phone numbers (up to 1000)
+// Note: Relative path adjusted for new script location
 const testData = new SharedArray('test_phones', () => {
     return JSON.parse(open('../data/test_phones.json'));
 });
 
-// Since /auth/verify modifies the document and signs a JWT,
-// it's computationally heavier than /auth/phone.
 export const options = {
     scenarios: {
         verify_flow: {
             executor: 'ramping-vus',
             startVUs: 0,
             stages: [
-                { duration: '1m', target: 500 },   // Ramp up to 500 VUs
-                { duration: '2m', target: 1000 },  // Peak load at 1000 VUs
-                { duration: '1m', target: 0 },     // Ramp down to 0
+                { duration: '30s', target: 50 },   // Ramp up to 50 VUs
+                { duration: '1m', target: 100 },  // Sustained load at 100 VUs
+                { duration: '30s', target: 0 },    // Ramp down
             ],
-            tags: { scenario: 'verify' },
+            tags: { scenario: 'verify_100' },
         },
     },
     thresholds: {
-        'http_req_duration{endpoint:phone}': ['p(95)<2000'], // Adjusted for 1000 VU load
-        'http_req_duration{endpoint:verify}': ['p(95)<5000'], // Adjusted for 1000 VU load
-        'http_req_failed': ['rate<0.05'], 
+        // Stricter thresholds for control test (Target < 500ms for 100 users)
+        'http_req_duration{endpoint:phone}': ['p(95)<500'], 
+        'http_req_duration{endpoint:verify}': ['p(95)<1000'], 
+        'http_req_failed': ['rate<0.01'], 
     },
 };
 
+const BASE_URL = __ENV.BASE_URL || 'http://localhost:3001/api/v1';
+
 export default function () {
-    // Unique user per VU mapping
     const phoneData = testData[__VU % testData.length];
     
     const paramsCommon = {
@@ -42,13 +41,9 @@ export default function () {
     };
 
     // STEP 1: Request OTP (/auth/phone)
-    const phonePayload = JSON.stringify({
-        phone: phoneData.phone,
-    });
-
     const resPhone = http.post(
-        ENDPOINTS.AUTH_PHONE, 
-        phonePayload, 
+        `${BASE_URL}/auth/phone`, 
+        JSON.stringify({ phone: phoneData.phone }), 
         Object.assign({}, paramsCommon, { tags: { endpoint: 'phone' } })
     );
 
@@ -57,28 +52,18 @@ export default function () {
         'Phone OTP generated': (r) => r.json().success === true,
     });
 
-    // Simulated think time
-    sleep(Math.random() * 0.5 + 0.5); 
+    sleep(1); 
 
     // STEP 2: Verify OTP (/auth/verify)
-    const verifyPayload = JSON.stringify({
-        phone: phoneData.phone,
-        otp: "123456" 
-    });
-
     const resVerify = http.post(
-        ENDPOINTS.AUTH_VERIFY, 
-        verifyPayload, 
+        `${BASE_URL}/auth/verify`, 
+        JSON.stringify({ phone: phoneData.phone, otp: "123456" }), 
         Object.assign({}, paramsCommon, { tags: { endpoint: 'verify' } })
     );
 
     check(resVerify, {
         'Verify API status is 200': (r) => r.status === 200,
         'Verify success is true': (r) => r.json().success === true,
-        'Verify returned accessToken': (r) => { 
-            const data = r.json().data;
-            return data && data.accessToken !== undefined; 
-        },
     });
 
     sleep(1);

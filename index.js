@@ -1,3 +1,6 @@
+// 🚀 PERFORMANCE FIX: Boost Libuv thread pool for high-concurrency bcrypt hashing
+process.env.UV_THREADPOOL_SIZE = process.env.UV_THREADPOOL_SIZE || 128;
+
 const dns = require("dns");
 dns.setServers(["8.8.8.8", "8.8.4.4"]);
 require("dotenv").config();

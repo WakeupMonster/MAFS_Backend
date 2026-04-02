@@ -39,6 +39,7 @@ module.exports.sendOtp = async (req, res, next) => {
         phone: normalizedPhone,
         phoneHash,
         authMethod: "phone",
+        isTest: normalizedPhone.startsWith("+1000") // Assign test flag
       });
     }
 

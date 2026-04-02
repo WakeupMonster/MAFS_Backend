@@ -34,7 +34,7 @@ const formatProfileResponse = async (user, profile, blockedContacts = [], blocke
   // 🔥 Fetch dynamic status from new UsageService (v3)
   // const usageStatus = await UsageService.getUsageStatus(user._id);
   // const v3Data = usageStatus.data;
-  
+
   // const isPremium = v3Data.isPremium;
   // const allocations = v3Data.allocations;
   // const wallet = v3Data.wallet;
@@ -79,11 +79,20 @@ const formatProfileResponse = async (user, profile, blockedContacts = [], blocke
       gender: p?.gender || null,
       height: p?.height || null,
       about: p?.about || null,
-      jobTitle: p.jobTitle || null,
-      company: p.company || null,
-      school: p.school || null,
-      totalCompletion: calculateCompletion(profile)
-      //   totalCompletion: p.totalCompletion || 0
+      jobTitle: p?.jobTitle || null,
+      livingIn: p?.livingIn || null,
+      company: p?.company || null,
+      school: p?.school || null,
+      totalCompletion: calculateCompletion(profile),
+      completionBreakdown: {
+        photos: p?.onboardingProgress?.photosScore || 0,
+        basicInfo: p?.onboardingProgress?.basicInfoScore || 0,
+        careerAndEducation: p?.onboardingProgress?.careerScore || 0,
+        basics: p?.onboardingProgress?.basicsScore || 0,
+        lifestyle: p?.onboardingProgress?.lifestyleScore || 0,
+        preferences: p?.onboardingProgress?.preferencesScore || 0,
+        verification: p?.onboardingProgress?.verificationScore || 0
+      }
     },
 
     // 4. ATTRIBUTES
@@ -158,7 +167,7 @@ const formatProfileResponse = async (user, profile, blockedContacts = [], blocke
       order: photo.order || 0
     })),
 
-      verification: {
+    verification: {
       status: p.verification?.status || "pending",
       selfieUrl: p.verification?.selfieUrl || null,
       docUrl: p.verification?.docUrl || null,

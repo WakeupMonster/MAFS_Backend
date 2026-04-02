@@ -174,6 +174,7 @@ const ProfileSchema = new mongoose.Schema({
     rewindsCount: { type: Number, default: 0 }
   },
   onboardingProgress: {
+    // Boolean flags (backward compatibility)
     phoneVerified: { type: Boolean, default: false },
     emailVerified: { type: Boolean, default: false },
     nicknameSet: { type: Boolean, default: false },
@@ -188,12 +189,21 @@ const ProfileSchema = new mongoose.Schema({
     selfieUploaded: { type: Boolean, default: false },
     idDocumentUploaded: { type: Boolean, default: false },
     locationSet: { type: Boolean, default: false },
-
     bioSet: { type: Boolean, default: false },
     lifestyleSet: { type: Boolean, default: false },
     languagesSet: { type: Boolean, default: false },
     educationSet: { type: Boolean, default: false },
 
+    // Section-wise scores (new UI sections)
+    photosScore: { type: Number, default: 0 },       // max 25
+    basicInfoScore: { type: Number, default: 0 },     // max 23
+    careerScore: { type: Number, default: 0 },        // max 12
+    basicsScore: { type: Number, default: 0 },        // max 15
+    lifestyleScore: { type: Number, default: 0 },     // max 15
+    preferencesScore: { type: Number, default: 0 },   // max 5
+    verificationScore: { type: Number, default: 0 },  // max 5
+
+    // Totals
     mandatoryCompletion: { type: Number, default: 0 },
     optionalCompletion: { type: Number, default: 0 },
     totalCompletion: { type: Number, default: 0 },
@@ -244,121 +254,112 @@ const ProfileSchema = new mongoose.Schema({
 
 ProfileSchema.index({ location: "2dsphere" });
 
-// ProfileSchema.pre('save', function(next) {
-//   const profile = this;
-
-//   const hasNickname = !!profile.nickname;
-//   const hasDob = !!profile.dob;
-//   const hasGender = !!profile.gender;
-//   const hasLocation = !!(profile.location && profile.location.city);
-//   const hasMinPhotos = !!(profile.photos && profile.photos.length >= 1);
-//   const hasGoal = !!profile.discovery?.relationshipGoal;
-//   const hasInterests = !!(profile.attributes?.interests && profile.attributes.interests.length >= 3);
-
-//   profile.onboardingProgress.nicknameSet = hasNickname;
-//   profile.onboardingProgress.dobSet = hasDob;
-//   profile.onboardingProgress.genderSet = hasGender;
-//   profile.onboardingProgress.photosUploaded = hasMinPhotos;
-//   profile.onboardingProgress.locationSet = hasLocation;
-//   profile.onboardingProgress.relationshipGoalSet = hasGoal;
-//   profile.onboardingProgress.interestsSet = hasInterests;
-
-//   let score = 0;
-//   if (hasNickname) score += 15;
-//   if (hasDob) score += 10;
-//   if (hasGender) score += 10;
-//   if (hasLocation) score += 10;
-//   if (hasMinPhotos) score += 25; 
-//   if (hasGoal) score += 15;
-//   if (hasInterests) score += 15;
-
-//   profile.onboardingProgress.totalCompletion = score;
-
-//   const isProfileReady = hasNickname && hasDob && hasGender && hasMinPhotos && hasLocation;
-
-//   profile.isMandatoryComplete = isProfileReady;
-//   next();
-// });
-
-
-
 ProfileSchema.pre('save', function (next) {
   const profile = this;
   const attr = profile.attributes || {};
 
   // ========================================
-  // CATEGORY 1: ONBOARDING STEPS (50% max)
+  // SECTION 1: PHOTOS (max 25%)
+  // Tier-based: 1-2→10, 3-4→15, 5→20, 6+→25
   // ========================================
-  const hasNickname = !!profile.nickname;
-  const hasDob = !!profile.dob;
-  const hasGender = !!profile.gender;
-  const hasLocation = !!(profile.location && profile.location.city);
-  const hasMinPhotos = !!(profile.photos && profile.photos.length >= 1);
-  const hasGoal = !!profile.discovery?.relationshipGoal;
-  const hasInterests = !!(attr.interests && attr.interests.length >= 3);
+  const photoCount = (profile.photos && profile.photos.length) || 0;
+  let photosScore = 0;
+  if (photoCount >= 6) photosScore = 25;
+  else if (photoCount >= 5) photosScore = 20;
+  else if (photoCount >= 3) photosScore = 15;
+  else if (photoCount >= 1) photosScore = 10;
+
+  // ========================================
+  // SECTION 2: BASIC INFO (max 23%)
+  // Nickname: 3, DOB/Gender/Height/LivingIn/About: 4 each
+  // ========================================
+  let basicInfoScore = 0;
+  if (profile.nickname) basicInfoScore += 3;
+  if (profile.dob) basicInfoScore += 4;
+  if (profile.gender) basicInfoScore += 4;
+  if (profile.height) basicInfoScore += 4;
+  if (profile.livingIn) basicInfoScore += 4;
+  if (profile.about) basicInfoScore += 4;
+
+  // ========================================
+  // SECTION 3: CAREER & EDUCATION (max 12%)
+  // 3 fields × 4% each
+  // ========================================
+  const careerFields = ['jobTitle', 'company', 'school'];
+  const filledCareer = careerFields.filter(f => !!profile[f]).length;
+  const careerScore = (filledCareer / 3) * 12;
+
+  // ========================================
+  // SECTION 4: BASICS (max 15%)
+  // 7 fields, formula: (filled / 7) * 15
+  // ========================================
+  const basicsFields = ['zodiac', 'education', 'familyPlans', 'personalityType',
+    'communicationStyle', 'loveStyle', 'socialMedia'];
+  const filledBasics = basicsFields.filter(f => !!attr[f]).length;
+  const basicsScore = (filledBasics / 7) * 15;
+
+  // ========================================
+  // SECTION 5: LIFESTYLE (max 15%)
+  // 6 fields, formula: (filled / 6) * 15
+  // ========================================
+  const lifestyleFields = ['pets', 'drinking', 'smoking', 'workout', 'dietary', 'sleeping'];
+  const filledLifestyle = lifestyleFields.filter(f => !!attr[f]).length;
+  const lifestyleScore = (filledLifestyle / 6) * 15;
+
+  // ========================================
+  // SECTION 6: PREFERENCES (max 5%)
+  // 4 array fields, formula: (filled / 4) * 5
+  // Valid if array.length >= 1
+  // ========================================
+  const prefFields = ['music', 'movies', 'books', 'travel'];
+  const filledPrefs = prefFields.filter(f => attr[f] && attr[f].length >= 1).length;
+  const preferencesScore = (filledPrefs / 4) * 5;
+
+  // ========================================
+  // SECTION 7: VERIFICATION (max 5%)
+  // Selfie: 2.5, ID: 2.5
+  // ========================================
   const hasSelfie = !!profile.verification?.selfieUrl;
   const hasIdDocument = !!profile.verification?.docUrl;
+  const verificationScore = (hasSelfie ? 2.5 : 0) + (hasIdDocument ? 2.5 : 0);
 
-  // Update onboarding flags
-  profile.onboardingProgress.nicknameSet = hasNickname;
-  profile.onboardingProgress.dobSet = hasDob;
-  profile.onboardingProgress.genderSet = hasGender;
-  profile.onboardingProgress.photosUploaded = hasMinPhotos;
-  profile.onboardingProgress.locationSet = hasLocation;
-  profile.onboardingProgress.relationshipGoalSet = hasGoal;
-  profile.onboardingProgress.interestsSet = hasInterests;
+  // ========================================
+  // STORE SECTION SCORES
+  // ========================================
+  profile.onboardingProgress.photosScore = photosScore;
+  profile.onboardingProgress.basicInfoScore = basicInfoScore;
+  profile.onboardingProgress.careerScore = careerScore;
+  profile.onboardingProgress.basicsScore = basicsScore;
+  profile.onboardingProgress.lifestyleScore = lifestyleScore;
+  profile.onboardingProgress.preferencesScore = preferencesScore;
+  profile.onboardingProgress.verificationScore = verificationScore;
+
+  // ========================================
+  // TOTAL COMPLETION
+  // ========================================
+  const total = photosScore + basicInfoScore + careerScore +
+    basicsScore + lifestyleScore + preferencesScore + verificationScore;
+  profile.onboardingProgress.totalCompletion = Math.min(Math.round(total), 100);
+
+  // ========================================
+  // UPDATE BOOLEAN FLAGS (backward compat)
+  // ========================================
+  profile.onboardingProgress.nicknameSet = !!profile.nickname;
+  profile.onboardingProgress.dobSet = !!profile.dob;
+  profile.onboardingProgress.genderSet = !!profile.gender;
+  profile.onboardingProgress.photosUploaded = photoCount >= 1;
+  profile.onboardingProgress.locationSet = !!(profile.location && profile.location.city);
+  profile.onboardingProgress.relationshipGoalSet = !!profile.discovery?.relationshipGoal;
+  profile.onboardingProgress.interestsSet = !!(attr.interests && attr.interests.length >= 3);
   profile.onboardingProgress.selfieUploaded = hasSelfie;
   profile.onboardingProgress.idDocumentUploaded = hasIdDocument;
-
-  let onboardingScore = 0;
-  if (hasNickname) onboardingScore += 7;
-  if (hasDob) onboardingScore += 5;
-  if (hasGender) onboardingScore += 5;
-  if (hasLocation) onboardingScore += 5;
-  if (hasMinPhotos) onboardingScore += 10;
-  if (hasGoal) onboardingScore += 6;
-  if (hasInterests) onboardingScore += 6;
-  if (hasSelfie) onboardingScore += 3;
-  if (hasIdDocument) onboardingScore += 3;
-  // Onboarding Max: 50
+  profile.onboardingProgress.bioSet = !!profile.about;
 
   // ========================================
-  // CATEGORY 2: PROFILE ATTRIBUTES (50% max)
+  // MANDATORY CHECK (unchanged logic)
   // ========================================
-  let attributeScore = 0;
-
-  // Group A: Basics (20% total — 2.5 each × 8 fields)
-  const basics = ['zodiac', 'education', 'familyPlans', 'personalityType',
-    'communicationStyle', 'loveStyle', 'religion'];
-  basics.forEach(field => {
-    if (attr[field]) attributeScore += 2.5;
-  });
-  if (attr.languages && attr.languages.length >= 1) attributeScore += 2.5;
-
-  // Group B: Lifestyle (18% total — 3 each × 6 fields)
-  const lifestyle = ['pets', 'drinking', 'smoking', 'workout', 'dietary', 'sleeping'];
-  lifestyle.forEach(field => {
-    if (attr[field]) attributeScore += 3;
-  });
-
-  // Group C: Preference Arrays (8% total — 2 each × 4 fields)
-  const preferences = ['music', 'movies', 'books', 'travel'];
-  preferences.forEach(field => {
-    if (attr[field] && attr[field].length >= 1) attributeScore += 2;
-  });
-
-  // Group D: Extra Profile Info (4% total — 2 each × 2 fields)
-  if (profile.about) attributeScore += 2;
-  if (attr.socialMedia) attributeScore += 2;
-  // Attributes Max: 50
-
-  // ========================================
-  // FINAL TOTAL SCORE
-  // ========================================
-  profile.onboardingProgress.totalCompletion = Math.min(Math.round(onboardingScore + attributeScore), 100);
-
-  // Mandatory check (untouched — existing logic)
-  const isProfileReady = hasNickname && hasDob && hasGender && hasMinPhotos && hasLocation;
+  const isProfileReady = !!profile.nickname && !!profile.dob && !!profile.gender &&
+    photoCount >= 1 && !!(profile.location && profile.location.city);
   profile.isMandatoryComplete = isProfileReady;
 
   next();

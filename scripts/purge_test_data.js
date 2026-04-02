@@ -1,3 +1,5 @@
+const dns = require('dns');
+dns.setServers(['8.8.8.8', '8.8.4.4']);
 require('dotenv').config();
 const mongoose = require('mongoose');
 const Redis = require('ioredis');
@@ -37,14 +39,21 @@ async function cleanup() {
       console.log(`✅ Cleared ${rlKeys.length} rate-limit keys from Redis.`);
     }
 
-    // 2. MongoDB Cleanup (isTest users)
+    // 2. MongoDB Cleanup (Test users: matched by flag OR +1000 prefix)
+    const testQuery = { 
+      $or: [
+        { isTest: true }, 
+        { phone: { $regex: /^\+1000/ } } 
+      ] 
+    };
+
     if (isHardMode) {
-      const result = await User.deleteMany({ isTest: true });
+      const result = await User.deleteMany(testQuery);
       console.log(`🔥 [HARD] Deleted ${result.deletedCount} test users from MongoDB.`);
     } else {
       // Soft cleanup: Keep users, wipe their sessions/history
       const result = await User.updateMany(
-        { isTest: true },
+        testQuery,
         { 
           $set: { 
             refreshTokens: [], 

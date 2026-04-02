@@ -37,7 +37,7 @@ app.use(
 );
 
 // ─── Request Logging (Development Only) ───
-if (process.env.NODE_ENV !== "production") {
+if (process.env.NODE_ENV !== "production" && process.env.DISABLE_REQUEST_LOGGING !== "true") {
   app.use((req, res, next) => {
     logger.debug(req.method + " " + req.url);
     next();
@@ -56,7 +56,7 @@ const healthRoutes = require("./modules/subscription/routes/health.routes");
 
 app.use("/webhook", webhookRoutes);
 app.use("/api/v1/subscription", subscriptionRoutes);
-app.use("/api/v1/iap/health", healthRoutes);
+app.get("/api/v1/iap/health", healthRoutes);
 
 // ─── Root Route ───
 app.get("/", (req, res) => res.json({ message: "API running" }));
