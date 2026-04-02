@@ -85,13 +85,13 @@ const formatProfileResponse = async (user, profile, blockedContacts = [], blocke
       school: p?.school || null,
       totalCompletion: calculateCompletion(profile),
       completionBreakdown: {
-        photos: p?.onboardingProgress?.photosScore || 0,
-        basicInfo: p?.onboardingProgress?.basicInfoScore || 0,
-        careerAndEducation: p?.onboardingProgress?.careerScore || 0,
-        basics: p?.onboardingProgress?.basicsScore || 0,
-        lifestyle: p?.onboardingProgress?.lifestyleScore || 0,
-        preferences: p?.onboardingProgress?.preferencesScore || 0,
-        verification: p?.onboardingProgress?.verificationScore || 0
+        photos: Math.round(p?.onboardingProgress?.photosScore || 0),
+        basicInfo: Math.round(p?.onboardingProgress?.basicInfoScore || 0),
+        careerAndEducation: Math.round(p?.onboardingProgress?.careerScore || 0),
+        basics: Math.round(p?.onboardingProgress?.basicsScore || 0),
+        lifestyle: Math.round(p?.onboardingProgress?.lifestyleScore || 0),
+        preferences: Math.round(p?.onboardingProgress?.preferencesScore || 0),
+        verification: Math.round(p?.onboardingProgress?.verificationScore || 0)
       }
     },
 
