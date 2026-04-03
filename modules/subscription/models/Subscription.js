@@ -71,15 +71,15 @@ const SubscriptionSchema = new mongoose.Schema(
       default: false,
     },
 
-        grantedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'AdminUser' },
-        grantReason: String, // e.g. "milestone_first_1000", "customer_service"
+    grantedBy: { type: mongoose.Schema.Types.ObjectId, ref: "AdminUser" },
+    grantReason: String, // e.g. "milestone_first_1000", "customer_service"
 
-        // Tracks how the subscription was created
-        source: {
-            type: String,
-            enum: ["STORE", "ADMIN", "GIVEAWAY"],
-            default: "STORE"
-        },
+    // Tracks how the subscription was created
+    source: {
+      type: String,
+      enum: ["STORE", "ADMIN", "GIVEAWAY"],
+      default: "STORE",
+    },
 
     environment: {
       type: String,
@@ -99,7 +99,7 @@ const SubscriptionSchema = new mongoose.Schema(
   {
     timestamps: true,
     optimisticConcurrency: true,
-  }
+  },
 );
 
 // Indexes

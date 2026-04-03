@@ -4,7 +4,9 @@ const router = express.Router();
 
 // Middlewares
 const auth = require("../../../modules/auth/auth.middleware");
-const { allowAdmin } = require("../../../common/middlewares/allowAdmin.middleware");
+const {
+  allowAdmin,
+} = require("../../../common/middlewares/allowAdmin.middleware");
 
 // Sub-Route Imports
 const authRoutes = require("../../../modules/Admin/auth/admin.auth.routes");
