@@ -151,7 +151,7 @@ module.exports.unmatchUser = async (req, res) => {
     session.endSession();
     return res.json({ success: true, message: "Unmatched successfully" });
   } catch (err) {
-    await session.abortTransaction();
+    // withTransaction automatically aborts the transaction on error
     session.endSession();
     return res.status(400).json({ success: false, message: err.message });
   }

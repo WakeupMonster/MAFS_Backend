@@ -258,10 +258,12 @@ ProfileSchema.pre('save', function (next) {
   const profile = this;
   const attr = profile.attributes || {};
 
+  /*
+  // ========================================
+  // OLD PERCENTAGE LOGIC (Commented out as requested)
   // ========================================
   // SECTION 1: PHOTOS (max 25%)
   // Tier-based: 1-2→10, 3-4→15, 5→20, 6+→25
-  // ========================================
   const photoCount = (profile.photos && profile.photos.length) || 0;
   let photosScore = 0;
   if (photoCount >= 6) photosScore = 25;
@@ -269,10 +271,7 @@ ProfileSchema.pre('save', function (next) {
   else if (photoCount >= 3) photosScore = 15;
   else if (photoCount >= 1) photosScore = 10;
 
-  // ========================================
   // SECTION 2: BASIC INFO (max 23%)
-  // Nickname: 3, DOB/Gender/Height/LivingIn/About: 4 each
-  // ========================================
   let basicInfoScore = 0;
   if (profile.nickname) basicInfoScore += 3;
   if (profile.dob) basicInfoScore += 4;
@@ -281,47 +280,86 @@ ProfileSchema.pre('save', function (next) {
   if (profile.livingIn) basicInfoScore += 4;
   if (profile.about) basicInfoScore += 4;
 
-  // ========================================
   // SECTION 3: CAREER & EDUCATION (max 12%)
-  // 3 fields × 4% each
-  // ========================================
   const careerFields = ['jobTitle', 'company', 'school'];
   const filledCareer = careerFields.filter(f => !!profile[f]).length;
   const careerScore = (filledCareer / 3) * 12;
 
-  // ========================================
   // SECTION 4: BASICS (max 15%)
-  // 7 fields, formula: (filled / 7) * 15
-  // ========================================
   const basicsFields = ['zodiac', 'education', 'familyPlans', 'personalityType',
     'communicationStyle', 'loveStyle', 'socialMedia'];
   const filledBasics = basicsFields.filter(f => !!attr[f]).length;
   const basicsScore = (filledBasics / 7) * 15;
 
-  // ========================================
   // SECTION 5: LIFESTYLE (max 15%)
-  // 6 fields, formula: (filled / 6) * 15
-  // ========================================
   const lifestyleFields = ['pets', 'drinking', 'smoking', 'workout', 'dietary', 'sleeping'];
   const filledLifestyle = lifestyleFields.filter(f => !!attr[f]).length;
   const lifestyleScore = (filledLifestyle / 6) * 15;
 
-  // ========================================
   // SECTION 6: PREFERENCES (max 5%)
-  // 4 array fields, formula: (filled / 4) * 5
-  // Valid if array.length >= 1
-  // ========================================
   const prefFields = ['music', 'movies', 'books', 'travel'];
   const filledPrefs = prefFields.filter(f => attr[f] && attr[f].length >= 1).length;
   const preferencesScore = (filledPrefs / 4) * 5;
 
-  // ========================================
   // SECTION 7: VERIFICATION (max 5%)
-  // Selfie: 2.5, ID: 2.5
-  // ========================================
   const hasSelfie = !!profile.verification?.selfieUrl;
   const hasIdDocument = !!profile.verification?.docUrl;
   const verificationScore = (hasSelfie ? 2.5 : 0) + (hasIdDocument ? 2.5 : 0);
+  */
+
+  // ========================================
+  // NEW PERCENTAGE LOGIC (100% Total)
+  // ========================================
+
+  // SECTION 1: PHOTOS (max 25%) - UNCHANGED
+  const photoCount = (profile.photos && profile.photos.length) || 0;
+  let photosScore = 0;
+  if (photoCount >= 6) photosScore = 25;
+  else if (photoCount >= 5) photosScore = 20;
+  else if (photoCount >= 3) photosScore = 15;
+  else if (photoCount >= 1) photosScore = 10;
+
+  // SECTION 2: BASIC INFO (max 20%) - 6 fields
+  const basicInfoFields = ['nickname', 'dob', 'gender', 'height', 'livingIn', 'about'];
+  const filledBasicInfo = basicInfoFields.filter(f => !!profile[f]).length;
+  const basicInfoScore = (filledBasicInfo / 6) * 20;
+
+  // SECTION 3: CAREER & EDUCATION (max 9%) - 3 fields, 3% each
+  const careerFields = ['jobTitle', 'company', 'school'];
+  const filledCareer = careerFields.filter(f => !!profile[f]).length;
+  const careerScore = (filledCareer / 3) * 9;
+
+  // SECTION 4: BASICS (max 15%) - 7 fields
+  const basicsFields = ['zodiac', 'education', 'familyPlans', 'personalityType',
+    'communicationStyle', 'loveStyle', 'socialMedia'];
+  const filledBasics = basicsFields.filter(f => !!attr[f]).length;
+  const basicsScore = (filledBasics / 7) * 15;
+
+  // SECTION 5: LIFESTYLE (max 12%) - 6 fields, 2% each
+  const lifestyleFields = ['pets', 'drinking', 'smoking', 'workout', 'dietary', 'sleeping'];
+  const filledLifestyle = lifestyleFields.filter(f => !!attr[f]).length;
+  const lifestyleScore = (filledLifestyle / 6) * 12;
+
+  // SECTION 6: PREFERENCES (max 17%)
+  // Interests (4%), Languages (4%), Religion (4%)
+  // Music (1.25%), Movies (1.25%), Books (1.25%), Travel (1.25%)
+  
+  // Helper to check if array has at least one real non-empty string
+  const hasValidItems = (arr) => arr && Array.isArray(arr) && arr.filter(i => typeof i === 'string' && i.trim() !== "").length >= 1;
+
+  let preferencesScore = 0;
+  if (hasValidItems(attr.interests)) preferencesScore += 4;
+  if (hasValidItems(attr.languages)) preferencesScore += 4;
+  if (attr.religion && typeof attr.religion === 'string' && attr.religion.trim() !== "") preferencesScore += 4;
+  
+  const minorPrefFields = ['music', 'movies', 'books', 'travel'];
+  const filledMinorPrefs = minorPrefFields.filter(f => hasValidItems(attr[f])).length;
+  preferencesScore += (filledMinorPrefs * 1.25);
+
+  // SECTION 7: VERIFICATION (max 2%)
+  const hasSelfie = !!profile.verification?.selfieUrl;
+  const hasIdDocument = !!profile.verification?.docUrl;
+  const verificationScore = (hasSelfie ? 1 : 0) + (hasIdDocument ? 1 : 0);
 
   // ========================================
   // STORE SECTION SCORES

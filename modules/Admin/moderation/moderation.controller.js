@@ -51,11 +51,17 @@ module.exports.verifyUserProfile = async (req, res) => {
     profile.verification.verifiedBy = adminId;
     profile.verification.verifiedAt = new Date();
     profile.verification.rejectionReason = null;
+    
+    if (!profile.onboarding) profile.onboarding = {};
+    profile.onboarding.isComplete = true;
   } else {
     profile.verification.status = "rejected";
     profile.verification.verifiedBy = adminId;
     profile.verification.verifiedAt = new Date();
     profile.verification.rejectionReason = reason;
+
+    if (!profile.onboarding) profile.onboarding = {};
+    profile.onboarding.isComplete = false;
   }
 
   await profile.save();
