@@ -31,7 +31,7 @@ const giveawayWinHistorySchema = new mongoose.Schema(
 
     deliveryStatus: {
       type: String,
-      enum: ["PENDING", "QUEUED", "DELIVERED", "FORFEITED"],
+      enum: ["PENDING", "REVEALED", "QUEUED", "DELIVERED", "FORFEITED"],
       default: "PENDING",
     },
     // When prize is QUEUED, reason stored here for admin visibility

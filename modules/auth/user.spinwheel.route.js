@@ -5,7 +5,6 @@ const auth = require("../auth/auth.middleware");
 
 router.use(auth);
 
-router.get("/spin-wheel", giveawayController.getSpinWheelConfig);
 router.post("/claim", giveawayController.claimPrize);
 
 router.get("/info", giveawayController.getGiveawayInfo);

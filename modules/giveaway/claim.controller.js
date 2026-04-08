@@ -4,90 +4,6 @@ const Prize = require("../Admin/giveaways/prize.model");
 const GiveawayWinHistory = require("../Admin/giveaways/giveawayWinHistory.model");
 const GiveawayInfo = require("../Admin/giveaways/giveawayInfo.model");
 
-module.exports.getSpinWheelConfig = async (req, res) => {
-  try {
-    const userId = req.user._id;
-
-    /**
-     * MAJOR BUG FIX:
-     * DONT check for 'today' campaign. User might spin the wheel on Saturday.
-     * Simply look if this user has any UNCLAIMED win waiting for them!
-     */
-    const winHistory = await GiveawayWinHistory.findOne({
-      userId: userId,
-      claimedAt: null
-    }).sort({ createdAt: -1 });
-
-    if (!winHistory) {
-      // Non-winner (Ya already claimed winner) ko spin nahi dikhega
-      return res.json({
-        success: false,
-        message: "Better luck next time",
-        data: {
-          available: true,
-          showSpin: false
-        }
-      });
-    }
-
-    /**
-     * 4️⃣ Prize ka data aur supportive wheel items nikaalo
-     */
-    const prize = await Prize.findById(winHistory.prizeId);
-    const supportItem = await Prize.findOne({ isActive: true });
-
-
-    let supportiveItems = supportItem ? [...supportItem.supportiveItems] : ["Try Again", "Oops", "Next Time"];
-
-    let wheelItems = prize.supportiveItems.map((item) => ({
-      label: item,
-    }));
-
-    /**
-     * 6️⃣ Random index decide karo
-     * (sirf UI ke liye, winner already decided hai)
-     */
-    const winnerIndex = Math.floor(
-      Math.random() * (supportiveItems.length + 1)
-    );
-
-    /**
-     * 7️⃣ Prize ka spin label us random index par insert karo
-     */
-    supportiveItems.splice(winnerIndex, 0, prize.spinWheelLabel);
-
-    wheelItems.splice(winnerIndex, 0, {
-      label: prize.spinWheelLabel,
-    });
-
-    /**
-     * 8️⃣ Final response frontend ko bhejo
-     */
-    return res.json({
-      success: true,
-      message: "Spin wheel loaded successfully",
-      data: {
-        available: true,
-        showSpin: true,
-        winnerIndex,
-        items: wheelItems,
-        supportiveItems: prize.supportiveItems,
-        prize: {
-          title: prize.title,
-          value: prize.value,
-          type: prize.type,
-        },
-      }
-    });
-  } catch (error) {
-    console.error("Spin wheel API error:", error);
-    return res.status(500).json({
-      success: false,
-      message: "Failed to load spin wheel",
-    });
-  }
-};
-
 module.exports.claimPrize = async (req, res) => {
   try {
     const userId = req.user._id;
@@ -148,7 +64,7 @@ module.exports.claimPrize = async (req, res) => {
     //   winHistory.deliveryStatus = "PENDING";
     // }
 
-    winHistory.deliveryStatus = "PENDING";
+    winHistory.deliveryStatus = "REVEALED";
 
     await winHistory.save();
 
@@ -260,17 +176,16 @@ module.exports.getMyGiveaways = async (req, res) => {
   try {
     const userId = req.user._id;
 
-    // Fetch all win histories for the user
-    // Populate prize and campaign details for rich frontend rendering
+    // 1️⃣ Fetch all win histories for the user
+    // Populate prize and campaign details
     const winHistories = await GiveawayWinHistory.find({ userId: userId })
-      .populate("prizeId", "title value type description")
+      .populate("prizeId", "title value type description spinWheelLabel supportiveItems")
       .populate("campaignId", "title date drawStatus")
       .sort({ createdAt: -1 })
       .lean();
 
-    // Format the response securely and cleanly
-    const formattedData = winHistories.map(win => {
-      // Security Check: Only expose the actual gift card codes if the status is DELIVERED
+    // 2️⃣ Format giveaway history
+    const formattedHistory = winHistories.map(win => {
       const isDelivered = win.deliveryStatus === "DELIVERED";
 
       return {
@@ -290,7 +205,6 @@ module.exports.getMyGiveaways = async (req, res) => {
           description: win.prizeId.description
         } : null,
 
-
         campaign: win.campaignId ? {
           title: win.campaignId.title,
           date: win.campaignId.date,
@@ -299,11 +213,57 @@ module.exports.getMyGiveaways = async (req, res) => {
       };
     });
 
+    // 3️⃣ Identify if there's an unclaimed win to provide spin configuration
+    // const unclaimedWin = winHistories.find(win => !win.claimedAt);
+    const unclaimedWin = winHistories.find(win => win.deliveryStatus === "PENDING" || win.deliveryStatus === "REVEALED");
+
+    let spinConfig = {
+      // available: true,
+      showSpin: false
+    };
+
+    if (unclaimedWin && unclaimedWin.prizeId) {
+      const prize = unclaimedWin.prizeId;
+
+      // Fetch supportive wheel items (generic items like "Try Again")
+      const supportItem = await Prize.findOne({ isActive: true }).lean();
+      let supportiveItems = supportItem ? [...supportItem.supportiveItems] : ["Try Again", "Oops", "Next Time"];
+
+      // Combine with prize-specific items for UI
+      let wheelItems = (prize.supportiveItems && prize.supportiveItems.length > 0)
+        ? prize.supportiveItems.map(item => ({ label: item }))
+        : supportiveItems.map(item => ({ label: item }));
+
+      // Calculate a random winner index (UI only, win is already decided)
+      const winnerIndex = Math.floor(Math.random() * (wheelItems.length + 1));
+
+      // Insert the actual win label at the calculated index
+      wheelItems.splice(winnerIndex, 0, {
+        label: prize.spinWheelLabel || prize.title,
+      });
+
+      spinConfig = {
+        available: true,
+        showSpin: true,
+        winnerIndex,
+        items: wheelItems,
+        supportiveItems: prize.supportiveItems,
+        prize: {
+          title: prize.title,
+          value: prize.value,
+          type: prize.type,
+        }
+      };
+    }
+
     return res.status(200).json({
       success: true,
-      message: "User giveaway history fetched successfully",
+      message: "Giveaway data fetched successfully",
       totalWins: winHistories.length,
-      data: formattedData
+      data: {
+        history: formattedHistory,
+        spinConfig: spinConfig
+      }
     });
   } catch (error) {
     console.error("Get my giveaways error:", error);
@@ -313,3 +273,4 @@ module.exports.getMyGiveaways = async (req, res) => {
     });
   }
 };
+

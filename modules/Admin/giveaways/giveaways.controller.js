@@ -761,7 +761,7 @@ module.exports.markPrizeAsDelivered = async (req, res) => {
       });
     }
     // 1. DONT mistake Campaign for Prize! Use the correct Prize ID.
-    const campaign = await GiveawayCampaign.findById(winHistory.campaignId);
+    // const campaign = await GiveawayCampaign.findById(winHistory.campaignId);
     const prize = await Prize.findById(winHistory.prizeId);
     const user = await User.findById(winHistory.userId);
 
@@ -807,57 +807,149 @@ module.exports.markPrizeAsDelivered = async (req, res) => {
             ? new Date(giftCardExpiryDate).toLocaleDateString("en-AU", { day: "numeric", month: "long", year: "numeric" })
             : null;
 
+          const brandAqua = "#00d9d6";
+          const logoUrl = "https://res.cloudinary.com/dew7qscdq/image/upload/v1775202656/mustardLogo2_zn7b5v.png"; // Changed to .png for Email Client Compatibility
+
           if (emailTemplate) {
-            // 🚀 New dynamic email payload logic
+            // 🚀 New Dynamic Profile-Themed Email Payload
             emailSubject = emailTemplate.subject || "🎉 Congratulations! Your Prize Awaits";
 
-            // Format steps into a clean HTML ordered list
             let stepsHtml = "";
             if (Array.isArray(emailTemplate.steps) && emailTemplate.steps.length > 0) {
               stepsHtml = `
-                <div style="margin: 20px 0; padding: 16px; background: #f9f9f9; border-radius: 8px;">
-                  <h3 style="margin-top: 0; color: #333;">How to claim your prize:</h3>
-                  <ol style="margin: 0; padding-left: 20px; color: #555; line-height: 1.6;">
-                    ${emailTemplate.steps.map(step => `<li style="margin-bottom: 8px;">${step}</li>`).join('')}
-                  </ol>
-                </div>
-              `;
+                  <div style="margin: 25px 0; padding: 20px; background-color: #f8fafc; border-radius: 12px; border-left: 4px solid ${brandAqua};">
+                    <h3 style="margin-top: 0; color: #1e293b; font-size: 16px; font-weight: 600;">How to redeem:</h3>
+                    <ol style="margin: 0; padding-left: 20px; color: #475569; font-size: 14px; line-height: 1.8;">
+                      ${emailTemplate.steps.map(step => `<li style="padding-left: 8px; margin-bottom: 6px;">${step}</li>`).join('')}
+                    </ol>
+                  </div>
+                `;
             }
 
-            // Compile the final HTML Body
             emailBody = `
-              <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; color: #333;">
-                <h2 style="color: #222; text-align: center;">${emailTemplate.title || "Your Gift Card is Here!"}</h2>
-                <p style="font-size: 16px; color: #444; line-height: 1.5; text-align: center;">${emailTemplate.description || ""}</p>
-                
-                <div style="background:#f4f4f4; padding:20px; border-radius:12px; margin:24px 0; text-align:center; border: 1px dashed #ccc;">
-                  <p style="margin:0 0 8px 0; font-size:14px; color:#666; text-transform: uppercase; font-weight: bold;">Your Gift Card Code</p>
-                  <p style="margin:0; font-size:26px; font-weight:bold; letter-spacing:2px; color:#111;">${giftCode}</p>
-                </div>
-                
-                ${stepsHtml}
-                ${expiryDate ? `<p style="color: #e74c3c; font-size: 14px; text-align: center; margin-top: 20px;">⚠️ This code expires on: <b>${expiryDate}</b></p>` : ""}
-                
-                <hr style="border: none; border-top: 1px solid #eee; margin: 30px 0;" />
-                <p style="font-size: 12px; color: #999; text-align: center; margin: 0;">If you have any issues, contact our support team.</p>
-                <p style="font-size: 12px; color: #999; text-align: center; margin: 4px 0 0 0;">Thank you for participating! 🎉</p>
-              </div>
-            `;
+                <!DOCTYPE html>
+                <html>
+                <head>
+                  <meta charset="utf-8">
+                  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+                  <title>${emailSubject}</title>
+                </head>
+                <body style="margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background-color: #f1f5f9;">
+                  
+                  <!-- Main Wrapper -->
+                  <table width="100%" border="0" cellspacing="0" cellpadding="0" style="background-color: #f1f5f9; padding: 40px 20px;">
+                    <tr>
+                      <td align="center">
+                        
+                        <!-- Content Card -->
+                        <table width="100%" max-width="600" border="0" cellspacing="0" cellpadding="0" style="max-width: 600px; background-color: #ffffff; border-radius: 16px; overflow: hidden; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);">
+                          
+                          <!-- Header / Logo Area -->
+                          <tr>
+                            <td align="center" style="padding: 30px 20px 20px 20px; background-color: #ffffff; border-bottom: 2px solid #f1f5f9;">
+                              <!-- Replace with hosted Logo URL below -->
+                              <img src="${logoUrl}" alt="Mustard Date" style="max-width: 140px; height: auto; display: block;" />
+                            </td>
+                          </tr>
+  
+                          <!-- Body Content -->
+                          <tr>
+                            <td style="padding: 40px 30px;">
+                              
+                              <h2 style="color: #0f172a; margin: 0 0 15px 0; font-size: 24px; font-weight: 700; text-align: center;">
+                                ${emailTemplate.title || "Your Gift Card is Here!"}
+                              </h2>
+                              
+                              <p style="color: #475569; font-size: 16px; line-height: 1.6; text-align: center; margin: 0 0 30px 0;">
+                                ${emailTemplate.description || "Congratulations on winning! Here are the details of your reward."}
+                              </p>
+                              
+                              <!-- Gift Card Block -->
+                              <table width="100%" border="0" cellspacing="0" cellpadding="0" style="background-color: #f0fdfa; border: 2px dashed ${brandAqua}; border-radius: 12px;">
+                                <tr>
+                                  <td align="center" style="padding: 24px;">
+                                    <p style="margin: 0 0 8px 0; font-size: 13px; color: #0d9488; text-transform: uppercase; font-weight: 700; letter-spacing: 1px;">Your Private Gift Code</p>
+                                    <p style="margin: 0; font-size: 28px; font-weight: 800; letter-spacing: 2px; color: #0f172a; font-family: monospace;">
+                                      ${giftCode}
+                                    </p>
+                                  </td>
+                                </tr>
+                              </table>
+                              
+                              ${stepsHtml}
+                              
+                              ${expiryDate ? `
+                              <table width="100%" border="0" cellspacing="0" cellpadding="0" style="margin-top: 20px;">
+                                <tr>
+                                  <td align="center">
+                                    <p style="background-color: #fef2f2; border: 1px solid #fecaca; color: #ef4444; font-size: 13px; padding: 8px 16px; border-radius: 20px; display: inline-block; margin: 0; font-weight: 500;">
+                                      ⚠️ Expires on: <strong>${expiryDate}</strong>
+                                    </p>
+                                  </td>
+                                </tr>
+                              </table>` : ""}
+  
+                            </td>
+                          </tr>
+  
+                          <!-- Footer -->
+                          <tr>
+                            <td style="background-color: #f8fafc; padding: 24px 30px; text-align: center; border-top: 1px solid #e2e8f0;">
+                              <p style="margin: 0; font-size: 13px; color: #64748b;">
+                                If you have any issues, please contact our support team.
+                              </p>
+                              <p style="margin: 8px 0 0 0; font-size: 13px; color: #64748b;">
+                                © ${new Date().getFullYear()} Mustard. All rights reserved.
+                              </p>
+                            </td>
+                          </tr>
+                          
+                        </table>
+                      </td>
+                    </tr>
+                  </table>
+                </body>
+                </html>
+              `;
           } else {
-            // 🛡️ Fallback: Existing Default Layout
+            // 🛡️ Fallback: Professional Default Layout
             emailSubject = "🎁 Your Gift Card Prize Has Arrived!";
             emailBody = `
-              <h2>🎁 Your Gift Card Prize Has Arrived!</h2>
-              <p>You won: <b>"${prize.title}"</b></p>
-              <p><b>Value:</b> $${prize.value || 0}</p>
-              <div style="background:#f4f4f4; padding:16px; border-radius:8px; margin:16px 0; text-align:center;">
-                <p style="margin:0 0 4px 0; font-size:14px; color:#666;">Your Gift Card Code:</p>
-                <p style="margin:0; font-size:22px; font-weight:bold; letter-spacing:2px; color:#333;">${giftCode}</p>
-              </div>
-              ${expiryDate ? `<p>⚠️ This code expires on: <b>${expiryDate}</b></p>` : ""}
-              <p>If you have any issues, contact our support team.</p>
-              <p>Thank you for participating! 🎉</p>
-            `;
+                <!DOCTYPE html>
+                <html>
+                <body style="margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background-color: #f1f5f9;">
+                  <table width="100%" border="0" cellspacing="0" cellpadding="0" style="padding: 40px 20px;">
+                    <tr>
+                      <td align="center">
+                        <table width="100%" border="0" cellspacing="0" cellpadding="0" style="max-width: 600px; background-color: #ffffff; border-radius: 16px; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);">
+                          <tr>
+                            <td align="center" style="padding: 30px 20px; border-bottom: 2px solid #f1f5f9;">
+                               <img src="${logoUrl}" alt="Mustard Date" style="max-width: 140px; height: auto; display: block;" />
+                            </td>
+                          </tr>
+                          <tr>
+                            <td style="padding: 40px 30px; text-align: center;">
+                              <h2 style="color: #0f172a; margin: 0 0 15px 0; font-size: 24px;">🎁 Your Gift Card Has Arrived!</h2>
+                              <p style="color: #475569; font-size: 16px;">You won: <strong>"${prize.title}"</strong> (Value: $${prize.value || 0})</p>
+                              <div style="background-color: #f0fdfa; border: 2px dashed ${brandAqua}; padding: 24px; border-radius: 12px; margin: 30px 0;">
+                                <p style="margin: 0 0 8px 0; font-size: 13px; color: #0d9488; text-transform: uppercase; font-weight: 700;">Your Gift Card Code</p>
+                                <p style="margin: 0; font-size: 28px; font-weight: 800; letter-spacing: 2px; color: #0f172a; font-family: monospace;">${giftCode}</p>
+                              </div>
+                              ${expiryDate ? `<p style="color: #ef4444; font-size: 14px;">⚠️ This code expires on: <strong>${expiryDate}</strong></p>` : ""}
+                            </td>
+                          </tr>
+                          <tr>
+                            <td style="background-color: #f8fafc; padding: 24px; text-align: center; border-top: 1px solid #e2e8f0;">
+                              <p style="margin: 0; font-size: 13px; color: #64748b;">Thank you for participating! 🎉</p>
+                            </td>
+                          </tr>
+                        </table>
+                      </td>
+                    </tr>
+                  </table>
+                </body>
+                </html>
+              `;
           }
         }
 
@@ -929,7 +1021,7 @@ module.exports.getPendingDeliveries = async (req, res) => {
     // If deliveryStatus is provided and isn't "ALL", filter by it
     if (
       deliveryStatus &&
-      ["PENDING", "DELIVERED"].includes(deliveryStatus.toUpperCase())
+      ["PENDING", "DELIVERED", "REVEALED"].includes(deliveryStatus.toUpperCase())
     ) {
       matchQuery.deliveryStatus = deliveryStatus.toUpperCase();
     }

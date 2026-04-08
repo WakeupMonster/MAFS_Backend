@@ -7,39 +7,44 @@ const {
   sendMessage,
   getChatList,
   uploadChatMediaController,
-  deleteChatMessageWithMedia
-  // deleteAllChatMessagesForUser,
+  deleteChatMessageWithMedia,
 } = require("./chat.controller");
-const router = express.Router();
-const uploadMiddleware = require("../../upload/upload.middleware");
 
+const router = express.Router();
 const auth = require("../../auth/auth.middleware");
+
+// 🔥 NEW: Chat-specific upload middleware (dedicated, production-ready)
+const {
+  uploadChatMedia,
+  handleChatUploadError,
+  validateChatUpload,
+} = require("./chat.upload.middleware");
 
 router.use(auth);
 
+// ─── Chat Routes ───
 router.get("/messages/:matchId", getChatMessages);
-router.get("/list",getChatList)
-router.post("/send",sendMessage)
+router.get("/list", getChatList);
+router.post("/send", sendMessage);
 router.patch("/messages/:matchId/read", updateChatMsgRead);
 router.delete("/messages/:matchId/:mesId", deleteChatMessage);
-module.exports = router;
 
-
+// ─── Chat Media Upload (NEW dedicated middleware) ───
 router.post(
   "/upload-media",
   (req, res, next) => {
-    uploadMiddleware.uploadChatMedia(req, res, (err) => {
+    uploadChatMedia(req, res, (err) => {
       if (err) {
-        return uploadMiddleware.handleMulterError(err, req, res, next);
+        return handleChatUploadError(err, req, res, next);
       }
       next();
     });
   },
+  validateChatUpload,          // Per-type size validation (image vs video vs gif)
   uploadChatMediaController
 );
 
-// routes/messages.js
-router.delete(
-  "/messages/:messageId",
-  deleteChatMessageWithMedia
-);
+// ─── Delete Message with Media ───
+router.delete("/messages/:messageId", deleteChatMessageWithMedia);
+
+module.exports = router;

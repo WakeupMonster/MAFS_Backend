@@ -189,6 +189,24 @@ class SubscriptionService {
       UsageService._syncPremiumState(existing.userId, true).catch(err => logger.error('Sync Error:', err));
       await this._syncProfile(existing);
 
+      // FIX: Ensure transaction is logged in the DB for revenue tracking!
+      // If it's a duplicate verification, idempotencyKey in _logTransaction will safely ignore it.
+      const amount = dbProduct ? parseFloat(String(dbProduct.displayPrice).replace(/[^0-9.]/g, '')) : (configProduct ? configProduct.price : 0);
+      const currency = dbProduct ? dbProduct.currency : (configProduct ? configProduct.currency : "AUD");
+
+      await this._logTransaction({
+        subscriptionId: existing._id,
+        userId: data.userId,
+        platform: data.platform,
+        transactionId: data.transactionId,
+        purchaseToken: data.purchaseToken,
+        productId: data.productId,
+        eventType: "PURCHASE", 
+        amount: amount,
+        currency: currency,
+        occurredAt: new Date(data.purchaseDate || Date.now()),
+      });
+
       logger.info("Subscription updated (existing)", {
         subscriptionId: existing._id,
         userId: data.userId,

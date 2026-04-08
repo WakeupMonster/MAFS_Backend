@@ -110,70 +110,7 @@ async function verifyPhoneOtpUnified(phone, otp, req) {
 
   const accessToken = utils.generateAccessToken(user);
 
-  /*
-  // ──── OLD 3-ROUNDTRIP CODE (Commented out for reference) ────
-  // Roundtrip 1: Find user
-  let user = await User.findOne({ phoneHash });
-  const isFirstVerification = !user || !user.isPhoneVerified;
-  const isNewUser = !user;
-
-  // Roundtrip 2: Create user (conditional)
-  if (!user) {
-    user = await User.create({
-      phone: normalizedPhone,
-      phoneHash,
-      authMethod: "phone",
-      isNewUser: true,
-      isTest: normalizedPhone.startsWith("+1000")
-    });
-  }
-
-  if (user.banDetails?.isBanned) {
-    throw new Error("Your account has been banned. Please contact support.");
-  }
-  if (
-    user.suspensionDetails?.isSuspended &&
-    user.suspensionDetails.suspendUntil > new Date()
-  ) {
-    throw new Error(
-      `Your account is suspended until ${user.suspensionDetails.suspendUntil.toISOString()}`,
-    );
-  }
-
-  // 5️⃣ Tokens (UNCHANGED)
-  const accessToken = utils.generateAccessToken(user);
-  const refreshTokenRaw = utils.generateRefreshToken();
-  const refreshHash = utils.hashToken(refreshTokenRaw);
-  const expiresAt = new Date(Date.now() + utils.REFRESH_TOKEN_TTL);
-
-  // Roundtrip 3: Update user with tokens + login info
-  user = await User.findByIdAndUpdate(
-    user._id,
-    {
-      $set: {
-        phone: normalizedPhone,
-        phoneHash,
-        isPhoneVerified: true,
-        isNewUser: false,
-        lastLoginAt: new Date(),
-      },
-      $push: {
-        refreshTokens: {
-          $each: [{ tokenHash: refreshHash, expiresAt }],
-          $slice: -5,
-        },
-      },
-    },
-    { new: true },
-  );
-  // ──── END OLD CODE ────
-  */
-
-  // 🚀 PERF EXPERIMENT: Bypassing heavy queries for 1000 VU load test
-  // These 5 queries add ~5-6s latency under high concurrency.
-  // TODO: Move these to a lazy-loaded GET /profile/me endpoint.
-
-  /*
+  // Profile, Blocked, Subscription queries
   const profile = await profileModel
     .findOneAndUpdate(
       { userId: user._id },
@@ -193,43 +130,26 @@ async function verifyPhoneOtpUnified(phone, otp, req) {
   }
   subData.resetIfNeeded();
 
-  // v3 Milestone: Grant premium to first 1000 users
+  // Milestone check for new users
   if (isFirstVerification) {
     await subscriptionService
       .handleMilestoneGrant(user._id)
       .catch((err) => console.error("Milestone Error:", err));
   }
-  */
-
-  // Mock data so formatProfileResponse doesn't crash
-  const profile = { onboardingProgress: { phoneVerified: true } };
-  const blockedContacts = [];
-  const blockedUser = [];
-  const subData = { isPremium: false, plan: null };
 
   return {
+    user: await formatProfileResponse(
+      user,
+      profile,
+      blockedContacts,
+      blockedUser,
+      subData,
+      req,
+    ),
     accessToken,
     refreshToken: refreshTokenRaw,
     isNewUser,
-    // user: formatUserProfile(
-    //   user,
-    //   profile,
-    //   blockedContacts,
-    //   blockedUser,
-    //   subData
-    // )
-    data: {
-      user: await formatProfileResponse(
-        user,
-        profile,
-        blockedContacts,
-        blockedUser,
-        subData,
-        req,
-      ),
-
-      // onboarding: buildOnboardingResponse(req)
-    },
+    isFirstVerification,
   };
 }
 

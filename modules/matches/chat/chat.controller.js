@@ -7,30 +7,45 @@ const { DateTime } = require("luxon");
 // 1. SEND MESSAGE (Sabse important jo missing tha)
 module.exports.sendMessage = async (req, res) => {
   try {
-    const sender = req.user._id;
-    const { matchId, text, receiverId, media } = req.body;
+    const userId = req.user._id;
+    const { matchId, text, media } = req.body;
 
-    // Security: Check if match exists and user is part of it
-    const match = await Match.findOne({ _id: matchId, users: sender });
-    if (!match)
+    // 1. Ensure match exists and user is part of it
+    const match = await Match.findById(matchId);
+    if (!match || !match.users.some((u) => u.toString() === userId.toString())) {
       return res.status(403).json({ success: false, message: "Invalid Match" });
+    }
+
+    const receiverId = match.users.find(
+      (u) => u.toString() !== userId.toString(),
+    );
+
+    // 2. Block Check
+    const blockStatus = await isBlocked(userId, receiverId);
+    if (blockStatus.isBlocked) {
+      return res.status(403).json({
+        success: false,
+        message: "You cannot send messages to this user",
+        errorType: "BLOCKED",
+        isBlockedByMe: blockStatus.blockedByMe,
+        blockedBy: blockStatus.blockedBy,
+      });
+    }
 
     const newMessage = await ChatMessage.create({
       matchId,
-      sender,
+      sender: userId,
       receiver: receiverId,
       text,
-      media,
+      media: media || [],
     });
 
     // 🔥 VVIP: Match model update karo taaki Matches Tab mein chat upar aa jaye
     await Match.findByIdAndUpdate(matchId, {
-      lastMessage: text || "Sent a media",
+      lastMessage: text || "📷 Media",
       lastMessageAt: new Date(),
-      lastMessageBy: sender,
+      lastMessageBy: userId,
     });
-
-    // TODO: Yahan Socket.io emit jayega real-time ke liye
 
     const formattedMessage = {
       id: newMessage._id,
@@ -48,6 +63,7 @@ module.exports.sendMessage = async (req, res) => {
 
     return res.status(201).json({ success: true, data: formattedMessage });
   } catch (err) {
+    console.error("❌ sendMessage error:", err);
     res.status(500).json({ success: false, message: "Chat failed" });
   }
 };
@@ -280,14 +296,14 @@ module.exports.getChatList = async (req, res) => {
 
         lastMessage: match.lastMessage
           ? {
-              text: match.lastMessage,
-              time: match.lastMessageAt,
-              formattedTime: match.lastMessageAt
-                ? DateTime.fromJSDate(new Date(match.lastMessageAt))
-                    .setZone("Asia/Kolkata")
-                    .toFormat("hh:mm a")
-                : null,
-            }
+            text: match.lastMessage,
+            time: match.lastMessageAt,
+            formattedTime: match.lastMessageAt
+              ? DateTime.fromJSDate(new Date(match.lastMessageAt))
+                .setZone("Asia/Kolkata")
+                .toFormat("hh:mm a")
+              : null,
+          }
           : null,
 
         unreadCount,
@@ -311,39 +327,60 @@ const { uploadStream } = require("../../upload/cloudinary.service");
 module.exports.uploadChatMediaController = async (req, res) => {
   try {
     const userId = req.user._id;
-    const { matchId, receiverId } = req.body;
+    const { matchId } = req.body; // Remove receiverId from body for security
     const files = req.files;
 
-    if (!matchId || !receiverId) {
+    if (!matchId) {
       return res.status(400).json({
         success: false,
-        message: "receiverId are required",
+        message: "matchId is required",
       });
     }
 
-    if (!files || files.length === 0) {
-      return res.status(400).json({
-        success: false,
-        message: "No media files uploaded",
-      });
-    }
-
-    // 🔐 Optional safety: validate match
-    const matchExists = await Match.findById(matchId);
-    if (!matchExists) {
+    // 1. Validate match and participants
+    const match = await Match.findById(matchId);
+    if (!match) {
       return res.status(404).json({
         success: false,
         message: "Match not found",
       });
     }
 
-    // 🔥 Upload all files to Cloudinary
+    if (!match.users.some(u => u.toString() === userId.toString())) {
+      return res.status(403).json({
+        success: false,
+        message: "You are not part of this match",
+      });
+    }
+
+    // 2. Identify receiver
+    const receiverId = match.users.find(u => u.toString() !== userId.toString());
+
+    // 3. Block check
+    const blockStatus = await isBlocked(userId, receiverId);
+    if (blockStatus.isBlocked) {
+      return res.status(403).json({
+        success: false,
+        message: "Action forbidden due to blocks",
+        errorType: "BLOCKED",
+        isBlockedByMe: blockStatus.blockedByMe,
+        blockedBy: blockStatus.blockedBy
+      });
+    }
+
+    // 4. 🔥 Upload all files to Cloudinary
+    // Note: Middleware already checked per-type size limits
     const media = await Promise.all(
       files.map(async (file) => {
         const result = await uploadStream(file.buffer, {
           folder: `mafs/chat/${matchId}`,
           resource_type: "auto",
-          transformation: [{ quality: "auto:good" }],
+          transformation: [
+            // { quality: "auto:good" }
+            { quality: "auto", fetch_format: "auto" }
+
+          ],
+
         });
 
         return {
@@ -360,7 +397,7 @@ module.exports.uploadChatMediaController = async (req, res) => {
       }),
     );
 
-    // 🔥 Save chat message in DB
+    // 5. 🔥 Save chat message in DB
     const message = await ChatMessage.create({
       matchId,
       sender: userId,
@@ -368,12 +405,11 @@ module.exports.uploadChatMediaController = async (req, res) => {
       text: "", // media-only message
       media,
       status: "SENT",
-      // clientMessageId
     });
 
-    // 🔥 VVIP: Match model update karo
+    // 6. 🔥 VVIP: Match model update karo
     await Match.findByIdAndUpdate(matchId, {
-      lastMessage: "Sent a media",
+      lastMessage: "📷 Media",
       lastMessageAt: new Date(),
       lastMessageBy: userId,
     });

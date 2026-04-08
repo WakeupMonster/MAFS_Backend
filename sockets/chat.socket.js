@@ -87,7 +87,14 @@ module.exports = function chatSocket(io, redisClient) {
         if (!matchId) return;
 
         const match = await Match.findById(matchId).lean();
-        if (!match) return;
+        if (!match) {
+          socket.emit("chat_error", {
+            type: "UNMATCHED",
+            matchId,
+            message: "Match no longer exists or has been unmatched"
+          });
+          return;
+        }
 
         /*
          * Participant validation: Bina iske koi bhi random matchId bhej ke
