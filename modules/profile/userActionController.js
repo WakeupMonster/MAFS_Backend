@@ -34,67 +34,9 @@ module.exports.blockUser = async (req, res) => {
   }
 };
 
-// 2. Report User (URL Param se ID + Body se Reason)
-// module.exports.reportUser = async (req, res) => {
-//    const userId = req.user._id;
-//   try {
-//     const { reason, description } = req.body;
-//     await Report.create({
-//       reporterId: req.user._id,
-//       reportedId: req.params.id,
-//       reason,
-//       description
-//     });
-//      if (redis) {
-//             const CACHE_KEY = `feed:${userId.toString()}`;
-//             await redis.del(CACHE_KEY);
-//             console.log("Redis cache cleared for new filters");
-//         }
-//     res.status(201).json({ success: true, message: "Report submitted" });
-//   } catch (e) { res.status(500).json({ success: false, message: e.message }); }
-// };
+// 2. Report User(URL Param se ID + Body se Reason)
 
-// module.exports.reportUser = async (req, res) => {
-//   const reporterId = req.user._id;
 
-//   try {
-//     const { reason, description } = req.body;
-
-//     // 🔥 Simple severity mapping (can improve later)
-//     let severity = "medium";
-//     if (["abuse", "harassment", "threat"].includes(reason)) {
-//       severity = "high";
-//     } else if (["spam", "fake"].includes(reason)) {
-//       severity = "low";
-//     }
-
-//     await Report.create({
-//       reporterId,
-//       reportedId: req.params.id,
-//       reason,
-//       description,
-//       status: "new",      // 🔥 explicit
-//       severity            // 🔥 admin dashboard use karega
-//     });
-
-//     // Redis clear (as-is)
-//     if (redis) {
-//       const CACHE_KEY = `feed:${reporterId.toString()}`;
-//       await redis.del(CACHE_KEY);
-//     }
-
-//     return res.status(201).json({
-//       success: true,
-//       message: "Report submitted successfully"
-//     });
-
-//   } catch (e) {
-//     return res.status(500).json({
-//       success: false,
-//       message: e.message
-//     });
-//   }
-// };
 module.exports.reportUser = async (req, res) => {
   const reporterId = req.user._id;
 
@@ -102,7 +44,16 @@ module.exports.reportUser = async (req, res) => {
     const { reason, description, context } = req.body;
     const { matchId, lastMessages } = context || {};
 
-    // 🔥 Severity logic (same as before)
+    // 1. Get reporter profile (REQUIRED by schema)
+    const reporterProfile = await Profile.findOne({ userId: reporterId });
+    if (!reporterProfile) {
+      return res.status(404).json({
+        success: false,
+        message: "Reporter profile not found",
+      });
+    }
+
+    // 🔥 Severity logic
     let severity = "medium";
     if (["abuse", "harassment", "threat"].includes(reason)) {
       severity = "high";
@@ -111,18 +62,19 @@ module.exports.reportUser = async (req, res) => {
     }
 
     await Report.create({
-      type: matchId ? "chat" : "profile", // KEY LINE
+      type: matchId ? "chat" : "profile",
       reporterId,
+      reporterProfile: reporterProfile._id, // Added this field
       reportedId: req.params.id,
-      matchId: matchId || null, // chat ke liye
-      evidence: lastMessages || [], //last 5 msgs
+      matchId: matchId || null,
+      evidence: lastMessages || [],
       reason,
       description,
       status: "new",
       severity,
     });
 
-    // Redis clear (same as before)
+    // Redis clear
     if (redis) {
       const CACHE_KEY = `feed:${reporterId.toString()}`;
       await redis.del(CACHE_KEY);
