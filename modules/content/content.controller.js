@@ -5,6 +5,7 @@ const {
   TermsConditions,
 } = require("../Admin/cms/content.model");
 const { getFaqSchema } = require("../Admin/cms/content.validation");
+const { FAQ_CATEGORIES } = require("../../common/constants/faqCategory");
 
 /* ================================
  * GET ALL FAQ
@@ -32,7 +33,8 @@ module.exports.getFAQ = async (req, res) => {
         success: true,
         cached: true,
         title: "Frequently Asked Questions",
-        category: category ? category : "general",
+        category,
+        allCategories: FAQ_CATEGORIES,
         data: JSON.parse(cached),
       });
     }
@@ -70,7 +72,8 @@ module.exports.getFAQ = async (req, res) => {
     return res.json({
       success: true,
       title: "Frequently Asked Questions",
-      category: category ? category : "general",
+      category,
+      allCategories: FAQ_CATEGORIES,
       data: response,
     });
   } catch (err) {
@@ -104,7 +107,7 @@ module.exports.getPrivacyPolicy = async (req, res) => {
         "privacy_policy:content",
         JSON.stringify(privacy),
         "EX",
-        86400
+        86400,
       ); // 24h cache
     }
 
@@ -139,7 +142,7 @@ module.exports.getTermsConditions = async (req, res) => {
         "terms_conditions:list",
         JSON.stringify(terms_conditions),
         "EX",
-        86400
+        86400,
       ); // 24h cache
     }
 
