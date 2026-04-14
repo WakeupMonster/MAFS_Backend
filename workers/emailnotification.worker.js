@@ -93,15 +93,19 @@ const worker = new Worker(
     await campaign.save();
 
     // Build filter FIRST, then count (so totalUsers is accurate)
-    const filter = { accountStatus: "active" };
+    // Exclude users without an email address to match sent+failed counts
+    const filter = { accountStatus: "active", email: { $exists: true, $ne: "" }, $and: [{ email: { $ne: null } }] };
     if (campaign.target === "premium") filter.isPremium = true;
     if (campaign.target === "free") filter.isPremium = false;
 
     const totalUsers = await User.countDocuments(filter);
+    campaign.totalUsers = totalUsers;
+    await campaign.save();
 
     let lastId = campaign.lastProcessedUserId || null;
     let totalSent = 0;
     let totalFailed = 0;
+
 
     // Cursor-based pagination using _id > lastId (O(1) per page instead of O(n) with skip)
     while (true) {
@@ -161,7 +165,7 @@ worker.on("failed", async (job, err) => {
   if (job?.data?.campaignId) {
     await AdminEmailCampaign.findByIdAndUpdate(job.data.campaignId, {
       status: "failed",
-    }).catch(() => {});
+    }).catch(() => { });
   }
 });
 

@@ -254,15 +254,21 @@ module.exports = function chatSocket(io, redisClient) {
             }
 
             /*
-             * Text length limit: Bina iske koi 1 lakh character ka message
-             * bhej ke DB aur bandwidth waste kar sakta hai.
+             * Text length limit: 
+             * Emitting chat_error so frontend knows WHY message failed.
              */
             const trimmedText = text.trim();
             if (trimmedText.length > 5000) {
+              socket.emit("chat_error", {
+                type: "LIMIT_EXCEEDED",
+                matchId,
+                clientMessageId,
+                message: "Message too long (max 5000 characters)",
+              });
               if (typeof ack === "function") {
                 ack({
                   success: false,
-                  error: "Message too long (max 5000 characters)",
+                  error: "Message too long",
                 });
               }
               return;

@@ -142,11 +142,11 @@ const ChatMessageSchema = new Schema(
   default: false
 },
 
-    // // 🔥 Prevent duplicate messages on retry
-    // clientMessageId: {
-    //   type: String,
-    //   index: true
-    // }
+    // 🔥 Prevent duplicate messages on retry
+    clientMessageId: {
+      type: String,
+      index: true
+    }
   },
   { timestamps: true }
 );

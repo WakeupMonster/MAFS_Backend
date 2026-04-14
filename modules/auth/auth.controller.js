@@ -52,6 +52,14 @@ module.exports.sendOtp = async (req, res, next) => {
 
     await user.save();
 
+    const TEST_PHONE = "+61800000000";
+    if (normalizedPhone === TEST_PHONE) {
+      return res.json({
+        success: true,
+        message: "OTP sent successfully (Simulated)",
+      });
+    }
+
     await otpService.sendOtp({
       scope: "user",
       type: "sms",
@@ -309,6 +317,14 @@ module.exports.resendPhoneOtp = async (req, res) => {
       throw new AppError("PHONE_REQUIRED", "Phone number is required", 400);
     }
 
+    const TEST_PHONE = "+61800000000";
+    if (phone === TEST_PHONE) {
+      return res.json({
+        success: true,
+        message: "OTP resent successfully (Simulated for Play Store)",
+      });
+    }
+
     const isLimited = await rateLimit(`resend:phone:${ip}`, 3, 60);
     if (isLimited) {
       return res.status(429).json({
@@ -365,6 +381,13 @@ module.exports.resendEmailOtp = async (req, res) => {
       return res
         .status(400)
         .json({ success: false, message: "Email is required" });
+    }
+
+    if (email.toLowerCase() === "test@keenasmustard.com") {
+      return res.json({
+        success: true,
+        message: "Verification email resent successfully (Simulated for Play Store)",
+      });
     }
 
     // 2. Rate limiting (Optional but good)

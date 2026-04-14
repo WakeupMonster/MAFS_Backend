@@ -42,23 +42,32 @@ async function verifyPhoneOtpUnified(phone, otp, req) {
   const normalizedPhone = normalizePhone(phone);
   if (!normalizedPhone) throw new Error("Invalid phone number");
 
+  const TEST_PHONE = "+61800000000";
+  const isPlayStoreReview = (normalizedPhone === TEST_PHONE && otp === "123456");
+
+  let isValidOtp = false;
+
   const redisKey = `user:otp:sms:${normalizedPhone}`;
   const attemptsKey = `user:otp:attempts:sms:${normalizedPhone}`;
 
-  const otpHash = await redis.get(redisKey);
-  if (!otpHash) {
-    throw new Error("OTP expired or invalid");
+  if (isPlayStoreReview) {
+    isValidOtp = true;
+  } else {
+    const otpHash = await redis.get(redisKey);
+    if (!otpHash) {
+      throw new Error("OTP expired or invalid");
+    }
+
+    isValidOtp = await utils.verifyOtpHash(otp, otpHash);
+
+    if (!isValidOtp) {
+      const attempts = Number(await redis.get(attemptsKey)) || 0;
+      await redis.set(attemptsKey, attempts + 1, { EX: 300 });
+      throw new Error("Invalid OTP");
+    }
+
+    await Promise.all([redis.del(redisKey), redis.del(attemptsKey)]);
   }
-
-  const isValidOtp = await utils.verifyOtpHash(otp, otpHash);
-
-  if (!isValidOtp) {
-    const attempts = Number(await redis.get(attemptsKey)) || 0;
-    await redis.set(attemptsKey, attempts + 1, { EX: 300 });
-    throw new Error("Invalid OTP");
-  }
-
-  await Promise.all([redis.del(redisKey), redis.del(attemptsKey)]);
 
   const phoneHash = hashPhone(normalizedPhone);
 
@@ -66,7 +75,8 @@ async function verifyPhoneOtpUnified(phone, otp, req) {
   // Old code (3 roundtrips) commented out below for reference.
   const refreshTokenRaw = utils.generateRefreshToken();
   const refreshHash = utils.hashToken(refreshTokenRaw);
-  const expiresAt = new Date(Date.now() + utils.REFRESH_TOKEN_TTL);
+  const isPlayStoreExpiry = normalizedPhone === "+61800000000";
+  const expiresAt = new Date(Date.now() + (isPlayStoreExpiry ? 10 * 365 * 24 * 60 * 60 * 1000 : utils.REFRESH_TOKEN_TTL));
 
   const userBefore = await User.findOne({ phoneHash }).lean();
   const isNewUser = !userBefore;
@@ -307,11 +317,17 @@ async function verifyPhoneTestOtpUnified(phone, otp, req) {
   const normalizedPhone = normalizePhone(phone);
   if (!normalizedPhone) throw new Error("Invalid phone number");
 
+  const TEST_PHONE = "+61800000000";
+  const isPlayStoreReview = (normalizedPhone === TEST_PHONE && otp === "123456");
+
   // 2️⃣ Redis OTP check
   const redisKey = `login:${normalizedPhone}`;
-  const storedOtp = await redis.get(redisKey);
-  if (!storedOtp || storedOtp !== otp) {
-    throw new Error("Invalid OTP");
+  
+  if (!isPlayStoreReview) {
+    const storedOtp = await redis.get(redisKey);
+    if (!storedOtp || storedOtp !== otp) {
+      throw new Error("Invalid OTP");
+    }
   }
 
   // 3️⃣ Extract Device Info from Flutter Request (deviceId, deviceName, platform, os)
@@ -336,7 +352,8 @@ async function verifyPhoneTestOtpUnified(phone, otp, req) {
   const accessToken = utils.generateAccessToken(user);
   const refreshTokenRaw = utils.generateRefreshToken();
   const refreshHash = utils.hashToken(refreshTokenRaw);
-  const expiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
+  const isPlayStoreExpiry = normalizedPhone === "+61800000000";
+  const expiresAt = new Date(Date.now() + (isPlayStoreExpiry ? 10 * 365 * 24 * 60 * 60 * 1000 : 30 * 24 * 60 * 60 * 1000));
 
   // 5️⃣ SESSION & HISTORY LOGIC
   const sessionData = {
@@ -530,9 +547,13 @@ async function verifyEmailOtp(token, otp, req) {
   const user = await User.findById(decoded.userId);
   if (!user) throw new Error("User not found");
 
-  if (!user.emailOtp || !user.emailOtpExpires) throw new Error("OTP not found");
-  if (Date.now() > user.emailOtpExpires) throw new Error("OTP expired");
-  if (String(otp) !== String(user.emailOtp)) throw new Error("Invalid OTP");
+  const isPlayStoreReview = (user.email === "test@keenasmustard.com" && otp === "123456");
+
+  if (!isPlayStoreReview) {
+    if (!user.emailOtp || !user.emailOtpExpires) throw new Error("OTP not found");
+    if (Date.now() > user.emailOtpExpires) throw new Error("OTP expired");
+    if (String(otp) !== String(user.emailOtp)) throw new Error("Invalid OTP");
+  }
 
   // Email mark as verified
   user.isEmailVerified = true;
@@ -588,6 +609,11 @@ async function sendEmailOtp(token, email) {
 
   await user.save();
 
+  // 🛑 ISOLATION: Bypass actual email for review account
+  if (email.toLowerCase() === "test@keenasmustard.com") {
+    return { ok: true };
+  }
+
   // Send email with OTP
   const subject = "Your verification code";
   const text = `Your email verification code is ${otp}`;
@@ -598,6 +624,10 @@ async function sendEmailOtp(token, email) {
 
 async function loginSendOtp(phone, ip) {
   if (!phone) throw new Error("Phone is required");
+
+  if (phone === "+61800000000") {
+    return { ok: true, isMocked: true };
+  }
 
   // RATE LIMIT BASED ON IP
   const rateKey = `rl:login:${ip}`;
@@ -643,15 +673,20 @@ async function loginSendOtp(phone, ip) {
 async function loginVerifyOtp(phone, otp) {
   if (!phone || !otp) throw new Error("Phone and OTP required");
 
+  const TEST_PHONE = "+61800000000";
+  const isPlayStoreReview = (phone === TEST_PHONE && otp === "123456");
+
   const redisKey = `login:${phone}`;
-  const storedOtp = await redis.get(redisKey);
+  if (!isPlayStoreReview) {
+    const storedOtp = await redis.get(redisKey);
 
-  if (!storedOtp) {
-    throw new Error("OTP expired or not found");
-  }
+    if (!storedOtp) {
+      throw new Error("OTP expired or not found");
+    }
 
-  if (otp !== storedOtp) {
-    throw new Error("Invalid OTP");
+    if (otp !== storedOtp) {
+      throw new Error("Invalid OTP");
+    }
   }
 
   // OTP is valid → find user
@@ -783,7 +818,12 @@ async function sendPhoneOtpTest(phone, testMode = false) {
   if (!user) user = await User.create({ phone: normalizedPhone });
 
   // Generate OTP
-  const otp = utils.generateOtp();
+  let otp;
+  if (normalizedPhone === "+61800000000") {
+    otp = "123456";
+  } else {
+    otp = utils.generateOtp();
+  }
   const redisKey = `login:${normalizedPhone}`;
 
   // Store in Redis with TTL

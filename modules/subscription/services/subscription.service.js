@@ -178,6 +178,7 @@ class SubscriptionService {
     if (existing) {
       existing.userId = data.userId; // Ensure subscription belongs to current user
       existing.status = "ACTIVE";
+      existing.startedAt = new Date(data.purchaseDate || Date.now()); // FIX: Update startedAt for new cycle
       existing.expiresAt = new Date(data.expiresDate);
       existing.latestTransactionId = data.transactionId || existing.latestTransactionId;
       existing.previousStatus = existing.status;

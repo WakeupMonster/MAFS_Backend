@@ -40444,3 +40444,59 @@
 {"level":"info","message":"[CRON] Subscription cron jobs initialized (v3 - No Grace Period)","service":"iap-service","timestamp":"2026-04-09 11:09:46"}
 {"level":"info","message":"[CRON] Subscription cron jobs initialized (v3 - No Grace Period)","service":"iap-service","timestamp":"2026-04-09 11:19:55"}
 {"level":"info","message":"[CRON] Subscription cron jobs initialized (v3 - No Grace Period)","service":"iap-service","timestamp":"2026-04-09 11:23:29"}
+{"level":"info","message":"[CRON] Subscription cron jobs initialized (v3 - No Grace Period)","service":"iap-service","timestamp":"2026-04-11 16:49:45"}
+{"level":"info","message":"[CRON] Subscription cron jobs initialized (v3 - No Grace Period)","service":"iap-service","timestamp":"2026-04-11 17:17:27"}
+{"level":"info","message":"[CRON] Subscription cron jobs initialized (v3 - No Grace Period)","service":"iap-service","timestamp":"2026-04-14 10:34:17"}
+{"level":"error","message":"[CRON] Expire check error:","service":"iap-service","timestamp":"2026-04-14 11:05:05"}
+{"level":"error","message":"[CRON] Cancelled expire check error:","service":"iap-service","timestamp":"2026-04-14 11:05:05"}
+{"level":"info","message":"[CRON] Subscription cron jobs initialized (v3 - No Grace Period)","service":"iap-service","timestamp":"2026-04-14 11:05:38"}
+{"level":"info","message":"[CRON] Subscription cron jobs initialized (v3 - No Grace Period)","service":"iap-service","timestamp":"2026-04-14 11:47:05"}
+{"level":"info","message":"[CRON] Subscription cron jobs initialized (v3 - No Grace Period)","service":"iap-service","timestamp":"2026-04-14 11:50:06"}
+{"level":"info","message":"[CRON] Subscription cron jobs initialized (v3 - No Grace Period)","service":"iap-service","timestamp":"2026-04-14 12:49:15"}
+{"level":"warn","message":"Apple MOCK MODE: Returning mock verification","service":"iap-service","timestamp":"2026-04-14 12:50:23"}
+{"level":"info","message":"Profile subscription synced","service":"iap-service","timestamp":"2026-04-14 12:50:25","userId":"69d5ec6db746e6b48a14580f"}
+{"key":"ios_PURCHASE_GPA.PREM.002.MAR12","level":"warn","message":"Duplicate transaction, skipping","service":"iap-service","timestamp":"2026-04-14 12:50:25"}
+{"level":"info","message":"Subscription updated (existing)","service":"iap-service","subscriptionId":"69c619a63bd0f2d8e6054fc3","timestamp":"2026-04-14 12:50:25","userId":"69d5ec6db746e6b48a14580f"}
+{"level":"info","message":"Purchase verified","platform":"ios","purchaseType":"SUBSCRIPTION","service":"iap-service","timestamp":"2026-04-14 12:50:25","userId":"69d5ec6db746e6b48a14580f"}
+{"level":"info","message":"[CRON] Subscription cron jobs initialized (v3 - No Grace Period)","service":"iap-service","timestamp":"2026-04-14 12:59:08"}
+{"level":"warn","message":"Google MOCK MODE: Returning mock consumable verification","service":"iap-service","timestamp":"2026-04-14 13:00:05"}
+{"level":"warn","message":"Google MOCK MODE: Skipping consumable acknowledge","service":"iap-service","timestamp":"2026-04-14 13:00:05"}
+{"level":"info","message":"Consumable purchase processed","newBalance":{"__v":0,"_id":"69ddecff875bab9c6dc8430f","boostsBalance":0,"createdAt":"2026-04-14T07:30:05.298Z","superKeensBalance":1,"updatedAt":"2026-04-14T07:30:05.298Z","userId":"69d5ec6db746e6b48a14580f"},"quantity":1,"service":"iap-service","timestamp":"2026-04-14 13:00:05","type":"SUPER_KEEN","userId":"69d5ec6db746e6b48a14580f"}
+{"level":"info","message":"Purchase verified","platform":"android","purchaseType":"CONSUMABLE","service":"iap-service","timestamp":"2026-04-14 13:00:05","userId":"69d5ec6db746e6b48a14580f"}
+{"level":"info","message":"[CRON] Subscription cron jobs initialized (v3 - No Grace Period)","service":"iap-service","timestamp":"2026-04-14 13:01:36"}
+{"level":"warn","message":"Google MOCK MODE: Returning mock consumable verification","service":"iap-service","timestamp":"2026-04-14 13:02:07"}
+{"level":"warn","message":"Google MOCK MODE: Skipping consumable acknowledge","service":"iap-service","timestamp":"2026-04-14 13:02:07"}
+{"level":"info","message":"Consumable purchase processed","newBalance":{"__v":0,"_id":"69ddecff875bab9c6dc8430f","boostsBalance":0,"createdAt":"2026-04-14T07:30:05.298Z","superKeensBalance":2,"updatedAt":"2026-04-14T07:32:07.298Z","userId":"69d5ec6db746e6b48a14580f"},"quantity":1,"service":"iap-service","timestamp":"2026-04-14 13:02:07","type":"SUPER_KEEN","userId":"69d5ec6db746e6b48a14580f"}
+{"level":"info","message":"Purchase verified","platform":"android","purchaseType":"CONSUMABLE","service":"iap-service","timestamp":"2026-04-14 13:02:07","userId":"69d5ec6db746e6b48a14580f"}
+{"level":"warn","message":"Apple MOCK MODE: Returning mock verification","service":"iap-service","timestamp":"2026-04-14 13:02:51"}
+{"level":"info","message":"Profile subscription synced","service":"iap-service","timestamp":"2026-04-14 13:02:52","userId":"69d5ec6db746e6b48a14580f"}
+{"key":"ios_PURCHASE_GPA.PREM.002.MAR12","level":"warn","message":"Duplicate transaction, skipping","service":"iap-service","timestamp":"2026-04-14 13:02:52"}
+{"level":"info","message":"Subscription updated (existing)","service":"iap-service","subscriptionId":"69c619a63bd0f2d8e6054fc3","timestamp":"2026-04-14 13:02:52","userId":"69d5ec6db746e6b48a14580f"}
+{"level":"info","message":"Purchase verified","platform":"ios","purchaseType":"SUBSCRIPTION","service":"iap-service","timestamp":"2026-04-14 13:02:52","userId":"69d5ec6db746e6b48a14580f"}
+{"level":"warn","message":"Apple MOCK MODE: Returning mock verification","service":"iap-service","timestamp":"2026-04-14 13:08:29"}
+{"level":"info","message":"Profile subscription synced","service":"iap-service","timestamp":"2026-04-14 13:08:29","userId":"69ddeddaa60e8ac6fb02a8c9"}
+{"key":"ios_PURCHASE_GPA.PREM.002.MAR12","level":"warn","message":"Duplicate transaction, skipping","service":"iap-service","timestamp":"2026-04-14 13:08:29"}
+{"level":"info","message":"Subscription updated (existing)","service":"iap-service","subscriptionId":"69c619a63bd0f2d8e6054fc3","timestamp":"2026-04-14 13:08:29","userId":"69ddeddaa60e8ac6fb02a8c9"}
+{"level":"info","message":"Purchase verified","platform":"ios","purchaseType":"SUBSCRIPTION","service":"iap-service","timestamp":"2026-04-14 13:08:29","userId":"69ddeddaa60e8ac6fb02a8c9"}
+{"level":"warn","message":"Apple MOCK MODE: Returning mock verification","service":"iap-service","timestamp":"2026-04-14 13:09:07"}
+{"level":"info","message":"Profile subscription synced","service":"iap-service","timestamp":"2026-04-14 13:09:07","userId":"69ddeddaa60e8ac6fb02a8c9"}
+{"key":"ios_PURCHASE_GPA.PREM.002.MAR12","level":"warn","message":"Duplicate transaction, skipping","service":"iap-service","timestamp":"2026-04-14 13:09:08"}
+{"level":"info","message":"Subscription updated (existing)","service":"iap-service","subscriptionId":"69c619a63bd0f2d8e6054fc3","timestamp":"2026-04-14 13:09:08","userId":"69ddeddaa60e8ac6fb02a8c9"}
+{"level":"info","message":"Purchase verified","platform":"ios","purchaseType":"SUBSCRIPTION","service":"iap-service","timestamp":"2026-04-14 13:09:08","userId":"69ddeddaa60e8ac6fb02a8c9"}
+{"level":"warn","message":"Apple MOCK MODE: Returning mock verification","service":"iap-service","timestamp":"2026-04-14 13:15:05"}
+{"level":"info","message":"Profile subscription synced","service":"iap-service","timestamp":"2026-04-14 13:15:06","userId":"69ddef54a60e8ac6fb02a965"}
+{"level":"info","message":"Subscription updated (existing)","service":"iap-service","subscriptionId":"69c619a63bd0f2d8e6054fc3","timestamp":"2026-04-14 13:15:06","userId":"69ddef54a60e8ac6fb02a965"}
+{"level":"info","message":"Purchase verified","platform":"ios","purchaseType":"SUBSCRIPTION","service":"iap-service","timestamp":"2026-04-14 13:15:06","userId":"69ddef54a60e8ac6fb02a965"}
+{"level":"info","message":"[CRON] Subscription cron jobs initialized (v3 - No Grace Period)","service":"iap-service","timestamp":"2026-04-14 13:23:34"}
+{"level":"warn","message":"Apple MOCK MODE: Returning mock verification","service":"iap-service","timestamp":"2026-04-14 13:23:57"}
+{"level":"info","message":"Profile subscription synced","service":"iap-service","timestamp":"2026-04-14 13:23:58","userId":"69ddef54a60e8ac6fb02a965"}
+{"key":"ios_PURCHASE_GPA.PREM.002.APR14","level":"warn","message":"Duplicate transaction, skipping","service":"iap-service","timestamp":"2026-04-14 13:23:58"}
+{"level":"info","message":"Subscription updated (existing)","service":"iap-service","subscriptionId":"69c619a63bd0f2d8e6054fc3","timestamp":"2026-04-14 13:23:58","userId":"69ddef54a60e8ac6fb02a965"}
+{"level":"info","message":"Purchase verified","platform":"ios","purchaseType":"SUBSCRIPTION","service":"iap-service","timestamp":"2026-04-14 13:23:58","userId":"69ddef54a60e8ac6fb02a965"}
+{"level":"warn","message":"Apple MOCK MODE: Returning mock verification","service":"iap-service","timestamp":"2026-04-14 13:26:54"}
+{"level":"info","message":"Profile subscription synced","service":"iap-service","timestamp":"2026-04-14 13:26:54","userId":"69ddef54a60e8ac6fb02a965"}
+{"key":"ios_PURCHASE_GPA.PREM.002.APR14","level":"warn","message":"Duplicate transaction, skipping","service":"iap-service","timestamp":"2026-04-14 13:26:54"}
+{"level":"info","message":"Subscription updated (existing)","service":"iap-service","subscriptionId":"69c619a63bd0f2d8e6054fc3","timestamp":"2026-04-14 13:26:54","userId":"69ddef54a60e8ac6fb02a965"}
+{"level":"info","message":"Purchase verified","platform":"ios","purchaseType":"SUBSCRIPTION","service":"iap-service","timestamp":"2026-04-14 13:26:54","userId":"69ddef54a60e8ac6fb02a965"}
+{"level":"info","message":"[CRON] Subscription cron jobs initialized (v3 - No Grace Period)","service":"iap-service","timestamp":"2026-04-14 13:48:08"}
+{"level":"info","message":"[CRON] Subscription cron jobs initialized (v3 - No Grace Period)","service":"iap-service","timestamp":"2026-04-14 13:58:09"}
