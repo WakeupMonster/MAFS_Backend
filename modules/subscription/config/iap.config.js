@@ -81,8 +81,8 @@ const config = {
 
 // Products dynamically set karo
 const monthlyIos =
-  process.env.PRODUCT_MONTHLY_IOS || "com.myapp.premium.monthly";
-const yearlyIos = process.env.PRODUCT_YEARLY_IOS || "com.myapp.premium.yearly";
+  process.env.PRODUCT_MONTHLY_IOS || "com.keenasmustard.premium.1month";
+const yearlyIos = process.env.PRODUCT_YEARLY_IOS || "com.keenasmustard.premium.3month";
 const monthlyAndroid =
   process.env.PRODUCT_MONTHLY_ANDROID || "com.myapp.premium.monthly";
 const yearlyAndroid =

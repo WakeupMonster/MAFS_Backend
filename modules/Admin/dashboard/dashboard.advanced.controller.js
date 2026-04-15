@@ -14,7 +14,7 @@ const SupportTicket = require("../../AppConfiguration/contactSupport/supportTick
 // ADVANCED DASHBOARD API — "Command Center" for Admin
 // All data is 100% dynamic, calculated from real DB aggregations.
 // ================================================================
-
+  
 
 exports.getAdvancedDashboardMetrics = async (req, res) => {
   try {
@@ -155,13 +155,23 @@ exports.getAdvancedDashboardMetrics = async (req, res) => {
 
     const revR = processRev(revenueRangeAgg);
     const revPrev = processRev(revenuePrevAgg);
-    const revTrendNum = revPrev.total > 0 ? ((revR.total - revPrev.total) / revPrev.total) * 100 : (revR.total > 0 ? 100 : 0);
+
+    // Real % change only when previous period has data. No fake 100%.
+    const revTrendNum = revPrev.total > 0 ? ((revR.total - revPrev.total) / revPrev.total) * 100 : null;
+    const revTrendDisplay = revTrendNum !== null
+      ? `${revTrendNum >= 0 ? '+' : ''}${revTrendNum.toFixed(1)}%`
+      : (revR.total > 0 ? `+${revR.total.toFixed(2)}` : '$0.00');
+
     const consumablePct = revR.total > 0 ? Math.round(((revR.boost + revR.superkeen) / revR.total) * 100) : 0;
     const subPct = revR.total > 0 ? Math.round((revR.subscription / revR.total) * 100) : 0;
 
     const fRS = signupsRangeGender.find(g => g._id === "women")?.count || 0;
     const fPS = signupsPrevGender.find(g => g._id === "women")?.count || 0;
-    const fCPNum = fPS > 0 ? ((fRS - fPS) / fPS) * 100 : (fRS > 0 ? 100 : 0);
+    const fCPNum = fPS > 0 ? ((fRS - fPS) / fPS) * 100 : null;
+    const fSignupDisplay = fCPNum !== null
+      ? `${fCPNum >= 0 ? '+' : ''}${fCPNum.toFixed(0)}%`
+      : (fRS > 0 ? `+${fRS} new` : '0 new');
+
 
     const gMT = totalGenderAgg.find(g => g._id === "men")?.count || 0;
     const gFT = totalGenderAgg.find(g => g._id === "women")?.count || 0;
@@ -197,10 +207,38 @@ exports.getAdvancedDashboardMetrics = async (req, res) => {
       heatmapD.push(row);
     });
 
+    // Smart currency formatter: shows raw if < 1000, 'k' if >= 1000
+    const fmtAmount = (val) => {
+      if (val >= 1000) return `$${(val / 1000).toFixed(1)}k`;
+      if (val > 0) return `$${val.toFixed(2)}`;
+      return '$0.00';
+    };
+
+    // Friendly product name from catalog
+    const getProductFriendlyName = (productId) => {
+      const p = allProducts.find(x => x.productKey === productId || x.appleProductId === productId || x.googleProductId === productId);
+      return p ? (p.displayName || p.name || productId) : productId;
+    };
+
     const feedList = [];
-    latestPurchasesPopulated.forEach(p => feedList.push({ id: p._id, time: "just now", description: `${p.userId?.nickname || "User"} bought a ${p.productId || "Product"}`, color: "#46C7CD" }));
-    latestMatchesPopulated.forEach(m => feedList.push({ id: m._id, time: "1m ago", description: `${m.users?.[0]?.nickname || "User"} & ${m.users?.[1]?.nickname || "User"} matched!`, color: "#46C7CD" }));
-    latestReportsPopulated.forEach(r => feedList.push({ id: r._id, time: "5m ago", description: `${r.reportedId?.nickname || "User"} reported by ${r.reporterId?.nickname || "User"}`, color: "#F75555" }));
+    latestPurchasesPopulated.forEach(p => feedList.push({
+      id: p._id,
+      time: "just now",
+      description: `${p.userId?.nickname || "A user"} bought ${getProductFriendlyName(p.productId)}`,
+      color: "#46C7CD"
+    }));
+    latestMatchesPopulated.forEach(m => feedList.push({
+      id: m._id,
+      time: "1m ago",
+      description: `${m.users?.[0]?.nickname || "Someone"} & ${m.users?.[1]?.nickname || "Someone"} matched!`,
+      color: "#46C7CD"
+    }));
+    latestReportsPopulated.forEach(r => feedList.push({
+      id: r._id,
+      time: "5m ago",
+      description: `${r.reportedId?.nickname || "A user"} reported by ${r.reporterId?.nickname || "A user"}`,
+      color: "#F75555"
+    }));
 
     // --- Dynamic Insights ---
     const revInsight = revR.subscription >= (revR.boost + revR.superkeen) ? `Subscriptions contribute ${subPct}% of total revenue.` : `${consumablePct}% of revenue comes from consumables.`;
@@ -227,9 +265,9 @@ exports.getAdvancedDashboardMetrics = async (req, res) => {
         zoneA: {
           title: `${periodLabel} at a glance`,
           stats: [
-            { label: "Revenue", value: `${revTrendNum >= 0 ? '+' : ''}${revTrendNum.toFixed(1)}%`, sub: contextLabel, icon: "Sparkles", color: "emerald" },
+            { label: "Revenue", value: revTrendDisplay, sub: contextLabel, icon: "Sparkles", color: "emerald" },
             { label: "Consumables driving", value: `${consumablePct}%`, sub: "of revenue", icon: "TrendingUp", color: "blue" },
-            { label: "Female signups", value: `${fCPNum >= 0 ? '+' : ''}${fCPNum.toFixed(0)}%`, sub: contextLabel, icon: "Users", color: "orange" },
+            { label: "Female signups", value: fSignupDisplay, sub: contextLabel, icon: "Users", color: "orange" },
             { label: "KYC pending", value: `${pendingKYC}`, sub: "Review now →", icon: "ShieldAlert", color: "cyan", isActionable: true, route: "/admin/management/kyc-verifications" },
             { label: "Users flagged", value: `${reportCountNew}`, sub: "Review now →", icon: "Flag", color: "sky", isActionable: true, route: "/admin/management/profile-reports" }
           ]
@@ -245,18 +283,18 @@ exports.getAdvancedDashboardMetrics = async (req, res) => {
           metrics: [
             { label: "Match Liquidity", value: `${matchLiqVal}%`, sub: `${matchesRange} matches / ${totalSwipesRange} swipes`, trend: `${matchLiqTrend}%`, isPositive: matchLiqCur >= matchLiqPrev, chartData: liqChart },
             { label: "Gender Ratio", value: `${mRatio} : ${fRatio}`, sub: "Male : Female", isRatio: true, ratioValue: mRatio },
-            { label: "Revenue Today", value: `₹${(revR.total / 1000).toFixed(0)}k`, sub: `Subs: ${subPct}% • Boosts: ${consumablePct}%`, trend: `${Math.abs(revTrendNum).toFixed(1)}%`, isPositive: revTrendNum >= 0, chartData: revChart },
+            { label: "Revenue", value: fmtAmount(revR.total), sub: `Subs: ${subPct}% • Boosts: ${consumablePct}%`, trend: `${Math.abs(revTrendNum || 0).toFixed(1)}%`, isPositive: (revTrendNum || 0) >= 0, chartData: revChart },
             { label: "Funnel Drop-off", value: `${funnelD}%`, sub: "At profile completion", trend: `${funnelD}%`, isPositive: false, chartData: [] }
           ]
         },
         revenueBreakdown: {
           subtitle: `${periodLabel} revenue by source`,
-          total: (revR.total / 1000).toFixed(1) + "k",
+          total: fmtAmount(revR.total),
           insight: revInsight,
           categories: [
-            { label: "Subscriptions", value: revR.subscription, displayValue: `₹${(revR.subscription / 1000).toFixed(1)}k`, percentage: revR.total > 0 ? Math.round(revR.subscription / revR.total * 100) : 0, color: "hsl(182 59% 75%)" },
-            { label: "Profile Boost", value: revR.boost, displayValue: `₹${(revR.boost / 1000).toFixed(1)}k`, percentage: revR.total > 0 ? Math.round(revR.boost / revR.total * 100) : 0, color: "hsl(182 59% 54%)" },
-            { label: "Superkeen", value: revR.superkeen, displayValue: `₹${(revR.superkeen / 1000).toFixed(1)}k`, percentage: revR.total > 0 ? Math.round(revR.superkeen / revR.total * 100) : 0, color: "hsl(182 59% 35%)" }
+            { label: "Subscriptions", value: revR.subscription, displayValue: fmtAmount(revR.subscription), percentage: revR.total > 0 ? Math.round(revR.subscription / revR.total * 100) : 0, color: "hsl(182 59% 75%)" },
+            { label: "Profile Boost", value: revR.boost, displayValue: fmtAmount(revR.boost), percentage: revR.total > 0 ? Math.round(revR.boost / revR.total * 100) : 0, color: "hsl(182 59% 54%)" },
+            { label: "Superkeen", value: revR.superkeen, displayValue: fmtAmount(revR.superkeen), percentage: revR.total > 0 ? Math.round(revR.superkeen / revR.total * 100) : 0, color: "hsl(182 59% 35%)" }
           ]
         },
         conversionFunnel: {

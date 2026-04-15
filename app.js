@@ -56,7 +56,7 @@ const healthRoutes = require("./modules/subscription/routes/health.routes");
 
 app.use("/webhook", webhookRoutes);
 app.use("/api/v1/subscription", subscriptionRoutes);
-app.get("/api/v1/iap/health", healthRoutes);
+app.use("/api/v1/iap/health", healthRoutes);
 
 // ─── Root Route ───
 app.get("/", (req, res) => res.json({ message: "API running" }));

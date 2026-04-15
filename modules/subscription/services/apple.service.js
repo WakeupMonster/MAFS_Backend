@@ -230,12 +230,27 @@ class AppleService {
       expectedProductId ||
       process.env.PRODUCT_MONTHLY_IOS ||
       "com.myapp.premium.monthly";
+
+
+    // 🟢 FIX: productId ke basis par duration calculate karo
+    let durationMs = 30 * 24 * 60 * 60 * 1000; // default: 30 days
+    if (productId.includes("3month")) {
+      durationMs = 90 * 24 * 60 * 60 * 1000; // 3 months = 90 days
+    } else if (productId.includes("6month")) {
+      durationMs = 180 * 24 * 60 * 60 * 1000;
+    } else if (productId.includes("1year") || productId.includes("annual")) {
+      durationMs = 365 * 24 * 60 * 60 * 1000;
+    }
+
+
+
     return {
       transactionId: transactionId || "MOCK_TXN_001",
       originalTransactionId: "MOCK_ORIG_TXN_001",
       productId: productId,
       purchaseDate: Date.now(),
-      expiresDate: Date.now() + 30 * 24 * 60 * 60 * 1000,
+      // expiresDate: Date.now() + 30 * 24 * 60 * 60 * 1000,
+      expiresDate: Date.now() + durationMs, // 🟢 Dynamic ab
       type: "Auto-Renewable Subscription",
       inAppOwnershipType: "PURCHASED",
       environment: "Sandbox",
