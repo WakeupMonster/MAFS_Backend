@@ -18,7 +18,10 @@ const verifyPurchase = async (req, res, next) => {
     let purchaseData;
 
     if (platform === "ios") {
-      const result = await appleService.verifyTransaction(transactionId, productId);
+      const result = await appleService.verifyTransaction(
+        transactionId,
+        productId,
+      );
 
       purchaseData = {
         userId: userId,
@@ -34,16 +37,16 @@ const verifyPurchase = async (req, res, next) => {
       const catalogProduct = await Product.findOne({
         $or: [
           { googleProductId: productId },
-          { productKey: productId } // fallback 
+          { productKey: productId }, // fallback
         ],
-        isActive: true
+        isActive: true,
       }).lean();
 
-      if (catalogProduct && catalogProduct.type === 'CONSUMABLE') {
+      if (catalogProduct && catalogProduct.type === "CONSUMABLE") {
         // Use Consumable Verification Pipeline
         const result = await googleService.verifyConsumable(
           productId,
-          purchaseToken
+          purchaseToken,
         );
 
         purchaseData = {
@@ -62,7 +65,7 @@ const verifyPurchase = async (req, res, next) => {
         // Use Subscription Verification Pipeline
         const result = await googleService.verifySubscription(
           productId,
-          purchaseToken
+          purchaseToken,
         );
 
         purchaseData = {
@@ -90,7 +93,7 @@ const verifyPurchase = async (req, res, next) => {
     });
 
     // v3: Different response based on purchase type
-    if (result.type === 'CONSUMABLE') {
+    if (result.type === "CONSUMABLE") {
       const fullStatus = await UsageService.getUsageStatus(userId);
       return res.json({
         success: true,
@@ -100,8 +103,8 @@ const verifyPurchase = async (req, res, next) => {
           consumableType: result.consumableType,
           quantity: result.quantity,
           wallet: result.wallet,
-          status: fullStatus.data
-        }
+          status: fullStatus.data,
+        },
       });
     }
 
@@ -123,8 +126,8 @@ const verifyPurchase = async (req, res, next) => {
           expiresAt: sub.expiresAt,
           autoRenew: sub.autoRenew,
         },
-        status: fullStatus.data
-      }
+        status: fullStatus.data,
+      },
     });
   } catch (err) {
     logger.error("Verify purchase error:", err.message);
@@ -143,7 +146,10 @@ const restorePurchases = async (req, res, next) => {
         let purchaseData;
 
         if (platform === "ios") {
-          const result = await appleService.verifyTransaction(item.transactionId, item.productId);
+          const result = await appleService.verifyTransaction(
+            item.transactionId,
+            item.productId,
+          );
           purchaseData = {
             userId,
             platform: "ios",
@@ -158,13 +164,16 @@ const restorePurchases = async (req, res, next) => {
           const catalogProduct = await Product.findOne({
             $or: [
               { googleProductId: item.productId },
-              { productKey: item.productId }
+              { productKey: item.productId },
             ],
-            isActive: true
+            isActive: true,
           }).lean();
 
-          if (catalogProduct && catalogProduct.type === 'CONSUMABLE') {
-            const result = await googleService.verifyConsumable(item.productId, item.purchaseToken);
+          if (catalogProduct && catalogProduct.type === "CONSUMABLE") {
+            const result = await googleService.verifyConsumable(
+              item.productId,
+              item.purchaseToken,
+            );
             purchaseData = {
               userId,
               platform: "android",
@@ -175,7 +184,10 @@ const restorePurchases = async (req, res, next) => {
               expiresDate: null,
             };
           } else {
-            const result = await googleService.verifySubscription(item.productId, item.purchaseToken);
+            const result = await googleService.verifySubscription(
+              item.productId,
+              item.purchaseToken,
+            );
             purchaseData = {
               userId,
               platform: "android",
@@ -211,8 +223,8 @@ const restorePurchases = async (req, res, next) => {
       data: {
         restoredCount: restoredItems.length,
         items: restoredItems,
-        status: fullStatus.data
-      }
+        status: fullStatus.data,
+      },
     });
   } catch (err) {
     logger.error("Restore purchases error:", err.message);
@@ -242,23 +254,31 @@ const getCatalog = async (req, res, next) => {
     const [products, config, milestoneCount] = await Promise.all([
       Product.find({ isActive: true }).sort({ sortOrder: 1 }),
       SubscriptionConfig.getOrCreate(),
-      Subscription.countDocuments({ planType: 'MILESTONE' })
+      Subscription.countDocuments({ planType: "MILESTONE" }),
     ]);
 
     // Separate into categories
-    const subscriptions = products.filter(p => p.type === 'SUBSCRIPTION');
-    const consumables = products.filter(p => p.type === 'CONSUMABLE');
+    const subscriptions = products.filter((p) => p.type === "SUBSCRIPTION");
+    const consumables = products.filter((p) => p.type === "CONSUMABLE");
 
     // Dynamic Feature Lists for UI display
     const features = [
-      config.premiumLimits.swipesPerDay === -1 ? "Unlimited likes" : `${config.premiumLimits.swipesPerDay} likes per day`,
-      config.premiumLimits.superKeensPerDay === -1 ? "Unlimited Super Keens" : `${config.premiumLimits.superKeensPerDay} Super Keens per day`,
-      config.premiumLimits.boostsPerMonth === -1 ? "Unlimited Supercharges" : `${config.premiumLimits.boostsPerMonth} Boost per month`,
-      config.premiumLimits.rewindsPerDay === -1 ? "Unlimited rewinds" : `${config.premiumLimits.rewindsPerDay} rewinds per day`,
+      config.premiumLimits.swipesPerDay === -1
+        ? "Unlimited likes"
+        : `${config.premiumLimits.swipesPerDay} likes per day`,
+      config.premiumLimits.superKeensPerDay === -1
+        ? "Unlimited Super Keens"
+        : `${config.premiumLimits.superKeensPerDay} Super Keens per day`,
+      config.premiumLimits.boostsPerMonth === -1
+        ? "Unlimited Supercharges"
+        : `${config.premiumLimits.boostsPerMonth} Boost per month`,
+      config.premiumLimits.rewindsPerDay === -1
+        ? "Unlimited rewinds"
+        : `${config.premiumLimits.rewindsPerDay} rewinds per day`,
       config.premiumFeatures.seeWhoLikedYou ? "See who liked you" : null,
       config.premiumFeatures.advancedFilters ? "Advanced filters" : null,
       config.premiumFeatures.noAds ? "No ads" : null,
-      config.premiumFeatures.passport ? "Passport to any location" : null
+      config.premiumFeatures.passport ? "Passport to any location" : null,
     ].filter(Boolean);
 
     const freeFeatures = [
@@ -266,34 +286,38 @@ const getCatalog = async (req, res, next) => {
       `${config.freeLimits.superKeensPerWeek} Super Keen per week`,
       `${config.freeLimits.rewindsPerDay} rewind per day`,
       `${config.freeLimits.boostsPerMonth} Boost per month`,
-      "Basic filters"
+      "Basic filters",
     ];
 
     return res.json({
       success: true,
       message: "Catalog fetched",
       data: {
-        subscriptions: subscriptions.map(sub => ({
+        subscriptions: subscriptions.map((sub) => ({
           ...sub.toObject(),
           features,
           allocations: {
-            likes: config.premiumLimits.swipesPerDay,         // -1 = Unlimited
+            likes: config.premiumLimits.swipesPerDay, // -1 = Unlimited
             superKeens: config.premiumLimits.superKeensPerDay,
             boosts: config.premiumLimits.boostsPerMonth,
-            rewinds: config.premiumLimits.rewindsPerDay        // -1 = Unlimited
-          }
+            rewinds: config.premiumLimits.rewindsPerDay, // -1 = Unlimited
+          },
         })),
         consumables: {
-          superKeens: consumables.filter(c => c.consumableType === 'SUPER_KEEN').map(c => c.toObject()),
-          boosts: consumables.filter(c => c.consumableType === 'BOOST').map(c => c.toObject())
+          superKeens: consumables
+            .filter((c) => c.consumableType === "SUPER_KEEN")
+            .map((c) => c.toObject()),
+          boosts: consumables
+            .filter((c) => c.consumableType === "BOOST")
+            .map((c) => c.toObject()),
         },
         milestone: {
           target: config.milestone.targetUserCount,
           currentCount: milestoneCount,
-          isActive: config.milestone.isActive
+          isActive: config.milestone.isActive,
         },
-        freeFeatures
-      }
+        freeFeatures,
+      },
     });
   } catch (err) {
     logger.error("Get catalog error:", err.message);
@@ -304,10 +328,8 @@ const getCatalog = async (req, res, next) => {
 const getHistory = async (req, res, next) => {
   try {
     const limit = parseInt(req.query.limit) || 50;
-    const { transactions, total } = await subscriptionService.getTransactionHistory(
-      req.user._id,
-      limit
-    );
+    const { transactions, total } =
+      await subscriptionService.getTransactionHistory(req.user._id, limit);
 
     return res.json({
       success: true,
@@ -315,8 +337,8 @@ const getHistory = async (req, res, next) => {
       data: {
         transactions: transactions,
         hasMore: transactions.length < total,
-        total: total
-      }
+        total: total,
+      },
     });
   } catch (err) {
     logger.error("Get history error:", err.message);
@@ -355,14 +377,13 @@ const getStats = async (req, res, next) => {
         $match: { status: "ACTIVE" },
       },
       {
-        $sort: { createdAt: -1 }
+        $sort: { createdAt: -1 },
       },
       {
-
         $group: {
           _id: "$userId", // Dhyan dein: Agar database schema mein field ka naam "user" hai, toh usko "$user" karein
-          planType: { $first: "$productId" }
-        }
+          planType: { $first: "$productId" },
+        },
       },
       {
         $group: {
@@ -669,7 +690,7 @@ const getAllSubscriptions = async (req, res, next) => {
           hasNext: pageNum * limitNum < total,
           hasPrev: pageNum > 1,
         },
-      }
+      },
     });
   } catch (err) {
     logger.error("Admin aggregation error:", err.message);
@@ -1178,8 +1199,9 @@ const getAtRiskUsers = async (req, res, next) => {
         daysRemaining: Math.max(
           0,
           Math.ceil(
-            (new Date(u.gracePeriodEndsAt) - new Date()) / (1000 * 60 * 60 * 24)
-          )
+            (new Date(u.gracePeriodEndsAt) - new Date()) /
+              (1000 * 60 * 60 * 24),
+          ),
         ),
         startedAt: u.startedAt,
       })),

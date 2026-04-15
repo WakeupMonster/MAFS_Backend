@@ -55,7 +55,7 @@ const faqSchema = new mongoose.Schema(
     },
     order: { type: Number, default: 0 },
   },
-  { timestamps: true }
+  { timestamps: true },
 );
 
 const sectionSchema = new mongoose.Schema({
@@ -83,7 +83,7 @@ const privacyPolicySchema = new mongoose.Schema(
     // },
     description: { type: String, required: true }, // Stores the full HTML string
   },
-  { timestamps: true }
+  { timestamps: true },
 );
 
 const termsSchema = new mongoose.Schema(
@@ -92,7 +92,7 @@ const termsSchema = new mongoose.Schema(
     // sections: { type: [sectionSchema], default: [] },
     description: { type: String, required: true }, // Stores the full HTML string
   },
-  { timestamps: true }
+  { timestamps: true },
 );
 
 faqSchema.index({ category: 1, order: 1, _id: 1 });

@@ -27,7 +27,7 @@ const bulkCreate = async (req, res) => {
           [],
           [],
           {},
-          req
+          req,
         );
         formatted.account.email = item.user.email;
         formatted.account.phone = item.user.phone;
@@ -35,7 +35,7 @@ const bulkCreate = async (req, res) => {
         return {
           user: formatted,
         };
-      })
+      }),
     );
 
     res.status(200).json({
@@ -72,7 +72,7 @@ const listAll = async (req, res) => {
           [],
           [],
           {},
-          req
+          req,
         );
         // Append sensitive details only for Admin response
         formatted.account.email = item.user.email;
@@ -81,8 +81,10 @@ const listAll = async (req, res) => {
         return {
           user: formatted,
         };
-      })
+      }),
     );
+
+    console.log("formattedData: ", formattedData);
 
     res.status(200).json({
       success: true,

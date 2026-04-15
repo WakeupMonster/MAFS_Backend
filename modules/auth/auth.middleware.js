@@ -17,7 +17,7 @@ module.exports = async function authMiddleware(req, res, next) {
     //  const user = await User.findById(userId).select(
     //   "accountStatus banDetails deactivationDetails deletionDetails"
     // );
-    
+
     const user = await User.findById(decoded.userId);
     if (!user) {
       return res.status(401).json({ message: "Invalid token user not found" });
@@ -47,10 +47,8 @@ module.exports = async function authMiddleware(req, res, next) {
     req.user = user;
     next();
 
-  // eslint-disable-next-line no-unused-vars
+    // eslint-disable-next-line no-unused-vars
   } catch (err) {
     return res.status(401).json({ message: "Invalid or expired token" });
   }
 };
-
-

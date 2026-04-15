@@ -71,39 +71,40 @@ const SubscriptionSchema = new mongoose.Schema(
       default: false,
     },
 
-        grantedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'AdminUser' },
-        grantReason: String, // e.g. "milestone_first_1000", "customer_service"
+    grantedBy: { type: mongoose.Schema.Types.ObjectId, ref: "AdminUser" },
+    grantReason: String, // e.g. "milestone_first_1000", "customer_service"
 
-        // Tracks how the subscription was created
-        source: {
-            type: String,
-            enum: ["STORE", "ADMIN", "GIVEAWAY", "MILESTONE"],
-            default: "STORE"
-        },
+    // Tracks how the subscription was created
+    source: {
+      type: String,
+      enum: ["STORE", "ADMIN", "GIVEAWAY", "MILESTONE"],
+      default: "STORE"
+    },
 
-        environment: {
-            type: String,
-            enum: ["sandbox", "production"],
-            required: true,
-        },
-        statusHistory: [
-            {
-                from: String,
-                to: String,
-                reason: String,
-                changedAt: { type: Date, default: Date.now },
-                _id: false,
-            },
-        ],
-        // ➕ NAYA: Dynamic naming and tracking for Giveaways/Milestones
-        customDisplayName: { type: String, default: null },
-        prizeId: { type: mongoose.Schema.Types.ObjectId, ref: "GiveawayPrize", default: null }
-  
+
+    environment: {
+      type: String,
+      enum: ["sandbox", "production"],
+      required: true,
+    },
+    statusHistory: [
+      {
+        from: String,
+        to: String,
+        reason: String,
+        changedAt: { type: Date, default: Date.now },
+        _id: false,
+      },
+    ],
+    // ➕ NAYA: Dynamic naming and tracking for Giveaways/Milestones
+    customDisplayName: { type: String, default: null },
+    prizeId: { type: mongoose.Schema.Types.ObjectId, ref: "GiveawayPrize", default: null }
+
   },
   {
     timestamps: true,
     optimisticConcurrency: true,
-  }
+  },
 );
 
 // Indexes

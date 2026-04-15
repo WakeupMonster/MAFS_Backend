@@ -877,7 +877,22 @@ module.exports.GETSingleUserDetails = async (req, res) => {
           },
         },
       },
-      // 7. Reports Against This User (New Stage)
+      // 7. Join Consumable Balances (SuperKeens & Boosts) - NEW
+      {
+        $lookup: {
+          from: "user_consumable_balances",
+          localField: "_id",
+          foreignField: "userId",
+          as: "consumableBalances",
+        },
+      },
+      {
+        $unwind: {
+          path: "$consumableBalances",
+          preserveNullAndEmptyArrays: true,
+        },
+      },
+      // 8. Reports Against This User (New Stage)
       {
         $lookup: {
           from: "reports", // Collection name check karein (Report model ka plural)
@@ -1067,6 +1082,13 @@ module.exports.GETSingleUserDetails = async (req, res) => {
                 "$currentSubscription.expiresAt",
                 "$latestSubscription.expiresAt",
               ],
+            },
+            // Available Balance Stats
+            availableSuperKeens: {
+              $ifNull: ["$consumableBalances.superKeensBalance", 0],
+            },
+            availableBoosts: {
+              $ifNull: ["$consumableBalances.boostsBalance", 0],
             },
             isCurrentlyActive: {
               $and: [
