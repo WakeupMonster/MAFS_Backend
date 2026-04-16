@@ -305,6 +305,7 @@ module.exports.getChatList = async (req, res) => {
               : null,
           }
           : null,
+        matchedAt: match.lastMessageAt,
 
         unreadCount,
       });
