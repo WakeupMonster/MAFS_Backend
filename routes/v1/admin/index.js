@@ -14,6 +14,7 @@ const accountRoutes = require("../../../modules/Admin/account/account.routes");
 const userRoutes = require("../../../modules/Admin/usersManagement/user.management.route");
 const cmsRoutes = require("../../../modules/Admin/cms/content.routes");
 const dashboardRoutes = require("../../../modules/Admin/dashboard/dashboard.stats.routes");
+const advancedDashboardCtrl = require("../../../modules/Admin/dashboard/dashboard.advanced.controller");
 const moderationRoutes = require("../../../modules/Admin/moderation/moderation.routes");
 const giveawayRoutes = require("../../../modules/Admin/giveaways/giveaways.routes");
 const profileReviewRoutes = require("../../../modules/Admin/profileReview/profileReview.routes");
@@ -39,6 +40,11 @@ router.use("/users", userRoutes); // Cleaned name from "user-management"
 router.use("/cms", cmsRoutes);
 router.use("/giveaway", giveawayRoutes);
 router.use("/dashboard", dashboardRoutes);
+// Advanced Dashboard API
+router.get(
+  "/dashboard-v2/advanced-metrics",
+  advancedDashboardCtrl.getAdvancedDashboardMetrics,
+);
 router.use("/moderation", moderationRoutes);
 router.use("/profile-review", profileReviewRoutes);
 router.use("/chat", chatRoutes); // Cleaned name from "chat-management"

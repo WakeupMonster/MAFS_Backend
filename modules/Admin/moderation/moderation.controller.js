@@ -491,37 +491,186 @@ module.exports.getBlockedUsers = async (req, res) => {
   }
 };
 
+// module.exports.getPendingVerifications = async (req, res, next) => {
+//   try {
+//     const page = parseInt(req.query.page) || 1;
+//     const limit = parseInt(req.query.limit) || 10;
+//     const skip = (page - 1) * limit;
+//     const search = req.query.search || "";
+//     const sortBy = req.query.sortBy || "";
+//     const status = req.query.status || "";
+
+//     const limitNum = parseInt(limit);
+
+//     // 1. DYNAMIC SORTING
+//     // If sortBy is empty, it stays as Newest First (default)
+//     let sortQuery = { createdAt: -1 };
+//     if (sortBy === "oldest") {
+//       sortQuery = { createdAt: 1 };
+//     } else if (sortBy === "alphabetical" || sortBy === "name") {
+//       sortQuery = { nickname: 1 };
+//     }
+
+//     // 2. DYNAMIC MATCHING (FILTERING)
+//     const matchStage = {
+//       "user.role": "USER", // ✅ Always restrict to users with 'USER' role
+//     };
+
+//     // Only filter by status if a status is actually provided
+//     if (status && status !== "all") {
+//       matchStage["verification.status"] = status;
+//     }
+
+//     // Add search logic if search term exists
+//     if (search) {
+//       matchStage.$or = [
+//         { nickname: { $regex: search, $options: "i" } },
+//         { "user.email": { $regex: search, $options: "i" } },
+//         { "user.phone": { $regex: search, $options: "i" } },
+//       ];
+//     }
+
+//     const pipeline = [
+//       {
+//         $lookup: {
+//           from: "users",
+//           localField: "userId",
+//           foreignField: "_id",
+//           as: "user",
+//         },
+//       },
+//       { $unwind: "$user" },
+//       {
+//         $lookup: {
+//           from: "profiles",
+//           localField: "userId",
+//           foreignField: "userId",
+//           as: "profileDetails",
+//         },
+//       },
+//       {
+//         $unwind: { path: "$profileDetails", preserveNullAndEmptyArrays: true },
+//       },
+//       { $match: matchStage }, // ✅ Match runs AFTER lookup/unwind to see the role
+//       {
+//         $facet: {
+//           metadata: [{ $count: "total" }],
+//           data: [
+//             { $sort: sortQuery },
+//             { $skip: skip },
+//             { $limit: limitNum },
+//             {
+//               $project: {
+//                 _id: 1,
+//                 userId: 1,
+//                 verification: 1,
+//                 nickname: 1,
+//                 createdAt: 1,
+//                 user: {
+//                   email: "$user.email",
+//                   phone: "$user.phone",
+//                   nickname: "$profileDetails.nickname",
+//                   avatar: { $arrayElemAt: ["$profileDetails.photos.url", 0] },
+//                 },
+//               },
+//             },
+//           ],
+//           kpiStats: [
+//             {
+//               $group: {
+//                 _id: null,
+//                 totalRequests: [{ $count: "count" }],
+//                 approved:
+//                   // {
+//                   //   $sum: {
+//                   //     $cond: [
+//                   //       { $eq: ["$verification.status", "approved"] },
+//                   //       1,
+//                   //       0,
+//                   //     ],
+//                   //   },
+//                   // },
+//                   [
+//                     { $match: { "$verification.status": "approved" } },
+//                     { $count: "count" },
+//                   ],
+//                 pending: {
+//                   $sum: {
+//                     $cond: [{ $eq: ["$verification.status", "pending"] }, 1, 0],
+//                   },
+//                 },
+//                 rejected: {
+//                   $sum: {
+//                     $cond: [
+//                       { $eq: ["$verification.status", "rejected"] },
+//                       1,
+//                       0,
+//                     ],
+//                   },
+//                 },
+//               },
+//             },
+//           ],
+//         },
+//       },
+//     ];
+
+//     const result = await Profile.aggregate(pipeline);
+//     const total = result[0].metadata[0]?.total || 0;
+//     // const total = result[0]?.total[0]?.count || 0;
+//     const approved = result[0]?.approved[0]?.count || 0;
+//     // const pending = result[0]?.pending[0]?.count || 0;
+//     // const rejected = result[0]?.rejected[0]?.count || 0;
+
+//     const stats = result[0].kpiStats[0] || {
+//       totalRequests: 0,
+//       approved: 0,
+//       pending: 0,
+//       rejected: 0,
+//     };
+
+//     const kpiStats = {
+//       totalRequests: total,
+//       approved: approved,
+//       // pending: pending,
+//       // rejected: rejected,
+//     };
+
+//     res.status(200).json({
+//       success: true,
+//       pagination: {
+//         total,
+//         page: parseInt(page),
+//         limit: limitNum,
+//         totalPages: Math.ceil(total / limitNum),
+//       },
+//       kpiStats,
+//       data: result[0].data,
+//     });
+//   } catch (error) {
+//     console.error("KYC Fetch Error:", error);
+//     res.status(500).json({ success: false, message: "Server error" });
+//   }
+// };
+
 module.exports.getPendingVerifications = async (req, res, next) => {
   try {
-    const page = parseInt(req.query.page) || 1;
-    const limit = parseInt(req.query.limit) || 10;
-    const skip = (page - 1) * limit;
-    const search = req.query.search || "";
-    const sortBy = req.query.sortBy || "";
-    const status = req.query.status || "";
-
-    const limitNum = parseInt(limit);
+    const page = Math.max(parseInt(req.query.page) || 1, 1);
+    const limitNum = Math.min(parseInt(req.query.limit) || 10, 100);
+    const skip = (page - 1) * limitNum;
+    const { search, sortBy, status } = req.query;
 
     // 1. DYNAMIC SORTING
-    // If sortBy is empty, it stays as Newest First (default)
     let sortQuery = { createdAt: -1 };
-    if (sortBy === "oldest") {
-      sortQuery = { createdAt: 1 };
-    } else if (sortBy === "alphabetical" || sortBy === "name") {
-      sortQuery = { nickname: 1 };
-    }
+    if (sortBy === "oldest") sortQuery = { createdAt: 1 };
+    if (sortBy === "alphabetical") sortQuery = { nickname: 1 };
 
-    // 2. DYNAMIC MATCHING (FILTERING)
-    const matchStage = {
-      "user.role": "USER", // ✅ Always restrict to users with 'USER' role
-    };
-
-    // Only filter by status if a status is actually provided
+    // 2. DYNAMIC MATCHING
+    const matchStage = { "user.role": "USER" };
     if (status && status !== "all") {
       matchStage["verification.status"] = status;
     }
 
-    // Add search logic if search term exists
     if (search) {
       matchStage.$or = [
         { nickname: { $regex: search, $options: "i" } },
@@ -551,11 +700,43 @@ module.exports.getPendingVerifications = async (req, res, next) => {
       {
         $unwind: { path: "$profileDetails", preserveNullAndEmptyArrays: true },
       },
-      { $match: matchStage }, // ✅ Match runs AFTER lookup/unwind to see the role
       {
         $facet: {
-          metadata: [{ $count: "total" }],
+          kpiStats: [
+            { $match: matchStage },
+            {
+              $group: {
+                _id: null,
+                totalRequests: { $sum: 1 },
+                approved: {
+                  $sum: {
+                    $cond: [
+                      { $eq: ["$verification.status", "approved"] },
+                      1,
+                      0,
+                    ],
+                  },
+                },
+                pending: {
+                  $sum: {
+                    $cond: [{ $eq: ["$verification.status", "pending"] }, 1, 0],
+                  },
+                },
+                rejected: {
+                  $sum: {
+                    $cond: [
+                      { $eq: ["$verification.status", "rejected"] },
+                      1,
+                      0,
+                    ],
+                  },
+                },
+              },
+            },
+          ],
+          metadata: [{ $match: matchStage }, { $count: "total" }],
           data: [
+            { $match: matchStage },
             { $sort: sortQuery },
             { $skip: skip },
             { $limit: limitNum },
@@ -566,26 +747,10 @@ module.exports.getPendingVerifications = async (req, res, next) => {
                 verification: 1,
                 nickname: 1,
                 createdAt: 1,
-                // avatar: {
-                //   $ifNull: [
-                //     { $arrayElemAt: ["$photos", 0] }, // Photos array ki 0 index wali URL
-                //     null, // Agar photo nahi hai to empty string
-                //   ],
-                // },
-                // "user.email": 1,
-                // "user.phone": 1,
-                // "user.role": 1, // Optional: project role for debugging
-
                 user: {
                   email: "$user.email",
                   phone: "$user.phone",
                   nickname: "$profileDetails.nickname",
-                  // avatar: {
-                  //   $ifNull: [
-                  //     { $arrayElemAt: ["$photos", 0] }, // Photos array ki 0 index wali URL
-                  //     null, // Agar photo nahi hai to empty string
-                  //   ],
-                  // },
                   avatar: { $arrayElemAt: ["$profileDetails.photos.url", 0] },
                 },
               },
@@ -595,18 +760,30 @@ module.exports.getPendingVerifications = async (req, res, next) => {
       },
     ];
 
-    const result = await Profile.aggregate(pipeline);
-    const total = result[0].metadata[0]?.total || 0;
+    const [result] = await Profile.aggregate(pipeline);
+
+    // Extraction with fallbacks
+    const statsData = result?.kpiStats?.[0] || {
+      totalRequests: 0,
+      approved: 0,
+      pending: 0,
+      rejected: 0,
+    };
+    const { _id, ...kpiStatsWithoutId } = statsData; // Yeh line _id ko remove kar degi
+
+    const totalFiltered = result?.metadata?.[0]?.total || 0;
+    const finalData = result?.data || [];
 
     res.status(200).json({
       success: true,
       pagination: {
-        total,
-        page: parseInt(page),
+        total: totalFiltered,
+        page,
         limit: limitNum,
-        totalPages: Math.ceil(total / limitNum),
+        totalPages: Math.ceil(totalFiltered / limitNum),
       },
-      data: result[0].data,
+      kpiStats: kpiStatsWithoutId,
+      data: finalData,
     });
   } catch (error) {
     console.error("KYC Fetch Error:", error);

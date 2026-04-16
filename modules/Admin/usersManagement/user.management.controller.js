@@ -513,6 +513,30 @@ module.exports.GETAllUsers = async (req, res) => {
         },
       },
       { $unwind: { path: "$profile", preserveNullAndEmptyArrays: true } },
+      // --- AGE CALCULATION START ---
+      {
+        $addFields: {
+          "profile.calculatedAge": {
+            $cond: {
+              if: {
+                $and: [
+                  { $gt: ["$profile.dob", null] },
+                  { $toLower: "$profile.dob" },
+                ],
+              },
+              then: {
+                $dateDiff: {
+                  startDate: { $toDate: "$profile.dob" },
+                  endDate: "$$NOW",
+                  unit: "year",
+                },
+              },
+              else: null,
+            },
+          },
+        },
+      },
+      // --- AGE CALCULATION END ---
       // 2. NEW: Apply Gender Filter (Post-Lookup)
       ...(gender ? [{ $match: { "profile.gender": gender } }] : []),
       ...(searchTrimmed
@@ -556,8 +580,12 @@ module.exports.GETAllUsers = async (req, res) => {
                       "i",
                     ),
                   },
+                  // ...(!isNaN(parseInt(searchTrimmed))
+                  //   ? [{ "profile.age": parseInt(searchTrimmed) }]
+                  //   : []),
+                  // Search by Calculated Age
                   ...(!isNaN(parseInt(searchTrimmed))
-                    ? [{ "profile.age": parseInt(searchTrimmed) }]
+                    ? [{ "profile.calculatedAge": parseInt(searchTrimmed) }]
                     : []),
                 ],
               },
@@ -599,7 +627,7 @@ module.exports.GETAllUsers = async (req, res) => {
                   profileId: "$profile._id",
                   nickname: "$profile.nickname",
                   dob: "$profile.dob",
-                  age: "$profile.age",
+                  age: "$profile.calculatedAge",
                   gender: "$profile.gender",
                   height: "$profile.height",
                   about: "$profile.about",
@@ -610,16 +638,26 @@ module.exports.GETAllUsers = async (req, res) => {
                 },
                 location: "$profile.location",
                 photos: { $arrayElemAt: ["$profile.photos.url", 0] },
-                // verification: "$profile.verification",
                 lastProfileUpdate: "$profile.lastProfileUpdate",
                 createdAt: 1,
                 lastLoginAt: 1,
-                // isPhoneVerified: 1,
-                // isEmailVerified: 1,
               },
             },
           ],
           total: [{ $count: "count" }],
+          activeCount: [
+            { $match: { accountStatus: "active" } },
+            { $count: "count" },
+          ],
+          premiumCount: [{ $match: { isPremium: true } }, { $count: "count" }],
+          bannedCount: [
+            { $match: { accountStatus: "banned" } },
+            { $count: "count" },
+          ],
+          suspendedCount: [
+            { $match: { accountStatus: "suspended" } },
+            { $count: "count" },
+          ],
         },
       },
     ];
@@ -627,6 +665,10 @@ module.exports.GETAllUsers = async (req, res) => {
     const result = await User.aggregate(pipeline);
     const users = result[0]?.data || [];
     const total = result[0]?.total[0]?.count || 0;
+    const activeTotal = result[0]?.activeCount[0]?.count || 0;
+    const premiumTotal = result[0]?.premiumCount[0]?.count || 0;
+    const bannedTotal = result[0]?.bannedCount[0]?.count || 0;
+    const suspendedTotal = result[0]?.suspendedCount[0]?.count || 0;
 
     const responseData = {
       pagination: {
@@ -635,6 +677,14 @@ module.exports.GETAllUsers = async (req, res) => {
         total,
         totalPages: Math.ceil(total / limit),
       },
+      kpiStats: {
+        totalUsers: total,
+        activeTotal,
+        premiumTotal,
+        bannedTotal,
+        suspendedTotal,
+      },
+      message: "Users fetched successfully",
       data: users,
     };
 
@@ -665,9 +715,7 @@ module.exports.GETSingleUserDetails = async (req, res) => {
     // 2. Aggregation Pipeline
     const pipeline = [
       {
-        $match: {
-          _id: new mongoose.Types.ObjectId(userId),
-        },
+        $match: { _id: new mongoose.Types.ObjectId(userId) },
       },
       // 1. Join Profile
       {
@@ -684,6 +732,30 @@ module.exports.GETSingleUserDetails = async (req, res) => {
           preserveNullAndEmptyArrays: true, // Profile nahi bani toh bhi user data milega
         },
       },
+      // --- AGE CALCULATION START ---
+      {
+        $addFields: {
+          "profile.calculatedAge": {
+            $cond: {
+              if: {
+                $and: [
+                  { $gt: ["$profile.dob", null] },
+                  { $toLower: "$profile.dob" },
+                ],
+              },
+              then: {
+                $dateDiff: {
+                  startDate: { $toDate: "$profile.dob" },
+                  endDate: "$$NOW",
+                  unit: "year",
+                },
+              },
+              else: null,
+            },
+          },
+        },
+      },
+      // --- AGE CALCULATION END ---
       // 2. Join Account
       {
         $lookup: {
@@ -1039,12 +1111,13 @@ module.exports.GETSingleUserDetails = async (req, res) => {
             nickname: "$profile.nickname",
             fullName: "$profile.fullName",
             dob: "$profile.dob",
-            age: "$profile.age",
+            age: "$profile.calculatedAge",
             gender: "$profile.gender",
             height: "$profile.height",
             about: "$profile.about",
             jobTitle: "$profile.jobTitle",
             company: "$profile.company",
+            school: "$profile.school",
             totalCompletion: "$profile.onboardingProgress.totalCompletion",
             livingIn: "$profile.livingIn",
           },
