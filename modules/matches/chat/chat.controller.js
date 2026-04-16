@@ -252,11 +252,11 @@ module.exports.getChatList = async (req, res) => {
   try {
     const userId = req.user._id;
 
-    // 1️⃣ Fetch matches sorted by last message (TOP REORDER BASE)
+    // 1️⃣ Fetch matches sorted by priority: Last Message OR New Match (TOP REORDER BASE)
     const matches = await Match.find({
       users: userId,
     })
-      .sort({ lastMessageAt: -1 })
+      .sort({ lastMessageAt: -1, matchedAt: -1 })
       .lean();
 
     const chatList = [];

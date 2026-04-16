@@ -428,10 +428,19 @@ exports.getAllCampaigns = async (req, res) => {
           as: "winner",
         },
       },
-      { $unwind: { path: "$winner", preserveNullAndEmptyArrays: true } }
+      { $unwind: { path: "$winner", preserveNullAndEmptyArrays: true } },
+      {
+        $lookup: {
+          from: "profiles",
+          localField: "winner._id",
+          foreignField: "userId",
+          as: "winnerProfile",
+        },
+      },
+      { $unwind: { path: "$winnerProfile", preserveNullAndEmptyArrays: true } }
     );
 
-    // 4. Server-side Search
+    // 4. Server-side Search (Flexible across Campaign, Prize, and Winner details)
     if (search?.trim()) {
       const regex = new RegExp(
         search.trim().replace(/[.*+?^${}()|[\]\\]/g, "\\$&"),
@@ -440,27 +449,28 @@ exports.getAllCampaigns = async (req, res) => {
       pipeline.push({
         $match: {
           $or: [
-            { title: regex }, // NAYA: Campaign title search
-            { "prize.title": regex },
-            { "prize.spinWheelLabel": regex }, // Added search field
-            { "winner.email": regex },
-            { "winner.phone": regex },
+            { title: regex },                  // Search by Campaign Title
+            { "prize.title": regex },          // Search by Prize Title
+            { "prize.spinWheelLabel": regex }, // Search by Spin Wheel Label
+            { "winner.email": regex },         // Search by Winner Email
+            { "winner.phone": regex },         // Search by Winner Phone
+            { "winner.profile.nickname": regex }, // [NAYA]: Search by Winner Nickname
           ],
         },
       });
     }
 
-    // 5. Execution with Facet (Pagination)
+    // 5. Execution with Facet (Pagination & Optimized Projection)
     pipeline.push({
       $facet: {
         metadata: [{ $count: "total" }],
         data: [
-          { $sort: { createdAt: -1 } }, // Default server-side sort (newest first)
+          { $sort: { createdAt: -1 } },
           { $skip: skip },
           { $limit: limit },
           {
             $project: {
-              title: 1, // NAYA
+              title: 1,
               date: 1,
               drawStatus: 1,
               isActive: 1,
@@ -470,6 +480,12 @@ exports.getAllCampaigns = async (req, res) => {
                 _id: "$winner._id",
                 email: "$winner.email",
                 phone: "$winner.phone",
+                nickname: "$winnerProfile.nickname",
+                gender: "$winnerProfile.gender",
+                location: {
+                  city: "$winnerProfile.location.city",
+                  country: "$winnerProfile.location.country",
+                },
               },
             },
           },
@@ -612,9 +628,11 @@ exports.getAllWinners = async (req, res) => {
       pipeline.push({
         $match: {
           $or: [
-            { "prize.title": searchRegex },
-            { "winner.phone": searchRegex },
-            { "winner.email": searchRegex },
+            { title: searchRegex },             // Search by Campaign Title
+            { "prize.title": searchRegex },     // Search by Prize Title
+            { "winner.phone": searchRegex },     // Search by Winner Phone
+            { "winner.email": searchRegex },     // Search by Winner Email
+            { "winner.profile.nickname": searchRegex }, // [NAYA]: Search by Winner Nickname
           ],
         },
       });
@@ -1713,7 +1731,33 @@ module.exports.getCampaignWinners = async (req, res) => {
       $unwind: { path: "$winnerInfo", preserveNullAndEmptyArrays: true },
     });
 
-    // Search filter (title, prize.title, winner.phone, winner.email)
+    // Lookup winner profile
+    pipeline.push({
+      $lookup: {
+        from: "profiles",
+        localField: "winnerInfo._id",
+        foreignField: "userId",
+        as: "winnerProfile",
+      },
+    });
+    pipeline.push({
+      $unwind: { path: "$winnerProfile", preserveNullAndEmptyArrays: true },
+    });
+
+    // Populate winner profile
+    pipeline.push({
+      $lookup: {
+        from: "profiles",
+        localField: "winnerUserId",
+        foreignField: "userId",
+        as: "winnerProfile",
+      },
+    });
+    pipeline.push({
+      $unwind: { path: "$winnerProfile", preserveNullAndEmptyArrays: true },
+    });
+
+    // Search filter (title, prize.title, winner.phone, winner.email, nickname)
     if (search) {
       pipeline.push({
         $match: {
@@ -1722,6 +1766,7 @@ module.exports.getCampaignWinners = async (req, res) => {
             { "prizeInfo.title": { $regex: search, $options: "i" } },
             { "winnerInfo.phone": { $regex: search, $options: "i" } },
             { "winnerInfo.email": { $regex: search, $options: "i" } },
+            { "winnerProfile.nickname": { $regex: search, $options: "i" } },
           ],
         },
       });

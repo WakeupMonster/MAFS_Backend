@@ -14,7 +14,7 @@ const SupportTicket = require("../../AppConfiguration/contactSupport/supportTick
 // ADVANCED DASHBOARD API — "Command Center" for Admin
 // All data is 100% dynamic, calculated from real DB aggregations.
 // ================================================================
-  
+
 
 exports.getAdvancedDashboardMetrics = async (req, res) => {
   try {
@@ -346,4 +346,3 @@ exports.getAdvancedDashboardMetrics = async (req, res) => {
     return res.status(500).json({ success: false, message: "Internal server error", error: err.message });
   }
 };
-

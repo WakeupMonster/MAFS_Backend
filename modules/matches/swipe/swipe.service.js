@@ -668,7 +668,7 @@ async function doSwipe(swiperId, targetId, action) {
               {
                 users: [swiperId, targetId],
                 status: "matched",
-                lastActivity: new Date(),
+                lastMessageAt: new Date(), // 🔥 Ensure new matches appear on top
               },
             ],
             { session },

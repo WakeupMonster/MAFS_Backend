@@ -78,26 +78,44 @@ exports.updateSettings = async (req, res) => {
   }
 };
 
-/**
- * @desc    Test currently saved SMTP settings (Just to verify if creds work)
- * @route   POST /api/admin/settings/test-smtp
- * @access  Private / Admin
- */
 exports.testSmtpConnection = async (req, res) => {
   try {
-    // You can integrate "nodemailer" logic here dynamically testing using db creds mapping.
-    // E.g., const nodemailer = require("nodemailer");
-    // const { smtp } = await Settings.getGlobalSettings();
-    // Use smtp.host, smtp.port, smtp.auth.user, etc...
+    const { getTransporter } = require("../../../common/notification/transporter");
+    // Fetch live configuration
+    const { transporter, fromEmail, fromName } = await getTransporter();
+
+    // 1. Verify connection credentials
+    await new Promise((resolve, reject) => {
+        transporter.verify((error, success) => {
+            if (error) {
+                console.error("Test SMTP Verification Error: ", error.message);
+                return reject(error);
+            }
+            resolve(success);
+        });
+    });
+
+    // 2. Optionally, we can send a test email to the configured fromEmail (or admin user)
+    // Here we'll send it back to the sender itself as proof of life.
+    const testToEmail = req.user.email || fromEmail; 
+    
+    if (testToEmail) {
+       await transporter.sendMail({
+          from: `"${fromName} (Test)" <${fromEmail}>`,
+          to: testToEmail,
+          subject: "Test SMTP Email - WakeupMonster",
+          text: "If you received this email, your database SMTP configuration is working perfectly!",
+       });
+    }
 
     return res.status(200).json({
       success: true,
-      message: "Test Email sent using current configuration (Implementation pending)",
+      message: `SMTP Connection Successful. A test email has been sent to ${testToEmail}.`,
     });
   } catch (error) {
     return res.status(500).json({
       success: false,
-      message: "Failed to test SMTP Connection",
+      message: "Failed to test SMTP Connection. Please check your credentials.",
       error: error.message,
     });
   }

@@ -1,5 +1,7 @@
 const router = require("express").Router();
 const ctrl = require("./appSettings.controller");
+const adsCtrl = require("./adsConfig.controller"); // New Ads Config Controller
+
 // Middlewares
 const auth = require("../../modules/auth/auth.middleware");
 const {
@@ -13,8 +15,8 @@ router.get("/social-links", ctrl.getSocialLinks);
 // Get General Settings
 router.get("/general", ctrl.getGeneralSettings);
 
-// Get Ads Settings
-router.get("/ads", ctrl.getAdsSettings);
+// Get Ads Settings - Protected with Auth so only valid users can fetch Ads
+router.get("/ads", auth, adsCtrl.getAdsSettings);
 
 /*
  * ============= ATUHORIZED OR ENSURE ROLE IS ADMIN or not =============
@@ -34,6 +36,6 @@ router.post(
 );
 
 // Ads Settings Routes
-router.post("/ads", ctrl.upsertAdsSettings);
+router.post("/ads", adsCtrl.upsertAdsSettings);
 
 module.exports = router;

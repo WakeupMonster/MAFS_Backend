@@ -1,25 +1,32 @@
 const nodemailer = require("nodemailer");
+const Settings = require("../../modules/Admin/settings/settings.model");
 
-const transporter = nodemailer.createTransport({
-  pool: true,
-  maxConnections: 5,
-  maxMessages: 100,
-  host: process.env.SMTP_HOST,
-  port: 465,
-  secure: true,
-  auth: {
-    user: process.env.SMTP_MAIL,
-    pass: process.env.SMTP_PASSWORD,
-  },
-});
+const getTransporter = async () => {
+  const settings = await Settings.getGlobalSettings();
+  const smtp = settings.smtp;
 
-// Optional but useful in dev
-transporter.verify((err) => {
-  if (err) {
-    console.error("❌ SMTP configuration error:", err.message);
-  } else {
-    console.log("✅ SMTP transporter ready");
-  }
-});
+  // Priority: Database > .env
+  const host = smtp?.host || process.env.SMTP_HOST;
+  const user = smtp?.auth?.user || process.env.SMTP_MAIL;
+  const pass = smtp?.auth?.pass || process.env.SMTP_PASSWORD;
+  const port = smtp?.port || process.env.SMTP_PORT || 465;
+  const secure = smtp?.secure !== undefined ? smtp.secure : true;
 
-module.exports = transporter;
+  const transporter = nodemailer.createTransport({
+    host: host,
+    port: port,
+    secure: secure,
+    auth: {
+      user: user,
+      pass: pass,
+    },
+  });
+
+  return {
+    transporter,
+    fromEmail: smtp?.fromEmail || user,
+    fromName: smtp?.fromName || "App Team"
+  };
+};
+
+module.exports = { getTransporter };

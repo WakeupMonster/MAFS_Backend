@@ -2,7 +2,7 @@ require("dotenv").config();
 const crypto = require("crypto");
 const bcrypt = require("bcrypt");
 const jwt = require("jsonwebtoken");
-const nodemailer = require("nodemailer");
+const { getTransporter } = require("../../common/notification/transporter");
 let twilioClient = null;
 
 // Optional: init Twilio lazily
@@ -68,10 +68,6 @@ module.exports.verifyToken = (token) => {
   }
 };
 
-module.exports.hashToken = (token) => {
-  return crypto.createHash("sha256").update(token).digest("hex");
-};
-
 module.exports.sendSms = async (to, message) => {
   const client = initTwilio();
 
@@ -86,20 +82,37 @@ module.exports.sendSms = async (to, message) => {
   return client.messages.create({ body: message, from, to });
 };
 
-const transporter = nodemailer.createTransport({
-  host: process.env.SMTP_HOST,
-  port: 465,
-  secure: true,
-  auth: {
-    user: process.env.SMTP_MAIL,
-    pass: process.env.SMTP_PASSWORD,
-  },
-});
+// ================================================================
+// OLD .ENV-BASED TRANSPORTER (Replaced with DB-backed dynamic transporter)
+// Keeping for reference — remove after stable deployment
+// ================================================================
+// const nodemailer = require("nodemailer");
+// const transporter = nodemailer.createTransport({
+//   host: process.env.SMTP_HOST,
+//   port: 465,
+//   secure: true,
+//   auth: {
+//     user: process.env.SMTP_MAIL,
+//     pass: process.env.SMTP_PASSWORD,
+//   },
+// });
+//
+// module.exports.sendEmail = async (to, subject, text) => {
+//   const mailOptions = {
+//     from: process.env.SMTP_MAIL,
+//     to, subject, html: text,
+//   };
+//   const info = await transporter.sendMail(mailOptions);
+//   return { ok: true, info };
+// };
+// ================================================================
 
 module.exports.sendEmail = async (to, subject, text) => {
   try {
+    const { transporter, fromEmail, fromName } = await getTransporter();
+
     const mailOptions = {
-      from: process.env.SMTP_MAIL,
+      from: `"${fromName}" <${fromEmail}>`,
       to,
       subject,
       html: text,
@@ -107,7 +120,7 @@ module.exports.sendEmail = async (to, subject, text) => {
 
     console.log("🚀 [sendEmail API] Initiating email sending...");
     console.log("👉 To:", to);
-    console.log("👉 From (SMTP_MAIL):", process.env.SMTP_MAIL);
+    console.log("👉 From:", fromEmail);
     console.log("👉 SMTP_HOST configured as:", transporter.options.host);
 
     const info = await transporter.sendMail(mailOptions);
@@ -122,15 +135,11 @@ module.exports.sendEmail = async (to, subject, text) => {
   }
 };
 
-module.exports.passwordCompared = async (plainPassword, hashedPassword) => {
-  return bcrypt.compare(plainPassword, hashedPassword);
-};
-module.exports.passwordHashed = async (plainPassword) => {
-  return bcrypt.hash(plainPassword, 10);
-};
 module.exports.sendPrizeDeliveredEmail = async (toEmail, prizeTitle) => {
+  const { transporter, fromEmail, fromName } = await getTransporter();
+
   await transporter.sendMail({
-    from: '"Giveaway Team" <no-reply@app.com>',
+    from: `"${fromName} - Giveaway Team" <${fromEmail}>`,
     to: toEmail,
     subject: "🎉 Your Giveaway Prize is Delivered!",
     html: `
@@ -150,6 +159,8 @@ module.exports.sendReplyToReporterEmail = async ({
   reportDate,
 }) => {
   try {
+    const { transporter, fromEmail, fromName } = await getTransporter();
+
     const subject = "Update on your reported profile";
 
     const html = `
@@ -166,20 +177,17 @@ module.exports.sendReplyToReporterEmail = async ({
       <p>${adminReply}</p>
 
       <br />
-      <p>Regards,<br/>Admin Team</p>
+      <p>Regards,<br/>${fromName}</p>
     `;
 
     const mailOptions = {
-      from: process.env.SMTP_MAIL,
+      from: `"${fromName}" <${fromEmail}>`,
       to,
       subject,
       html,
     };
 
     const info = await transporter.sendMail(mailOptions);
-
-    // console.log("Mail sent:", info.messageId);
-    // console.log("Sent to:", to);
 
     return { ok: true, info };
   } catch (error) {
@@ -188,30 +196,3 @@ module.exports.sendReplyToReporterEmail = async ({
   }
 };
 
-// module.exports.sendEmail = async (to, subject, text) => {
-
-//   // nodemailer using Google SMTP (or any SMTP configured in env)
-//   if (!process.env.SMTP_HOST) {
-//     console.warn("SMTP not configured. Email not sent:", to, subject);
-//     return { ok: false, info: "smtp-not-configured" };
-//   }
-
-//   const transporter = nodemailer.createTransport({
-//     host: process.env.SMTP_HOST,
-//     port: Number(process.env.SMTP_PORT || 587),
-//     secure: process.env.SMTP_SECURE === "true", // true for 465
-//     auth: {
-//       user: process.env.SMTP_FROM,
-//       pass: process.env.SMTP_PASS,
-//     },
-//   });
-
-//   const info = await transporter.sendMail({
-//     from: process.env.SMTP_FROM,
-//     to,
-//     subject,
-//     text,
-//   });
-
-//   return info;
-// };

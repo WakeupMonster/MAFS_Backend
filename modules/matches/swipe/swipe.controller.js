@@ -162,7 +162,7 @@ module.exports.getMatches = async (req, res) => {
     const userId = req.user._id;
 
     const matches = await Match.find({ users: userId })
-      .sort({ lastMessageAt: -1, createdAt: -1 })
+      .sort({ lastMessageAt: -1, matchedAt: -1 })
       .populate({
         path: "users",
         select: "_id",
