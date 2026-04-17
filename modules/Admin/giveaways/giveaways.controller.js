@@ -1034,12 +1034,14 @@ module.exports.getPendingDeliveries = async (req, res) => {
     const deliveryStatus = req.query.deliveryStatus || "";
 
     // --- 1. Build Dynamic Filter ---
-    const matchQuery = {};
+    const matchQuery = {
+      deliveryStatus: { $in: ["REVEALED", "DELIVERED"] }, // By default, only show claimed/delivered
+    };
 
     // If deliveryStatus is provided and isn't "ALL", filter by it
     if (
       deliveryStatus &&
-      ["PENDING", "DELIVERED", "REVEALED"].includes(deliveryStatus.toUpperCase())
+      ["REVEALED", "DELIVERED"].includes(deliveryStatus.toUpperCase())
     ) {
       matchQuery.deliveryStatus = deliveryStatus.toUpperCase();
     }
@@ -1124,10 +1126,20 @@ module.exports.getPendingDeliveries = async (req, res) => {
               wonAt: 1,
               year: 1,
               user: { _id: 1, email: 1, phone: 1 },
-              profile: { _id: 1, nickname: 1 },
-              campaign: { _id: 1, date: 1 },
+              profile: {
+                _id: 1,
+                nickname: 1,
+                gender: 1,
+                location: 1,
+                city: 1,
+                country: 1
+              },
+              campaign: { _id: 1, date: 1, title: 1 },
               prize: {
-                _id: 1, title: 1, value: 1, type: 1,
+                _id: 1,
+                title: 1,
+                value: 1,
+                type: 1,
               },
             },
           },
@@ -1597,7 +1609,8 @@ module.exports.getParticipants = async (req, res) => {
           _id: "$userId",
           nickname: "$nickname",
           fullName: "$fullName",
-          age: "$age",
+          dob: "$dob",
+          age: { $ifNull: ["$age", 0] },
           gender: "$gender",
           photo: {
             $arrayElemAt: [
@@ -1679,7 +1692,7 @@ module.exports.getCampaignWinners = async (req, res) => {
             { $count: "count" },
           ],
           pending: [
-            { $match: { drawStatus: { $in: ["PENDING", "PROCESSING"] } } },
+            { $match: { drawStatus: { $in: ["REVEALED"] } } },
             { $count: "count" },
           ],
           withWinner: [
