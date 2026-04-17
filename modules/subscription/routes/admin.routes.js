@@ -1,6 +1,7 @@
 const express = require("express");
 const router = express.Router();
 const adminController = require("../controllers/admin.controller");
+const featureAdminController = require("../controllers/admin.feature.controller");
 const { allowAdmin } = require("../../../common/middlewares/allowAdmin.middleware");
 const protect = require("../../auth/auth.middleware");
 
@@ -38,5 +39,13 @@ router.post("/users/:userId/revoke", adminController.revokeSubscription);
  */
 router.get("/stats", adminController.getDashboardStats);
 router.get("/dashboard", adminController.getDashboardStats);
+
+/**
+ * --- Dynamic Premium Features (NEW) ---
+ */
+router.get("/features", featureAdminController.listFeatures);
+router.post("/features", featureAdminController.upsertFeature);
+router.patch("/features/:key/toggle", featureAdminController.toggleFeature);
+router.delete("/features/:key", featureAdminController.deleteFeature);
 
 module.exports = router;

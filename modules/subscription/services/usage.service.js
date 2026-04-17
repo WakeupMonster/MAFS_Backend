@@ -8,6 +8,7 @@ const UserMonthlyUsage = require("../models_v3/UserMonthlyUsage");
 const UserConsumableBalance = require("../models_v3/UserConsumableBalance");
 const Product = require("../models_v3/Product");
 const dateHelpers = require("../utils/dateHelpers");
+const featureService = require("./feature.service");
 
 /**
  * Centalized service for usage tracking and enforcement.
@@ -165,6 +166,9 @@ class UsageService {
                     advancedFilters: isPremium && config.premiumFeatures.advancedFilters,
                     noAds: isPremium && config.premiumFeatures.noAds
                 },
+
+                // ➕ NEW: Dynamic Features array (Single Source of Truth)
+                PremiumFeatures: await featureService.getDynamicFeaturesForUser(userId, isPremium),
 
                 showAds: !isPremium || !config.premiumFeatures.noAds
             }

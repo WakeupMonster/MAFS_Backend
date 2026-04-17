@@ -22,6 +22,18 @@ const subscriptionConfigSchema = new mongoose.Schema({
         advancedFilters: { type: Boolean, default: true },
         noAds: { type: Boolean, default: true }
     },
+    // ➕ NEW: Dynamic Features (Fully manageable from Admin Panel)
+    dynamicFeatures: [
+        {
+            key: { type: String, required: true },
+            name: { type: String, required: true },
+            description: { type: String },
+            icon: { type: String },
+            isActive: { type: Boolean, default: true },
+            isPremiumOnly: { type: Boolean, default: true },
+            _id: false // No need for separate IDs here
+        }
+    ],
     // Milestone Program (First 1,000 users)
     milestone: {
         targetUserCount: { type: Number, default: 1000 },
@@ -40,6 +52,7 @@ subscriptionConfigSchema.statics.getOrCreate = async function () {
     if (!config) {
         config = await this.create({});
     }
+
     return config;
 };
 

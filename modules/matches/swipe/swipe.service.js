@@ -17,6 +17,7 @@ const { addNotificationJob } = require("../../../queues/notification.queue");
 const { NOTIFICATION_TYPES } = require("../../notifications/notification.enums");
 const UsageService = require("../../subscription/services/usage.service");
 const Subscription = require("../../subscription/models/Subscription");
+const adminEvents = require("../../../events/admin.events");
 
 function calculateDistance(lat1, lon1, lat2, lon2) {
   const R = 6371;
@@ -701,6 +702,18 @@ async function doSwipe(swiperId, targetId, action) {
               wallet: status.data.wallet,
             },
           };
+
+          // 📢 Fire real-time activity for Admin
+          try {
+            adminEvents.emit("new_live_activity", {
+              id: match._id,
+              createdAt: new Date(),
+              description: `New Match: ${myProfile?.nickname || "User"} ❤️ ${targetProfile.nickname || "User"}`,
+              color: "#4CAF50" // Green for matches
+            });
+          } catch (err) {
+            console.error("Admin match event emit failed", err);
+          }
           addNotificationJob(NOTIFICATION_TYPES.NEW_MATCH, {
             userId1: swiperId,
             userId2: targetId,

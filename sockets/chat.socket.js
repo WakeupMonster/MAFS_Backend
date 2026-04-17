@@ -3,7 +3,7 @@ const { Match } = require("../modules/matches/swipe/swipe.model");
 const { addNotificationJob } = require("../queues/notification.queue");
 const { NOTIFICATION_TYPES } = require("../modules/notifications/notification.enums");
 const { isBlocked } = require("../modules/profile/block.service");
-
+const adminEvents = require("../events/admin.events");
 // TODO: Uncomment after verifying correct import path
 // const { destroy } = require("../modules/upload/cloudinary.service");
 
@@ -11,23 +11,19 @@ module.exports = function chatSocket(io, redisClient) {
   io.on("connection", async (socket) => {
     const currentUserId = socket.user._id.toString();
 
-    console.log("✅ SOCKET CONNECTED:", socket.id, "USER:", currentUserId);
+    socket.onAny((eventName, ...args) => {
+      const payloadString = JSON.stringify(args);
+      if (payloadString.includes("join_admin_dashboard") || eventName === "join_admin_dashboard") {
+        socket.join("admin_dashboard_room");
+        socket.emit("message", "✅ Joined Admin Room");
+      }
+    });
 
     /* ------------------------------------------------------------------ */
     /* 🔹 USER LEVEL ROOM                                                 */
     /* ------------------------------------------------------------------ */
     socket.join(`user:${currentUserId}`);
 
-    /* ------------------------------------------------------------------ */
-    /* 🔹 REDIS ONLINE STATUS + PENDING DELIVERY ON CONNECT               */
-    /* ------------------------------------------------------------------ */
-    /*
-     * Redis operations wrapped in try-catch because:
-     * 1. Redis temporarily down ho sakta hai (network blip, restart)
-     * 2. Bina try-catch ke error throw hoga → socket connect nahi hoga
-     * 3. Chat functionality Redis ke bina bhi kaam karni chahiye
-     *    (sirf online status miss hoga, messages toh DB se aate hain)
-     */
     try {
       await redisClient.set(`user:online:${currentUserId}`, "true");
       await redisClient.sAdd(`user:sockets:${currentUserId}`, socket.id);
@@ -79,6 +75,8 @@ module.exports = function chatSocket(io, redisClient) {
       console.error("❌ Pending delivery error:", err);
     }
 
+
+
     /* ------------------------------------------------------------------ */
     /* 1️⃣ JOIN CHAT ROOM                                                  */
     /* ------------------------------------------------------------------ */
@@ -119,8 +117,8 @@ module.exports = function chatSocket(io, redisClient) {
             type: "BLOCKED",
             matchId,
             message: "You cannot access this chat",
-            isBlockedByMe : blocked.blockedByMe,
-            blockedBy: blocked.blockedBy  
+            isBlockedByMe: blocked.blockedByMe,
+            blockedBy: blocked.blockedBy
           });
           return;
         }
@@ -232,7 +230,7 @@ module.exports = function chatSocket(io, redisClient) {
               clientMessageId,
               message: "You cannot send messages to this user",
               isBlockedByMe: blocked.blockedByMe,
-              blockedBy: blocked.blockedBy  
+              blockedBy: blocked.blockedBy
             });
             if (typeof ack === "function") {
               ack({ success: false, error: "Cannot send message" });
@@ -701,32 +699,62 @@ module.exports = function chatSocket(io, redisClient) {
     socket.on("leave_chat", ({ matchId }) => {
       if (!matchId) return;
       socket.leave(`chat:${matchId}`);
-      console.log(`👋 USER ${currentUserId} LEFT ROOM chat:${matchId}`);
+    });
+
+    // 🛡️ Dedicated Admin Dashboard Join Event (Developer Request)
+    socket.on("join_admin_dashboard", async () => {
+      console.log("🛡️ Admin joining dashboard room...");
+      socket.join("admin_dashboard_room");
+
+      try {
+        // Fetch History from Redis
+        const history = await redisClient.lRange("admin:activity_history", 0, 49);
+        
+        if (history && history.length > 0) {
+          const parsedHistory = history.map(item => JSON.parse(item));
+          console.log(`📜 Sending ${parsedHistory.length} items history to Admin`);
+          socket.emit("activity_history", parsedHistory);
+        } else {
+          socket.emit("activity_history", []);
+          console.log("⚠️ No history found in Redis for Admin");
+        }
+      } catch (err) {
+        console.error("❌ Redis Error fetching history:", err);
+      }
     });
 
     /* ------------------------------------------------------------------ */
     /* 4️⃣ DISCONNECT                                                      */
     /* ------------------------------------------------------------------ */
     socket.on("disconnect", async () => {
-      /*
-       * try-catch: Redis down hone pe bina iske unhandled error aayega
-       * aur user permanently "online" dikhega kyunki cleanup nahi hogi.
-       */
       try {
         await redisClient.sRem(`user:sockets:${currentUserId}`, socket.id);
-
-        const remaining = await redisClient.sCard(
-          `user:sockets:${currentUserId}`
-        );
-
+        const remaining = await redisClient.sCard(`user:sockets:${currentUserId}`);
         if (remaining === 0) {
           await redisClient.del(`user:online:${currentUserId}`);
         }
-
         console.log("🔌 SOCKET DISCONNECTED:", currentUserId);
       } catch (err) {
         console.error("❌ Disconnect cleanup error:", err);
       }
     });
+  });
+
+  adminEvents.on("new_live_activity", async (payload) => {
+    const safePayload = {
+      ...payload,
+      id: payload.id ? payload.id.toString() : Date.now().toString(),
+      time: payload.createdAt || new Date().toISOString()
+    };
+
+    // 💾 SAVE TO REDIS HISTORY (Capped at 50)
+    try {
+      await redisClient.lPush("admin:activity_history", JSON.stringify(safePayload));
+      await redisClient.lTrim("admin:activity_history", 0, 49);
+    } catch (err) {
+      console.error("❌ Failed to save to Redis:", err);
+    }
+
+    io.to("admin_dashboard_room").emit("new_live_activity", safePayload);
   });
 };

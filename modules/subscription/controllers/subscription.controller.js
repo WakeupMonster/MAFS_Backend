@@ -18,6 +18,15 @@ const verifyPurchase = async (req, res, next) => {
     let purchaseData;
 
     if (platform === "ios") {
+      // 🛡️ Fail-safe: Handle accidental Android ID on iOS platform
+      if (transactionId && transactionId.startsWith("GPA.")) {
+        return res.status(400).json({
+          success: false,
+          error: "PLATFORM_MISMATCH",
+          message: "The Transaction ID provided is a Google Play ID (starts with GPA), but the platform is set to 'ios'. Please check your frontend platform flag."
+        });
+      }
+
       const result = await appleService.verifyTransaction(
         transactionId,
         productId,

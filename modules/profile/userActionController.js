@@ -1,7 +1,9 @@
 const Block = require("./user.block");
 const Report = require("./user.report");
 const Profile = require("./profile.model");
+const User = require("../auth/auth.model");
 const redis = require("../../config/cache");
+const adminEvents = require("../../events/admin.events");
 
 // --- Actions ---
 
@@ -44,27 +46,25 @@ module.exports.reportUser = async (req, res) => {
     const { reason, description, context } = req.body;
     const { matchId, lastMessages } = context || {};
 
-    // 1. Get reporter profile (REQUIRED by schema)
     const reporterProfile = await Profile.findOne({ userId: reporterId });
     if (!reporterProfile) {
-      return res.status(404).json({
-        success: false,
-        message: "Reporter profile not found",
-      });
+      return res.status(404).json({ success: false, message: "Reporter profile not found" });
     }
 
-    // 🔥 Severity logic
-    let severity = "medium";
-    if (["abuse", "harassment", "threat"].includes(reason)) {
+    const reportedUser = await User.findById(req.params.id);
+    if (!reportedUser) {
+      return res.status(404).json({ success: false, message: "Reported user not found" });
+    }
+
+    let severity = "low";
+    if (reason === "Harassment" || reason === "Fake Profile") {
       severity = "high";
-    } else if (["spam", "fake"].includes(reason)) {
-      severity = "low";
     }
 
-    await Report.create({
+    const newReport = await Report.create({
       type: matchId ? "chat" : "profile",
       reporterId,
-      reporterProfile: reporterProfile._id, // Added this field
+      reporterProfile: reporterProfile._id,
       reportedId: req.params.id,
       matchId: matchId || null,
       evidence: lastMessages || [],
@@ -73,6 +73,18 @@ module.exports.reportUser = async (req, res) => {
       status: "new",
       severity,
     });
+
+    // Fire real-time admin alert
+    try {
+      adminEvents.emit("new_live_activity", {
+        id: newReport._id,
+        createdAt: new Date(),
+        description: `New report by ${reporterProfile.nickname || "User"}`,
+        color: "#F75555"
+      });
+    } catch(err) {
+      console.error("Admin event emit failed", err);
+    }
 
     // Redis clear
     if (redis) {

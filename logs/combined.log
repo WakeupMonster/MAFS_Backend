@@ -31159,3 +31159,67 @@
 {"level":"debug","message":"GET /api/v1/admin/dashboard/stats/kpi","service":"iap-service","timestamp":"2026-04-16 19:29:02"}
 {"level":"debug","message":"GET /api/v1/admin/dashboard/stats/kpi","service":"iap-service","timestamp":"2026-04-16 19:33:41"}
 {"level":"debug","message":"GET /api/v1/admin/dashboard/stats/kpi","service":"iap-service","timestamp":"2026-04-16 19:34:02"}
+{"level":"info","message":"[CRON] Subscription cron jobs initialized (v3 - No Grace Period)","service":"iap-service","timestamp":"2026-04-17 11:07:24"}
+{"level":"info","message":"[CRON] Subscription cron jobs initialized (v3 - No Grace Period)","service":"iap-service","timestamp":"2026-04-17 11:08:19"}
+{"level":"info","message":"[CRON] Subscription cron jobs initialized (v3 - No Grace Period)","service":"iap-service","timestamp":"2026-04-17 14:15:07"}
+{"level":"info","message":"[CRON] Subscription cron jobs initialized (v3 - No Grace Period)","service":"iap-service","timestamp":"2026-04-17 14:15:36"}
+{"level":"info","message":"[CRON] Subscription cron jobs initialized (v3 - No Grace Period)","service":"iap-service","timestamp":"2026-04-17 14:18:59"}
+{"level":"info","message":"[CRON] Subscription cron jobs initialized (v3 - No Grace Period)","service":"iap-service","timestamp":"2026-04-17 14:20:26"}
+{"level":"info","message":"[CRON] Subscription cron jobs initialized (v3 - No Grace Period)","service":"iap-service","timestamp":"2026-04-17 14:25:34"}
+{"level":"info","message":"[CRON] Subscription cron jobs initialized (v3 - No Grace Period)","service":"iap-service","timestamp":"2026-04-17 14:27:50"}
+{"level":"info","message":"[CRON] Subscription cron jobs initialized (v3 - No Grace Period)","service":"iap-service","timestamp":"2026-04-17 14:39:34"}
+{"level":"info","message":"[CRON] Subscription cron jobs initialized (v3 - No Grace Period)","service":"iap-service","timestamp":"2026-04-17 14:48:56"}
+{"level":"info","message":"[CRON] Subscription cron jobs initialized (v3 - No Grace Period)","service":"iap-service","timestamp":"2026-04-17 14:51:06"}
+{"level":"info","message":"[CRON] Subscription cron jobs initialized (v3 - No Grace Period)","service":"iap-service","timestamp":"2026-04-17 14:54:13"}
+{"level":"info","message":"[CRON] Subscription cron jobs initialized (v3 - No Grace Period)","service":"iap-service","timestamp":"2026-04-17 15:04:06"}
+{"level":"info","message":"[CRON] Subscription cron jobs initialized (v3 - No Grace Period)","service":"iap-service","timestamp":"2026-04-17 15:04:52"}
+{"level":"info","message":"[CRON] Subscription cron jobs initialized (v3 - No Grace Period)","service":"iap-service","timestamp":"2026-04-17 15:06:59"}
+{"level":"info","message":"[CRON] Subscription cron jobs initialized (v3 - No Grace Period)","service":"iap-service","timestamp":"2026-04-17 15:22:26"}
+{"level":"info","message":"[CRON] Expired ACTIVE subscriptions: 1","service":"iap-service","timestamp":"2026-04-17 15:55:00"}
+{"level":"info","message":"[CRON] Subscription cron jobs initialized (v3 - No Grace Period)","service":"iap-service","timestamp":"2026-04-17 15:56:41"}
+{"level":"info","message":"[CRON] Subscription cron jobs initialized (v3 - No Grace Period)","service":"iap-service","timestamp":"2026-04-17 16:03:17"}
+{"level":"info","message":"[CRON] Subscription cron jobs initialized (v3 - No Grace Period)","service":"iap-service","timestamp":"2026-04-17 16:09:02"}
+{"level":"info","message":"[CRON] Subscription cron jobs initialized (v3 - No Grace Period)","service":"iap-service","timestamp":"2026-04-17 16:19:14"}
+{"level":"error","message":"Verify purchase error:","service":"iap-service","timestamp":"2026-04-17 16:26:19"}
+{"level":"warn","message":"Google MOCK MODE: Returning mock verification","service":"iap-service","timestamp":"2026-04-17 16:28:23"}
+{"level":"warn","message":"Google MOCK MODE: Skipping acknowledge","service":"iap-service","timestamp":"2026-04-17 16:28:23"}
+{"level":"info","message":"New subscription created","planType":"3_MONTH","service":"iap-service","subscriptionId":"69e2124f231bf17638382585","timestamp":"2026-04-17 16:28:23","userId":"69bcdeb37ab7e7b8f8eac599"}
+{"level":"info","message":"Profile subscription synced","service":"iap-service","timestamp":"2026-04-17 16:28:23","userId":"69bcdeb37ab7e7b8f8eac599"}
+{"level":"info","message":"Purchase verified","platform":"android","purchaseType":"SUBSCRIPTION","service":"iap-service","timestamp":"2026-04-17 16:28:23","userId":"69bcdeb37ab7e7b8f8eac599"}
+{"level":"warn","message":"Google MOCK MODE: Returning mock verification","service":"iap-service","timestamp":"2026-04-17 16:28:55"}
+{"level":"warn","message":"Google MOCK MODE: Skipping acknowledge","service":"iap-service","timestamp":"2026-04-17 16:28:55"}
+{"level":"info","message":"New subscription created","planType":"1_MONTH","service":"iap-service","subscriptionId":"69e2126f231bf176383825de","timestamp":"2026-04-17 16:28:56","userId":"69bcdeb37ab7e7b8f8eac599"}
+{"level":"info","message":"Profile subscription synced","service":"iap-service","timestamp":"2026-04-17 16:28:56","userId":"69bcdeb37ab7e7b8f8eac599"}
+{"level":"info","message":"Purchase verified","platform":"android","purchaseType":"SUBSCRIPTION","service":"iap-service","timestamp":"2026-04-17 16:28:56","userId":"69bcdeb37ab7e7b8f8eac599"}
+{"level":"warn","message":"Google MOCK MODE: Returning mock verification","service":"iap-service","timestamp":"2026-04-17 16:29:12"}
+{"level":"warn","message":"Google MOCK MODE: Skipping acknowledge","service":"iap-service","timestamp":"2026-04-17 16:29:12"}
+{"level":"info","message":"New subscription created","planType":"1_MONTH","service":"iap-service","subscriptionId":"69e21280231bf176383825fd","timestamp":"2026-04-17 16:29:12","userId":"69bcdeb37ab7e7b8f8eac599"}
+{"level":"info","message":"Profile subscription synced","service":"iap-service","timestamp":"2026-04-17 16:29:13","userId":"69bcdeb37ab7e7b8f8eac599"}
+{"level":"info","message":"Purchase verified","platform":"android","purchaseType":"SUBSCRIPTION","service":"iap-service","timestamp":"2026-04-17 16:29:13","userId":"69bcdeb37ab7e7b8f8eac599"}
+{"level":"info","message":"[CRON] Subscription cron jobs initialized (v3 - No Grace Period)","service":"iap-service","timestamp":"2026-04-17 16:31:05"}
+{"level":"warn","message":"Google MOCK MODE: Returning mock verification","service":"iap-service","timestamp":"2026-04-17 16:34:32"}
+{"level":"warn","message":"Google MOCK MODE: Skipping acknowledge","service":"iap-service","timestamp":"2026-04-17 16:34:32"}
+{"level":"info","message":"New subscription created","planType":"1_MONTH","service":"iap-service","subscriptionId":"69e213c07c39b66a4d118d44","timestamp":"2026-04-17 16:34:32","userId":"69bcdeb37ab7e7b8f8eac599"}
+{"level":"info","message":"Profile subscription synced","service":"iap-service","timestamp":"2026-04-17 16:34:33","userId":"69bcdeb37ab7e7b8f8eac599"}
+{"level":"info","message":"Purchase verified","platform":"android","purchaseType":"SUBSCRIPTION","service":"iap-service","timestamp":"2026-04-17 16:34:33","userId":"69bcdeb37ab7e7b8f8eac599"}
+{"level":"warn","message":"Google MOCK MODE: Returning mock verification","service":"iap-service","timestamp":"2026-04-17 16:34:48"}
+{"level":"warn","message":"Google MOCK MODE: Skipping acknowledge","service":"iap-service","timestamp":"2026-04-17 16:34:48"}
+{"level":"info","message":"New subscription created","planType":"1_MONTH","service":"iap-service","subscriptionId":"69e213d07c39b66a4d118d5e","timestamp":"2026-04-17 16:34:48","userId":"69bcdeb37ab7e7b8f8eac599"}
+{"level":"info","message":"Profile subscription synced","service":"iap-service","timestamp":"2026-04-17 16:34:48","userId":"69bcdeb37ab7e7b8f8eac599"}
+{"level":"info","message":"Purchase verified","platform":"android","purchaseType":"SUBSCRIPTION","service":"iap-service","timestamp":"2026-04-17 16:34:48","userId":"69bcdeb37ab7e7b8f8eac599"}
+{"level":"warn","message":"Google MOCK MODE: Returning mock verification","service":"iap-service","timestamp":"2026-04-17 16:57:20"}
+{"level":"warn","message":"Google MOCK MODE: Skipping acknowledge","service":"iap-service","timestamp":"2026-04-17 16:57:20"}
+{"level":"info","message":"New subscription created","planType":"1_MONTH","service":"iap-service","subscriptionId":"69e219197c39b66a4d118e5c","timestamp":"2026-04-17 16:57:21","userId":"698f20c11ff3e123d1038296"}
+{"level":"info","message":"Profile subscription synced","service":"iap-service","timestamp":"2026-04-17 16:57:21","userId":"698f20c11ff3e123d1038296"}
+{"level":"info","message":"Purchase verified","platform":"android","purchaseType":"SUBSCRIPTION","service":"iap-service","timestamp":"2026-04-17 16:57:21","userId":"698f20c11ff3e123d1038296"}
+{"level":"info","message":"[CRON] Subscription cron jobs initialized (v3 - No Grace Period)","service":"iap-service","timestamp":"2026-04-17 17:00:28"}
+{"level":"info","message":"[CRON] Subscription cron jobs initialized (v3 - No Grace Period)","service":"iap-service","timestamp":"2026-04-17 18:22:43"}
+{"level":"info","message":"[CRON] Subscription cron jobs initialized (v3 - No Grace Period)","service":"iap-service","timestamp":"2026-04-17 18:23:14"}
+{"level":"info","message":"[CRON] Subscription cron jobs initialized (v3 - No Grace Period)","service":"iap-service","timestamp":"2026-04-17 18:26:17"}
+{"level":"info","message":"[CRON] Subscription cron jobs initialized (v3 - No Grace Period)","service":"iap-service","timestamp":"2026-04-17 18:32:32"}
+{"level":"warn","message":"Google MOCK MODE: Returning mock verification","service":"iap-service","timestamp":"2026-04-17 18:34:57"}
+{"level":"warn","message":"Google MOCK MODE: Skipping acknowledge","service":"iap-service","timestamp":"2026-04-17 18:34:57"}
+{"level":"info","message":"New subscription created","planType":"1_MONTH","service":"iap-service","subscriptionId":"69e22ffa687699df5c31a7ac","timestamp":"2026-04-17 18:34:58","userId":"69ddeddaa60e8ac6fb02a8c9"}
+{"level":"info","message":"Profile subscription synced","service":"iap-service","timestamp":"2026-04-17 18:34:58","userId":"69ddeddaa60e8ac6fb02a8c9"}
+{"level":"info","message":"Purchase verified","platform":"android","purchaseType":"SUBSCRIPTION","service":"iap-service","timestamp":"2026-04-17 18:34:58","userId":"69ddeddaa60e8ac6fb02a8c9"}
+{"level":"info","message":"[CRON] Subscription cron jobs initialized (v3 - No Grace Period)","service":"iap-service","timestamp":"2026-04-17 18:58:15"}

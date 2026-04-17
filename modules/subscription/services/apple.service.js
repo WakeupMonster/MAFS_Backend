@@ -62,6 +62,12 @@ class AppleService {
     const token = this.generateToken();
     const baseUrl = iapConfig.getAppleUrl();
 
+    // 🛡️ SECURITY/DEV CHECK: GPA IDs are for Google Play, not Apple.
+    if (transactionId && transactionId.startsWith("GPA.")) {
+      logger.warn(`MISMATCH DETECTED: Attempted to verify Google ID [${transactionId}] on Apple API. Intercepted to prevent 400 error.`);
+      throw new Error("Invalid transaction ID for Apple Platform. GPA IDs belong to Android.");
+    }
+
     const response = await axios.get(
       `${baseUrl}/inApps/v1/transactions/${transactionId}`,
       { headers: { Authorization: `Bearer ${token}` } }
@@ -273,5 +279,4 @@ class AppleService {
     };
   }
 }
-
 module.exports = new AppleService();

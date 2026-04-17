@@ -8,6 +8,7 @@ const iapConfig = require("../config/iap.config");
 const { generateIdempotencyKey } = require("../utils/iap.helpers");
 const logger = require("../utils/logger");
 const Profile = require("../../profile/profile.model");
+const adminEvents = require("../../../events/admin.events");
 
 class SubscriptionService {
 
@@ -134,15 +135,23 @@ class SubscriptionService {
       newBalance: updatedWallet
     });
 
-    return {
+    const result = {
       type: 'CONSUMABLE',
       consumableType: catalogProduct.consumableType,
       quantity: catalogProduct.quantity,
-      // wallet: {
-      //   superKeens: updatedWallet.superKeensBalance,
-      //   boosts: updatedWallet.boostsBalance
-      // }
     };
+
+    // 📢 Fire real-time activity for Admin
+    Profile.findOne({ userId: data.userId }).select('nickname').then(p => {
+      adminEvents.emit("new_live_activity", {
+        id: identifier, 
+        createdAt: new Date(),
+        description: `Top-up: ${p?.nickname || "User"} (${catalogProduct.quantity} ${catalogProduct.consumableType === 'SUPER_KEEN' ? 'Super Keens' : 'Boosts'})`,
+        color: "#FFB800"
+      });
+    }).catch(err => console.error("Admin consumable event emit failed", err));
+
+    return result;
   }
 
   /**
@@ -213,6 +222,16 @@ class SubscriptionService {
         userId: data.userId,
       });
 
+      // 📢 Fire real-time activity for Admin (Renewal/Update)
+      Profile.findOne({ userId: data.userId }).select('nickname').then(p => {
+        adminEvents.emit("new_live_activity", {
+          id: existing._id,
+          createdAt: new Date(),
+          description: `Subscription Renewed: ${p?.nickname || "User"} (${catalogPlanType})`,
+          color: "#FFB800"
+        });
+      }).catch(err => console.error("Admin sub-renew event emit failed", err));
+
       return { type: 'SUBSCRIPTION', subscription: existing };
     }
 
@@ -259,7 +278,17 @@ class SubscriptionService {
     UsageService._syncPremiumState(subscription.userId, true).catch(err => logger.error('Sync Error:', err));
     await this._syncProfile(subscription);
 
-    return { type: 'SUBSCRIPTION', subscription: subscription };
+    // 📢 Fire real-time activity for Admin (New Purchase)
+    Profile.findOne({ userId: data.userId }).select('nickname').then(p => {
+      adminEvents.emit("new_live_activity", {
+        id: subscription._id,
+        createdAt: new Date(),
+        description: `New Sale: ${p?.nickname || "User"} (${catalogPlanType})`,
+        color: "#FFB800"
+      });
+    }).catch(err => console.error("Admin new-sub event emit failed", err));
+
+    return { type: 'SUBSCRIPTION', subscription };
   }
 
   // ─── RENEW ───
