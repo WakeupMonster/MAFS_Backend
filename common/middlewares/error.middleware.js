@@ -1,13 +1,11 @@
 // eslint-disable-next-line no-unused-vars
-module.exports = (err, req, res,next) => {
-
-
-   // File too large
+module.exports = (err, req, res, next) => {
+  // File too large
   if (err.code === "LIMIT_FILE_SIZE") {
     return res.status(400).json({
       success: false,
       code: "FILE_TOO_LARGE",
-      message: "File too large. Max size is 5MB."
+      message: "File too large. Max size is 5MB.",
     });
   }
 
@@ -16,7 +14,7 @@ module.exports = (err, req, res,next) => {
     return res.status(400).json({
       success: false,
       code: "INVALID_FILE_FIELD",
-      message: "Only 6 files allowed and field name must be 'photos'."
+      message: "Only 6 files allowed and field name must be 'photos'.",
     });
   }
 
@@ -25,16 +23,15 @@ module.exports = (err, req, res,next) => {
     return res.status(400).json({
       success: false,
       code: "INVALID_FILE_TYPE",
-      message: err.message
+      message: err.message,
     });
   }
-
 
   if (err.code && err.statusCode) {
     return res.status(err.statusCode).json({
       success: false,
       code: err.code,
-      message: err.message
+      message: err.message,
     });
   }
 
@@ -42,7 +39,7 @@ module.exports = (err, req, res,next) => {
     return res.status(400).json({
       success: false,
       code: "VALIDATION_ERROR",
-      message: err.details[0].message
+      message: err.details[0].message,
     });
   }
 
@@ -50,7 +47,7 @@ module.exports = (err, req, res,next) => {
     return res.status(400).json({
       success: false,
       code: "DUPLICATE_VALUE",
-      message: "Value already exists"
+      message: "Value already exists",
     });
   }
 
@@ -58,7 +55,8 @@ module.exports = (err, req, res,next) => {
 
   return res.status(500).json({
     success: false,
-    message: process.env.NODE_ENV === "development" ? err.message : "Something went wrong. Please try again.",
-    error: process.env.NODE_ENV === "development" ? err.stack : undefined
+    // message: process.env.NODE_ENV === "development" ? err.message : "Something went wrong. Please try again.",
+    // error: process.env.NODE_ENV === "development" ? err.stack : undefined
+    message: "Something went wrong. Please try again."
   });
 };

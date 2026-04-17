@@ -363,18 +363,37 @@ const listFakeProfiles = async ({
     combined = combined.slice(startIndex, startIndex + limit);
   }
 
-  // ── 7. Calculate pagination metadata ──
+  // ── 7. Calculate additional stats (KPIs) ──
+  const fakeUserIds = await User.find({ isFake: true }).distinct("_id");
+  const [activeTotal, deactivatedTotal, menCount, womenCount] =
+    await Promise.all([
+      User.countDocuments({ isFake: true, accountStatus: "active" }),
+      User.countDocuments({ isFake: true, accountStatus: "deactivated" }),
+      Profile.countDocuments({ gender: "men", userId: { $in: fakeUserIds } }),
+      Profile.countDocuments({ gender: "women", userId: { $in: fakeUserIds } }),
+    ]);
+  const totalAll = fakeUserIds.length;
+
+  // ── 8. Calculate pagination metadata ──
   const totalPages = Math.ceil(total / limit);
 
   return {
     data: combined,
     pagination: {
       total,
+      totalAll,
       page,
       limit,
       totalPages,
       hasNextPage: page < totalPages,
       hasPrevPage: page > 1,
+    },
+    kpiStats: {
+      totalProfiles: totalAll,
+      activeTotal,
+      deactivatedTotal,
+      menCount,
+      womenCount,
     },
   };
 };

@@ -42,7 +42,11 @@ router.use("/cms", cmsRoutes);
 router.use("/giveaway", giveawayRoutes);
 router.use("/dashboard", dashboardRoutes);
 // Advanced Dashboard API
-router.get("/dashboard-v2/advanced-metrics", advancedDashboardCtrl.getAdvancedDashboardMetrics);
+
+router.get(
+  "/dashboard-v2/advanced-metrics",
+  advancedDashboardCtrl.getAdvancedDashboardMetrics,
+);
 router.use("/moderation", moderationRoutes);
 router.use("/profile-review", profileReviewRoutes);
 router.use("/chat", chatRoutes); // Cleaned name from "chat-management"

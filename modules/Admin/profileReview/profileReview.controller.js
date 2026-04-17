@@ -388,31 +388,218 @@ const updateProfileStatus = async (req, res) => {
   }
 };
 
+// const getReportedProfiles = async (req, res) => {
+//   try {
+//     const page = parseInt(req.query.page) || 1;
+//     const limit = parseInt(req.query.limit) || 20;
+//     const skip = (page - 1) * limit;
+//     const search = req.query.search || "";
+//     const status = req.query.status || ""; // ✅ Get status filter from frontend
+
+//     // Dynamic match stage
+//     const matchStage = { reportedId: { $exists: true, $ne: null } };
+
+//     // ✅ Apply status filter: if "all" or empty, allow all valid statuses
+//     if (status && status !== "all") {
+//       matchStage.status = status;
+//     } else {
+//       matchStage.status = { $in: ["new", "in_progress", "resolved"] };
+//     }
+
+//     const pipeline = [
+//       { $match: matchStage },
+//       { $sort: { createdAt: -1 } },
+
+//       // Join User data
+//       {
+//         $lookup: {
+//           from: "users",
+//           localField: "reportedId",
+//           foreignField: "_id",
+//           as: "reportedUser",
+//         },
+//       },
+//       { $unwind: { path: "$reportedUser", preserveNullAndEmptyArrays: true } },
+
+//       // Join Profile data
+//       {
+//         $lookup: {
+//           from: "profiles",
+//           localField: "reportedId",
+//           foreignField: "userId",
+//           as: "profile",
+//         },
+//       },
+//       { $unwind: { path: "$profile", preserveNullAndEmptyArrays: true } },
+
+//       // ===== SEARCH FILTER =====
+//       ...(search
+//         ? [
+//             {
+//               $match: {
+//                 $or: [
+//                   { "profile.nickname": { $regex: search, $options: "i" } },
+//                   { "reportedUser.name": { $regex: search, $options: "i" } },
+//                 ],
+//               },
+//             },
+//           ]
+//         : []),
+
+//       // Group reports by user
+//       {
+//         $group: {
+//           _id: "$reportedId",
+//           user: { $first: "$reportedUser" },
+//           profile: { $first: "$profile" },
+//           reportCount: { $sum: 1 },
+//           reasons: { $addToSet: "$reason" },
+//           latestReport: { $first: "$createdAt" },
+//           latestStatus: { $first: "$status" },
+//           latestSeverity: { $first: "$severity" },
+//           reports: {
+//             $push: {
+//               _id: "$_id",
+//               reason: "$reason",
+//               description: "$description",
+//               status: "$status",
+//               severity: "$severity",
+//               reportedById: "$reporterId",
+//               reportedAt: "$createdAt",
+//             },
+//           },
+//         },
+//       },
+//       { $sort: { latestReport: -1 } },
+//     ];
+
+//     // Execute aggregation for data and stats
+//     const [aggResult] = await Report.aggregate([
+//       {
+//         $facet: {
+//           data: [...pipeline, { $skip: skip }, { $limit: limit }],
+//           totalCount: [...pipeline, { $count: "total" }],
+//           kpiStats: [
+//             { $match: { reportedId: { $exists: true, $ne: null } } },
+//             {
+//               $group: {
+//                 _id: "$reportedId",
+//                 status: { $first: "$status" },
+//                 severity: { $first: "$severity" },
+//               },
+//             },
+//             {
+//               $group: {
+//                 _id: null,
+//                 total: { $sum: 1 },
+//                 newCount: {
+//                   $sum: { $cond: [{ $eq: ["$status", "new"] }, 1, 0] },
+//                 },
+//                 inProgressCount: {
+//                   $sum: { $cond: [{ $eq: ["$status", "in_progress"] }, 1, 0] },
+//                 },
+//                 resolvedCount: {
+//                   $sum: { $cond: [{ $eq: ["$status", "resolved"] }, 1, 0] },
+//                 },
+//                 highPriorityCount: {
+//                   $sum: { $cond: [{ $eq: ["$severity", "high"] }, 1, 0] },
+//                 },
+//               },
+//             },
+//           ],
+//         },
+//       },
+//     ]);
+
+//     const reports = aggResult.data || [];
+//     const total = aggResult.totalCount[0]?.total || 0;
+//     const stats = aggResult.kpiStats[0] || {
+//       total: 0,
+//       newCount: 0,
+//       inProgressCount: 0,
+//       resolvedCount: 0,
+//       highPriorityCount: 0,
+//     };
+
+//     const kpiStats = {
+//       totalReports: stats.total,
+//       newReports: stats.newCount,
+//       inProgressReports: stats.inProgressCount,
+//       resolvedReports: stats.resolvedCount,
+//       highPriorityReports: stats.highPriorityCount,
+//     };
+
+//     // ===== FORMAT RESPONSE =====
+//     const formattedData = reports.map((item) => {
+//       const user = item.user || {};
+//       const profile = item.profile || {};
+
+//       return {
+//         userId: item._id,
+//         nickname: profile.nickname || user.name || "No Nickname",
+//         profilePhoto: profile.photos?.[0]?.url || null,
+//         reportCount: item.reportCount,
+//         lastReportedAt: item.latestReport,
+//         status: item.latestStatus,
+//         severity: item.latestSeverity,
+//         reasons: item.reasons,
+//         profile: {
+//           photos: profile.photos || [],
+//           bio: profile.about || "",
+//           interests: profile.interests || [],
+//           gender: profile.gender || user.gender || "",
+//           age: profile.age || user.age || null,
+//           location: profile.location || {},
+//           verification: profile.verification || {},
+//         },
+//         reports: item.reports,
+//       };
+//     });
+
+//     return res.json({
+//       success: true,
+//       pagination: {
+//         total,
+//         page,
+//         limit,
+//         totalPages: Math.ceil(total / limit),
+//       },
+//       kpiStats,
+//       data: formattedData,
+//     });
+//   } catch (error) {
+//     console.error("Error in getReportedProfiles:", error);
+//     return res.status(500).json({
+//       success: false,
+//       message: "Failed to fetch reported profiles",
+//       error: error.message,
+//     });
+//   }
+// };
+
 const getReportedProfiles = async (req, res) => {
   try {
-    const page = parseInt(req.query.page) || 1;
-    const limit = parseInt(req.query.limit) || 20;
+    const page = Math.max(parseInt(req.query.page) || 1, 1);
+    const limit = Math.min(parseInt(req.query.limit) || 20, 100);
     const skip = (page - 1) * limit;
-    const search = req.query.search || "";
-    const status = req.query.status || ""; // ✅ Get status filter from frontend
+    const search = req.query.search?.trim() || "";
+    const status = req.query.status || "";
 
-    // Dynamic match stage
-    const matchStage = {
-      reportedId: { $exists: true, $ne: null },
-    };
+    // 1. Initial Match Stage (Basic filter)
+    const baseMatch = { reportedId: { $exists: true, $ne: null } };
 
-    // ✅ Apply status filter: if "all" or empty, allow all valid statuses
+    // 2. Status Filter Logic
+    const statusMatch = {};
     if (status && status !== "all") {
-      matchStage.status = status;
+      statusMatch.status = status;
     } else {
-      matchStage.status = { $in: ["new", "in_progress", "resolved"] };
+      statusMatch.status = { $in: ["new", "in_progress", "resolved"] };
     }
 
-    const pipeline = [
-      { $match: matchStage },
-      { $sort: { createdAt: -1 } },
-
-      // Join User data
+    // 3. Common Pipeline Stages (Jo Data aur Count dono mein use honge)
+    const commonPipeline = [
+      { $match: { ...baseMatch, ...statusMatch } },
+      // Join User & Profile for Search
       {
         $lookup: {
           from: "users",
@@ -422,8 +609,6 @@ const getReportedProfiles = async (req, res) => {
         },
       },
       { $unwind: { path: "$reportedUser", preserveNullAndEmptyArrays: true } },
-
-      // Join Profile data
       {
         $lookup: {
           from: "profiles",
@@ -433,8 +618,7 @@ const getReportedProfiles = async (req, res) => {
         },
       },
       { $unwind: { path: "$profile", preserveNullAndEmptyArrays: true } },
-
-      // ===== SEARCH FILTER =====
+      // Search Filter
       ...(search
         ? [
             {
@@ -447,8 +631,7 @@ const getReportedProfiles = async (req, res) => {
             },
           ]
         : []),
-
-      // Group reports by user
+      // Grouping logic to get unique reported users
       {
         $group: {
           _id: "$reportedId",
@@ -459,7 +642,7 @@ const getReportedProfiles = async (req, res) => {
           latestReport: { $first: "$createdAt" },
           latestStatus: { $first: "$status" },
           latestSeverity: { $first: "$severity" },
-          reports: {
+          allReports: {
             $push: {
               _id: "$_id",
               reason: "$reason",
@@ -472,67 +655,108 @@ const getReportedProfiles = async (req, res) => {
           },
         },
       },
-      { $sort: { latestReport: -1 } },
     ];
 
-    // Execute aggregation for data
-    const reports = await Report.aggregate([
-      ...pipeline,
-      { $skip: skip },
-      { $limit: limit },
-    ]);
-
-    // Calculate total count for pagination (accounts for search & status filter)
-    const totalCountResult = await Report.aggregate([
-      ...pipeline,
-      { $count: "total" },
-    ]);
-    const total = totalCountResult.length > 0 ? totalCountResult[0].total : 0;
-
-    // ===== FORMAT RESPONSE =====
-    const result = reports.map((item) => {
-      const user = item.user || {};
-      const profile = item.profile || {};
-
-      return {
-        userId: item._id,
-        nickname: profile.nickname || user.name || "No Nickname",
-        profilePhoto: profile.photos?.[0]?.url || null,
-        reportCount: item.reportCount,
-        lastReportedAt: item.latestReport,
-        status: item.latestStatus,
-        severity: item.latestSeverity,
-        reasons: item.reasons,
-        profile: {
-          photos: profile.photos || [],
-          bio: profile.about || "",
-          interests: profile.interests || [],
-          gender: profile.gender || user.gender || "",
-          age: profile.age || user.age || null,
-          location: profile.location || {},
-          verification: profile.verification || {},
+    // 4. Execution using $facet
+    const [aggResult] = await Report.aggregate([
+      {
+        $facet: {
+          // Actual Data with Pagination
+          data: [
+            ...commonPipeline,
+            { $sort: { latestReport: -1 } },
+            { $skip: skip },
+            { $limit: limit },
+          ],
+          // Filtered Total (Pagination ke liye)
+          metadata: [...commonPipeline, { $count: "total" }],
+          // Global KPI Stats (Unique Users ke basis par)
+          kpiStats: [
+            { $match: baseMatch }, // Global stats ke liye search/status filter nahi lagaya
+            {
+              $group: {
+                _id: "$reportedId",
+                status: { $first: "$status" },
+                severity: { $first: "$severity" },
+              },
+            },
+            {
+              $group: {
+                _id: null,
+                total: { $sum: 1 },
+                newCount: {
+                  $sum: { $cond: [{ $eq: ["$status", "new"] }, 1, 0] },
+                },
+                inProgressCount: {
+                  $sum: { $cond: [{ $eq: ["$status", "in_progress"] }, 1, 0] },
+                },
+                resolvedCount: {
+                  $sum: { $cond: [{ $eq: ["$status", "resolved"] }, 1, 0] },
+                },
+                highPriorityCount: {
+                  $sum: { $cond: [{ $eq: ["$severity", "high"] }, 1, 0] },
+                },
+              },
+            },
+          ],
         },
-        reports: item.reports,
-      };
-    });
+      },
+    ]);
+
+    // 5. Data Extraction
+    const reports = aggResult.data || [];
+    const totalFiltered = aggResult.metadata[0]?.total || 0;
+    const stats = aggResult.kpiStats[0] || {
+      total: 0,
+      newCount: 0,
+      inProgressCount: 0,
+      resolvedCount: 0,
+      highPriorityCount: 0,
+    };
+
+    // 6. Format Response
+    const formattedData = reports.map((item) => ({
+      userId: item._id,
+      nickname: item.profile?.nickname || item.user?.name || "Unknown",
+      profilePhoto: item.profile?.photos?.[0]?.url || null,
+      reportCount: item.reportCount,
+      lastReportedAt: item.latestReport,
+      status: item.latestStatus,
+      severity: item.latestSeverity,
+      reasons: item.reasons,
+      profile: {
+        photos: item.profile?.photos || [],
+        bio: item.profile?.about || "",
+        gender: item.profile?.gender || "",
+        age: item.profile?.age || null,
+        location: item.profile?.location || {},
+        verification: item.profile?.verification || {},
+      },
+      reports: item.allReports,
+    }));
 
     return res.json({
       success: true,
       pagination: {
-        total,
+        total: totalFiltered,
         page,
         limit,
-        totalPages: Math.ceil(total / limit),
+        totalPages: Math.ceil(totalFiltered / limit),
       },
-      data: result,
+      kpiStats: {
+        totalReports: stats.total,
+        newReports: stats.newCount,
+        inProgressReports: stats.inProgressCount,
+        resolvedReports: stats.resolvedCount,
+        highPriorityReports: stats.highPriorityCount,
+      },
+      data: formattedData,
     });
   } catch (error) {
-    console.error("Error in getReportedProfiles:", error);
-    return res.status(500).json({
-      success: false,
-      message: "Failed to fetch reported profiles",
-      error: error.message,
-    });
+    console.error("getReportedProfiles Error:", error);
+    return res
+      .status(500)
+      .json({ success: false, message: "Internal Server Error" });
   }
 };
 

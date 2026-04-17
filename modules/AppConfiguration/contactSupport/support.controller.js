@@ -197,6 +197,26 @@ module.exports.getAllTickets = async (req, res) => {
               },
             },
           ],
+          kpiStats: [
+            {
+              $group: {
+                _id: null,
+                totalTickets: { $sum: 1 },
+                openTickets: {
+                  $sum: { $cond: [{ $eq: ["$status", "open"] }, 1, 0] },
+                },
+                inProgressTickets: {
+                  $sum: { $cond: [{ $eq: ["$status", "in_progress"] }, 1, 0] },
+                },
+                resolvedTickets: {
+                  $sum: { $cond: [{ $eq: ["$status", "resolved"] }, 1, 0] },
+                },
+                closedTickets: {
+                  $sum: { $cond: [{ $eq: ["$status", "closed"] }, 1, 0] },
+                },
+              },
+            },
+          ],
         },
       },
     ];
@@ -206,6 +226,21 @@ module.exports.getAllTickets = async (req, res) => {
     // Extract total count from metadata
     const totalItems = result.metadata[0]?.total || 0;
     const totalPages = Math.ceil(totalItems / limitNum);
+    const stats = result.kpiStats[0] || {
+      totalTickets: 0,
+      openTickets: 0,
+      inProgressTickets: 0,
+      resolvedTickets: 0,
+      closedTickets: 0,
+    };
+
+    const kpiStats = {
+      totalTickets: stats.totalTickets,
+      openTickets: stats.openTickets,
+      inProgressTickets: stats.inProgressTickets,
+      resolvedTickets: stats.resolvedTickets,
+      closedTickets: stats.closedTickets,
+    };
 
     return res.json({
       success: true,
@@ -215,6 +250,7 @@ module.exports.getAllTickets = async (req, res) => {
         page: pageNum,
         limit: limitNum,
       },
+      kpiStats,
       data: result.data,
     });
   } catch (err) {

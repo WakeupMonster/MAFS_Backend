@@ -57,9 +57,10 @@ const listAll = async (req, res) => {
   try {
     const { error, value } = listQuerySchema.validate(req.query);
     if (error)
-      return res
-        .status(400)
-        .json({ success: false, message: error.details[0].message });
+      return res.status(400).json({
+        success: false,
+        message: error.details[0].message,
+      });
 
     const result = await fakeProfileService.listFakeProfiles(value);
 
@@ -77,19 +78,24 @@ const listAll = async (req, res) => {
         // Append sensitive details only for Admin response
         formatted.account.email = item.user.email;
         formatted.account.phone = item.user.phone;
-
-        return {
-          user: formatted,
-        };
+        return { user: formatted };
       }),
     );
 
-    console.log("formattedData: ", formattedData);
+    const kpiStats = {
+      totalProfiles: result.kpiStats.totalProfiles,
+      activeTotal: result.kpiStats.activeTotal,
+      deactivatedTotal: result.kpiStats.deactivatedTotal,
+      menCount: result.kpiStats.menCount,
+      womenCount: result.kpiStats.womenCount,
+    };
 
     res.status(200).json({
       success: true,
-      data: formattedData,
+      message: "Fake profiles fetched successfully",
       pagination: result.pagination,
+      kpiStats,
+      data: formattedData,
     });
   } catch (error) {
     console.error("List Fake Profiles Error:", error);
