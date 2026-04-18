@@ -31276,3 +31276,18 @@
 {"level":"error","message":"[CRON] Cancelled expire check error:","service":"iap-service","timestamp":"2026-04-18 16:55:07"}
 {"level":"error","message":"[CRON] Expire check error:","service":"iap-service","timestamp":"2026-04-18 16:55:07"}
 {"level":"error","message":"🧪 [DEV] Reset failed:","service":"iap-service","timestamp":"2026-04-18 17:00:00"}
+{"level":"info","message":"[CRON] Subscription cron jobs initialized (v3 - No Grace Period)","service":"iap-service","timestamp":"2026-04-18 17:02:10"}
+{"level":"info","message":"🧪 [DEV] Dev tools routes registered at /api/v1/dev/*","service":"iap-service","timestamp":"2026-04-18 17:02:13"}
+{"level":"info","message":"🧪 [DEV] Resetting user to FREE","service":"iap-service","timestamp":"2026-04-18 17:02:32","userId":"69ddeddaa60e8ac6fb02a8c9"}
+{"level":"info","message":"[CRON] Subscription cron jobs initialized (v3 - No Grace Period)","service":"iap-service","timestamp":"2026-04-18 17:03:13"}
+{"level":"info","message":"🧪 [DEV] Dev tools routes registered at /api/v1/dev/*","service":"iap-service","timestamp":"2026-04-18 17:03:15"}
+{"level":"info","message":"[CRON] Subscription cron jobs initialized (v3 - No Grace Period)","service":"iap-service","timestamp":"2026-04-18 17:03:49"}
+{"level":"info","message":"🧪 [DEV] Dev tools routes registered at /api/v1/dev/*","service":"iap-service","timestamp":"2026-04-18 17:03:50"}
+{"level":"info","message":"[CRON] Subscription cron jobs initialized (v3 - No Grace Period)","service":"iap-service","timestamp":"2026-04-18 17:17:16"}
+{"level":"info","message":"🧪 [DEV] Dev tools routes registered at /api/v1/dev/*","service":"iap-service","timestamp":"2026-04-18 17:17:18"}
+{"level":"error","message":"[CRON] Expire check error:","service":"iap-service","timestamp":"2026-04-18 17:45:05"}
+{"level":"error","message":"[CRON] Cancelled expire check error:","service":"iap-service","timestamp":"2026-04-18 17:45:05"}
+{"level":"info","message":"[CRON] Subscription cron jobs initialized (v3 - No Grace Period)","service":"iap-service","timestamp":"2026-04-18 17:50:57"}
+{"level":"info","message":"🧪 [DEV] Dev tools routes registered at /api/v1/dev/*","service":"iap-service","timestamp":"2026-04-18 17:50:59"}
+{"level":"info","message":"[CRON] Subscription cron jobs initialized (v3 - No Grace Period)","service":"iap-service","timestamp":"2026-04-18 18:19:09"}
+{"level":"info","message":"🧪 [DEV] Dev tools routes registered at /api/v1/dev/*","service":"iap-service","timestamp":"2026-04-18 18:19:10"}

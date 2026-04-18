@@ -362,6 +362,7 @@ const getCatalog = async (req, res, next) => {
           isActive: config.milestone.isActive,
         },
         freeFeatures,
+        PremiumFeatures: allDynamicFeatures // Dynamic features with full metadata
       },
     });
   } catch (err) {

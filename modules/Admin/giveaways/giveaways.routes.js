@@ -26,7 +26,7 @@ router.get("/campaigns/winner", ctrl.getCampaignWinners);
 // router.get("/campaigns/winner", ctrl.getAllWinners);
 router.post("/campaigns/:id/resend-prize", ctrl.resendPrize);
 router.get("/claims", ctrl.getAllClaims);
-    
+
 /** @section Logistics & Audit */
 router.get("/deliveries/pending", ctrl.getPendingDeliveries);
 router.get("/deliveries/completed", ctrl.getDeliveredPrizes);

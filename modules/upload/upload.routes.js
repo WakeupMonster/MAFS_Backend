@@ -10,7 +10,7 @@ router.post('/image', uploadSingle('file'), async (req, res, next) => {
     }
     const result = await cloudinaryService.uploadStream(req.file.buffer, {
       folder: 'mafs-admin-icons',
-      resource_type: 'auto'
+      resource_type: 'image'
     });
     
     return res.json({ success: true, url: result.secure_url });
