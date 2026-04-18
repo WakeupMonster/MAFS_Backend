@@ -9,6 +9,7 @@ const SubscriptionEvent = require("../../../modules/subscription/models/Subscrip
 const Product = require("../models_v3/Product");
 const SubscriptionConfig = require("../models_v3/SubscriptionConfig");
 const UsageService = require("../services/usage.service");
+const featureService = require("../services/feature.service");
 
 const verifyPurchase = async (req, res, next) => {
   try {
@@ -298,6 +299,13 @@ const getCatalog = async (req, res, next) => {
     const consumables = products.filter((p) => p.type === "CONSUMABLE");
 
     // Dynamic Feature Lists for UI display
+    // Get all features pretending user is premium, to gather what premium gives
+    const allDynamicFeatures = await featureService.getDynamicFeaturesForUser(req.user._id, true);
+
+    const dynamicPremiumFeatures = allDynamicFeatures
+      .filter(f => f.isPremiumOnly)
+      .map(f => f.name);
+
     const features = [
       config.premiumLimits.swipesPerDay === -1
         ? "Unlimited likes"
@@ -311,18 +319,19 @@ const getCatalog = async (req, res, next) => {
       config.premiumLimits.rewindsPerDay === -1
         ? "Unlimited rewinds"
         : `${config.premiumLimits.rewindsPerDay} rewinds per day`,
-      config.premiumFeatures.seeWhoLikedYou ? "See who liked you" : null,
-      config.premiumFeatures.advancedFilters ? "Advanced filters" : null,
-      config.premiumFeatures.noAds ? "No ads" : null,
-      config.premiumFeatures.passport ? "Passport to any location" : null,
+      ...dynamicPremiumFeatures
     ].filter(Boolean);
+
+    const dynamicFreeFeatures = allDynamicFeatures
+      .filter(f => !f.isPremiumOnly)
+      .map(f => f.name);
 
     const freeFeatures = [
       `${config.freeLimits.swipesPerDay} likes per day`,
       `${config.freeLimits.superKeensPerWeek} Super Keen per week`,
       `${config.freeLimits.rewindsPerDay} rewind per day`,
       `${config.freeLimits.boostsPerMonth} Boost per month`,
-      "Basic filters",
+      ...dynamicFreeFeatures.length > 0 ? dynamicFreeFeatures : ["Basic filters"],
     ];
 
     return res.json({

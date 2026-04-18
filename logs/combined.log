@@ -31263,3 +31263,9 @@
 {"level":"info","message":"🧪 Xcode StoreKit detected — bypassing Apple Server API","productId":"com.keenasmustard.boost.5","service":"iap-service","timestamp":"2026-04-18 13:05:28","transactionId":"1","type":"Consumable"}
 {"level":"info","message":"Consumable purchase processed","newBalance":{"__v":0,"_id":"69e319b4875bab9c6dc880ea","boostsBalance":5,"createdAt":"2026-04-18T05:42:09.481Z","superKeensBalance":0,"updatedAt":"2026-04-18T07:35:28.322Z","userId":"69ddeddaa60e8ac6fb02a8c9"},"quantity":5,"service":"iap-service","timestamp":"2026-04-18 13:05:28","type":"BOOST","userId":"69ddeddaa60e8ac6fb02a8c9"}
 {"level":"info","message":"Purchase verified","platform":"ios","purchaseType":"CONSUMABLE","service":"iap-service","timestamp":"2026-04-18 13:05:28","userId":"69ddeddaa60e8ac6fb02a8c9"}
+{"level":"info","message":"[CRON] Subscription cron jobs initialized (v3 - No Grace Period)","service":"iap-service","timestamp":"2026-04-18 13:07:49"}
+{"level":"info","message":"🧪 [DEV] Dev tools routes registered at /api/v1/dev/*","service":"iap-service","timestamp":"2026-04-18 13:07:51"}
+{"level":"info","message":"[CRON] Subscription cron jobs initialized (v3 - No Grace Period)","service":"iap-service","timestamp":"2026-04-18 13:32:03"}
+{"level":"info","message":"🧪 [DEV] Dev tools routes registered at /api/v1/dev/*","service":"iap-service","timestamp":"2026-04-18 13:32:05"}
+{"level":"info","message":"[CRON] Subscription cron jobs initialized (v3 - No Grace Period)","service":"iap-service","timestamp":"2026-04-18 13:38:38"}
+{"level":"info","message":"🧪 [DEV] Dev tools routes registered at /api/v1/dev/*","service":"iap-service","timestamp":"2026-04-18 13:38:40"}
