@@ -58,6 +58,13 @@ app.use("/webhook", webhookRoutes);
 app.use("/api/v1/subscription", subscriptionRoutes);
 app.use("/api/v1/iap/health", healthRoutes);
 
+// ─── DEV-ONLY: Testing Tools (Never registered in production) ───
+if (process.env.NODE_ENV === "development" || !process.env.NODE_ENV) {
+  const devToolsRoutes = require("./modules/subscription/dev-tools/dev.routes");
+  app.use("/api/v1/dev", devToolsRoutes);
+  logger.info("🧪 [DEV] Dev tools routes registered at /api/v1/dev/*");
+}
+
 // ─── Root Route ───
 app.get("/", (req, res) => res.json({ message: "API running" }));
 

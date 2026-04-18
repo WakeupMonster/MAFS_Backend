@@ -31238,3 +31238,11 @@
 {"level":"info","message":"Consumable purchase processed","newBalance":{"__v":0,"_id":"69e319b4875bab9c6dc880ea","boostsBalance":5,"createdAt":"2026-04-18T05:42:09.481Z","superKeensBalance":0,"updatedAt":"2026-04-18T05:42:09.481Z","userId":"69ddeddaa60e8ac6fb02a8c9"},"quantity":5,"service":"iap-service","timestamp":"2026-04-18 11:12:09","type":"BOOST","userId":"69ddeddaa60e8ac6fb02a8c9"}
 {"level":"info","message":"Purchase verified","platform":"ios","purchaseType":"CONSUMABLE","service":"iap-service","timestamp":"2026-04-18 11:12:09","userId":"69ddeddaa60e8ac6fb02a8c9"}
 {"level":"info","message":"[CRON] Subscription cron jobs initialized (v3 - No Grace Period)","service":"iap-service","timestamp":"2026-04-18 11:14:26"}
+{"level":"info","message":"[CRON] Subscription cron jobs initialized (v3 - No Grace Period)","service":"iap-service","timestamp":"2026-04-18 11:18:05"}
+{"level":"info","message":"[CRON] Subscription cron jobs initialized (v3 - No Grace Period)","service":"iap-service","timestamp":"2026-04-18 11:20:30"}
+{"level":"info","message":"[CRON] Subscription cron jobs initialized (v3 - No Grace Period)","service":"iap-service","timestamp":"2026-04-18 11:35:47"}
+{"level":"info","message":"🧪 [DEV] Dev tools routes registered at /api/v1/dev/*","service":"iap-service","timestamp":"2026-04-18 11:35:48"}
+{"level":"info","message":"🧪 [DEV] Resetting user to FREE","service":"iap-service","timestamp":"2026-04-18 11:36:19","userId":"69ddeddaa60e8ac6fb02a8c9"}
+{"level":"info","message":"[CRON] Subscription cron jobs initialized (v3 - No Grace Period)","service":"iap-service","timestamp":"2026-04-18 11:39:21"}
+{"level":"info","message":"🧪 [DEV] Dev tools routes registered at /api/v1/dev/*","service":"iap-service","timestamp":"2026-04-18 11:39:23"}
+{"level":"info","message":"🧪 [DEV] Resetting user to FREE","service":"iap-service","timestamp":"2026-04-18 11:39:43","userId":"69ddeddaa60e8ac6fb02a8c9"}
