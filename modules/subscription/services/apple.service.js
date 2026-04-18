@@ -215,6 +215,34 @@ class AppleService {
     }
   }
 
+  /**
+   * DEV ONLY: Attempts to decode a local Xcode StoreKit purchaseToken.
+   * Returns the decoded payload if environment === "Xcode", null otherwise.
+   * Designed to NEVER throw — all errors are swallowed silently.
+   */
+  decodeLocalStoreKitToken(purchaseToken) {
+    if (!purchaseToken || typeof purchaseToken !== "string") return null;
+
+    try {
+      const parts = purchaseToken.split(".");
+      if (parts.length !== 3) return null;
+
+      const payload = JSON.parse(
+        Buffer.from(parts[1], "base64").toString("utf8")
+      );
+
+      // Only return if explicitly from Xcode local testing
+      if (payload && payload.environment === "Xcode") {
+        return payload;
+      }
+
+      return null;
+    } catch (err) {
+      // Silently return null — this is a best-effort detection
+      return null;
+    }
+  }
+
   decodeJWS(token) {
     try {
       const parts = token.split(".");

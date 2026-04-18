@@ -31223,3 +31223,18 @@
 {"level":"info","message":"Profile subscription synced","service":"iap-service","timestamp":"2026-04-17 18:34:58","userId":"69ddeddaa60e8ac6fb02a8c9"}
 {"level":"info","message":"Purchase verified","platform":"android","purchaseType":"SUBSCRIPTION","service":"iap-service","timestamp":"2026-04-17 18:34:58","userId":"69ddeddaa60e8ac6fb02a8c9"}
 {"level":"info","message":"[CRON] Subscription cron jobs initialized (v3 - No Grace Period)","service":"iap-service","timestamp":"2026-04-17 18:58:15"}
+{"level":"info","message":"[CRON] Subscription cron jobs initialized (v3 - No Grace Period)","service":"iap-service","timestamp":"2026-04-18 09:54:53"}
+{"level":"warn","message":"Google MOCK MODE: Returning mock verification","service":"iap-service","timestamp":"2026-04-18 10:07:53"}
+{"level":"warn","message":"Google MOCK MODE: Skipping acknowledge","service":"iap-service","timestamp":"2026-04-18 10:07:53"}
+{"level":"info","message":"New subscription created","planType":"1_MONTH","service":"iap-service","subscriptionId":"69e30aa25e9a4cd534c8ae76","timestamp":"2026-04-18 10:07:58","userId":"69ddeddaa60e8ac6fb02a8c9"}
+{"level":"info","message":"Profile subscription synced","service":"iap-service","timestamp":"2026-04-18 10:07:59","userId":"69ddeddaa60e8ac6fb02a8c9"}
+{"level":"info","message":"Purchase verified","platform":"android","purchaseType":"SUBSCRIPTION","service":"iap-service","timestamp":"2026-04-18 10:07:59","userId":"69ddeddaa60e8ac6fb02a8c9"}
+{"level":"error","message":"[CRON] Cancelled expire check error:","service":"iap-service","timestamp":"2026-04-18 10:55:05"}
+{"level":"error","message":"[CRON] Expire check error:","service":"iap-service","timestamp":"2026-04-18 10:55:05"}
+{"level":"error","message":"Verify purchase error:","service":"iap-service","timestamp":"2026-04-18 11:06:50"}
+{"level":"error","message":"Verify purchase error:","service":"iap-service","timestamp":"2026-04-18 11:07:15"}
+{"level":"info","message":"[CRON] Subscription cron jobs initialized (v3 - No Grace Period)","service":"iap-service","timestamp":"2026-04-18 11:11:58"}
+{"level":"info","message":"🧪 Xcode StoreKit detected — bypassing Apple Server API","productId":"com.keenasmustard.boost.5","service":"iap-service","timestamp":"2026-04-18 11:12:09","transactionId":"1","type":"Consumable"}
+{"level":"info","message":"Consumable purchase processed","newBalance":{"__v":0,"_id":"69e319b4875bab9c6dc880ea","boostsBalance":5,"createdAt":"2026-04-18T05:42:09.481Z","superKeensBalance":0,"updatedAt":"2026-04-18T05:42:09.481Z","userId":"69ddeddaa60e8ac6fb02a8c9"},"quantity":5,"service":"iap-service","timestamp":"2026-04-18 11:12:09","type":"BOOST","userId":"69ddeddaa60e8ac6fb02a8c9"}
+{"level":"info","message":"Purchase verified","platform":"ios","purchaseType":"CONSUMABLE","service":"iap-service","timestamp":"2026-04-18 11:12:09","userId":"69ddeddaa60e8ac6fb02a8c9"}
+{"level":"info","message":"[CRON] Subscription cron jobs initialized (v3 - No Grace Period)","service":"iap-service","timestamp":"2026-04-18 11:14:26"}

@@ -33,6 +33,7 @@ exports.updateConfig = async (req, res, next) => {
         if (req.body.premiumLimits) config.premiumLimits = { ...config.premiumLimits, ...req.body.premiumLimits };
         if (req.body.premiumFeatures) config.premiumFeatures = { ...config.premiumFeatures, ...req.body.premiumFeatures };
         if (req.body.milestone) config.milestone = { ...config.milestone, ...req.body.milestone };
+        if (req.body.dynamicFeatures) config.dynamicFeatures = req.body.dynamicFeatures;
 
         config.updatedAt = new Date();
         await config.save();

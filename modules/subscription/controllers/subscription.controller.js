@@ -27,10 +27,37 @@ const verifyPurchase = async (req, res, next) => {
         });
       }
 
-      const result = await appleService.verifyTransaction(
-        transactionId,
-        productId,
-      );
+      let result;
+      const isDev = process.env.NODE_ENV === "development" || !process.env.NODE_ENV;
+
+      // 🧪 DEV ONLY: Detect local Xcode StoreKit receipts
+      if (isDev && purchaseToken) {
+        const xcodeData = appleService.decodeLocalStoreKitToken(purchaseToken);
+        if (xcodeData) {
+          logger.info("🧪 Xcode StoreKit detected — bypassing Apple Server API", {
+            productId: xcodeData.productId,
+            transactionId: xcodeData.transactionId,
+            type: xcodeData.type,
+          });
+          result = {
+            productId: xcodeData.productId,
+            originalTransactionId: String(xcodeData.originalTransactionId || xcodeData.transactionId),
+            transactionId: String(xcodeData.transactionId),
+            purchaseDate: xcodeData.purchaseDate || Date.now(),
+            expiresDate: xcodeData.expiresDate || null,
+            type: xcodeData.type,
+            environment: "Xcode",
+          };
+        }
+      }
+
+      // Normal flow: Call Apple's Server API (skipped if Xcode was detected above)
+      if (!result) {
+        result = await appleService.verifyTransaction(
+          transactionId,
+          productId,
+        );
+      }
 
       purchaseData = {
         userId: userId,
