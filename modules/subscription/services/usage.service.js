@@ -14,6 +14,7 @@ const featureService = require("./feature.service");
  * Centalized service for usage tracking and enforcement.
  * Implements the "Two-Bucket" system (Free Quota vs. Wallet) with AEST timezone compliance.
  */
+
 class UsageService {
 
     async useItem(userId, type) {
@@ -49,7 +50,8 @@ class UsageService {
      * Returns a complete report for Flutter (The Status API Engine)
      */
     async getUsageStatus(userId) {
-        const [config, activeSub, daily, weekly, monthly, wallet] = await Promise.all([
+        const cache = require("../../../config/cache");
+        const [config, activeSub, daily, weekly, monthly, wallet, boostTTL] = await Promise.all([
             SubscriptionConfig.getOrCreate(),
             Subscription.findOne({ userId, status: { $in: ['ACTIVE', 'CANCELLED'] }, expiresAt: { $gt: new Date() } })
                 .sort({ expiresAt: -1 })
@@ -57,7 +59,8 @@ class UsageService {
             UserDailyUsage.findOne({ userId, dateKey: dateHelpers.getDateKey() }).lean(),
             UserWeeklyUsage.findOne({ userId, weekKey: dateHelpers.getWeekKey() }).lean(),
             UserMonthlyUsage.findOne({ userId, monthKey: dateHelpers.getMonthKey() }).lean(),
-            UserConsumableBalance.findOne({ userId }).lean()
+            UserConsumableBalance.findOne({ userId }).lean(),
+            cache.ttl(`boost:${userId}`) // Instantly gets the expiry timer from Redis
         ]);
 
         const isPremium = !!activeSub;
@@ -123,6 +126,14 @@ class UsageService {
                 autoRenew: activeSub ? activeSub.autoRenew : false,
                 isCancelled: activeSub ? activeSub.status === 'CANCELLED' : false,
                 cancelledAt: (activeSub && activeSub.status === 'CANCELLED') ? activeSub.cancelledAt : null,
+
+                activeBoostSession: {
+                    isBoostActive: boostTTL > 0,
+                    remainingSeconds: boostTTL > 0 ? boostTTL : 0,
+                    formattedTime: boostTTL > 0 
+                        ? `${String(Math.floor(boostTTL / 60)).padStart(2, '0')}:${String(boostTTL % 60).padStart(2, '0')}`
+                        : "00:00"
+                },
 
                 allocations: {
                     likes: {
