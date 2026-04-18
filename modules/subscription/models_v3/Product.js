@@ -8,6 +8,9 @@ const productSchema = new mongoose.Schema({
     displayName: { type: String, required: true },
     subtitle: { type: String, default: null },   // e.g. "Most Popular", "Best Value"
     badge: { type: String, default: null },       // e.g. "🔥 HOT", "💎 BEST VALUE", "⭐ POPULAR"
+    badgeText: { type: String, default: null },
+    badgeColor: { type: String, default: null },
+    features: { type: [String], default: [] },
     displayPrice: { type: String, required: true }, // e.g. "$9.95"
     currency: { type: String, default: 'AUD' },
     quantity: { type: Number, default: 0 }, // for consumable packs (e.g. 5 Super Keens)

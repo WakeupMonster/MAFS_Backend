@@ -28,7 +28,7 @@ const logger = require("../utils/logger");
 const resetUserToFree = async (req, res, next) => {
   try {
     // Use provided userId or fall back to logged-in user
-    const userId = req.body.userId || req.user._id;
+    const userId = req.body?.userId || req.user?._id;
 
     logger.info("🧪 [DEV] Resetting user to FREE", { userId });
 
@@ -84,7 +84,7 @@ const resetUserToFree = async (req, res, next) => {
  */
 const debugUserState = async (req, res, next) => {
   try {
-    const userId = req.params.userId || req.user._id;
+    const userId = req.params?.userId || req.user?._id;
 
     const [subscription, profile, wallet, recentTxns] = await Promise.all([
       Subscription.findOne({ userId }).sort({ createdAt: -1 }).lean(),

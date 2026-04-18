@@ -13,6 +13,7 @@ const fileFilter = (req, file, cb) => {
     "image/png",
     "image/webp",
     "image/gif",
+    "image/svg+xml",
     "video/mp4",
     "video/quicktime",
     "video/webm",
@@ -21,8 +22,8 @@ const fileFilter = (req, file, cb) => {
     cb(null, true);
   } else {
     cb(
-      new Error("Invalid file type. Only JPEG, PNG, and WebP are allowed."),
-      false,
+      new Error("Invalid file type. Only JPEG, PNG, WebP, SVG and GIF are allowed."),
+      false
     );
   }
 };

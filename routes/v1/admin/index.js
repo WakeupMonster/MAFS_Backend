@@ -24,6 +24,7 @@ const fakeProfileRoutes = require("../../../modules/Admin/fakeProfiles/fakeProfi
 const subscriptionAdminRoutes = require("../../../modules/subscription/routes/admin.routes");
 const transactionRoutes = require("../../../modules/subscription/routes/transaction.routes");
 const settingsRoutes = require("../../../modules/Admin/settings/settings.routes"); // Added Settings Routes
+const uploadRoutes = require("../../../modules/upload/upload.routes");
 
 // --- Public Admin Routes ---
 // Login and Forget Password shouldn't require an Auth token
@@ -53,5 +54,6 @@ router.use("/chat", chatRoutes); // Cleaned name from "chat-management"
 router.use("/notification", notificationRoutes);
 router.use("/fake-profiles", fakeProfileRoutes);
 router.use("/settings", settingsRoutes); // Settings API Mounted 
+router.use("/upload", uploadRoutes);
 
 module.exports = router;
