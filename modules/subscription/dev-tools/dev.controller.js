@@ -32,25 +32,10 @@ const resetUserToFree = async (req, res, next) => {
 
     logger.info("🧪 [DEV] Resetting user to FREE", { userId });
 
-    // 1. Mark all ACTIVE subscriptions as EXPIRED
-    const subResult = await Subscription.updateMany(
-      { userId, status: { $in: ["ACTIVE", "CANCELLED", "GRACE", "PENDING"] } },
-      {
-        $set: {
-          status: "EXPIRED",
-          autoRenew: false,
-          expiresAt: new Date(), // Expire immediately
-        },
-        $push: {
-          statusHistory: {
-            from: "ACTIVE",
-            to: "EXPIRED",
-            reason: "DEV_RESET",
-            changedAt: new Date(),
-          },
-        },
-      }
-    );
+    // 1. Delete all subscriptions and their events for a 100% clean slate
+    const SubscriptionEvent = require("../models/SubscriptionEvent");
+    await SubscriptionEvent.deleteMany({ subscriptionId: { $in: await Subscription.find({ userId }).distinct("_id") } });
+    const subResult = await Subscription.deleteMany({ userId });
 
     // 2. Reset Profile subscription fields
     await Profile.findOneAndUpdate(
@@ -117,26 +102,26 @@ const debugUserState = async (req, res, next) => {
       data: {
         subscription: subscription
           ? {
-              status: subscription.status,
-              planType: subscription.planType,
-              productId: subscription.productId,
-              platform: subscription.platform,
-              expiresAt: subscription.expiresAt,
-              autoRenew: subscription.autoRenew,
-              environment: subscription.environment,
-            }
+            status: subscription.status,
+            planType: subscription.planType,
+            productId: subscription.productId,
+            platform: subscription.platform,
+            expiresAt: subscription.expiresAt,
+            autoRenew: subscription.autoRenew,
+            environment: subscription.environment,
+          }
           : null,
         profile: profile
           ? {
-              nickname: profile.nickname,
-              subscriptionState: profile.subscription,
-            }
+            nickname: profile.nickname,
+            subscriptionState: profile.subscription,
+          }
           : null,
         wallet: wallet
           ? {
-              superKeens: wallet.superKeensBalance,
-              boosts: wallet.boostsBalance,
-            }
+            superKeens: wallet.superKeensBalance,
+            boosts: wallet.boostsBalance,
+          }
           : { superKeens: 0, boosts: 0 },
         recentTransactions: recentTxns.map((t) => ({
           type: t.eventType,
