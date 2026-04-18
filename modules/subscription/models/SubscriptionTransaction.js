@@ -50,6 +50,7 @@ const SubscriptionTransactionSchema = new mongoose.Schema(
         "ADMIN_GRANT",
         "EXTENSION",
         "ADMIN_CONSUMABLE_GRANT",
+        "CONSUMABLE_REFUND"
       ],
       required: true,
     },

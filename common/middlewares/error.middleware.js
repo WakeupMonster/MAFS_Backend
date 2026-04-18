@@ -55,8 +55,7 @@ module.exports = (err, req, res, next) => {
 
   return res.status(500).json({
     success: false,
-    // message: process.env.NODE_ENV === "development" ? err.message : "Something went wrong. Please try again.",
-    // error: process.env.NODE_ENV === "development" ? err.stack : undefined
-    message: "Something went wrong. Please try again."
+    message: process.env.NODE_ENV !== "production" ? err.message : "Something went wrong. Please try again.",
+    error: process.env.NODE_ENV !== "production" ? err.stack : undefined
   });
 };

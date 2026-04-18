@@ -319,6 +319,10 @@ class SubscriptionService {
     sub.retryCount = 0;
     await sub.save();
 
+    await this._syncProfile(sub);
+    const UsageService = require("./usage.service");
+    await UsageService._syncPremiumState(sub.userId, true).catch(err => logger.error('Sync Error:', err));
+
     await this._logTransaction({
       subscriptionId: sub._id,
       userId: sub.userId,
@@ -344,6 +348,7 @@ class SubscriptionService {
     }
 
     sub.previousStatus = sub.status;
+    sub.status = "CANCELLED";
     sub.autoRenew = false;
     sub.cancellationReason = data.cancellationReason || "USER_CANCELLED";
     sub.cancelledAt = new Date();
@@ -400,6 +405,9 @@ class SubscriptionService {
     sub.autoRenew = false;
     await sub.save();
     await this._syncProfile(sub);
+
+    const UsageService = require("./usage.service");
+    await UsageService._syncPremiumState(sub.userId, false).catch(err => logger.error('Sync Error:', err));
 
     await this._logTransaction({
       subscriptionId: sub._id,

@@ -68,12 +68,19 @@ class AppleService {
       throw new Error("Invalid transaction ID for Apple Platform. GPA IDs belong to Android.");
     }
 
-    const response = await axios.get(
-      `${baseUrl}/inApps/v1/transactions/${transactionId}`,
-      { headers: { Authorization: `Bearer ${token}` } }
-    );
-
-    return this.decodeJWS(response.data.signedTransactionInfo);
+    try {
+      const response = await axios.get(
+        `${baseUrl}/inApps/v1/transactions/${transactionId}`,
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      return this.decodeJWS(response.data.signedTransactionInfo);
+    } catch (err) {
+      if (err.response) {
+        logger.error(`Apple Verification API Error: ${err.response.status} - ${JSON.stringify(err.response.data)}`);
+        throw new Error(`Apple Verification failed with status ${err.response.status}. The receipt may be invalid or expired.`);
+      }
+      throw err;
+    }
   }
 
   async getSubscriptionStatus(originalTransactionId) {
