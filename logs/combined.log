@@ -31291,3 +31291,33 @@
 {"level":"info","message":"🧪 [DEV] Dev tools routes registered at /api/v1/dev/*","service":"iap-service","timestamp":"2026-04-18 17:50:59"}
 {"level":"info","message":"[CRON] Subscription cron jobs initialized (v3 - No Grace Period)","service":"iap-service","timestamp":"2026-04-18 18:19:09"}
 {"level":"info","message":"🧪 [DEV] Dev tools routes registered at /api/v1/dev/*","service":"iap-service","timestamp":"2026-04-18 18:19:10"}
+{"level":"info","message":"[CRON] Subscription cron jobs initialized (v3 - No Grace Period)","service":"iap-service","timestamp":"2026-04-18 18:19:52"}
+{"level":"info","message":"🧪 [DEV] Dev tools routes registered at /api/v1/dev/*","service":"iap-service","timestamp":"2026-04-18 18:19:53"}
+{"level":"info","message":"[CRON] Subscription cron jobs initialized (v3 - No Grace Period)","service":"iap-service","timestamp":"2026-04-20 10:03:07"}
+{"level":"info","message":"🧪 [DEV] Dev tools routes registered at /api/v1/dev/*","service":"iap-service","timestamp":"2026-04-20 10:03:09"}
+{"level":"info","message":"[CRON] Subscription cron jobs initialized (v3 - No Grace Period)","service":"iap-service","timestamp":"2026-04-20 10:13:37"}
+{"level":"info","message":"🧪 [DEV] Dev tools routes registered at /api/v1/dev/*","service":"iap-service","timestamp":"2026-04-20 10:13:39"}
+{"level":"info","message":"🧪 Xcode StoreKit detected — bypassing Apple Server API","productId":"com.keenasmustard.boost.5","service":"iap-service","timestamp":"2026-04-20 10:28:43","transactionId":"1","type":"Consumable"}
+{"level":"info","message":"Consumable purchase processed","newBalance":{"__v":0,"_id":"69e5b288875bab9c6dc89a0d","boostsBalance":5,"createdAt":"2026-04-20T04:58:43.653Z","superKeensBalance":0,"updatedAt":"2026-04-20T04:58:43.653Z","userId":"69e5ace4513511fea5d6d7fa"},"quantity":5,"service":"iap-service","timestamp":"2026-04-20 10:28:43","type":"BOOST","userId":"69e5ace4513511fea5d6d7fa"}
+{"level":"info","message":"Purchase verified","platform":"ios","purchaseType":"CONSUMABLE","service":"iap-service","timestamp":"2026-04-20 10:28:43","userId":"69e5ace4513511fea5d6d7fa"}
+{"level":"warn","message":"Google MOCK MODE: Returning mock verification","service":"iap-service","timestamp":"2026-04-20 10:29:31"}
+{"level":"warn","message":"Google MOCK MODE: Skipping acknowledge","service":"iap-service","timestamp":"2026-04-20 10:29:31"}
+{"level":"info","message":"New subscription created","planType":"1_MONTH","service":"iap-service","subscriptionId":"69e5b2b315545544f7bb93ee","timestamp":"2026-04-20 10:29:31","userId":"69e5ace4513511fea5d6d7fa"}
+{"level":"info","message":"Profile subscription synced","service":"iap-service","timestamp":"2026-04-20 10:29:31","userId":"69e5ace4513511fea5d6d7fa"}
+{"level":"info","message":"Purchase verified","platform":"android","purchaseType":"SUBSCRIPTION","service":"iap-service","timestamp":"2026-04-20 10:29:31","userId":"69e5ace4513511fea5d6d7fa"}
+{"level":"warn","message":"Google MOCK MODE: Returning mock consumable verification","service":"iap-service","timestamp":"2026-04-20 10:30:09"}
+{"level":"warn","message":"Google MOCK MODE: Skipping consumable acknowledge","service":"iap-service","timestamp":"2026-04-20 10:30:09"}
+{"level":"info","message":"Consumable purchase processed","newBalance":{"__v":0,"_id":"69e5b288875bab9c6dc89a0d","boostsBalance":5,"createdAt":"2026-04-20T04:58:43.653Z","superKeensBalance":5,"updatedAt":"2026-04-20T05:00:09.642Z","userId":"69e5ace4513511fea5d6d7fa"},"quantity":5,"service":"iap-service","timestamp":"2026-04-20 10:30:09","type":"SUPER_KEEN","userId":"69e5ace4513511fea5d6d7fa"}
+{"level":"info","message":"Purchase verified","platform":"android","purchaseType":"CONSUMABLE","service":"iap-service","timestamp":"2026-04-20 10:30:09","userId":"69e5ace4513511fea5d6d7fa"}
+{"level":"info","message":"[CRON] Subscription cron jobs initialized (v3 - No Grace Period)","service":"iap-service","timestamp":"2026-04-20 10:54:21"}
+{"level":"info","message":"🧪 [DEV] Dev tools routes registered at /api/v1/dev/*","service":"iap-service","timestamp":"2026-04-20 10:54:24"}
+{"level":"info","message":"[CRON] Subscription cron jobs initialized (v3 - No Grace Period)","service":"iap-service","timestamp":"2026-04-20 11:29:06"}
+{"level":"info","message":"🧪 [DEV] Dev tools routes registered at /api/v1/dev/*","service":"iap-service","timestamp":"2026-04-20 11:29:08"}
+{"level":"info","message":"[CRON] Subscription cron jobs initialized (v3 - No Grace Period)","service":"iap-service","timestamp":"2026-04-20 11:29:24"}
+{"level":"info","message":"🧪 [DEV] Dev tools routes registered at /api/v1/dev/*","service":"iap-service","timestamp":"2026-04-20 11:29:25"}
+{"level":"info","message":"[CRON] Subscription cron jobs initialized (v3 - No Grace Period)","service":"iap-service","timestamp":"2026-04-20 11:47:51"}
+{"level":"info","message":"🧪 [DEV] Dev tools routes registered at /api/v1/dev/*","service":"iap-service","timestamp":"2026-04-20 11:47:53"}
+{"level":"info","message":"[CRON] Subscription cron jobs initialized (v3 - No Grace Period)","service":"iap-service","timestamp":"2026-04-20 11:51:05"}
+{"level":"info","message":"🧪 [DEV] Dev tools routes registered at /api/v1/dev/*","service":"iap-service","timestamp":"2026-04-20 11:51:07"}
+{"level":"info","message":"[CRON] Subscription cron jobs initialized (v3 - No Grace Period)","service":"iap-service","timestamp":"2026-04-20 11:53:14"}
+{"level":"info","message":"🧪 [DEV] Dev tools routes registered at /api/v1/dev/*","service":"iap-service","timestamp":"2026-04-20 11:53:15"}

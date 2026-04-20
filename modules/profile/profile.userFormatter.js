@@ -18,7 +18,7 @@ function calculateDistance(lat1, lon1, lat2, lon2) {
   const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
   return Math.round(R * c);
 }
-const formatPublictargetProfile = (viewertargetProfile, targetProfile, swipeAction, matchRecord, isBoosted) => {
+const formatPublictargetProfile = (viewertargetProfile, targetProfile, swipeAction, matchRecord, isBoosted, blockStatus) => {
   if (!targetProfile) return null;
 
   // --- 📏 DYNAMIC DISTANCE ---
@@ -43,11 +43,11 @@ const formatPublictargetProfile = (viewertargetProfile, targetProfile, swipeActi
     },
     location: {
       city: targetProfile.location?.city || "",
-      distance: distanceText 
+      distance: distanceText
     },
     photos: (targetProfile.photos || []).sort((a, b) => a.order - b.order),
-    
-       attributes : {
+
+    attributes: {
       zodiac: targetProfile.attributes?.zodiac || "",
       education: targetProfile.attributes?.education || "",
       familyPlans: targetProfile.attributes?.familyPlans || "",
@@ -56,29 +56,30 @@ const formatPublictargetProfile = (viewertargetProfile, targetProfile, swipeActi
       communicationStyle: targetProfile.attributes?.communicationStyle || "",
       loveStyle: targetProfile.attributes?.loveStyle || "",
       bloodGroup: targetProfile.attributes?.bloodGroup || "",
-       pets: targetProfile.attributes?.pets || "",
+      pets: targetProfile.attributes?.pets || "",
       drinking: targetProfile.attributes?.drinking || "",
       smoking: targetProfile.attributes?.smoking || "",
       workout: targetProfile.attributes?.workout || "",
       dietary: targetProfile.attributes?.dietary || "",
       socialMedia: targetProfile.attributes?.socialMedia || "",
       sleeping: targetProfile.attributes?.sleeping || "",
-       relationshipGoals: targetProfile.discovery?.relationshipGoal || "",
-    religion: targetProfile.attributes?.religion || "",
-     interests: targetProfile.attributes?.interests || [],
-    languages: targetProfile.attributes?.languages || [],
+      relationshipGoals: targetProfile.discovery?.relationshipGoal || "",
+      religion: targetProfile.attributes?.religion || "",
+      interests: targetProfile.attributes?.interests || [],
+      languages: targetProfile.attributes?.languages || [],
       music: targetProfile.attributes?.music || [],
       movies: targetProfile.attributes?.movies || [],
       books: targetProfile.attributes?.books || [],
       travel: targetProfile.attributes?.travel || []
     },
-    
+
     status: {
       isLiked: swipeAction?.action === "like",
       isSuperLike: swipeAction?.action === "superlike",
       isMatch: !!matchRecord, // 🔥 LIVE match status
       isBoosted: !!isBoosted, // 🔥 LIVE boost status
-      isBlocked: false 
+      isBlocked: !!blockStatus,
+      BlockedDetail: blockStatus
     },
     verificationStatus: targetProfile.verification?.status || "pending"
   };

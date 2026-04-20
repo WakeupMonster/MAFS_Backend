@@ -889,7 +889,7 @@ exports.getUserProfile = async (req, res) => {
 
     // 2️⃣ Edge Case Handlers
     if (!targetProfile) return res.status(404).json({ success: false, message: "Profile not found" });
-    if (blockStatus) return res.status(403).json({ success: false, message: "Profile unavailable" });
+    // if (blockStatus) return res.status(403).json({ success: false, message: "Profile unavailable" });
 
 
     const formattedData = await formatPublictargetProfile(
@@ -897,10 +897,11 @@ exports.getUserProfile = async (req, res) => {
       targetProfile,
       swipeAction,
       matchRecord,
-      isBoosted
+      isBoosted,
+      blockStatus
     );
 
-    res.json({ success: true, data: formattedData });
+    res.json({ success: true, message: "Profile Loaded Successfully", data: formattedData });
   } catch (err) {
     console.error("Profile Fetch Error:", err);
     res.status(500).json({ success: false, message: "Failed to load profile details" });
