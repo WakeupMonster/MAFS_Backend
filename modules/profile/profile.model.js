@@ -240,6 +240,7 @@ const ProfileSchema = new mongoose.Schema({
       email: { type: Boolean, default: false },
       matches: { type: Boolean, default: true },
       messages: { type: Boolean, default: true },
+      likes: { type: Boolean, default: true },
     },
     blockedUsers: [{ type: String }], // Array of User IDs
     blockedContacts: [{ type: String }], // Array of Phone Hashes/Numbers

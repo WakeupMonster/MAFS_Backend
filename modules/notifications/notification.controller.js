@@ -81,43 +81,12 @@ const unregisterDeviceToken = async (req, res) => {
 const updateNotificationSettings = async (req, res) => {
   try {
     const userId = req.user._id;
-    const { push, email, matches, messages, likes } = req.body;
+    const body = req.body;
 
-    // Helper to handle "true"/"false" strings from frontend
-    const toBool = (val) => {
-      if (val === "true" || val === true) return true;
-      if (val === "false" || val === false) return false;
-      return undefined;
-    };
+    // Handle both flat and nested body
+    const settings = body.notificationSettings || body;
 
-    const update = {};
-
-    if (push !== undefined) {
-      update["notificationSettings.push"] = toBool(push);
-    }
-
-    if (email !== undefined) {
-      update["notificationSettings.email"] = toBool(email);
-    }
-
-    if (matches !== undefined) {
-      update["notificationSettings.matches"] = toBool(matches);
-    }
-
-    if (messages !== undefined) {
-      update["notificationSettings.messages"] = toBool(messages);
-    }
-
-    if (likes !== undefined) {
-      update["notificationSettings.likes"] = toBool(likes);
-    }
-
-    const user = await User.findByIdAndUpdate(
-      userId,
-      { $set: update },
-      { new: true }
-    ).select("notificationSettings");
-
+    const user = await User.findById(userId);
     if (!user) {
       return res.status(404).json({
         success: false,
@@ -125,9 +94,46 @@ const updateNotificationSettings = async (req, res) => {
       });
     }
 
+    // 1. Update User Collection
+    if (!user.notificationSettings) user.notificationSettings = {};
+
+    const toBool = (val) => {
+      if (val === "true" || val === true || val === 1 || val === "1") return true;
+      if (val === "false" || val === false || val === 0 || val === "0") return false;
+      return undefined;
+    };
+
+    const fields = ['push', 'email', 'matches', 'messages', 'likes'];
+    let hasChanges = false;
+    const profileUpdate = {};
+
+    fields.forEach(field => {
+      if (settings[field] !== undefined) {
+        const boolVal = toBool(settings[field]);
+        if (boolVal !== undefined) {
+          user.notificationSettings[field] = boolVal;
+          // Prepare update for Profile collection as well (using their field name 'notifications')
+          profileUpdate[`notifications.${field}`] = boolVal;
+          hasChanges = true;
+        }
+      }
+    });
+
+    if (hasChanges) {
+      // Save to User
+      user.markModified('notificationSettings');
+      await user.save();
+
+      // 2. Sync to Profile Collection
+      await Profile.findOneAndUpdate(
+        { userId: userId },
+        { $set: profileUpdate }
+      );
+    }
+
     return res.json({
       success: true,
-      message: "Notification settings updated",
+      message: "Notification settings updated (Synced)",
       data: user.notificationSettings
     });
   } catch (err) {
