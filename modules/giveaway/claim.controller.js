@@ -7,7 +7,14 @@ const GiveawayInfo = require("../Admin/giveaways/giveawayInfo.model");
 module.exports.claimPrize = async (req, res) => {
   try {
     const userId = req.user._id;
-    const { claimEmail } = req.body;
+    const { claimEmail, winHistoryId } = req.body;
+
+    if (!winHistoryId) {
+      return res.status(400).json({
+        success: false,
+        message: "Win ID (winHistoryId) is required to claim the prize",
+      });
+    }
 
     // Email validation (zaroori aur sahi format mein)
     if (!claimEmail || typeof claimEmail !== "string" || !claimEmail.includes("@")) {
@@ -19,18 +26,19 @@ module.exports.claimPrize = async (req, res) => {
 
     /**
      * MAJOR BUG FIX:
-     * DONT check for 'today' campaign. User might claim the prize on Saturday or Sunday.
-     * Simply look for the most recent unclaimed win for this user!
+     * Fetch the specific win history record by ID and ensure it belongs to the user
+     * and is not already claimed.
      */
     const winHistory = await GiveawayWinHistory.findOne({
+      _id: winHistoryId,
       userId: userId,
       claimedAt: null // only unclaimed wins
-    }).sort({ createdAt: -1 });
+    });
 
     if (!winHistory) {
       return res.status(404).json({
         success: false,
-        message: "No unclaimed prize found or already claimed",
+        message: "No unclaimed prize found with the provided ID for this user",
       });
     }
 

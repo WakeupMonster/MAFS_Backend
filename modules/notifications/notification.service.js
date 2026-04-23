@@ -151,10 +151,14 @@ class NotificationService {
         receiver.notificationSettings?.push === false ||
         receiver.notificationSettings?.likes === false
       ) {
+        console.log(`🚫 Notification skipped for user ${receiverId}: Disabled likes/push settings.`);
         return;
       }
 
-      if (!receiver?.fcmTokens?.length) return;
+      if (!receiver?.fcmTokens?.length) {
+        console.log(`⚠️ Notification skipped for user ${receiverId}: No FCM tokens found.`);
+        return;
+      }
 
       const senderPhoto = senderProfile?.photos?.[0]?.url || null;
       const senderName = senderProfile?.nickname || "Someone";

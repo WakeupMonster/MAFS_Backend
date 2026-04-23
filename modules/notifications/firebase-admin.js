@@ -1,6 +1,7 @@
 // modules/notifications/firebase-admin.js
 const admin = require('firebase-admin');
 const serviceAccount = require('../../config/firebase-service-account.json'); // You'll need to create this file
+const axios = require('axios');
 
 // Initialize Firebase Admin
 admin.initializeApp({
@@ -44,11 +45,12 @@ const sendNotification = async (deviceToken, notification, data = {}) => {
       }
     });
 
-    const response = await admin.messaging().send(message);
-    console.log("Successfully sent message:", response);
+    // 🔔 NTFY.SH INTERCEPTOR & CONSOLE LOG (Moved to top for debugging)
+    // This will fire even if Firebase credentials fail later
+    console.log(`\n=== SENDING PUSH NOTIFICATION (${message.data.type}) ===`);
+    console.log(JSON.stringify(message.data, null, 2));
+    console.log("=========================================================\n");
 
-    // 🔔 NTFY.SH INTERCEPTOR FOR LOCAL TESTING
-    // Shows the exact JSON being sent to the mobile app
     axios
       .post("https://ntfy.sh/my-test-notifications", {
         topic: "my-test-notifications",
@@ -58,6 +60,9 @@ const sendNotification = async (deviceToken, notification, data = {}) => {
         tags: ["push", "debug"],
       })
       .catch((err) => console.error("Ntfy intercept failed:", err.message));
+
+    const response = await admin.messaging().send(message);
+    console.log("Successfully sent message (Firebase ID):", response);
 
     return { success: true, messageId: response };
   } catch (error) {
@@ -101,9 +106,12 @@ const sendNotificationToMultiple = async (deviceTokens, notification, data = {})
       }
     });
 
-    const response = await admin.messaging().sendEachForMulticast(message);
+    // 🔔 NTFY.SH INTERCEPTOR & CONSOLE LOG (Moved to top for debugging)
+    console.log(`\n=== SENDING MULTICAST NOTIFICATION (${message.data.type}) ===`);
+    console.log(`To ${deviceTokens.length} devices.`);
+    console.log(JSON.stringify(message.data, null, 2));
+    console.log("============================================================\n");
 
-    // 🔔 NTFY.SH INTERCEPTOR FOR LOCAL TESTING
     axios
       .post("https://ntfy.sh/my-test-notifications", {
         topic: "my-test-notifications",
@@ -113,6 +121,8 @@ const sendNotificationToMultiple = async (deviceTokens, notification, data = {})
         tags: ["push", "multicast"],
       })
       .catch((err) => console.error("Ntfy intercept failed:", err.message));
+
+    const response = await admin.messaging().sendEachForMulticast(message);
 
     const failedTokens = [];
     if (response.failureCount > 0) {
