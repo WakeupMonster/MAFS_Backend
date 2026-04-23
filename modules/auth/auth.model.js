@@ -89,6 +89,7 @@ const userSchema = new mongoose.Schema(
     fcmTokens: [{
       token: String,
       deviceId: String,
+      platform: { type: String, enum: ["ios", "android"] },
       createdAt: { type: Date, default: Date.now }
     }],
     refreshTokens: [refreshTokenSchema],

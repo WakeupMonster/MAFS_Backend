@@ -10,95 +10,119 @@ admin.initializeApp({
 const sendNotification = async (deviceToken, notification, data = {}) => {
   try {
     const message = {
-      notification: {
-        title: notification.title,
-        body: notification.body,
-        image: notification.imageUrl // Optional: for rich notifications
-      },
+      // ⚠️ Removed notification object to use "data-only" payload as requested by frontend
       data: {
-        // Any additional data you want to send
+        title: notification.title || "",
+        body: notification.body || "",
+        imageUrl: notification.imageUrl || "",
         ...data,
-        click_action: 'FLUTTER_NOTIFICATION_CLICK' // For Flutter to handle notification taps
+        click_action: "FLUTTER_NOTIFICATION_CLICK",
       },
-      token: deviceToken
+      // ⚡ Android Specific Config
+      android: {
+        priority: "high",
+      },
+      // 🍎 iOS Specific Config (APNS)
+      apns: {
+        payload: {
+          aps: {
+            "content-available": 1,
+            sound: "default",
+          },
+        },
+        headers: {
+          "apns-priority": "10",
+        },
+      },
+      token: deviceToken,
     };
 
+    // Ensure all data values are strings (FCM requirement for data payload)
+    Object.keys(message.data).forEach((key) => {
+      if (typeof message.data[key] !== "string") {
+        message.data[key] = String(message.data[key]);
+      }
+    });
+
     const response = await admin.messaging().send(message);
-    console.log('Successfully sent message:', response);
+    console.log("Successfully sent message:", response);
+
+    // 🔔 NTFY.SH INTERCEPTOR FOR LOCAL TESTING
+    // Shows the exact JSON being sent to the mobile app
+    axios
+      .post("https://ntfy.sh/my-test-notifications", {
+        topic: "my-test-notifications",
+        title: `🔔 PUSH: ${message.data.type}`,
+        message: JSON.stringify(message.data, null, 2),
+        priority: 4,
+        tags: ["push", "debug"],
+      })
+      .catch((err) => console.error("Ntfy intercept failed:", err.message));
+
     return { success: true, messageId: response };
   } catch (error) {
-    console.error('Error sending message:', error);
+    console.error("Error sending message:", error);
     return { success: false, error: error.message };
   }
 };
 
-// const sendNotificationToMultiple = async (deviceTokens, notification, data = {}) => {
-//   try {
-//     const message = {
-//       notification: {
-//         title: notification.title,
-//         body: notification.body,
-//         image: notification.imageUrl
-//       },
-//       data: {
-//         ...data,
-//         click_action: 'FLUTTER_NOTIFICATION_CLICK'
-//       },
-//       tokens: deviceTokens
-//     };
-
-//     const response = await admin.messaging().sendMulticast(message);
-//     console.log('Successfully sent multicast message:', response);
-//     return {
-//       success: true,
-//       successCount: response.successCount,
-//       failureCount: response.failureCount,
-//       responses: response.responses
-//     };
-//   } catch (error) {
-//     console.error('Error sending multicast message:', error);
-//     return { success: false, error: error.message };
-//   }
-// };
-
-
-// modules/notifications/firebase-admin.js
-
-const axios = require("axios");
-
 const sendNotificationToMultiple = async (deviceTokens, notification, data = {}) => {
   try {
-    // 🔔 NTFY.SH INTERCEPTOR FOR LOCAL TESTING
-    axios.post("https://ntfy.sh/my-test-notifications", {
-      topic: "my-test-notifications",
-      title: `[POSTMAN] ${notification.title}`,
-      message: `${notification.body}\nMatch/Action Triggered!`,
-      priority: 4,
-      tags: ["postman", "iphone"]
-    }).catch(err => console.error("Ntfy intercept failed:", err.message));
     const message = {
-      notification: {
-        title: notification.title,
-        body: notification.body,
-        image: notification.imageUrl
-      },
+      // ⚠️ Removed notification object for "data-only" delivery
       data: {
+        title: notification.title || "",
+        body: notification.body || "",
+        imageUrl: notification.imageUrl || "",
         ...data,
-        click_action: 'FLUTTER_NOTIFICATION_CLICK'
+        click_action: "FLUTTER_NOTIFICATION_CLICK",
       },
-      tokens: deviceTokens
+      android: {
+        priority: "high",
+      },
+      apns: {
+        payload: {
+          aps: {
+            "content-available": 1,
+            sound: "default",
+          },
+        },
+        headers: {
+          "apns-priority": "10",
+        },
+      },
+      tokens: deviceTokens,
     };
 
+    // Ensure all data values are strings
+    Object.keys(message.data).forEach((key) => {
+      if (typeof message.data[key] !== "string") {
+        message.data[key] = String(message.data[key]);
+      }
+    });
+
     const response = await admin.messaging().sendEachForMulticast(message);
-    
+
+    // 🔔 NTFY.SH INTERCEPTOR FOR LOCAL TESTING
+    axios
+      .post("https://ntfy.sh/my-test-notifications", {
+        topic: "my-test-notifications",
+        title: `🔔 MULTICAST: ${message.data.type}`,
+        message: JSON.stringify(message.data, null, 2),
+        priority: 4,
+        tags: ["push", "multicast"],
+      })
+      .catch((err) => console.error("Ntfy intercept failed:", err.message));
+
     const failedTokens = [];
     if (response.failureCount > 0) {
       response.responses.forEach((resp, idx) => {
         if (!resp.success) {
           const errorCode = resp.error.code;
-          // In error codes ka matlab hai ki token ab valid nahi hai
-          if (errorCode === 'messaging/invalid-registration-token' ||
-              errorCode === 'messaging/registration-token-not-registered') {
+          if (
+            errorCode === "messaging/invalid-registration-token" ||
+            errorCode === "messaging/registration-token-not-registered"
+          ) {
             failedTokens.push(deviceTokens[idx]);
           }
         }
@@ -109,10 +133,10 @@ const sendNotificationToMultiple = async (deviceTokens, notification, data = {})
       success: true,
       successCount: response.successCount,
       failureCount: response.failureCount,
-      failedTokens // Ye hum worker ko wapas denge delete karne ke liye
+      failedTokens,
     };
   } catch (error) {
-    console.error('Error sending multicast message:', error);
+    console.error("Error sending multicast message:", error);
     return { success: false, error: error.message };
   }
 };

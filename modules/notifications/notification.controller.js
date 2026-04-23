@@ -6,25 +6,27 @@ const registerDeviceToken = async (req, res) => {
     // const { userId } = req.user;
     const userId = req.user._id;
 
-    const { token, deviceId } = req.body;
+    const { token, deviceId, platform } = req.body;
 
     if (!token || !deviceId) {
       return res.status(400).json({
         success: false,
-        message: 'Token and deviceId are required'
+        message: "Token and deviceId are required",
       });
     }
 
-    // Add the new token to the user's fcmTokens array
-    // Using $addToSet to prevent duplicates
-    await User.findByIdAndUpdate(
-      userId,
-      {
-        $addToSet: {
-          fcmTokens: { token, deviceId }
-        }
-      }
-    );
+    // 1. Remove any existing entry for this specific deviceId to prevent duplicates
+    // This ensures one deviceId has only one token at any time.
+    await User.findByIdAndUpdate(userId, {
+      $pull: { fcmTokens: { deviceId } },
+    });
+
+    // 2. Add the new token + platform
+    await User.findByIdAndUpdate(userId, {
+      $push: {
+        fcmTokens: { token, deviceId, platform: platform || "android" },
+      },
+    });
 
     return res.json({
       success: true,
@@ -81,26 +83,33 @@ const updateNotificationSettings = async (req, res) => {
     const userId = req.user._id;
     const { push, email, matches, messages, likes } = req.body;
 
+    // Helper to handle "true"/"false" strings from frontend
+    const toBool = (val) => {
+      if (val === "true" || val === true) return true;
+      if (val === "false" || val === false) return false;
+      return undefined;
+    };
+
     const update = {};
 
     if (push !== undefined) {
-      update["notificationSettings.push"] = push;
+      update["notificationSettings.push"] = toBool(push);
     }
 
     if (email !== undefined) {
-      update["notificationSettings.email"] = email;
+      update["notificationSettings.email"] = toBool(email);
     }
 
     if (matches !== undefined) {
-      update["notificationSettings.matches"] = matches;
+      update["notificationSettings.matches"] = toBool(matches);
     }
 
     if (messages !== undefined) {
-      update["notificationSettings.messages"] = messages;
+      update["notificationSettings.messages"] = toBool(messages);
     }
 
     if (likes !== undefined) {
-      update["notificationSettings.likes"] = likes;
+      update["notificationSettings.likes"] = toBool(likes);
     }
 
     const user = await User.findByIdAndUpdate(

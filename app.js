@@ -24,6 +24,20 @@ app.use(helmet());
 
 // ─── Body Parser ───
 app.use(express.json({ limit: "10mb" }));
+
+
+// ─── JSON Syntax Error Handler ───
+// app.use((err, req, res, next) => {
+//   if (err instanceof SyntaxError && err.status === 400 && 'body' in err) {
+//     return res.status(400).json({ 
+//       success: false, 
+//       message: "Invalid JSON or empty body with JSON header" 
+//     });
+//   }
+//   next();
+// });
+
+
 app.use(express.urlencoded({ extended: true }));
 
 // ─── CORS ───
