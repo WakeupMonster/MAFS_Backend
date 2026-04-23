@@ -49,9 +49,6 @@ class SubscriptionService {
       logger.error("Profile sync failed:", err.message);
     }
   }
-
-
-
   /**
    * v3 Purchase Router: Determines if the purchase is a SUBSCRIPTION or CONSUMABLE
    * and routes to the correct handler.
@@ -144,7 +141,7 @@ class SubscriptionService {
     // 📢 Fire real-time activity for Admin
     Profile.findOne({ userId: data.userId }).select('nickname').then(p => {
       adminEvents.emit("new_live_activity", {
-        id: identifier, 
+        id: identifier,
         createdAt: new Date(),
         description: `Top-up: ${p?.nickname || "User"} (${catalogProduct.quantity} ${catalogProduct.consumableType === 'SUPER_KEEN' ? 'Super Keens' : 'Boosts'})`,
         color: "#FFB800"
@@ -159,15 +156,6 @@ class SubscriptionService {
    * Creates or updates a Subscription record with expiresAt.
    */
   async _handleSubscriptionPurchase(data) {
-    const orConditions = [];
-
-    if (data.originalTransactionId) {
-      orConditions.push({ originalTransactionId: data.originalTransactionId });
-    }
-    if (data.purchaseToken) {
-      orConditions.push({ purchaseToken: data.purchaseToken });
-    }
-
     // v3: Enhanced product lookup. Check DB Catalog first, fallback to config.
     const dbProduct = await Product.findOne({
       $or: [
@@ -179,80 +167,52 @@ class SubscriptionService {
     const configProduct = iapConfig.getProductDetails(data.productId);
     const catalogPlanType = dbProduct ? dbProduct.planType : (configProduct ? configProduct.planType : "1_MONTH");
 
-    let existing = null;
-    if (orConditions.length > 0) {
-      existing = await Subscription.findOne({ $or: orConditions });
+    // Atomic Upsert: Keyed on originalTransactionId (iOS) or purchaseToken (Android)
+    const filter = {};
+    if (data.originalTransactionId) {
+      filter.originalTransactionId = data.originalTransactionId;
+    } else if (data.purchaseToken) {
+      filter.purchaseToken = data.purchaseToken;
+    } else {
+      // Fallback to userId if no remote IDs (should not happen in real StoreKit)
+      filter.userId = data.userId;
     }
 
-    if (existing) {
-      existing.userId = data.userId; // Ensure subscription belongs to current user
-      existing.status = "ACTIVE";
-      existing.startedAt = new Date(data.purchaseDate || Date.now()); // FIX: Update startedAt for new cycle
-      existing.expiresAt = new Date(data.expiresDate);
-      existing.latestTransactionId = data.transactionId || existing.latestTransactionId;
-      existing.previousStatus = existing.status;
-      existing.productId = data.productId; // Update the product ID in case of an upgrade/crossgrade
-      existing.planType = catalogPlanType; // v3: Ensure consistent planType on update/verify
-      await existing.save();
-
-      // v3 Sync: Use UsageService for consistent premium state
-      UsageService._syncPremiumState(existing.userId, true).catch(err => logger.error('Sync Error:', err));
-      await this._syncProfile(existing);
-
-      // FIX: Ensure transaction is logged in the DB for revenue tracking!
-      // If it's a duplicate verification, idempotencyKey in _logTransaction will safely ignore it.
-      const amount = dbProduct ? parseFloat(String(dbProduct.displayPrice).replace(/[^0-9.]/g, '')) : (configProduct ? configProduct.price : 0);
-      const currency = dbProduct ? dbProduct.currency : (configProduct ? configProduct.currency : "AUD");
-
-      await this._logTransaction({
-        subscriptionId: existing._id,
+    const update = {
+      $set: {
         userId: data.userId,
         platform: data.platform,
-        transactionId: data.transactionId,
-        purchaseToken: data.purchaseToken,
         productId: data.productId,
-        eventType: "PURCHASE", 
-        amount: amount,
-        currency: currency,
-        occurredAt: new Date(data.purchaseDate || Date.now()),
-      });
+        planType: catalogPlanType,
+        status: "ACTIVE",
+        autoRenew: true,
+        startedAt: new Date(data.purchaseDate || Date.now()),
+        expiresAt: new Date(data.expiresDate),
+        latestTransactionId: data.transactionId || undefined,
+        purchaseToken: data.purchaseToken || undefined,
+        orderId: data.orderId || undefined,
+        source: "STORE",
+        environment: iapConfig.apple.environment || "sandbox",
+        updatedAt: new Date()
+      },
+      $setOnInsert: {
+        createdAt: new Date(),
+        originalTransactionId: data.originalTransactionId || undefined,
+      }
+    };
 
-      logger.info("Subscription updated (existing)", {
-        subscriptionId: existing._id,
-        userId: data.userId,
-      });
-
-      // 📢 Fire real-time activity for Admin (Renewal/Update)
-      Profile.findOne({ userId: data.userId }).select('nickname').then(p => {
-        adminEvents.emit("new_live_activity", {
-          id: existing._id,
-          createdAt: new Date(),
-          description: `Subscription Renewed: ${p?.nickname || "User"} (${catalogPlanType})`,
-          color: "#FFB800"
-        });
-      }).catch(err => console.error("Admin sub-renew event emit failed", err));
-
-      return { type: 'SUBSCRIPTION', subscription: existing };
-    }
-
-    const subscription = await Subscription.create({
-      userId: data.userId,
-      platform: data.platform,
-      productId: data.productId,
-      planType: catalogPlanType,
-      status: "ACTIVE",
-      autoRenew: true,
-      startedAt: new Date(data.purchaseDate || Date.now()),
-      expiresAt: new Date(data.expiresDate),
-      originalTransactionId: data.originalTransactionId || undefined,
-      latestTransactionId: data.transactionId || undefined,
-      purchaseToken: data.purchaseToken || undefined,
-      orderId: data.orderId || undefined,
-      source: "STORE",
-      environment: iapConfig.apple.environment || "sandbox",
+    const subscription = await Subscription.findOneAndUpdate(filter, update, {
+      upsert: true,
+      new: true,
+      runValidators: true
     });
 
-    const amount = dbProduct ? parseFloat(dbProduct.displayPrice.replace(/[^0-9.]/g, '')) : (configProduct ? configProduct.price : 0);
+    // v3 Sync: Update User/Profile flags
+    await UsageService._syncPremiumState(subscription.userId, true).catch(err => logger.error('Sync Error:', err));
+    await this._syncProfile(subscription);
+
+    // Revenue Tracking: Log the transaction
+    const amount = dbProduct ? parseFloat(String(dbProduct.displayPrice).replace(/[^0-9.]/g, '')) : (configProduct ? configProduct.price : 0);
     const currency = dbProduct ? dbProduct.currency : (configProduct ? configProduct.currency : "AUD");
 
     await this._logTransaction({
@@ -268,25 +228,20 @@ class SubscriptionService {
       occurredAt: new Date(data.purchaseDate || Date.now()),
     });
 
-    logger.info("New subscription created", {
+    logger.info(subscription.isNew ? "New subscription created" : "Subscription updated", {
       subscriptionId: subscription._id,
       userId: data.userId,
-      planType: subscription.planType,
     });
 
-    // v3 Sync: Use UsageService for consistent premium state
-    UsageService._syncPremiumState(subscription.userId, true).catch(err => logger.error('Sync Error:', err));
-    await this._syncProfile(subscription);
-
-    // 📢 Fire real-time activity for Admin (New Purchase)
+    // 📢 Admin Live Activity
     Profile.findOne({ userId: data.userId }).select('nickname').then(p => {
       adminEvents.emit("new_live_activity", {
         id: subscription._id,
         createdAt: new Date(),
-        description: `New Sale: ${p?.nickname || "User"} (${catalogPlanType})`,
+        description: `Purchase: ${p?.nickname || "User"} (${catalogPlanType})`,
         color: "#FFB800"
       });
-    }).catch(err => console.error("Admin new-sub event emit failed", err));
+    }).catch(err => console.error("Admin sub event failed", err));
 
     return { type: 'SUBSCRIPTION', subscription };
   }

@@ -73,7 +73,7 @@ async function buildOnboardingResponse(req = {}, userId) {
 
 
 
-    const existingProfile = await Profile.findOne(
+  const existingProfile = await Profile.findOne(
     { userId },
     { onboarding: 1 }
   ).lean();

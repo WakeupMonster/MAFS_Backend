@@ -147,7 +147,11 @@ const verifyPurchase = async (req, res, next) => {
 
     // SUBSCRIPTION response — includes full status snapshot (§1.6.1)
     const sub = result.subscription;
+
+    // v3 BUG FIX: Ensure we wait a few ms or force a fresh read to avoid race conditions
+    // Re-fetching status directly from source of truth
     const fullStatus = await UsageService.getUsageStatus(sub.userId);
+
     return res.json({
       success: true,
       message: "Subscription verified successfully",
@@ -1378,13 +1382,48 @@ const makeMePremiumTemp = async (req, res, next) => {
   }
 };
 
+const adminExpireSubscription = async (req, res, next) => {
+  try {
+    const { userId } = req.body;
+
+    if (!userId) {
+      return res.status(400).json({ success: false, message: "userId is required" });
+    }
+
+    const sub = await Subscription.findOne({ userId, status: "ACTIVE" });
+    if (!sub) {
+      return res.status(404).json({ success: false, message: "No active subscription found for this user" });
+    }
+
+    sub.status = "EXPIRED";
+    sub.expiresAt = new Date(Date.now() - 1000); // Set to 1 second ago
+    await sub.save();
+
+    await UsageService._syncPremiumState(userId, false);
+    await subscriptionService._syncProfile(sub);
+
+    logger.info(`Admin manually expired subscription for user: ${userId}`);
+
+    return res.json({
+      success: true,
+      message: "Subscription expired successfully. User is now FREE.",
+    });
+  } catch (err) {
+    logger.error("Admin expire sub error:", err.message);
+    return next(err);
+  }
+};
+
 module.exports = {
   verifyPurchase,
+  restorePurchases,
   getStatus,
+  getCatalog,
   getHistory,
   getSubscription,
   getStats,
   getAllSubscriptions,
+  adminExpireSubscription,
   getUserSubscriptionDetail,
   getRevenueAnalytics,
   getCancellationAnalytics,

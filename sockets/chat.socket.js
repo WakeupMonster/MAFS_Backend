@@ -4,10 +4,18 @@ const { addNotificationJob } = require("../queues/notification.queue");
 const { NOTIFICATION_TYPES } = require("../modules/notifications/notification.enums");
 const { isBlocked } = require("../modules/profile/block.service");
 const adminEvents = require("../events/admin.events");
+const chatEvents = require("../events/chat.events");
 // TODO: Uncomment after verifying correct import path
 // const { destroy } = require("../modules/upload/cloudinary.service");
 
 module.exports = function chatSocket(io, redisClient) {
+  // ─── Real-time events from Controllers ───
+  chatEvents.on("match_deleted", ({ matchId, userId1, userId2 }) => {
+    [userId1, userId2].forEach((uid) => {
+      io.to(`user:${uid}`).emit("match_deleted", { matchId });
+    });
+    console.log(`🔌 Socket: match_deleted emitted to users of match ${matchId}`);
+  });
   io.on("connection", async (socket) => {
     const currentUserId = socket.user._id.toString();
 

@@ -118,6 +118,7 @@ module.exports.unmatchUser = async (req, res) => {
     const { matchId } = req.body;
     const userId = req.user._id;
 
+    let otherUserId = null;
     await session.withTransaction(async () => {
       // 1. Match dhundo aur check karo ki user us match ka part hai
       const match = await Match.findOne({ _id: matchId, users: userId }).session(session);
@@ -126,7 +127,7 @@ module.exports.unmatchUser = async (req, res) => {
         throw new Error("Match not found or already unmatched");
       }
 
-      const otherUserId = match.users.find(
+      otherUserId = match.users.find(
         (u) => u.toString() !== userId.toString()
       );
 
@@ -134,18 +135,28 @@ module.exports.unmatchUser = async (req, res) => {
       await Match.deleteOne({ _id: matchId }).session(session);
 
       // 3. Swipes delete karo (Dono taraf se)
-      // Isse wo log wapas feed mein dikhne lagenge (Optional: depend karta hai client ki requirement par)
       await Swipe.deleteMany({
         $or: [
           { swiperId: userId, targetId: otherUserId },
           { swiperId: otherUserId, targetId: userId },
         ],
       }).session(session);
+
+      // 4. Emit real-time event via Socket (through EventEmitter)
+      const chatEvents = require("../../../events/chat.events");
+      chatEvents.emit("match_deleted", {
+        matchId,
+        userId1: userId.toString(),
+        userId2: otherUserId.toString(),
+      });
     });
-    if (redis) {
-      const CACHE_KEY = `feed:${userId.toString()}`;
-      await redis.del(CACHE_KEY);
-      console.log("Redis cache cleared for new filters");
+
+    if (redis && otherUserId) {
+      await Promise.all([
+        redis.del(`feed:${userId.toString()}`),
+        redis.del(`feed:${otherUserId.toString()}`)
+      ]);
+      console.log("⚡ [UNMATCH] Redis cache cleared for both users");
     }
 
     session.endSession();
