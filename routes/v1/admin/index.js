@@ -53,7 +53,7 @@ router.use("/profile-review", profileReviewRoutes);
 router.use("/chat", chatRoutes); // Cleaned name from "chat-management"
 router.use("/notification", notificationRoutes);
 router.use("/fake-profiles", fakeProfileRoutes);
-router.use("/settings", settingsRoutes); // Settings API Mounted 
+router.use("/settings", settingsRoutes); // Settings API Mounted
 router.use("/upload", uploadRoutes);
 
 module.exports = router;

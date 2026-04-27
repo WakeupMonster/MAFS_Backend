@@ -1,6 +1,5 @@
 /* eslint-disable no-unused-vars */
 // controllers/admin/admin.kpi.controller.js
-
 const User = require("../../auth/auth.model");
 const Profile = require("../../profile/profile.model");
 const Report = require("../../profile/user.report");
@@ -51,7 +50,7 @@ module.exports.verifyUserProfile = async (req, res) => {
     profile.verification.verifiedBy = adminId;
     profile.verification.verifiedAt = new Date();
     profile.verification.rejectionReason = null;
-    
+
     if (!profile.onboarding) profile.onboarding = {};
     profile.onboarding.isComplete = true;
   } else {
@@ -335,6 +334,65 @@ module.exports.suspendUser = async (req, res) => {
     return res.status(500).json({
       success: false,
       message: "Failed to suspend user",
+    });
+  }
+};
+
+module.exports.unsuspendUser = async (req, res) => {
+  try {
+    const adminId = req.user._id;
+    const userId = req.params.id;
+
+    if (adminId.equals(userId)) {
+      return res.status(403).json({
+        success: false,
+        message: "You cannot suspend yourself",
+      });
+    }
+
+    const user = await User.findById(userId);
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: "User not found",
+      });
+    }
+
+    if (
+      !user.suspensionDetails?.isSuspended &&
+      user.accountStatus !== "suspended"
+    ) {
+      return res.status(400).json({
+        success: false,
+        message: "User is not suspended",
+      });
+    } // Reset suspension details
+
+    user.suspensionDetails = {
+      isSuspended: false,
+      reason: null,
+      suspendedBy: null,
+      suspendedAt: null,
+      suspendUntil: null,
+    };
+
+    user.accountStatus = "active";
+    await user.save(); // Cache invalidation
+
+    if (redis) {
+      await redis.del("admin:kpi:overview");
+      await redis.del(`user:${userId}`);
+    }
+
+    return res.json({
+      success: true,
+      message: "User unsuspended successfully",
+    });
+  } catch (err) {
+    console.error("Unsuspend user error:", err);
+    return res.status(500).json({
+      success: false,
+      message: "Failed to unsuspend user",
     });
   }
 };
@@ -672,17 +730,21 @@ module.exports.getPendingVerifications = async (req, res, next) => {
     if (sortBy === "alphabetical") sortQuery = { nickname: 1 };
 
     // 2. DYNAMIC MATCHING
-    const matchStage = { "user.role": "USER" };
+    const baseMatchStage = { "user.role": "USER" };
+    const dataMatchStage = { "user.role": "USER" };
+
     if (status && status !== "all") {
-      matchStage["verification.status"] = status;
+      dataMatchStage["verification.status"] = status;
     }
 
     if (search) {
-      matchStage.$or = [
+      const searchOr = [
         { nickname: { $regex: search, $options: "i" } },
         { "user.email": { $regex: search, $options: "i" } },
         { "user.phone": { $regex: search, $options: "i" } },
       ];
+      baseMatchStage.$or = searchOr;
+      dataMatchStage.$or = searchOr;
     }
 
     const pipeline = [
@@ -709,11 +771,20 @@ module.exports.getPendingVerifications = async (req, res, next) => {
       {
         $facet: {
           kpiStats: [
-            { $match: matchStage },
+            { $match: baseMatchStage },
             {
               $group: {
                 _id: null,
                 totalRequests: { $sum: 1 },
+                not_started: {
+                  $sum: {
+                    $cond: [
+                      { $eq: ["$verification.status", "not_started"] },
+                      1,
+                      0,
+                    ],
+                  },
+                },
                 approved: {
                   $sum: {
                     $cond: [
@@ -740,9 +811,9 @@ module.exports.getPendingVerifications = async (req, res, next) => {
               },
             },
           ],
-          metadata: [{ $match: matchStage }, { $count: "total" }],
+          metadata: [{ $match: dataMatchStage }, { $count: "total" }],
           data: [
-            { $match: matchStage },
+            { $match: dataMatchStage },
             { $sort: sortQuery },
             { $skip: skip },
             { $limit: limitNum },
@@ -771,6 +842,7 @@ module.exports.getPendingVerifications = async (req, res, next) => {
     // Extraction with fallbacks
     const statsData = result?.kpiStats?.[0] || {
       totalRequests: 0,
+      not_started: 0,
       approved: 0,
       pending: 0,
       rejected: 0,

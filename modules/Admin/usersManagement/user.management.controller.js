@@ -816,6 +816,20 @@ module.exports.GETSingleUserDetails = async (req, res) => {
             },
             {
               $lookup: {
+                from: "users",
+                localField: "otherUserId",
+                foreignField: "_id",
+                as: "otherUser",
+              },
+            },
+            {
+              $unwind: {
+                path: "$otherUser",
+                preserveNullAndEmptyArrays: true,
+              },
+            },
+            {
+              $lookup: {
                 from: "profiles",
                 localField: "otherUserId",
                 foreignField: "userId",
@@ -834,6 +848,7 @@ module.exports.GETSingleUserDetails = async (req, res) => {
                 matchedAt: 1,
                 ouserId: "$otherProfile.userId",
                 nickname: "$otherProfile.nickname",
+                email: "$otherUser.email",
                 photo: { $arrayElemAt: ["$otherProfile.photos.url", 0] },
               },
             },
