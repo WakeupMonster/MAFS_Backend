@@ -21,7 +21,8 @@ class SubscriptionService {
         return;
       }
 
-      const isActive = ["ACTIVE", "CANCELLED"].includes(subscription.status) && subscription.expiresAt > new Date();
+      const isActive = Subscription.hasPremiumAccess(subscription);
+
 
       const profileUpdate = {
         "subscription.planId": subscription.planType || "free",
@@ -528,11 +529,14 @@ class SubscriptionService {
   // ─── CHECK ACCESS ───
   async checkAccess(userId) {
     // v3: No Grace Period. CANCELLED users still have access until expiresAt.
-    const sub = await Subscription.findOne({
-      userId: userId,
-      status: { $in: ["ACTIVE", "CANCELLED"] },
-      expiresAt: { $gt: new Date() },
-    });
+    // const sub = await Subscription.findOne({
+    //   userId: userId,
+    //   status: { $in: ["ACTIVE", "CANCELLED"] },
+    //   expiresAt: { $gt: new Date() },
+    // });
+
+    const sub = await Subscription.findActiveByUser(userId);
+
 
     if (!sub) {
       return { isPremium: false, status: "NONE" };
@@ -671,9 +675,9 @@ class SubscriptionService {
 
     sub.isInBillingRetry = true;
     // Initiative says: Keep isPremium: true. So we keep status ACTIVE or set to ACTIVE if it was something else.
-    sub.status = "ACTIVE"; 
+    sub.status = "ACTIVE";
     await sub.save();
-    
+
     await UsageService._syncPremiumState(sub.userId, true);
     logger.info("Subscription entered Billing Retry mode", { userId: sub.userId });
   }
@@ -685,7 +689,7 @@ class SubscriptionService {
 
     sub.isInGracePeriod = true;
     sub.status = "GRACE";
-    
+
     // Calculate grace period end if not provided by store
     // iOS (Apple): 6 days, Android (Google): 3 days
     if (data.gracePeriodEndsAt) {
@@ -696,7 +700,7 @@ class SubscriptionService {
       endsAt.setDate(endsAt.getDate() + days);
       sub.gracePeriodEndsAt = endsAt;
     }
-    
+
     await sub.save();
     await UsageService._syncPremiumState(sub.userId, true);
     logger.info("Subscription entered Grace Period", { userId: sub.userId, endsAt: sub.gracePeriodEndsAt });

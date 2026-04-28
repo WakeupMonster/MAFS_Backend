@@ -126,9 +126,14 @@ const verifyPurchase = async (req, res, next) => {
       const user = await User.findById(userId);
 
       // Strict safety check for eligibility
-      if (!user || !user.giveaway || !user.giveaway.isEligibleForFreeTrial) {
-        throw new Error("You are not eligible for this free trial milestone.");
+      // if (!user || !user.giveaway || !user.giveaway.isEligibleForFreeTrial) {
+      //   throw new Error("You are not eligible for this free trial milestone.");
+      // }
+      if (!user || !user.giveaway || !user.giveaway.isEligibleForFreeTrial ||
+        (user.giveaway.offerExpiresAt && user.giveaway.offerExpiresAt < new Date())) {
+        throw new Error("You are not eligible or the offer has expired.");
       }
+
 
       // Mark as claimed immediately to prevent multiple claims
       user.giveaway.claimedAt = new Date();

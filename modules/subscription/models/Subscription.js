@@ -131,10 +131,23 @@ SubscriptionSchema.pre("save", function (next) {
 });
 
 // V3 access logic: ACTIVE and CANCELLED both have access if not expired
-SubscriptionSchema.methods.hasAccess = function () {
-  const activeStatuses = ["ACTIVE", "CANCELLED", "GRACE"];
-  return activeStatuses.includes(this.status) && (this.expiresAt > new Date() || this.isInGracePeriod);
+// SubscriptionSchema.methods.hasAccess = function () {
+//   const activeStatuses = ["ACTIVE", "CANCELLED", "GRACE"];
+//   return activeStatuses.includes(this.status) && (this.expiresAt > new Date() || this.isInGracePeriod || this.isInBillingRetry);
+// };
+
+SubscriptionSchema.statics.hasPremiumAccess = function (sub) {
+  if (!sub) return false;
+  const now = new Date();
+  const expiresAt = sub.expiresAt ? new Date(sub.expiresAt) : null;
+
+  return (
+    (["ACTIVE", "CANCELLED"].includes(sub.status) && expiresAt > now) ||
+    (sub.status === "GRACE" && sub.isInGracePeriod === true) ||
+    (sub.isInBillingRetry === true)
+  );
 };
+
 
 SubscriptionSchema.statics.findActiveByUser = function (userId) {
   return this.findOne({

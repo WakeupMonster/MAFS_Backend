@@ -11,7 +11,6 @@ const initCronJobs = () => {
   // Runs every 5 minutes
   cron.schedule("*/5 * * * *", async () => {
     try {
-      // Find subscriptions that need expiring BEFORE updating (for sync)
       const toExpire = await Subscription.find({
         status: "ACTIVE",
         autoRenew: false,
@@ -22,7 +21,6 @@ const initCronJobs = () => {
 
       if (toExpire.length === 0) return;
 
-      // Bulk update status to EXPIRED
       const result = await Subscription.updateMany(
         {
           status: "ACTIVE",
@@ -32,24 +30,18 @@ const initCronJobs = () => {
         { $set: { status: "EXPIRED" } }
       );
 
-      // v3 Sync: Update isPremium flags for all affected users
-      // const userIds = toExpire.map(s => s.userId);
-      // for (const uid of userIds) {
-      //   UsageService._syncPremiumState(uid, false).catch(err =>
-      //     logger.error("[CRON] Sync error for user:", uid, err.message)
-      //   );
-      // }
-
-
-      // NAYA CODE: Safe Sync (Checks for other active plans before revoking premium)
+      // Safe Sync: Checks for other active plans (incl. Grace/Retry) before revoking premium
       const uniqueUserIds = [...new Set(toExpire.map(s => s.userId.toString()))];
 
       for (const uid of uniqueUserIds) {
         try {
           const anyActiveSub = await Subscription.findOne({
             userId: uid,
-            status: { $in: ["ACTIVE", "CANCELLED"] },
-            expiresAt: { $gt: new Date() }
+            $or: [
+              { status: { $in: ["ACTIVE", "CANCELLED"] }, expiresAt: { $gt: new Date() } },
+              { status: "GRACE", isInGracePeriod: true },
+              { isInBillingRetry: true }
+            ]
           });
 
           if (!anyActiveSub) {
@@ -59,7 +51,6 @@ const initCronJobs = () => {
           logger.error("[CRON] Safe sync error for user:", uid, err.message);
         }
       }
-
 
       logger.info(
         "[CRON] Expired ACTIVE subscriptions: " + result.modifiedCount
@@ -107,7 +98,34 @@ const initCronJobs = () => {
     }
   });
 
-  // ─── CRON 3: Failed webhook events monitor ───
+  // ─── CRON 3: Expire subscriptions when GRACE PERIOD ends ───
+  // Safety net: If Apple/Google webhook is missed, this ensures users
+  // don't stay in GRACE status forever.
+  cron.schedule("*/5 * * * *", async () => {
+    try {
+      const result = await Subscription.updateMany(
+        {
+          status: "GRACE",
+          isInGracePeriod: true,
+          gracePeriodEndsAt: { $lte: new Date() },
+        },
+        {
+          $set: {
+            status: "EXPIRED",
+            isInGracePeriod: false,
+            isInBillingRetry: true
+          }
+        }
+      );
+      if (result.modifiedCount > 0) {
+        logger.info("[CRON] Grace Period safety expiry triggered for: " + result.modifiedCount);
+      }
+    } catch (err) {
+      logger.error("[CRON] Grace period check error:", err.message);
+    }
+  });
+
+  // ─── CRON 4: Failed webhook events monitor ───
   // Runs every 10 minutes
   cron.schedule("*/10 * * * *", async () => {
     try {
@@ -127,7 +145,7 @@ const initCronJobs = () => {
   });
 
   logger.info(
-    "[CRON] Subscription cron jobs initialized (v3 - No Grace Period)"
+    "[CRON] Subscription cron jobs initialized (v3 - Grace Period & Billing Retry Support)"
   );
 };
 
