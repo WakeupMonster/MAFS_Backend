@@ -31407,3 +31407,28 @@
 {"level":"info","message":"🧪 [DEV] Dev tools routes registered at /api/v1/dev/*","service":"iap-service","timestamp":"2026-04-23 18:50:28"}
 {"level":"info","message":"[CRON] Subscription cron jobs initialized (v3 - No Grace Period)","service":"iap-service","timestamp":"2026-04-23 19:01:11"}
 {"level":"info","message":"🧪 [DEV] Dev tools routes registered at /api/v1/dev/*","service":"iap-service","timestamp":"2026-04-23 19:01:13"}
+{"level":"info","message":"[CRON] Subscription cron jobs initialized (v3 - No Grace Period)","service":"iap-service","timestamp":"2026-04-23 19:09:06"}
+{"level":"info","message":"🧪 [DEV] Dev tools routes registered at /api/v1/dev/*","service":"iap-service","timestamp":"2026-04-23 19:09:08"}
+{"level":"info","message":"[CRON] Subscription cron jobs initialized (v3 - No Grace Period)","service":"iap-service","timestamp":"2026-04-27 15:53:17"}
+{"level":"info","message":"🧪 [DEV] Dev tools routes registered at /api/v1/dev/*","service":"iap-service","timestamp":"2026-04-27 15:53:19"}
+{"level":"error","message":"[CRON] Failed events check error:","service":"iap-service","timestamp":"2026-04-27 17:00:05"}
+{"level":"error","message":"[CRON] Expire check error:","service":"iap-service","timestamp":"2026-04-27 17:00:05"}
+{"level":"error","message":"[CRON] Cancelled expire check error:","service":"iap-service","timestamp":"2026-04-27 17:00:05"}
+{"level":"info","message":"[CRON] Subscription cron jobs initialized (v3 - No Grace Period)","service":"iap-service","timestamp":"2026-04-27 17:35:43"}
+{"level":"info","message":"🧪 [DEV] Dev tools routes registered at /api/v1/dev/*","service":"iap-service","timestamp":"2026-04-27 17:35:46"}
+{"level":"info","message":"[CRON] Subscription cron jobs initialized (v3 - No Grace Period)","service":"iap-service","timestamp":"2026-04-27 18:20:33"}
+{"level":"info","message":"🧪 [DEV] Dev tools routes registered at /api/v1/dev/*","service":"iap-service","timestamp":"2026-04-27 18:20:36"}
+{"level":"info","message":"[CRON] Subscription cron jobs initialized (v3 - No Grace Period)","service":"iap-service","timestamp":"2026-04-28 10:00:02"}
+{"level":"info","message":"🧪 [DEV] Dev tools routes registered at /api/v1/dev/*","service":"iap-service","timestamp":"2026-04-28 10:00:04"}
+{"level":"warn","message":"Google MOCK MODE: Returning mock verification","service":"iap-service","timestamp":"2026-04-28 10:28:14"}
+{"level":"warn","message":"Google MOCK MODE: Skipping acknowledge","service":"iap-service","timestamp":"2026-04-28 10:28:14"}
+{"level":"info","message":"Profile subscription synced","service":"iap-service","timestamp":"2026-04-28 10:28:14","userId":"69aec7d3487b06dcecd891da"}
+{"level":"info","message":"Subscription updated","service":"iap-service","subscriptionId":"69f03e6a4cbd1b2bd3aeb7e3","timestamp":"2026-04-28 10:28:14","userId":"69aec7d3487b06dcecd891da"}
+{"level":"info","message":"Purchase verified","platform":"android","purchaseType":"SUBSCRIPTION","service":"iap-service","timestamp":"2026-04-28 10:28:14","userId":"69aec7d3487b06dcecd891da"}
+{"level":"warn","message":"Google MOCK MODE: Returning mock verification","service":"iap-service","timestamp":"2026-04-28 10:33:52"}
+{"level":"warn","message":"Google MOCK MODE: Skipping acknowledge","service":"iap-service","timestamp":"2026-04-28 10:33:52"}
+{"level":"info","message":"Profile subscription synced","service":"iap-service","timestamp":"2026-04-28 10:33:53","userId":"69aec7d3487b06dcecd891da"}
+{"level":"info","message":"Subscription updated","service":"iap-service","subscriptionId":"69f03fbd4cbd1b2bd3aeb7fe","timestamp":"2026-04-28 10:33:53","userId":"69aec7d3487b06dcecd891da"}
+{"level":"info","message":"Purchase verified","platform":"android","purchaseType":"SUBSCRIPTION","service":"iap-service","timestamp":"2026-04-28 10:33:53","userId":"69aec7d3487b06dcecd891da"}
+{"level":"info","message":"[CRON] Subscription cron jobs initialized (v3 - No Grace Period)","service":"iap-service","timestamp":"2026-04-28 11:05:33"}
+{"level":"info","message":"🧪 [DEV] Dev tools routes registered at /api/v1/dev/*","service":"iap-service","timestamp":"2026-04-28 11:05:35"}

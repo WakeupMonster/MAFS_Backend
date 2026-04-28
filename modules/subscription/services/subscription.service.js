@@ -191,8 +191,11 @@ class SubscriptionService {
         latestTransactionId: data.transactionId || undefined,
         purchaseToken: data.purchaseToken || undefined,
         orderId: data.orderId || undefined,
-        source: "STORE",
+        source: data.source || "STORE",
         environment: iapConfig.apple.environment || "sandbox",
+        isInBillingRetry: false,
+        isInGracePeriod: false,
+        gracePeriodEndsAt: null,
         updatedAt: new Date()
       },
       $setOnInsert: {
@@ -272,6 +275,9 @@ class SubscriptionService {
     sub.latestTransactionId = data.transactionId || sub.latestTransactionId;
     sub.autoRenew = true;
     sub.retryCount = 0;
+    sub.isInBillingRetry = false;
+    sub.isInGracePeriod = false;
+    sub.gracePeriodEndsAt = null;
     await sub.save();
 
     await this._syncProfile(sub);
@@ -358,6 +364,9 @@ class SubscriptionService {
     sub.previousStatus = sub.status;
     sub.status = "EXPIRED";
     sub.autoRenew = false;
+    sub.isInBillingRetry = false;
+    sub.isInGracePeriod = false;
+    sub.gracePeriodEndsAt = null;
     await sub.save();
     await this._syncProfile(sub);
 
@@ -603,64 +612,7 @@ class SubscriptionService {
       throw err;
     }
   }
-  /**
-   * Milestone Grant: Automatically grants premium to the first X users.
-   * Called during registration/onboarding.
-   */
-  async handleMilestoneGrant(userId) {
-    try {
-      const config = await SubscriptionConfig.getOrCreate();
 
-      // 1. Is milestone active?
-      if (!config.milestone || !config.milestone.isActive) return null;
-
-      // 2. Already premium? Check if any subscription exists for this user
-      const existingSub = await Subscription.findOne({ userId });
-      if (existingSub) return null;
-
-      // 3. User limit check
-      const User = require("../../auth/auth.model");
-      const userCount = await User.countDocuments({ isFake: false });
-
-      if (userCount > config.milestone.targetUserCount) {
-        // Auto-disable milestone if limit reached
-        config.milestone.isActive = false;
-        await config.save();
-        logger.info("Milestone target reached, auto-disabled milestone grant.");
-        return null;
-      }
-
-      // 4. Grant Premium (30 days)
-      const duration = config.milestone.grantDurationDays || 30;
-      const expiresAt = new Date();
-      expiresAt.setDate(expiresAt.getDate() + duration);
-
-      const subscription = await Subscription.create({
-        userId,
-        platform: "admin_granted",
-        productId: "milestone_premium_v3",
-        planType: "MILESTONE",
-        status: "ACTIVE",
-        autoRenew: false,
-        startedAt: new Date(),
-        expiresAt: expiresAt,
-        grantReason: "milestone_first_1000",
-        source: "MILESTONE",
-        environment: "production"
-      });
-
-      // 5. Sync Premium State (User/Profile flags)
-      await UsageService._syncPremiumState(userId, true);
-      await this._syncProfile(subscription);
-
-      logger.info(`Milestone premium granted to user ${userId} (Rank: ${userCount})`);
-      return subscription;
-
-    } catch (err) {
-      logger.error("Milestone grant failed:", err.message);
-      return null;
-    }
-  }
 
   // ─── ADMIN GRANTED GIVEAWAY (SAFE ISOLATED CREATION) ───
   async handleGiveawayGrant(userId, durationInDays, planType, prizeTitle, prizeId) {
@@ -710,6 +662,44 @@ class SubscriptionService {
       logger.error(`Error in handleGiveawayGrant for User ${userId}:`, error.message);
       throw error;
     }
+  }
+
+  // ─── INITIATIVE 1: BILLING RETRY ───
+  async handleBillingRetryStart(data) {
+    const sub = await this._findSubscription(data);
+    if (!sub) return;
+
+    sub.isInBillingRetry = true;
+    // Initiative says: Keep isPremium: true. So we keep status ACTIVE or set to ACTIVE if it was something else.
+    sub.status = "ACTIVE"; 
+    await sub.save();
+    
+    await UsageService._syncPremiumState(sub.userId, true);
+    logger.info("Subscription entered Billing Retry mode", { userId: sub.userId });
+  }
+
+  // ─── INITIATIVE 2: GRACE PERIOD ───
+  async handleGracePeriodStart(data) {
+    const sub = await this._findSubscription(data);
+    if (!sub) return;
+
+    sub.isInGracePeriod = true;
+    sub.status = "GRACE";
+    
+    // Calculate grace period end if not provided by store
+    // iOS (Apple): 6 days, Android (Google): 3 days
+    if (data.gracePeriodEndsAt) {
+      sub.gracePeriodEndsAt = new Date(data.gracePeriodEndsAt);
+    } else {
+      const days = sub.platform === 'ios' ? 6 : 3;
+      const endsAt = new Date();
+      endsAt.setDate(endsAt.getDate() + days);
+      sub.gracePeriodEndsAt = endsAt;
+    }
+    
+    await sub.save();
+    await UsageService._syncPremiumState(sub.userId, true);
+    logger.info("Subscription entered Grace Period", { userId: sub.userId, endsAt: sub.gracePeriodEndsAt });
   }
 
 }

@@ -213,10 +213,11 @@ const formatProfileResponse = async (user, profile, blockedContacts = [], blocke
     // 10. SETTINGS
     settings: {
       notifications: {
-        push: p.settings?.notifications?.push ?? true,
-        email: p.settings?.notifications?.email ?? false,
-        matches: p.settings?.notifications?.matches ?? true,
-        messages: p.settings?.notifications?.messages ?? true
+        push: user.notificationSettings?.push ?? true,
+        email: user.notificationSettings?.email ?? false,
+        matches: user.notificationSettings?.matches ?? true,
+        messages: user.notificationSettings?.messages ?? true,
+        likes: user.notificationSettings?.likes ?? true,
       },
       blockedContacts: blockedContacts.map(bc => bc.blockedPhoneHash || bc),
       blockedUsers: blockedUser.map(bu => bu.blockedId || bu),

@@ -37,6 +37,7 @@ const subscriptionConfigSchema = new mongoose.Schema({
     // Milestone Program (First 1,000 users)
     milestone: {
         targetUserCount: { type: Number, default: 1000 },
+        currentCount: { type: Number, default: 0 },
         grantDurationDays: { type: Number, default: 30 },
         isActive: { type: Boolean, default: true }
     },

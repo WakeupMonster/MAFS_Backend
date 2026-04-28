@@ -80,7 +80,9 @@ async function _processAppleWebhook(decoded, event) {
         }
         break;
       case "DID_FAIL_TO_RENEW":
-        // v3: No Grace Period! Treat as immediate expiry.
+        await subscriptionService.handleBillingRetryStart(data);
+        break;
+      case "GRACE_PERIOD_EXPIRED":
         await subscriptionService.handleExpire(data);
         break;
       case "EXPIRED":
@@ -270,9 +272,10 @@ async function _processGoogleWebhook(notification, eventName, event, isConsumabl
           await subscriptionService.handleCancel(data);
           break;
         case "IN_GRACE_PERIOD":
+          await subscriptionService.handleGracePeriodStart(data);
+          break;
         case "ON_HOLD":
-          // v3: No Grace Period! Treat as immediate expiry.
-          await subscriptionService.handleExpire(data);
+          await subscriptionService.handleBillingRetryStart(data);
           break;
         case "EXPIRED":
           await subscriptionService.handleExpire(data);

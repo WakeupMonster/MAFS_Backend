@@ -1210,7 +1210,7 @@ module.exports.GETSingleUserDetails = async (req, res) => {
             discoveryFilters: "$profile.discovery.advancedFilters",
           },
           settings: {
-            notifications: "$profile.settings.notifications",
+            notifications: "$notificationSettings",
             blockedContacts: {
               $map: {
                 input: "$blockedContactsData",

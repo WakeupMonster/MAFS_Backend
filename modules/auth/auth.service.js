@@ -71,7 +71,7 @@ async function verifyPhoneOtpUnified(phone, otp, req) {
 
   const phoneHash = hashPhone(normalizedPhone);
 
-  // 🚀 ONE-SHOT LOGIN: Merge 3 Atlas roundtrips into 1.
+  // ONE-SHOT LOGIN: Merge 3 Atlas roundtrips into 1.
   // Old code (3 roundtrips) commented out below for reference.
   const refreshTokenRaw = utils.generateRefreshToken();
   const refreshHash = utils.hashToken(refreshTokenRaw);
@@ -140,11 +140,30 @@ async function verifyPhoneOtpUnified(phone, otp, req) {
   }
   subData.resetIfNeeded();
 
-  // Milestone check for new users
+  // ➕ Initiative 3: First 1000 Users Milestone Eligibility
   if (isFirstVerification) {
-    await subscriptionService
-      .handleMilestoneGrant(user._id)
-      .catch((err) => console.error("Milestone Error:", err));
+    const SubscriptionConfig = require("../subscription/models_v3/SubscriptionConfig");
+    const config = await SubscriptionConfig.findOneAndUpdate(
+      {}, // Singleton document
+      { $inc: { "milestone.currentCount": 1 } },
+      { new: true, upsert: true }
+    );
+
+    const rank = config.milestone.currentCount;
+    const isEligible = rank <= (config.milestone.targetUserCount || 1000);
+    const offerExpiresAt = new Date();
+    offerExpiresAt.setDate(offerExpiresAt.getDate() + 3);
+
+    await User.findByIdAndUpdate(user._id, {
+      $set: {
+        registrationRank: rank,
+        "giveaway.isEligibleForFreeTrial": isEligible,
+        "giveaway.offerExpiresAt": offerExpiresAt,
+        "giveaway.freeTrialDurationDays": config.milestone.grantDurationDays || 30
+      }
+    });
+
+    logger.info(`Milestone eligibility assigned to User ${user._id} (Rank: ${rank}, Eligible: ${isEligible})`);
   }
 
   return {
@@ -322,7 +341,7 @@ async function verifyPhoneTestOtpUnified(phone, otp, req) {
 
   // 2️⃣ Redis OTP check
   const redisKey = `login:${normalizedPhone}`;
-  
+
   if (!isPlayStoreReview) {
     const storedOtp = await redis.get(redisKey);
     if (!storedOtp || storedOtp !== otp) {
@@ -428,11 +447,28 @@ async function verifyPhoneTestOtpUnified(phone, otp, req) {
   if (!subData) subData = await UserSubscription.create({ userId: user._id });
   subData.resetIfNeeded();
 
-  // v3 Milestone: Grant premium to first 1000 users (Test mode)
+  // ➕ Initiative 3: First 1000 Users Milestone Eligibility (Test Mode)
   if (isFirstVerification) {
-    await subscriptionService
-      .handleMilestoneGrant(user._id)
-      .catch((err) => console.error(err));
+    const SubscriptionConfig = require("../subscription/models_v3/SubscriptionConfig");
+    const config = await SubscriptionConfig.findOneAndUpdate(
+      {},
+      { $inc: { "milestone.currentCount": 1 } },
+      { new: true, upsert: true }
+    );
+
+    const rank = config.milestone.currentCount;
+    const isEligible = rank <= (config.milestone.targetUserCount || 1000);
+    const offerExpiresAt = new Date();
+    offerExpiresAt.setDate(offerExpiresAt.getDate() + 3);
+
+    await User.findByIdAndUpdate(user._id, {
+      $set: {
+        registrationRank: rank,
+        "giveaway.isEligibleForFreeTrial": isEligible,
+        "giveaway.offerExpiresAt": offerExpiresAt,
+        "giveaway.freeTrialDurationDays": config.milestone.grantDurationDays || 30
+      }
+    });
   }
 
   await redis.del(redisKey);

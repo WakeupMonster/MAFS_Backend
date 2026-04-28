@@ -339,6 +339,57 @@ module.exports.suspendUser = async (req, res) => {
   }
 };
 
+module.exports.unsuspendUser = async (req, res) => {
+  try {
+    const adminId = req.user._id;
+    const userId = req.params.id;
+
+    const user = await User.findById(userId);
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: "User not found",
+      });
+    }
+
+    if (!user.suspensionDetails?.isSuspended && user.accountStatus !== "suspended") {
+      return res.status(400).json({
+        success: false,
+        message: "User is not suspended",
+      });
+    }
+
+    // Reset suspension details
+    user.suspensionDetails = {
+      isSuspended: false,
+      reason: null,
+      suspendedBy: null,
+      suspendedAt: null,
+      suspendUntil: null,
+    };
+
+    user.accountStatus = "active";
+    await user.save();
+
+    // Cache invalidation
+    if (redis) {
+      await redis.del("admin:kpi:overview");
+      await redis.del(`user:${userId}`);
+    }
+
+    return res.json({
+      success: true,
+      message: "User unsuspended successfully",
+    });
+  } catch (err) {
+    console.error("Unsuspend user error:", err);
+    return res.status(500).json({
+      success: false,
+      message: "Failed to unsuspend user",
+    });
+  }
+};
+
 module.exports.replyToReport = async (req, res) => {
   try {
     const adminId = req.user._id;

@@ -120,6 +120,25 @@ const verifyPurchase = async (req, res, next) => {
       }
     }
 
+    // ➕ Initiative 3: Milestone Claim Logic
+    if (req.body.source === 'FREE_TRIAL') {
+      const User = require("../../auth/auth.model");
+      const user = await User.findById(userId);
+
+      // Strict safety check for eligibility
+      if (!user || !user.giveaway || !user.giveaway.isEligibleForFreeTrial) {
+        throw new Error("You are not eligible for this free trial milestone.");
+      }
+
+      // Mark as claimed immediately to prevent multiple claims
+      user.giveaway.claimedAt = new Date();
+      user.giveaway.isEligibleForFreeTrial = false; // Cannot claim again
+      await user.save();
+
+      // Tag the purchase data so subscription record also reflects it
+      purchaseData.source = "FREE_TRIAL";
+    }
+
     // v3: handlePurchase now returns { type: 'SUBSCRIPTION' | 'CONSUMABLE', ... }
     const result = await subscriptionService.handlePurchase(purchaseData);
 
@@ -151,6 +170,11 @@ const verifyPurchase = async (req, res, next) => {
     // v3 BUG FIX: Ensure we wait a few ms or force a fresh read to avoid race conditions
     // Re-fetching status directly from source of truth
     const fullStatus = await UsageService.getUsageStatus(sub.userId);
+
+    if (sub.status === 'ACTIVE' && fullStatus.data) {
+      fullStatus.data.isPremium = true;
+      fullStatus.data.status = 'ACTIVE';
+    }
 
     return res.json({
       success: true,
@@ -660,18 +684,18 @@ const getAllSubscriptions = async (req, res, next) => {
       // 3. Advanced Searching (Search across Subscriptions AND Profiles)
       ...(search
         ? [
-            {
-              $match: {
-                $or: [
-                  { originalTransactionId: { $regex: search, $options: "i" } },
-                  { orderId: { $regex: search, $options: "i" } },
-                  { "profile.nickname": { $regex: search, $options: "i" } },
-                  { "userDetails.email": { $regex: search, $options: "i" } },
-                  { "userDetails.phone": { $regex: search, $options: "i" } },
-                ],
-              },
+          {
+            $match: {
+              $or: [
+                { originalTransactionId: { $regex: search, $options: "i" } },
+                { orderId: { $regex: search, $options: "i" } },
+                { "profile.nickname": { $regex: search, $options: "i" } },
+                { "userDetails.email": { $regex: search, $options: "i" } },
+                { "userDetails.phone": { $regex: search, $options: "i" } },
+              ],
             },
-          ]
+          },
+        ]
         : []),
 
       // 4. Multi-faceted Output (Data + Pagination in one query)
@@ -1250,7 +1274,7 @@ const getAtRiskUsers = async (req, res, next) => {
           0,
           Math.ceil(
             (new Date(u.gracePeriodEndsAt) - new Date()) /
-              (1000 * 60 * 60 * 24),
+            (1000 * 60 * 60 * 24),
           ),
         ),
         startedAt: u.startedAt,

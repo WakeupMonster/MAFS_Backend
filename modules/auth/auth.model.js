@@ -188,6 +188,16 @@ const userSchema = new mongoose.Schema(
     premiumExpiresAt: { type: Date, default: null },
     lastLoginAt: { type: Date, default: null, index: true },
 
+    // ➕ Initiative 3: First 1000 Users Milestone
+    registrationRank: { type: Number, index: true },
+    giveaway: {
+      isEligibleForFreeTrial: { type: Boolean, default: false },
+      freeTrialDurationDays: { type: Number, default: 30 },
+      description: { type: String, default: "First 1000 users milestone" },
+      claimedAt: { type: Date, default: null },
+      offerExpiresAt: { type: Date, default: null },
+    },
+
     // ============ PASSWORD (ADMIN ONLY) ============
     password: { type: String, select: false, minlength: 8 },
     passwordChangedAt: { type: Date },
