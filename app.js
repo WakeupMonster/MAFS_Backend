@@ -37,7 +37,10 @@ app.use(
 );
 
 // ─── Request Logging (Development Only) ───
-if (process.env.NODE_ENV !== "production" && process.env.DISABLE_REQUEST_LOGGING !== "true") {
+if (
+  process.env.NODE_ENV !== "production" &&
+  process.env.DISABLE_REQUEST_LOGGING !== "true"
+) {
   app.use((req, res, next) => {
     logger.debug(req.method + " " + req.url);
     next();

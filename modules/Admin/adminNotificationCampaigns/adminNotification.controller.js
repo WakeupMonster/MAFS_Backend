@@ -304,7 +304,7 @@ module.exports.getNotificationHistory = async (req, res) => {
   try {
     const {
       page = 1,
-      limit = 20,
+      limit = 10,
       campaignId,
       userId,
       type,
@@ -342,13 +342,13 @@ module.exports.getNotificationHistory = async (req, res) => {
 
     return res.json({
       success: true,
-      data: logs,
       pagination: {
         total,
         page: Number(page),
         limit: Number(limit),
         totalPages: Math.ceil(total / limit),
       },
+      data: logs,
     });
   } catch (err) {
     console.error("❌ Notification history error:", err);

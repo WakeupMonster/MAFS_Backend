@@ -68,6 +68,7 @@ module.exports.updateUserSchema = Joi.object({
       notifications: Joi.object({
         push: Joi.boolean(),
         email: Joi.boolean(),
+        likes: Joi.boolean(),
         matches: Joi.boolean(),
         messages: Joi.boolean(),
       }).unknown(true), // Allows flexibility
