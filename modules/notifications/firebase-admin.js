@@ -7,17 +7,14 @@ const axios = require('axios');
 admin.initializeApp({
   credential: admin.credential.cert(serviceAccount)
 });
-
 const sendNotification = async (deviceToken, notification, data = {}) => {
   try {
     const message = {
-      // ⚠️ Removed notification object to use "data-only" payload as requested by frontend
+      // ⚠️ Using "data-only" payload for frontend navigation
       data: {
         title: notification.title || "",
         body: notification.body || "",
-        imageUrl: notification.imageUrl || "",
         ...data,
-        click_action: "FLUTTER_NOTIFICATION_CLICK",
       },
       // ⚡ Android Specific Config
       android: {
@@ -78,9 +75,7 @@ const sendNotificationToMultiple = async (deviceTokens, notification, data = {})
       data: {
         title: notification.title || "",
         body: notification.body || "",
-        imageUrl: notification.imageUrl || "",
         ...data,
-        click_action: "FLUTTER_NOTIFICATION_CLICK",
       },
       android: {
         priority: "high",
@@ -109,7 +104,8 @@ const sendNotificationToMultiple = async (deviceTokens, notification, data = {})
     // 🔔 NTFY.SH INTERCEPTOR & CONSOLE LOG (Moved to top for debugging)
     console.log(`\n=== SENDING MULTICAST NOTIFICATION (${message.data.type}) ===`);
     console.log(`To ${deviceTokens.length} devices.`);
-    console.log(JSON.stringify(message.data, null, 2));
+    console.log(`\n📦 FULL FCM PAYLOAD BEING SENT:`);
+    console.log(JSON.stringify({ message: { token: deviceTokens[0], data: message.data, android: message.android, apns: message.apns } }, null, 2));
     console.log("============================================================\n");
 
     axios

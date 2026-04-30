@@ -1,0 +1,338 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <title>MAFS Webhook Module API Sheet</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', sans-serif;
+            background: #f0f2f5;
+            padding: 20px
+        }
+
+        .container {
+            background: #fff;
+            padding: 20px;
+            border-radius: 12px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, .1);
+            overflow-x: auto
+        }
+
+        h1 {
+            color: #1e1b4b;
+            text-align: center;
+            font-size: 22px;
+            text-transform: uppercase;
+            letter-spacing: 1px
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            min-width: 1800px;
+            border: 2px solid #dc2626
+        }
+
+        th {
+            background: #dc2626;
+            color: #fff;
+            padding: 14px;
+            text-align: left;
+            font-size: 13px;
+            border: 1px solid #b91c1c
+        }
+
+        td {
+            padding: 11px;
+            border: 1px solid #e5e7eb;
+            vertical-align: top;
+            font-size: 12.5px;
+            line-height: 1.5
+        }
+
+        .sr {
+            text-align: center;
+            font-weight: bold;
+            color: #dc2626;
+            background: #fef2f2
+        }
+
+        .method {
+            font-weight: bold;
+            padding: 4px 8px;
+            border-radius: 4px;
+            color: #fff;
+            display: inline-block;
+            font-size: 11px;
+            width: 65px;
+            text-align: center
+        }
+
+        .post {
+            background: #ef4444
+        }
+
+        .get {
+            background: #22c55e
+        }
+
+        .patch {
+            background: #f59e0b
+        }
+
+        .delete {
+            background: #b91c1c
+        }
+
+        .sb {
+            background: #f0fdf4;
+            color: #166534;
+            border: 1px solid #bbf7d0 !important
+        }
+
+        .eb {
+            background: #fef2f2;
+            color: #991b1b;
+            border: 1px solid #fecaca !important
+        }
+
+        .ib {
+            background: #fffbeb;
+            color: #92400e;
+            font-style: italic;
+            border: 1px solid #fef3c7 !important
+        }
+
+        pre {
+            white-space: pre-wrap;
+            word-wrap: break-word;
+            font-family: Consolas, monospace;
+            font-size: 11.5px;
+            margin: 0;
+            color: inherit
+        }
+
+        tr:nth-child(even) {
+            background-color: #fef2f2
+        }
+
+        .inst {
+            background: #dc2626;
+            color: #fff;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            text-align: center;
+            font-size: 15px
+        }
+    </style>
+</head>
+
+<body>
+    <div class="inst">🎯 <b>WEBHOOK MODULE:</b> Ctrl+A → Ctrl+C → Paste in Google Sheet</div>
+    <div class="container">
+        <h1>🔗 MAFS — WEBHOOK MODULE API DOCUMENTATION</h1>
+        <table>
+            <thead>
+                <tr>
+                    <th>#</th>
+                    <th>Sub-Module</th>
+                    <th>API Endpoint</th>
+                    <th>Method</th>
+                    <th>Auth</th>
+                    <th>Description</th>
+                    <th>Request Body</th>
+                    <th>Success Code</th>
+                    <th>Success Response</th>
+                    <th>Error Codes</th>
+                    <th>Error Response</th>
+                    <th>Error Scenarios</th>
+                    <th>✏️ Improvements</th>
+                </tr>
+            </thead>
+            <tbody>
+                <!-- 1 -->
+                <tr>
+                    <td class="sr">1</td>
+                    <td><b>Apple Webhook</b></td>
+                    <td><code>/api/v1/webhooks/apple</code></td>
+                    <td><span class="method post">POST</span></td>
+                    <td>🔒 verifyAppleWebhook middleware</td>
+                    <td>Apple App Store Server Notifications V2 endpoint.
+                        Verifies JWS signedPayload via appleService.verifyAndDecodeJWS().
+                        Deduplicates via payloadHash (unique index on SubscriptionEvent).
+                        Responds 200 immediately, processes async in background.
+                        Handles: SUBSCRIBED, DID_RENEW, DID_CHANGE_RENEWAL_STATUS,
+                        DID_FAIL_TO_RENEW (GRACE_PERIOD / billing retry),
+                        GRACE_PERIOD_EXPIRED, EXPIRED, REFUND (subscription + consumable).
+                        After processing, syncs premium state via UsageService._syncPremiumState().</td>
+                    <td>
+                        <pre>Apple sends:
+{
+  "signedPayload": "eyJ...JWS_token"
+}
+
+Decoded internally contains:
+- notificationType: "DID_RENEW"
+- subtype: "AUTO_RENEW_DISABLED"
+- notificationUUID: "uuid"
+- data.signedTransactionInfo: "JWS"</pre>
+                    </td>
+                    <td class="sb" style="text-align:center"><b>200</b></td>
+                    <td class="sb">
+                        <pre>"OK"
+
+(plain text — Apple expects 200 OK)
+
+Duplicate webhook:
+"Duplicate"</pre>
+                    </td>
+                    <td class="eb" style="text-align:center"><b>500</b></td>
+                    <td class="eb">
+                        <pre>"Error"
+
+(plain text 500 response)</pre>
+                    </td>
+                    <td>1) Duplicate payloadHash (MongoDB 11000) → 200: "Duplicate"<br>
+                        2) JWS verification failure → 500: "Error"<br>
+                        3) Background processing error → logged, event.error updated with retryCount<br>
+                        4) webhookLimiter rate limiting applied</td>
+                    <td class="ib"></td>
+                </tr>
+                <!-- 2 -->
+                <tr>
+                    <td class="sr">2</td>
+                    <td><b>Google Webhook</b></td>
+                    <td><code>/api/v1/webhooks/google</code></td>
+                    <td><span class="method post">POST</span></td>
+                    <td>🔒 verifyGoogleWebhook middleware</td>
+                    <td>Google Play Real-time Developer Notifications endpoint.
+                        Decodes base64 message.data via googleService.decodeWebhookPayload().
+                        Handles both subscriptionNotification and oneTimeProductNotification.
+                        Deduplicates via payloadHash. Responds 200 immediately, processes async.
+                        Subscription events: PURCHASED, RECOVERED, RESTARTED, RENEWED,
+                        CANCELED, IN_GRACE_PERIOD, ON_HOLD, EXPIRED, REVOKED, PAUSED.
+                        Consumable events: CONSUMABLE_PURCHASED, CONSUMABLE_CANCELED.
+                        Syncs premium state after processing.</td>
+                    <td>
+                        <pre>Google Pub/Sub sends:
+{
+  "message": {
+    "messageId": "msg_id",
+    "data": "base64_encoded_string"
+  }
+}
+
+Decoded data contains:
+- subscriptionNotification: {
+    "subscriptionId": "com.mafs.weekly",
+    "purchaseToken": "token",
+    "notificationType": 4
+  }
+OR
+- oneTimeProductNotification: {
+    "sku": "com.mafs.5superkeen",
+    "purchaseToken": "token",
+    "notificationType": 1
+  }</pre>
+                    </td>
+                    <td class="sb" style="text-align:center"><b>200</b></td>
+                    <td class="sb">
+                        <pre>"OK"
+
+(plain text — Google expects 200)
+
+Not subscription/product event:
+"Not supported event"
+
+Duplicate:
+"Duplicate"</pre>
+                    </td>
+                    <td class="eb" style="text-align:center"><b>500</b></td>
+                    <td class="eb">
+                        <pre>"Error"
+
+(plain text 500 response)</pre>
+                    </td>
+                    <td>1) No subscriptionNotification or oneTimeProductNotification → 200: "Not supported event"<br>
+                        2) Duplicate payloadHash (11000) → 200: "Duplicate"<br>
+                        3) Google API verify failure → logged, event.error updated with retryCount<br>
+                        4) webhookLimiter rate limiting applied<br>
+                        5) Consumable CANCELED triggers handleConsumableRefund()</td>
+                    <td class="ib"></td>
+                </tr>
+                <!-- 3 -->
+                <tr>
+                    <td class="sr">3</td>
+                    <td><b>Test Apple Webhook</b></td>
+                    <td><code>/api/v1/webhooks/test/apple</code></td>
+                    <td><span class="method post">POST</span></td>
+                    <td>❌ No (dev only)</td>
+                    <td>DEV/QA: Simulate Apple webhook events for testing.
+                        No JWS verification. Directly processes the provided notification type.</td>
+                    <td>
+                        <pre>{
+  "notificationType": "DID_RENEW",
+  "subtype": "AUTO_RENEW_ENABLED",
+  "transactionInfo": {
+    "originalTransactionId": "2000000...",
+    "transactionId": "2000001...",
+    "productId": "com.mafs.weekly",
+    "purchaseDate": 1700000000000,
+    "expiresDate": 1700604800000
+  }
+}</pre>
+                    </td>
+                    <td class="sb" style="text-align:center"><b>200</b></td>
+                    <td class="sb">
+                        <pre>Processes same as real Apple webhook
+Response: "OK" or test-specific response</pre>
+                    </td>
+                    <td class="eb" style="text-align:center"><b>500</b></td>
+                    <td class="eb">
+                        <pre>"Error"</pre>
+                    </td>
+                    <td>1) No auth middleware — dev/test only<br>
+                        2) Should be disabled in production</td>
+                    <td class="ib"></td>
+                </tr>
+                <!-- 4 -->
+                <tr>
+                    <td class="sr">4</td>
+                    <td><b>Test Google Webhook</b></td>
+                    <td><code>/api/v1/webhooks/test/google</code></td>
+                    <td><span class="method post">POST</span></td>
+                    <td>❌ No (dev only)</td>
+                    <td>DEV/QA: Simulate Google Pub/Sub webhook events for testing.
+                        No signature verification. Directly processes notification.</td>
+                    <td>
+                        <pre>{
+  "subscriptionNotification": {
+    "subscriptionId": "com.mafs.weekly",
+    "purchaseToken": "test_token",
+    "notificationType": 4
+  }
+}</pre>
+                    </td>
+                    <td class="sb" style="text-align:center"><b>200</b></td>
+                    <td class="sb">
+                        <pre>Processes same as real Google webhook
+Response: "OK" or test-specific response</pre>
+                    </td>
+                    <td class="eb" style="text-align:center"><b>500</b></td>
+                    <td class="eb">
+                        <pre>"Error"</pre>
+                    </td>
+                    <td>1) No auth middleware — dev/test only<br>
+                        2) Should be disabled in production</td>
+                    <td class="ib"></td>
+                </tr>
+            </tbody>
+        </table>
+        <p style="text-align:center;color:#6b7280;font-style:italic;margin-top:15px">📋 Total: 4 Endpoints | Module:
+            Webhooks | Apple/Google Store Verification Middleware | webhookLimiter Rate Limiting | Generated: April 2026</p>
+    </div>
+</body>
+
+</html>

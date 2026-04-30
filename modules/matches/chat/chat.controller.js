@@ -106,7 +106,9 @@ module.exports.getChatMessages = async (req, res) => {
 
     const blockStatus = await isBlocked(userId, otherUserId);
 
-    if (blockStatus.isBlocked) {
+    // If blocked, but ONLY by them (I didn't block them), deny access.
+    // If I blocked them (blockedByMe = true), allow me to read my own history.
+    if (blockStatus.isBlocked && !blockStatus.blockedByMe) {
       return res.status(403).json({
         success: false,
         message: "You cannot view messages",

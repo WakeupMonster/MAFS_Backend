@@ -48,7 +48,7 @@ module.exports.getAppConfig = async (req, res) => {
       if (!acc[item.category]) acc[item.category] = [];
 
       const itemObj = {
-        id: item.value, // Manager wants "id"
+        id: item.value, // 
         label: item.label
       };
 
@@ -60,6 +60,16 @@ module.exports.getAppConfig = async (req, res) => {
       return acc;
     }, {});
 
+    // 2. Extract API Keys from groupedData if they exist (added via bulkAdd)
+    const dbApiKeys = {};
+    if (groupedData.apiKeys) {
+      groupedData.apiKeys.forEach((keyItem) => {
+        dbApiKeys[keyItem.label] = keyItem.id; // label is key name, id is the value
+      });
+      // Remove from groupedData so it's only in config
+      delete groupedData.apiKeys;
+    }
+
     const config = {
       distance: { min: 1, max: 500, unit: "km" },
       age: { min: 18, max: 60 }
@@ -70,6 +80,10 @@ module.exports.getAppConfig = async (req, res) => {
       message: "App configuration fetched successfully",
       data: {
         ...groupedData,
+        apiKeys: {
+          googlePlaces: dbApiKeys.googlePlaces || process.env.GOOGLE_PLACES_API_KEY || "YOUR_GOOGLE_API_KEY",
+          giphy: dbApiKeys.giphy || process.env.GIPHY_API_KEY || "YOUR_GIPHY_API_KEY"
+        },
         config: config
       }
     });
@@ -82,7 +96,19 @@ module.exports.getAppConfig = async (req, res) => {
 
 module.exports.bulkAddMasterData = async (req, res) => {
   try {
-    const { items } = req.body;
+    let { items, apiKeys } = req.body;
+
+    // Agar apiKeys object hai toh use items mein convert kar do
+    if (apiKeys && typeof apiKeys === "object") {
+      if (!items) items = [];
+      Object.entries(apiKeys).forEach(([key, value]) => {
+        items.push({
+          category: "apiKeys",
+          label: key,
+          value: value,
+        });
+      });
+    }
 
     if (!items || !Array.isArray(items)) {
       return res.status(400).json({ success: false, message: "Invalid data format" });

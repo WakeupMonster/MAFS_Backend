@@ -301,7 +301,7 @@ class SubscriptionService {
     return sub;
   }
 
-  // ─── CANCEL ───
+  // ─── CANCEL ─── 
   async handleCancel(data) {
     const sub = await this._findSubscription(data);
     if (!sub) {

@@ -1,3 +1,16 @@
+// 🚀 PROCESS SAFETY NET: Catch and log unexpected crashes before they kill the process
+process.on("uncaughtException", (err) => {
+  console.error("💥 UNCAUGHT EXCEPTION! Shutting down...");
+  console.error(err.name, err.message, err.stack);
+  process.exit(1);
+});
+
+process.on("unhandledRejection", (err) => {
+  console.error("🔥 UNHANDLED REJECTION! Shutting down...");
+  console.error(err);
+  process.exit(1);
+});
+
 // 🚀 PERFORMANCE FIX: Boost Libuv thread pool for high-concurrency bcrypt hashing
 process.env.UV_THREADPOOL_SIZE = process.env.UV_THREADPOOL_SIZE || 128;
 

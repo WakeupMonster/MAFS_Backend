@@ -116,7 +116,7 @@ module.exports = function chatSocket(io, redisClient) {
         );
 
         const blocked = await isBlocked(currentUserId, otherUserId);
-        if (blocked.isBlocked) {
+        if (blocked.isBlocked && !blocked.blockedByMe) {
           /*
            * Blocked user ko feedback: Bina iske user confused hota hai
            * ki chat kyun kaam nahi kar rahi.

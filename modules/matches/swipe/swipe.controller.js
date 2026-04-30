@@ -14,14 +14,25 @@ module.exports.getFeed = async (req, res) => {
     const page = Number(req.query.page) || 1;
 
     // Fresh users (only phone verified, no profile) cannot access feed
-    const profileExists = await Profile.findOne({ userId }).select("_id").lean();
-    if (!profileExists) {
+    const myProfile = await Profile.findOne({ userId }).select("_id verification").lean();
+    if (!myProfile) {
       return res.status(403).json({
         success: false,
         message: "Please complete your profile setup to explore matches!",
         data: {
           actionAllowed: false,
           reason: "PROFILE_NOT_FOUND"
+        }
+      });
+    }
+
+    if (myProfile.verification?.status !== "approved") {
+      return res.status(403).json({
+        success: false,
+        message: "Your profile is under review. You can explore matches once verified.",
+        data: {
+          actionAllowed: false,
+          reason: "PROFILE_NOT_VERIFIED"
         }
       });
     }
@@ -270,6 +281,9 @@ module.exports.getKeenData = async (req, res, actionType) => {
     const { page = 1, limit = 20 } = req.query;
     const skip = (parseInt(page) - 1) * parseInt(limit);
 
+    // Fetch my profile to get location for distance calculation
+    const myProfile = await Profile.findOne({ userId }).select("location").lean();
+
     // 1. Un IDs ko nikalna jinhe user ne already swipe kiya hai
     const mySwipedIds = await Swipe.find({ swiperId: userId }).distinct(
       "targetId"
@@ -321,10 +335,10 @@ module.exports.getKeenData = async (req, res, actionType) => {
 
       const age = calculateAge(profile.dob);
       let distance = 0;
-      if (req.user.location?.coordinates && profile.location?.coordinates) {
+      if (myProfile?.location?.coordinates && profile.location?.coordinates) {
         distance = calculateDistance(
-          req.user.location.coordinates[1],
-          req.user.location.coordinates[0],
+          myProfile.location.coordinates[1],
+          myProfile.location.coordinates[0],
           profile.location.coordinates[1],
           profile.location.coordinates[0]
         );

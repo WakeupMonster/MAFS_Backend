@@ -64,6 +64,23 @@ exports.updateProfile = async (req, res) => {
 
     if (updateData.profile) {
       const p = updateData.profile;
+      
+      // DOB Age validation (18+)
+      if (p.dob) {
+        const parsedDate = new Date(p.dob).getTime();
+        if (!isNaN(parsedDate)) {
+          const age = Math.floor((Date.now() - parsedDate) / 31557600000);
+          if (age < 18) {
+            return res.status(400).json({ 
+              success: false, 
+              message: "You must be at least 18 years old to use MAFS." 
+            });
+          }
+        } else {
+          return res.status(400).json({ success: false, message: "Invalid Date of Birth format." });
+        }
+      }
+
       const basicFields = ['nickname', 'dob', 'gender', 'height', 'about', 'jobTitle', 'company', 'school', 'pronouns', 'weight', 'livingIn'];
       basicFields.forEach(field => { if (p[field] !== undefined) profile[field] = p[field]; });
 

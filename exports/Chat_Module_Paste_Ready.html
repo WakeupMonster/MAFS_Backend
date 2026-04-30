@@ -1,0 +1,338 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <title>MAFS Chat Module API Sheet</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', sans-serif;
+            background: #f0f2f5;
+            padding: 20px
+        }
+
+        .container {
+            background: #fff;
+            padding: 20px;
+            border-radius: 12px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, .1);
+            overflow-x: auto
+        }
+
+        h1 {
+            color: #1e1b4b;
+            text-align: center;
+            font-size: 22px;
+            text-transform: uppercase;
+            letter-spacing: 1px
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            min-width: 1800px;
+            border: 2px solid #0d9488
+        }
+
+        th {
+            background: #0d9488;
+            color: #fff;
+            padding: 14px;
+            text-align: left;
+            font-size: 13px;
+            border: 1px solid #0f766e
+        }
+
+        td {
+            padding: 11px;
+            border: 1px solid #e5e7eb;
+            vertical-align: top;
+            font-size: 12.5px;
+            line-height: 1.5
+        }
+
+        .sr {
+            text-align: center;
+            font-weight: bold;
+            color: #0d9488;
+            background: #f0fdfa
+        }
+
+        .method {
+            font-weight: bold;
+            padding: 4px 8px;
+            border-radius: 4px;
+            color: #fff;
+            display: inline-block;
+            font-size: 11px;
+            width: 65px;
+            text-align: center
+        }
+
+        .post {
+            background: #ef4444
+        }
+
+        .get {
+            background: #22c55e
+        }
+
+        .patch {
+            background: #f59e0b
+        }
+
+        .delete {
+            background: #b91c1c
+        }
+
+        .sb {
+            background: #f0fdf4;
+            color: #166534;
+            border: 1px solid #bbf7d0 !important
+        }
+
+        .eb {
+            background: #fef2f2;
+            color: #991b1b;
+            border: 1px solid #fecaca !important
+        }
+
+        .ib {
+            background: #fffbeb;
+            color: #92400e;
+            font-style: italic;
+            border: 1px solid #fef3c7 !important
+        }
+
+        pre {
+            white-space: pre-wrap;
+            word-wrap: break-word;
+            font-family: Consolas, monospace;
+            font-size: 11.5px;
+            margin: 0;
+            color: inherit
+        }
+
+        tr:nth-child(even) {
+            background-color: #f0fdfa
+        }
+
+        .inst {
+            background: #0d9488;
+            color: #fff;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            text-align: center;
+            font-size: 15px
+        }
+    </style>
+</head>
+
+<body>
+    <div class="inst">🎯 <b>CHAT MODULE:</b> Ctrl+A → Ctrl+C → Paste in Google Sheet</div>
+    <div class="container">
+        <h1>💬 MAFS — CHAT MODULE API DOCUMENTATION</h1>
+        <table>
+            <thead>
+                <tr>
+                    <th>#</th>
+                    <th>Sub-Module</th>
+                    <th>API Endpoint</th>
+                    <th>Method</th>
+                    <th>Auth</th>
+                    <th>Description</th>
+                    <th>Request Body</th>
+                    <th>Success Code</th>
+                    <th>Success Response</th>
+                    <th>Error Codes</th>
+                    <th>Error Response</th>
+                    <th>Error Scenarios</th>
+                    <th>✏️ Improvements</th>
+                </tr>
+            </thead>
+            <tbody>
+                <!-- 1 -->
+                <tr>
+                    <td class="sr">1</td>
+                    <td><b>Send Message</b></td>
+                    <td><code>/api/v1/chat/:matchId/message</code></td>
+                    <td><span class="method post">POST</span></td>
+                    <td>✅ Yes</td>
+                    <td>Send a text message in a matched conversation.
+                        Updates Match lastMessage and lastMessageTime. Sends push notification to partner.</td>
+                    <td>
+                        <pre>{ "text": "Hey, how are you?" }
+Params: matchId</pre>
+                    </td>
+                    <td class="sb" style="text-align:center"><b>201</b></td>
+                    <td class="sb">
+                        <pre>{ "success": true, "data": { "_id": "msg_id", "matchId": "...", "senderId": "...", "text": "Hey, how are you?", "type": "text", "createdAt": "ISO date" } }</pre>
+                    </td>
+                    <td class="eb" style="text-align:center"><b>400, 403, 404</b></td>
+                    <td class="eb">
+                        <pre>{ "success": false, "message": "Match not found" }
+{ "success": false, "message": "You are not part of this match" }
+{ "success": false, "message": "Text is required" }</pre>
+                    </td>
+                    <td>1) Match not found → 404<br>2) Not part of match → 403<br>3) Empty text → 400<br>4) Socket
+                        emit to partner in real-time</td>
+                    <td class="ib"></td>
+                </tr>
+                <!-- 2 -->
+                <tr>
+                    <td class="sr">2</td>
+                    <td><b>Get Messages</b></td>
+                    <td><code>/api/v1/chat/:matchId/messages</code></td>
+                    <td><span class="method get">GET</span></td>
+                    <td>✅ Yes</td>
+                    <td>Get paginated messages for a match conversation.
+                        Sorted by newest first. Cursor-based pagination using before parameter.</td>
+                    <td>
+                        <pre>Query: ?limit=30&before=msg_id
+Params: matchId</pre>
+                    </td>
+                    <td class="sb" style="text-align:center"><b>200</b></td>
+                    <td class="sb">
+                        <pre>{ "success": true, "data": [{ "_id": "...", "senderId": "...", "text": "Hello!", "type": "text", "createdAt": "ISO date", "readBy": ["userId"] }], "meta": { "hasMore": true, "nextCursor": "msg_id" } }</pre>
+                    </td>
+                    <td class="eb" style="text-align:center"><b>403, 404</b></td>
+                    <td class="eb">
+                        <pre>{ "success": false, "message": "Match not found" }
+{ "success": false, "message": "You are not part of this match" }</pre>
+                    </td>
+                    <td>1) Match not found → 404<br>2) Not part of match → 403<br>3) No messages → returns empty
+                        data[]</td>
+                    <td class="ib"></td>
+                </tr>
+                <!-- 3 -->
+                <tr>
+                    <td class="sr">3</td>
+                    <td><b>Chat List</b></td>
+                    <td><code>/api/v1/chat/list</code></td>
+                    <td><span class="method get">GET</span></td>
+                    <td>✅ Yes</td>
+                    <td>Get all active chat conversations for current user.
+                        Returns partner info, last message preview, unread count, and online status.</td>
+                    <td>
+                        <pre>None</pre>
+                    </td>
+                    <td class="sb" style="text-align:center"><b>200</b></td>
+                    <td class="sb">
+                        <pre>{ "success": true, "data": [{ "matchId": "...", "partner": { "userId": "...", "nickname": "Sara", "mainPhoto": "url", "isOnline": true }, "lastMessage": { "text": "Hey!", "senderId": "...", "createdAt": "ISO date" }, "unreadCount": 3 }] }</pre>
+                    </td>
+                    <td class="eb" style="text-align:center"><b>500</b></td>
+                    <td class="eb">
+                        <pre>{ "success": false, "message": "Failed to fetch chat list" }</pre>
+                    </td>
+                    <td>1) No chats → returns empty data[]<br>2) Internal error → 500</td>
+                    <td class="ib"></td>
+                </tr>
+                <!-- 4 -->
+                <tr>
+                    <td class="sr">4</td>
+                    <td><b>Mark Read</b></td>
+                    <td><code>/api/v1/chat/:matchId/read</code></td>
+                    <td><span class="method post">POST</span></td>
+                    <td>✅ Yes</td>
+                    <td>Mark all messages in a conversation as read.
+                        Updates readBy array for all unread messages from partner.</td>
+                    <td>
+                        <pre>Params: matchId</pre>
+                    </td>
+                    <td class="sb" style="text-align:center"><b>200</b></td>
+                    <td class="sb">
+                        <pre>{ "success": true, "message": "Messages marked as read" }</pre>
+                    </td>
+                    <td class="eb" style="text-align:center"><b>403, 404</b></td>
+                    <td class="eb">
+                        <pre>{ "success": false, "message": "Match not found" }</pre>
+                    </td>
+                    <td>1) Match not found → 404<br>2) Not part of match → 403<br>3) Emits socket read receipt
+                        event</td>
+                    <td class="ib"></td>
+                </tr>
+                <!-- 5 -->
+                <tr>
+                    <td class="sr">5</td>
+                    <td><b>Delete Message</b></td>
+                    <td><code>/api/v1/chat/:matchId/message/:messageId</code></td>
+                    <td><span class="method delete">DELETE</span></td>
+                    <td>✅ Yes</td>
+                    <td>Delete a specific message. Only sender can delete their own messages.
+                        Soft delete — marks as deleted, doesn't remove from DB.</td>
+                    <td>
+                        <pre>Params: matchId, messageId</pre>
+                    </td>
+                    <td class="sb" style="text-align:center"><b>200</b></td>
+                    <td class="sb">
+                        <pre>{ "success": true, "message": "Message deleted successfully" }</pre>
+                    </td>
+                    <td class="eb" style="text-align:center"><b>403, 404</b></td>
+                    <td class="eb">
+                        <pre>{ "success": false, "message": "Message not found" }
+{ "success": false, "message": "You can only delete your own messages" }</pre>
+                    </td>
+                    <td>1) Message not found → 404<br>2) Not the sender → 403<br>3) Socket emit for real-time
+                        delete</td>
+                    <td class="ib"></td>
+                </tr>
+                <!-- 6 -->
+                <tr>
+                    <td class="sr">6</td>
+                    <td><b>Upload Media</b></td>
+                    <td><code>/api/v1/chat/:matchId/media</code></td>
+                    <td><span class="method post">POST</span></td>
+                    <td>✅ Yes</td>
+                    <td>Upload image/video in chat. Uploads to Cloudinary.
+                        Creates message with type "image" or "video". Max file size enforced by multer.</td>
+                    <td>
+                        <pre>FormData: media (single file)
+Params: matchId</pre>
+                    </td>
+                    <td class="sb" style="text-align:center"><b>201</b></td>
+                    <td class="sb">
+                        <pre>{ "success": true, "data": { "_id": "msg_id", "matchId": "...", "senderId": "...", "type": "image", "mediaUrl": "cloudinary_url", "createdAt": "ISO date" } }</pre>
+                    </td>
+                    <td class="eb" style="text-align:center"><b>400, 403, 404</b></td>
+                    <td class="eb">
+                        <pre>{ "success": false, "message": "No media file uploaded" }
+{ "success": false, "message": "Match not found" }</pre>
+                    </td>
+                    <td>1) No file → 400<br>2) Match not found → 404<br>3) Not part of match → 403<br>4) Cloudinary
+                        upload fail → 500</td>
+                    <td class="ib"></td>
+                </tr>
+                <!-- 7 -->
+                <tr>
+                    <td class="sr">7</td>
+                    <td><b>Delete Media Message</b></td>
+                    <td><code>/api/v1/chat/:matchId/media/:messageId</code></td>
+                    <td><span class="method delete">DELETE</span></td>
+                    <td>✅ Yes</td>
+                    <td>Delete a media message. Removes media from Cloudinary
+                        and soft-deletes the message from conversation.</td>
+                    <td>
+                        <pre>Params: matchId, messageId</pre>
+                    </td>
+                    <td class="sb" style="text-align:center"><b>200</b></td>
+                    <td class="sb">
+                        <pre>{ "success": true, "message": "Media message deleted successfully" }</pre>
+                    </td>
+                    <td class="eb" style="text-align:center"><b>403, 404</b></td>
+                    <td class="eb">
+                        <pre>{ "success": false, "message": "Message not found" }
+{ "success": false, "message": "You can only delete your own messages" }</pre>
+                    </td>
+                    <td>1) Message not found → 404<br>2) Not the sender → 403<br>3) Cloudinary destroy + DB soft
+                        delete</td>
+                    <td class="ib"></td>
+                </tr>
+            </tbody>
+        </table>
+        <p style="text-align:center;color:#6b7280;font-style:italic;margin-top:15px">📋 Total: 7 Endpoints | Module:
+            Chat | All Auth Required | Real-time Socket Events on Send/Read/Delete | Generated: April 2026</p>
+    </div>
+</body>
+
+</html>
