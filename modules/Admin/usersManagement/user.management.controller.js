@@ -475,7 +475,6 @@ module.exports.GETAllUsers = async (req, res) => {
       isScheduledForDeletion,
     } = req.query;
 
-    // --- YOUR EXISTING LOGIC START ---
     const page = Math.max(parseInt(reqPage) || 1, 1);
     const limit = Math.min(parseInt(reqLimit) || 10, 100);
     const skip = (page - 1) * limit;
@@ -486,181 +485,185 @@ module.exports.GETAllUsers = async (req, res) => {
     if (isPremium) baseMatch.isPremium = isPremium === "true";
     if (isBanned !== undefined)
       baseMatch["banDetails.isBanned"] = isBanned === "true";
-
-    if (isDeactivated !== undefined) {
+    if (isDeactivated !== undefined)
       baseMatch["deactivationDetails.isDeactivated"] = isDeactivated === "true";
-    }
-
     if (isScheduledForDeletion !== undefined) {
       baseMatch["deletionDetails.isScheduledForDeletion"] =
         isScheduledForDeletion === "true";
     }
-
     if (last24Hours === "true") {
       const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
-      baseMatch.lastLoginAt = { $gte: twentyFourHoursAgo };
+      baseMatch.createdAt = { $gte: twentyFourHoursAgo };
     }
 
-    // Your Pipeline (Keeping your existing pipeline structure)
-    const pipeline = [
-      { $match: baseMatch },
-      {
-        $lookup: {
-          from: "profiles",
-          localField: "_id",
-          foreignField: "userId",
-          as: "profile",
+    const pipeline = [{ $match: baseMatch }];
+
+    // OPTIMIZATION: If we need to filter/search by profile fields, we MUST lookup early.
+    // If not, we defer the lookup until AFTER pagination for massive performance gains.
+    const needsEarlyProfileLookup = !!(gender || searchTrimmed);
+
+    if (needsEarlyProfileLookup) {
+      pipeline.push(
+        {
+          $lookup: {
+            from: "profiles",
+            localField: "_id",
+            foreignField: "userId",
+            as: "profile",
+          },
         },
-      },
-      { $unwind: { path: "$profile", preserveNullAndEmptyArrays: true } },
-      // --- AGE CALCULATION START ---
-      {
-        $addFields: {
-          "profile.calculatedAge": {
-            $cond: {
-              if: {
-                $and: [
-                  { $gt: ["$profile.dob", null] },
-                  { $toLower: "$profile.dob" },
-                ],
-              },
-              then: {
-                $dateDiff: {
-                  startDate: { $toDate: "$profile.dob" },
-                  endDate: "$$NOW",
-                  unit: "year",
+        { $unwind: { path: "$profile", preserveNullAndEmptyArrays: true } },
+        {
+          $addFields: {
+            "profile.calculatedAge": {
+              $cond: {
+                if: {
+                  $and: [
+                    { $gt: ["$profile.dob", null] },
+                    { $toLower: "$profile.dob" },
+                  ],
                 },
+                then: {
+                  $dateDiff: {
+                    startDate: { $toDate: "$profile.dob" },
+                    endDate: "$$NOW",
+                    unit: "year",
+                  },
+                },
+                else: null,
               },
-              else: null,
             },
           },
         },
-      },
-      // --- AGE CALCULATION END ---
-      // 2. NEW: Apply Gender Filter (Post-Lookup)
-      ...(gender ? [{ $match: { "profile.gender": gender } }] : []),
-      ...(searchTrimmed
-        ? [
-            {
-              $match: {
-                $or: [
-                  {
-                    email: new RegExp(
-                      searchTrimmed.replace(/[.*+?^${}()|[\\/]\\]/g, "\\$&"),
-                      "i",
-                    ),
+      );
+
+      if (gender) {
+        pipeline.push({ $match: { "profile.gender": gender } });
+      }
+
+      if (searchTrimmed) {
+        const searchRegex = new RegExp(
+          searchTrimmed.replace(/[.*+?^${}()|[\\/]\\]/g, "\\$&"),
+          "i",
+        );
+        const searchConditions = [
+          { email: searchRegex },
+          { phone: searchRegex },
+          { "profile.nickname": searchRegex },
+          { "profile.gender": { $regex: `^${searchTrimmed}$`, $options: "i" } },
+          { "profile.location.city": searchRegex },
+          { "profile.location.country": searchRegex },
+        ];
+
+        if (!isNaN(parseInt(searchTrimmed))) {
+          searchConditions.push({
+            "profile.calculatedAge": parseInt(searchTrimmed),
+          });
+        }
+        pipeline.push({ $match: { $or: searchConditions } });
+      }
+    }
+
+    // Facet Stage
+    pipeline.push({
+      $facet: {
+        data: [
+          { $sort: { createdAt: -1 } },
+          { $skip: skip },
+          { $limit: limit },
+          // If we didn't lookup profiles earlier, we do it now (only for the 10 paginated users!)
+          ...(!needsEarlyProfileLookup
+            ? [
+                {
+                  $lookup: {
+                    from: "profiles",
+                    localField: "_id",
+                    foreignField: "userId",
+                    as: "profile",
                   },
-                  {
-                    phone: new RegExp(
-                      searchTrimmed.replace(/[.*+?^${}()|[\\/]\\]/g, "\\$&"),
-                      "i",
-                    ),
+                },
+                {
+                  $unwind: {
+                    path: "$profile",
+                    preserveNullAndEmptyArrays: true,
                   },
-                  {
-                    "profile.nickname": new RegExp(
-                      searchTrimmed.replace(/[.*+?^${}()|[\\/]\\]/g, "\\$&"),
-                      "i",
-                    ),
-                  },
-                  {
-                    "profile.gender": {
-                      $regex: `^${searchTrimmed}$`,
-                      $options: "i",
+                },
+                {
+                  $addFields: {
+                    "profile.calculatedAge": {
+                      $cond: {
+                        if: {
+                          $and: [
+                            { $gt: ["$profile.dob", null] },
+                            { $toLower: "$profile.dob" },
+                          ],
+                        },
+                        then: {
+                          $dateDiff: {
+                            startDate: { $toDate: "$profile.dob" },
+                            endDate: "$$NOW",
+                            unit: "year",
+                          },
+                        },
+                        else: null,
+                      },
                     },
                   },
-                  {
-                    "profile.location.city": new RegExp(
-                      searchTrimmed.replace(/[.*+?^${}()|[\\/]\\]/g, "\\$&"),
-                      "i",
-                    ),
-                  },
-                  {
-                    "profile.location.country": new RegExp(
-                      searchTrimmed.replace(/[.*+?^${}()|[\\/]\\]/g, "\\$&"),
-                      "i",
-                    ),
-                  },
-                  // ...(!isNaN(parseInt(searchTrimmed))
-                  //   ? [{ "profile.age": parseInt(searchTrimmed) }]
-                  //   : []),
-                  // Search by Calculated Age
-                  ...(!isNaN(parseInt(searchTrimmed))
-                    ? [{ "profile.calculatedAge": parseInt(searchTrimmed) }]
-                    : []),
-                ],
-              },
-            },
-          ]
-        : [{ $sort: { createdAt: -1 } }]),
-      {
-        $lookup: {
-          from: "accounts",
-          localField: "_id",
-          foreignField: "userId",
-          as: "account",
-        },
-      },
-      { $unwind: { path: "$account", preserveNullAndEmptyArrays: true } },
-      {
-        $facet: {
-          data: [
-            { $sort: { createdAt: -1 } },
-            { $skip: skip },
-            { $limit: limit },
-            {
-              $project: {
-                _id: 1,
-                role: 1,
-                account: {
-                  status: "$accountStatus",
-                  isPremium: "$isPremium",
-                  phone: "$phone",
-                  email: "$email",
-                  authMethod: "$authMethod",
-                  banDetails: "$banDetails",
-                  deactivationDetails: "$deactivationDetails",
-                  deletionDetails: "$deletionDetails",
-                  suspensionDetails: "$suspensionDetails",
-                  createdAt: "$createdAt",
                 },
-                profile: {
-                  profileId: "$profile._id",
-                  nickname: "$profile.nickname",
-                  dob: "$profile.dob",
-                  age: "$profile.calculatedAge",
-                  gender: "$profile.gender",
-                  height: "$profile.height",
-                  about: "$profile.about",
-                  jobTitle: "$profile.jobTitle",
-                  company: "$profile.company",
-                  totalCompletion:
-                    "$profile.onboardingProgress.totalCompletion",
-                },
-                location: "$profile.location",
-                photos: { $arrayElemAt: ["$profile.photos.url", 0] },
-                lastProfileUpdate: "$profile.lastProfileUpdate",
-                createdAt: 1,
-                lastLoginAt: 1,
+              ]
+            : []),
+          {
+            $project: {
+              _id: 1,
+              role: 1,
+              account: {
+                status: "$accountStatus",
+                isPremium: "$isPremium",
+                phone: "$phone",
+                email: "$email",
+                authMethod: "$authMethod",
+                banDetails: "$banDetails",
+                deactivationDetails: "$deactivationDetails",
+                deletionDetails: "$deletionDetails",
+                suspensionDetails: "$suspensionDetails",
+                createdAt: "$createdAt",
               },
+              profile: {
+                profileId: "$profile._id",
+                nickname: "$profile.nickname",
+                dob: "$profile.dob",
+                age: "$profile.calculatedAge",
+                gender: "$profile.gender",
+                height: "$profile.height",
+                about: "$profile.about",
+                jobTitle: "$profile.jobTitle",
+                company: "$profile.company",
+                totalCompletion: "$profile.onboardingProgress.totalCompletion",
+              },
+              location: "$profile.location",
+              photos: { $arrayElemAt: ["$profile.photos.url", 0] },
+              lastProfileUpdate: "$profile.lastProfileUpdate",
+              createdAt: 1,
+              lastLoginAt: 1,
             },
-          ],
-          total: [{ $count: "count" }],
-          activeCount: [
-            { $match: { accountStatus: "active" } },
-            { $count: "count" },
-          ],
-          premiumCount: [{ $match: { isPremium: true } }, { $count: "count" }],
-          bannedCount: [
-            { $match: { accountStatus: "banned" } },
-            { $count: "count" },
-          ],
-          suspendedCount: [
-            { $match: { accountStatus: "suspended" } },
-            { $count: "count" },
-          ],
-        },
+          },
+        ],
+        total: [{ $count: "count" }],
+        activeCount: [
+          { $match: { accountStatus: "active" } },
+          { $count: "count" },
+        ],
+        premiumCount: [{ $match: { isPremium: true } }, { $count: "count" }],
+        bannedCount: [
+          { $match: { accountStatus: "banned" } },
+          { $count: "count" },
+        ],
+        suspendedCount: [
+          { $match: { accountStatus: "suspended" } },
+          { $count: "count" },
+        ],
       },
-    ];
+    });
 
     const result = await User.aggregate(pipeline);
     const users = result[0]?.data || [];
@@ -816,6 +819,20 @@ module.exports.GETSingleUserDetails = async (req, res) => {
             },
             {
               $lookup: {
+                from: "users",
+                localField: "otherUserId",
+                foreignField: "_id",
+                as: "otherUser",
+              },
+            },
+            {
+              $unwind: {
+                path: "$otherUser",
+                preserveNullAndEmptyArrays: true,
+              },
+            },
+            {
+              $lookup: {
                 from: "profiles",
                 localField: "otherUserId",
                 foreignField: "userId",
@@ -834,6 +851,7 @@ module.exports.GETSingleUserDetails = async (req, res) => {
                 matchedAt: 1,
                 ouserId: "$otherProfile.userId",
                 nickname: "$otherProfile.nickname",
+                email: "$otherUser.email",
                 photo: { $arrayElemAt: ["$otherProfile.photos.url", 0] },
               },
             },
@@ -850,20 +868,23 @@ module.exports.GETSingleUserDetails = async (req, res) => {
             { $match: { $expr: { $eq: ["$blockerId", "$$currentUserId"] } } },
             {
               $lookup: {
+                from: "users",
+                localField: "blockedId",
+                foreignField: "_id",
+                as: "blockedUserInfo",
+              },
+            },
+            {
+              $unwind: {
+                path: "$blockedUserInfo",
+                preserveNullAndEmptyArrays: true,
+              },
+            },
+            {
+              $lookup: {
                 from: "profiles",
-                let: {
-                  bId: {
-                    $convert: {
-                      input: "$blockedId",
-                      to: "objectId",
-                      onError: null,
-                      onNull: null,
-                    },
-                  },
-                },
-                pipeline: [
-                  { $match: { $expr: { $eq: ["$userId", "$$bId"] } } },
-                ],
+                localField: "blockedId",
+                foreignField: "userId",
                 as: "blockedProfile",
               },
             },
@@ -878,6 +899,8 @@ module.exports.GETSingleUserDetails = async (req, res) => {
                 _id: "$blockedId",
                 nickname: { $ifNull: ["$blockedProfile.nickname", ""] },
                 photo: { $arrayElemAt: ["$blockedProfile.photos.url", 0] },
+                email: { $ifNull: ["$blockedUserInfo.email", ""] },
+                phone: { $ifNull: ["$blockedUserInfo.phone", ""] },
                 blockedAt: "$createdAt",
               },
             },
@@ -978,63 +1001,6 @@ module.exports.GETSingleUserDetails = async (req, res) => {
                 localField: "reporterId",
                 foreignField: "userId",
                 as: "reporterInfo",
-              },
-            },
-            {
-              $lookup: {
-                from: "blocks",
-                let: { currentUserId: "$_id" },
-                pipeline: [
-                  {
-                    $match: {
-                      $expr: { $eq: ["$blockerId", "$$currentUserId"] },
-                    },
-                  },
-                  {
-                    $lookup: {
-                      from: "profiles",
-                      let: {
-                        bId: {
-                          $convert: {
-                            input: "$blockedId",
-                            to: "objectId",
-                            onError: null,
-                            onNull: null,
-                          },
-                        },
-                      },
-                      pipeline: [
-                        { $match: { $expr: { $eq: ["$userId", "$$bId"] } } },
-                      ],
-                      as: "blockedProfile",
-                    },
-                  },
-                  {
-                    $unwind: {
-                      path: "$blockedProfile",
-                      preserveNullAndEmptyArrays: true,
-                    },
-                  },
-                  {
-                    $project: {
-                      _id: "$blockedId",
-                      nickname: { $ifNull: ["$blockedProfile.nickname", ""] },
-                      photo: {
-                        $arrayElemAt: ["$blockedProfile.photos.url", 0],
-                      },
-                      blockedAt: "$createdAt",
-                    },
-                  },
-                ],
-                as: "blockedUsersData",
-              },
-            },
-            {
-              $lookup: {
-                from: "blockedcontacts",
-                localField: "_id",
-                foreignField: "userId",
-                as: "blockedContactsData",
               },
             },
             {
@@ -1216,8 +1182,9 @@ module.exports.GETSingleUserDetails = async (req, res) => {
                 input: "$blockedContactsData",
                 as: "bc",
                 in: {
-                  name: "$$bc.blockedName",
-                  phone: "$$bc.blockedPhone",
+                  _id: "$$bc._id",
+                  blockedName: "$$bc.blockedName",
+                  blockedPhone: "$$bc.blockedPhone",
                   blockedPhoneHash: "$$bc.blockedPhoneHash",
                   source: "$$bc.source",
                   blockedAt: "$$bc.createdAt",
@@ -1225,6 +1192,7 @@ module.exports.GETSingleUserDetails = async (req, res) => {
               },
             },
             blockedUsers: "$blockedUsersData",
+            blockedBy: "$blockedByData",
           },
           location: "$profile.location",
           photos: "$profile.photos",

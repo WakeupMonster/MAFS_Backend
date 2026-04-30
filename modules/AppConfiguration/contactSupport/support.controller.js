@@ -2,7 +2,8 @@
 const crypto = require("crypto");
 const SupportTicket = require("./supportTicket.model");
 const { sendEmail } = require("../../auth/auth.utils");
-
+const { default: mongoose } = require("mongoose");
+const { uploadStream } = require("../../upload/cloudinary.service");
 
 module.exports.contactSupport = async (req, res) => {
   try {
@@ -30,7 +31,7 @@ module.exports.contactSupport = async (req, res) => {
       message: "Your request has been submitted to support",
       data: {
         ticketId: newTicket.ticketId,
-      }
+      },
     });
   } catch (err) {
     console.error("Contact support error:", err);
@@ -40,7 +41,6 @@ module.exports.contactSupport = async (req, res) => {
     });
   }
 };
-
 
 // module.exports.contactSupport = async (req, res) => {
 //   try {
@@ -263,14 +263,91 @@ module.exports.getAllTickets = async (req, res) => {
   }
 };
 
+// module.exports.getMyTicketById = async (req, res) => {
+//   try {
+//     // const userId = req.user._id;
+//     const { ticketId } = req.params;
+
+//     const ticket = await SupportTicket.findOne({ _id: ticketId }).lean();
+
+//     if (!ticket) {
+//       return res.status(404).json({
+//         success: false,
+//         message: "Ticket not found",
+//       });
+//     }
+
+//     return res.json({
+//       success: true,
+//       data: ticket,
+//     });
+//   } catch (err) {
+//     return res.status(500).json({
+//       success: false,
+//       message: "Failed to fetch ticket",
+//     });
+//   }
+// };
 module.exports.getMyTicketById = async (req, res) => {
   try {
-    // const userId = req.user._id;
     const { ticketId } = req.params;
 
-    const ticket = await SupportTicket.findOne({ _id: ticketId }).lean();
+    // Validation: Ensure the ID is a valid MongoDB ObjectId before querying
+    if (!mongoose.Types.ObjectId.isValid(ticketId)) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid Ticket ID format",
+      });
+    }
 
-    if (!ticket) {
+    const pipeline = [
+      { $match: { _id: new mongoose.Types.ObjectId(ticketId) } },
+      {
+        $lookup: {
+          from: "users",
+          localField: "userId",
+          foreignField: "_id",
+          as: "userDetails",
+        },
+      },
+      { $unwind: { path: "$userDetails", preserveNullAndEmptyArrays: true } },
+      {
+        $lookup: {
+          from: "profiles",
+          localField: "userId",
+          foreignField: "userId",
+          as: "profileDetails",
+        },
+      },
+      {
+        $unwind: { path: "$profileDetails", preserveNullAndEmptyArrays: true },
+      },
+      {
+        $project: {
+          _id: 1,
+          ticketId: 1,
+          subject: 1,
+          category: 1,
+          message: 1,
+          status: 1,
+          attachments: 1,
+          adminReply: 1,
+          repliedAt: 1,
+          createdAt: 1,
+          user: {
+            userId: "$userDetails._id",
+            email: "$userDetails.email",
+            phone: "$userDetails.phone",
+            nickname: "$profileDetails.nickname",
+            avatar: { $arrayElemAt: ["$profileDetails.photos.url", 0] },
+          },
+        },
+      },
+    ];
+
+    const tickets = await SupportTicket.aggregate(pipeline);
+
+    if (!tickets || tickets.length === 0) {
       return res.status(404).json({
         success: false,
         message: "Ticket not found",
@@ -279,12 +356,14 @@ module.exports.getMyTicketById = async (req, res) => {
 
     return res.json({
       success: true,
-      data: ticket,
+      data: tickets[0],
     });
   } catch (err) {
+    console.error("Aggregation Error:", err); // Log this to see the actual error in console
     return res.status(500).json({
       success: false,
       message: "Failed to fetch ticket",
+      error: err.message, // Temporary for debugging
     });
   }
 };
@@ -329,6 +408,7 @@ module.exports.getMyTicketById = async (req, res) => {
 module.exports.replyToTicket = async (req, res) => {
   try {
     const { ticketId, reply, status } = req.body;
+    const files = req.files;
 
     if (!ticketId || !reply || !status) {
       return res.status(400).json({
@@ -349,6 +429,21 @@ module.exports.replyToTicket = async (req, res) => {
       });
     }
 
+    // 1. Handle File Uploads
+    if (files && files.length > 0) {
+      const uploadPromises = files.map((file) =>
+        uploadStream(file.buffer, {
+          folder: `mafs/support/replies/${ticketId}`,
+        }),
+      );
+      const uploadResults = await Promise.all(uploadPromises);
+      const attachments = uploadResults.map((result) => ({
+        url: result.secure_url,
+        publicId: result.public_id,
+      }));
+      ticket.adminAttachments = attachments;
+    }
+
     ticket.adminReply = reply;
     ticket.status = status;
     ticket.repliedAt = new Date();
@@ -358,6 +453,26 @@ module.exports.replyToTicket = async (req, res) => {
     // 📧 SEND EMAIL TO THE USER
     if (ticket.userId && ticket.userId.email) {
       const emailSubject = `Update on your Support Ticket: ${ticket.subject || "MAFS Support"}`;
+
+      // Build attachments HTML if any
+      let attachmentsHtml = "";
+      if (ticket.adminAttachments && ticket.adminAttachments.length > 0) {
+        attachmentsHtml = `
+          <div style="margin-top: 20px; border-top: 1px solid #eee; padding-top: 15px;">
+            <p style="font-size: 13px; font-weight: bold; color: #666; margin-bottom: 8px;">ATTACHMENTS:</p>
+            ${ticket.adminAttachments
+              .map(
+                (file, idx) => `
+              <a href="${file.url}" target="_blank" style="display: inline-block; margin-right: 10px; padding: 5px 12px; background: #f0f4f8; border-radius: 6px; text-decoration: none; color: #00adef; font-size: 12px; font-weight: bold;">
+                View Attachment ${idx + 1}
+              </a>
+            `,
+              )
+              .join("")}
+          </div>
+        `;
+      }
+
       const emailHtml = `
         <div style="font-family: Arial, sans-serif; padding: 20px; color: #333; line-height: 1.6;">
           <h2 style="color: #00adef;">Support Ticket Update</h2>
@@ -365,8 +480,9 @@ module.exports.replyToTicket = async (req, res) => {
           <p>Your support ticket has been updated to: <strong style="text-transform: capitalize;">${status.replace(/_/g, " ")}</strong></p>
           <p><strong>Admin Reply:</strong></p>
           <blockquote style="background: #f9f9f9; padding: 15px; border-left: 4px solid #00adef; margin: 10px 0;">
-            ${reply.replace(/\n/g, "<br/>")}
+            ${reply}
           </blockquote>
+          ${attachmentsHtml}
           <br/>
           <p>Thank you for reaching out to us.</p>
           <p>Best regards,<br/><strong>MAFS Support Team</strong></p>
@@ -384,6 +500,7 @@ module.exports.replyToTicket = async (req, res) => {
       message: "Reply sent successfully",
     });
   } catch (err) {
+    console.error("Reply Error:", err);
     return res.status(500).json({
       success: false,
       message: "Failed to reply to ticket",

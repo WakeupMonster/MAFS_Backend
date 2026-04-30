@@ -752,6 +752,7 @@ module.exports.resendPrize = async (req, res) => {
     });
   }
 };
+
 module.exports.markPrizeAsDelivered = async (req, res) => {
   try {
     const { winHistoryId, couponCode, actualDeliveredValue, emailTemplate, giftCardExpiryDate } = req.body;

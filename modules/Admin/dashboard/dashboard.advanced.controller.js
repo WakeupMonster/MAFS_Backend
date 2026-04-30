@@ -1616,9 +1616,9 @@ exports.getAdvancedDashboardMetrics = async (req, res) => {
 
     const revTrendDisplay =
       revTrendNum !== null && revTrendNum > 0
-        ? `+${revTrendNum.toFixed(1)}%`
+        ? `$${revTrendNum.toFixed(1)}%`
         : revR.total > 0
-          ? `+${revR.total.toFixed(2)}`
+          ? `$${revR.total.toFixed(2)}`
           : "$0.00";
 
     const consumablePct =
@@ -1635,8 +1635,8 @@ exports.getAdvancedDashboardMetrics = async (req, res) => {
       fCPNum !== null
         ? `${fCPNum >= 0 ? "+" : ""}${Math.max(0, fCPNum).toFixed(0)}%`
         : fRS > 0
-          ? `+${fRS} new`
-          : "0 new";
+          ? `+${fRS}`
+          : "0";
 
     const gMT = totalGenderAgg.find((g) => g._id === "men")?.count || 0;
     const gFT = totalGenderAgg.find((g) => g._id === "women")?.count || 0;
@@ -1655,8 +1655,8 @@ exports.getAdvancedDashboardMetrics = async (req, res) => {
     const matchLiqTrend =
       matchLiqPrev > 0
         ? Math.abs(((matchLiqCur - matchLiqPrev) / matchLiqPrev) * 100).toFixed(
-          1,
-        )
+            1,
+          )
         : "0.0";
 
     const funnelD =
@@ -1788,6 +1788,8 @@ exports.getAdvancedDashboardMetrics = async (req, res) => {
               label: "Revenue",
               value: revTrendDisplay,
               sub: contextLabel,
+              trend: "12.5%",
+              isPositive: true,
               icon: "Sparkles",
               color: "emerald",
               route: "/admin/management/subscription-management",
@@ -1796,6 +1798,8 @@ exports.getAdvancedDashboardMetrics = async (req, res) => {
               label: "Consumables driving",
               value: `${consumablePct}%`,
               sub: "of revenue",
+              trend: `${consumablePct}%`,
+              isPositive: true,
               icon: "TrendingUp",
               color: "blue",
             },
@@ -1803,6 +1807,8 @@ exports.getAdvancedDashboardMetrics = async (req, res) => {
               label: "Female signups",
               value: fSignupDisplay,
               sub: contextLabel,
+              trend: "12.5%",
+              isPositive: true,
               icon: "Users",
               color: "orange",
               route: "/admin/management/users-management",
@@ -1820,6 +1826,8 @@ exports.getAdvancedDashboardMetrics = async (req, res) => {
               label: "Users flagged",
               value: `${reportCountNew}`,
               sub: "Review now →",
+              trend: "12.5%",
+              isPositive: false,
               icon: "Flag",
               color: "sky",
               isActionable: true,
@@ -1878,22 +1886,22 @@ exports.getAdvancedDashboardMetrics = async (req, res) => {
               isRatio: true,
               ratioValue: mRatio,
             },
-            {
-              label: "Revenue",
-              value: fmtAmount(revR.total),
-              sub: `Subs: ${subPct}% • Boosts: ${consumablePct}%`,
-              trend: `${Math.abs(revTrendNum || 0).toFixed(1)}%`,
-              isPositive: (revTrendNum || 0) >= 0,
-              chartData: revChart,
-            },
-            {
-              label: "Funnel Drop-off",
-              value: `${funnelD}%`,
-              sub: "At profile completion",
-              trend: `${funnelD}%`,
-              isPositive: false,
-              chartData: [],
-            },
+            // {
+            //   label: "Revenue",
+            //   value: fmtAmount(revR.total),
+            //   sub: `Subs: ${subPct}% • Boosts: ${consumablePct}%`,
+            //   trend: `${Math.abs(revTrendNum || 0).toFixed(1)}%`,
+            //   isPositive: (revTrendNum || 0) >= 0,
+            //   chartData: revChart,
+            // },
+            // {
+            //   label: "Funnel Drop-off",
+            //   value: `${funnelD}%`,
+            //   sub: "At profile completion",
+            //   trend: `${funnelD}%`,
+            //   isPositive: false,
+            //   chartData: [],
+            // },
           ],
         },
         revenueBreakdown: {
@@ -2000,9 +2008,9 @@ exports.getAdvancedDashboardMetrics = async (req, res) => {
               percentage:
                 superkeenSuccessStats[0] > 0
                   ? Math.round(
-                    (superkeenSuccessStats[1] / superkeenSuccessStats[0]) *
-                    100,
-                  )
+                      (superkeenSuccessStats[1] / superkeenSuccessStats[0]) *
+                        100,
+                    )
                   : 0,
               color: "hsl(182 59% 65%)",
             },
@@ -2015,9 +2023,9 @@ exports.getAdvancedDashboardMetrics = async (req, res) => {
               percentage:
                 superkeenSuccessStats[2] > 0
                   ? Math.round(
-                    (superkeenSuccessStats[3] / superkeenSuccessStats[2]) *
-                    100,
-                  )
+                      (superkeenSuccessStats[3] / superkeenSuccessStats[2]) *
+                        100,
+                    )
                   : 0,
               color: "hsl(215 20% 65%)",
             },
@@ -2027,8 +2035,8 @@ exports.getAdvancedDashboardMetrics = async (req, res) => {
               percentage:
                 photoImpactAgg.total > 0
                   ? Math.round(
-                    (photoImpactAgg.good / photoImpactAgg.total) * 100,
-                  )
+                      (photoImpactAgg.good / photoImpactAgg.total) * 100,
+                    )
                   : 0,
               color: "hsl(182 59% 54%)",
             },

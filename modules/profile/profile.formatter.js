@@ -1,4 +1,6 @@
-const { buildOnboardingResponse } = require("../../common/utils/onBoardingSteps");
+const {
+  buildOnboardingResponse,
+} = require("../../common/utils/onBoardingSteps");
 // const UsageService = require("../subscription/services/usage.service");
 
 const calculateAge = (dob) => {
@@ -19,15 +21,20 @@ const calculateAge = (dob) => {
 //   monthly: "MAFS PREMIUM"
 // };
 
-
 // Simple completion logic based on mandatory fields
 const calculateCompletion = (profile) => {
   return profile?.onboardingProgress?.totalCompletion || 0;
 };
 
-
 // eslint-disable-next-line no-unused-vars
-const formatProfileResponse = async (user, profile, blockedContacts = [], blockedUser = [], subData = {}, req) => {
+const formatProfileResponse = async (
+  user,
+  profile,
+  blockedContacts = [],
+  blockedUser = [],
+  subData = {},
+  req,
+) => {
   if (!user) return null;
   const p = profile || {}; // Agar profile nahi hai toh empty object
 
@@ -48,13 +55,13 @@ const formatProfileResponse = async (user, profile, blockedContacts = [], blocke
         isBanned: user.banDetails?.isBanned || false,
         reason: user.banDetails?.reason || null,
         bannedBy: user.banDetails?.bannedBy || null,
-        bannedAt: user.banDetails?.bannedAt || null
+        bannedAt: user.banDetails?.bannedAt || null,
       },
       suspensionDetails: {
         isSuspended: user.suspensionDetails?.isSuspended || false,
         reason: user.suspensionDetails?.reason || null,
         suspendedAt: user.suspensionDetails?.suspendedAt || null,
-        suspendUntil: user.suspensionDetails?.suspendUntil || null
+        suspendUntil: user.suspensionDetails?.suspendUntil || null,
       },
       deactivationDetails: {
         isDeactivated: user.deactivationDetails?.isDeactivated || false,
@@ -62,19 +69,18 @@ const formatProfileResponse = async (user, profile, blockedContacts = [], blocke
         deactivatedAt: user.deactivationDetails?.deactivatedAt || null,
       },
       deletionDetails: {
-        isScheduledForDeletion: user.deletionDetails?.isScheduledForDeletion || false,
+        isScheduledForDeletion:
+          user.deletionDetails?.isScheduledForDeletion || false,
         reason: user.deletionDetails?.reason || null,
         scheduledAt: user.deletionDetails?.scheduledAt || null,
         deletionDate: user.deletionDetails?.deletionDate || null,
-        daysRemaining: user.deletionDetails?.daysRemaining || null
-      }
+        daysRemaining: user.deletionDetails?.daysRemaining || null,
+      },
     },
     profile: {
       id: profile?.userId || null,
       nickname: p.nickname || null,
-      dob: profile?.dob
-        ? profile.dob.toISOString().split("T")[0]
-        : null,
+      dob: profile?.dob ? profile.dob.toISOString().split("T")[0] : null,
       age: profile?.age || calculateAge(profile?.dob),
       gender: p?.gender || null,
       height: p?.height || null,
@@ -91,8 +97,8 @@ const formatProfileResponse = async (user, profile, blockedContacts = [], blocke
         basics: Math.round(p?.onboardingProgress?.basicsScore || 0),
         lifestyle: Math.round(p?.onboardingProgress?.lifestyleScore || 0),
         preferences: Math.round(p?.onboardingProgress?.preferencesScore || 0),
-        verification: Math.round(p?.onboardingProgress?.verificationScore || 0)
-      }
+        verification: Math.round(p?.onboardingProgress?.verificationScore || 0),
+      },
     },
 
     // 4. ATTRIBUTES
@@ -116,7 +122,7 @@ const formatProfileResponse = async (user, profile, blockedContacts = [], blocke
       movies: p.attributes?.movies || [],
       books: p.attributes?.books || [],
       travel: p.attributes?.travel || [],
-      religion: p.attributes?.religion || null
+      religion: p.attributes?.religion || null,
     },
 
     // 5. DISCOVERY
@@ -124,11 +130,11 @@ const formatProfileResponse = async (user, profile, blockedContacts = [], blocke
       distanceRange: p.discovery?.distanceRange || 50,
       ageRange: {
         min: p.discovery?.ageRange?.min || 18,
-        max: p.discovery?.ageRange?.max || 30
+        max: p.discovery?.ageRange?.max || 30,
       },
       showMeGender: p.discovery?.showMeGender || [],
       relationshipGoal: p.discovery?.relationshipGoal || null,
-      globalVisibility: p.discovery?.globalVisibility || "everyone"
+      globalVisibility: p.discovery?.globalVisibility || "everyone",
     },
     discoveryFilters: {
       interest: p.discovery?.preferredInterests || null,
@@ -141,7 +147,8 @@ const formatProfileResponse = async (user, profile, blockedContacts = [], blocke
         smoking: p.discovery?.advancedFilters.smoking || null,
         familyPlans: p.discovery?.advancedFilters.familyPlans || null,
         personalityType: p.discovery?.advancedFilters.personalityType || null,
-        communicationStyle: p.discovery?.advancedFilters.communicationStyle || null,
+        communicationStyle:
+          p.discovery?.advancedFilters.communicationStyle || null,
         loveStyle: p.discovery?.advancedFilters.loveStyle || null,
         workout: p.discovery?.advancedFilters.workout || null,
         dietary: p.discovery?.advancedFilters.dietary || null,
@@ -156,22 +163,22 @@ const formatProfileResponse = async (user, profile, blockedContacts = [], blocke
       coordinates: p.location?.coordinates || [0, 0],
       city: p.location?.city || null,
       country: p.location?.country || null,
-      full_address: p.location?.full_address || null
+      full_address: p.location?.full_address || null,
     },
 
     // 7. PHOTOS
-    photos: (p.photos || []).map(photo => ({
+    photos: (p.photos || []).map((photo) => ({
       id: photo._id || photo.id || null,
       url: photo.url || null,
       publicId: photo.publicId || null,
-      order: photo.order || 0
+      order: photo.order || 0,
     })),
 
     verification: {
       status: p.verification?.status || "pending",
       selfieUrl: p.verification?.selfieUrl || null,
       docUrl: p.verification?.docUrl || null,
-      rejectionReason: p.verification?.rejectionReason || null
+      rejectionReason: p.verification?.rejectionReason || null,
     },
 
     // 8. VERIFICATION
@@ -219,16 +226,15 @@ const formatProfileResponse = async (user, profile, blockedContacts = [], blocke
         messages: user.notificationSettings?.messages ?? true,
         likes: user.notificationSettings?.likes ?? true,
       },
-      blockedContacts: blockedContacts.map(bc => bc.blockedPhoneHash || bc),
-      blockedUsers: blockedUser.map(bu => bu.blockedId || bu),
+      blockedContacts: blockedContacts.map((bc) => bc.blockedPhoneHash || bc),
+      blockedUsers: blockedUser.map((bu) => bu.blockedId || bu),
     },
     createdAt: user.createdAt,
     updatedAt: user.updatedAt,
     isPhoneVerified: user.isPhoneVerified || false,
     isEmailVerified: user.isEmailVerified || false,
     //  onboarding: buildOnboardingResponse(req)
-    onboarding: await buildOnboardingResponse(req, user._id)
-
+    onboarding: await buildOnboardingResponse(req, user._id),
   };
 };
 

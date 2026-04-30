@@ -46,6 +46,7 @@ const SupportTicketSchema = new mongoose.Schema(
     },
 
     adminReply: { type: String },
+    adminAttachments: [{ url: String, publicId: String }],
 
     repliedAt: Date,
   },
