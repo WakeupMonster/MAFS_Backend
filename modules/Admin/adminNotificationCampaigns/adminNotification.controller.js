@@ -358,3 +358,56 @@ module.exports.getNotificationHistory = async (req, res) => {
     });
   }
 };
+
+module.exports.updateNotificationSettings = async (req, res) => {
+  try {
+    const { userId } = req.params;
+    console.log("userId", userId);
+    const { push, email, matches, messages, likes } = req.body;
+    const update = {};
+
+    if (push !== undefined) {
+      update["notificationSettings.push"] = push;
+    }
+
+    if (email !== undefined) {
+      update["notificationSettings.email"] = email;
+    }
+
+    if (matches !== undefined) {
+      update["notificationSettings.matches"] = matches;
+    }
+
+    if (messages !== undefined) {
+      update["notificationSettings.messages"] = messages;
+    }
+
+    if (likes !== undefined) {
+      update["notificationSettings.likes"] = likes;
+    }
+
+    const user = await User.findByIdAndUpdate(
+      userId,
+      { $set: update },
+      { new: true },
+    ).select("notificationSettings");
+
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: "User not found",
+      });
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: "Notification settings updated",
+      data: user.notificationSettings,
+    });
+  } catch (err) {
+    return res.status(500).json({
+      success: false,
+      message: err.message,
+    });
+  }
+};

@@ -20,7 +20,11 @@ async function sendPhoneOtp(phone) {
   // console.log("📲 Saving OTP for:", normalizedPhone);
 
   let user = await User.findOne({ phone: normalizedPhone });
-  if (!user) user = await User.create({ phone: normalizedPhone, isTest: normalizedPhone.startsWith("+1000") });
+  if (!user)
+    user = await User.create({
+      phone: normalizedPhone,
+      isTest: normalizedPhone.startsWith("+1000"),
+    });
 
   const otp = utils.generateOtp();
 
@@ -43,7 +47,7 @@ async function verifyPhoneOtpUnified(phone, otp, req) {
   if (!normalizedPhone) throw new Error("Invalid phone number");
 
   const TEST_PHONE = "+61800000000";
-  const isPlayStoreReview = (normalizedPhone === TEST_PHONE && otp === "123456");
+  const isPlayStoreReview = normalizedPhone === TEST_PHONE && otp === "123456";
 
   let isValidOtp = false;
 
@@ -76,7 +80,12 @@ async function verifyPhoneOtpUnified(phone, otp, req) {
   const refreshTokenRaw = utils.generateRefreshToken();
   const refreshHash = utils.hashToken(refreshTokenRaw);
   const isPlayStoreExpiry = normalizedPhone === "+61800000000";
-  const expiresAt = new Date(Date.now() + (isPlayStoreExpiry ? 10 * 365 * 24 * 60 * 60 * 1000 : utils.REFRESH_TOKEN_TTL));
+  const expiresAt = new Date(
+    Date.now() +
+      (isPlayStoreExpiry
+        ? 10 * 365 * 24 * 60 * 60 * 1000
+        : utils.REFRESH_TOKEN_TTL),
+  );
 
   const userBefore = await User.findOne({ phoneHash }).lean();
   const isNewUser = !userBefore;
@@ -318,11 +327,11 @@ async function verifyPhoneTestOtpUnified(phone, otp, req) {
   if (!normalizedPhone) throw new Error("Invalid phone number");
 
   const TEST_PHONE = "+61800000000";
-  const isPlayStoreReview = (normalizedPhone === TEST_PHONE && otp === "123456");
+  const isPlayStoreReview = normalizedPhone === TEST_PHONE && otp === "123456";
 
   // 2️⃣ Redis OTP check
   const redisKey = `login:${normalizedPhone}`;
-  
+
   if (!isPlayStoreReview) {
     const storedOtp = await redis.get(redisKey);
     if (!storedOtp || storedOtp !== otp) {
@@ -332,8 +341,14 @@ async function verifyPhoneTestOtpUnified(phone, otp, req) {
 
   // 3️⃣ Extract Device Info from Flutter Request (deviceId, deviceName, platform, os)
   const { deviceId, deviceName, platform, os } = req.body;
-  const currentIp =
-    req.ip || req.headers["x-forwarded-for"] || req.socket.remoteAddress;
+  const currentIp = (
+    req.ip ||
+    req.headers["x-forwarded-for"] ||
+    req.socket.remoteAddress ||
+    ""
+  )
+    .split(":")
+    .pop();
 
   const phoneHash = hashPhone(normalizedPhone);
 
@@ -344,7 +359,7 @@ async function verifyPhoneTestOtpUnified(phone, otp, req) {
     user = await User.create({
       phone: normalizedPhone,
       phoneHash: phoneHash,
-      isTest: normalizedPhone.startsWith("+1000") // Assign test flag
+      isTest: normalizedPhone.startsWith("+1000"), // Assign test flag
     });
   }
 
@@ -353,7 +368,12 @@ async function verifyPhoneTestOtpUnified(phone, otp, req) {
   const refreshTokenRaw = utils.generateRefreshToken();
   const refreshHash = utils.hashToken(refreshTokenRaw);
   const isPlayStoreExpiry = normalizedPhone === "+61800000000";
-  const expiresAt = new Date(Date.now() + (isPlayStoreExpiry ? 10 * 365 * 24 * 60 * 60 * 1000 : 30 * 24 * 60 * 60 * 1000));
+  const expiresAt = new Date(
+    Date.now() +
+      (isPlayStoreExpiry
+        ? 10 * 365 * 24 * 60 * 60 * 1000
+        : 30 * 24 * 60 * 60 * 1000),
+  );
 
   // 5️⃣ SESSION & HISTORY LOGIC
   const sessionData = {
@@ -547,10 +567,12 @@ async function verifyEmailOtp(token, otp, req) {
   const user = await User.findById(decoded.userId);
   if (!user) throw new Error("User not found");
 
-  const isPlayStoreReview = (user.email === "test@keenasmustard.com" && otp === "123456");
+  const isPlayStoreReview =
+    user.email === "test@keenasmustard.com" && otp === "123456";
 
   if (!isPlayStoreReview) {
-    if (!user.emailOtp || !user.emailOtpExpires) throw new Error("OTP not found");
+    if (!user.emailOtp || !user.emailOtpExpires)
+      throw new Error("OTP not found");
     if (Date.now() > user.emailOtpExpires) throw new Error("OTP expired");
     if (String(otp) !== String(user.emailOtp)) throw new Error("Invalid OTP");
   }
@@ -655,7 +677,9 @@ async function loginSendOtp(phone, ip) {
   await redis.set(redisKey, otp, "EX", OTP_TTL);
 
   // --- AUTH TEST BYPASS GUARD ---
-  const isBypassEnabled = process.env.NODE_ENV !== "production" && process.env.AUTH_TEST_BYPASS_SMS === "true";
+  const isBypassEnabled =
+    process.env.NODE_ENV !== "production" &&
+    process.env.AUTH_TEST_BYPASS_SMS === "true";
   const isTestNumber = phone.startsWith("+1000");
 
   if (isBypassEnabled && isTestNumber) {
@@ -674,7 +698,7 @@ async function loginVerifyOtp(phone, otp) {
   if (!phone || !otp) throw new Error("Phone and OTP required");
 
   const TEST_PHONE = "+61800000000";
-  const isPlayStoreReview = (phone === TEST_PHONE && otp === "123456");
+  const isPlayStoreReview = phone === TEST_PHONE && otp === "123456";
 
   const redisKey = `login:${phone}`;
   if (!isPlayStoreReview) {
@@ -802,7 +826,7 @@ async function logout(refreshTokenRaw, deviceId) {
   // 2. Remove FCM token for this specific device
   if (deviceId) {
     user.fcmTokens = (user.fcmTokens || []).filter(
-      (t) => t.deviceId !== deviceId
+      (t) => t.deviceId !== deviceId,
     );
   }
 

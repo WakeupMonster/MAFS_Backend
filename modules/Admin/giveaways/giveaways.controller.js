@@ -25,7 +25,10 @@ function getWeekBoundaries(dateInput) {
   const dayOfWeek = d.day(); // 0=Sun, 1=Mon, ..., 6=Sat
   const mondayOffset = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
   const weekStart = d.add(mondayOffset, "day").startOf("day").toDate();
-  const weekEnd = d.add(mondayOffset + 6, "day").endOf("day").toDate();
+  const weekEnd = d
+    .add(mondayOffset + 6, "day")
+    .endOf("day")
+    .toDate();
   return { weekStart, weekEnd };
 }
 
@@ -90,19 +93,26 @@ module.exports.getAllPrizes = async (req, res) => {
 
 module.exports.createPrize = async (req, res) => {
   try {
-    let { title, type, value, description, spinWheelLabel, supportiveItems, } =
+    let { title, type, value, description, spinWheelLabel, supportiveItems } =
       req.body;
 
     if (!supportiveItems || supportiveItems.length < 2) {
-      return res.status(400).json({ success: false, message: "At least 2 supportive items are required" });
+      return res.status(400).json({
+        success: false,
+        message: "At least 2 supportive items are required",
+      });
     }
 
     if (!title || !type || !spinWheelLabel) {
-      return res.status(400).json({ success: false, message: "Missing required prize fields" });
+      return res
+        .status(400)
+        .json({ success: false, message: "Missing required prize fields" });
     }
 
     if (type === "GIFT_CARD" && !value) {
-      return res.status(400).json({ success: false, message: "value is required for GIFT_CARD" });
+      return res
+        .status(400)
+        .json({ success: false, message: "value is required for GIFT_CARD" });
     }
 
     let productId = null;
@@ -193,7 +203,7 @@ module.exports.updatePrize = async (req, res) => {
       {
         new: true, // Return the updated document
         runValidators: true, // ✅ Ensure enum and required checks are run on update
-      }
+      },
     );
 
     if (!prize) {
@@ -286,7 +296,9 @@ module.exports.createCampaign = async (req, res) => {
     });
 
     if (existingWeekCampaign) {
-      const existingDateStr = dayjs(existingWeekCampaign.date).tz(CURRENT_TZ).format("dddd, DD MMM YYYY");
+      const existingDateStr = dayjs(existingWeekCampaign.date)
+        .tz(CURRENT_TZ)
+        .format("dddd, DD MMM YYYY");
       return res.status(400).json({
         success: false,
         message: `A campaign already exists for this week (${existingDateStr}). Only one campaign per week is allowed.`,
@@ -300,8 +312,11 @@ module.exports.createCampaign = async (req, res) => {
     // taaki worker aur admin ka conflict (race condition) na ho.
     // ═══════════════════════════════════════════
     const nowTZ = dayjs().tz(CURRENT_TZ);
-    const { weekStart: currentWeekStart, weekEnd: currentWeekEnd } = getWeekBoundaries(nowTZ.toDate());
-    const isCurrentWeek = campaignDateQuery >= currentWeekStart && campaignDateQuery <= currentWeekEnd;
+    const { weekStart: currentWeekStart, weekEnd: currentWeekEnd } =
+      getWeekBoundaries(nowTZ.toDate());
+    const isCurrentWeek =
+      campaignDateQuery >= currentWeekStart &&
+      campaignDateQuery <= currentWeekEnd;
 
     if (isCurrentWeek && nowTZ.day() === 5) {
       const nowTimeInMinutes = nowTZ.hour() * 60 + nowTZ.minute();
@@ -309,7 +324,8 @@ module.exports.createCampaign = async (req, res) => {
       if (nowTimeInMinutes >= 1070 && nowTimeInMinutes <= 1090) {
         return res.status(400).json({
           success: false,
-          message: "Draw is currently in progress. Please try again after 6:10 PM AEST or create for next week.",
+          message:
+            "Draw is currently in progress. Please try again after 6:10 PM AEST or create for next week.",
         });
       }
     }
@@ -370,7 +386,6 @@ module.exports.createCampaign = async (req, res) => {
     });
   }
 };
-
 
 exports.getAllCampaigns = async (req, res) => {
   try {
@@ -437,23 +452,23 @@ exports.getAllCampaigns = async (req, res) => {
           as: "winnerProfile",
         },
       },
-      { $unwind: { path: "$winnerProfile", preserveNullAndEmptyArrays: true } }
+      { $unwind: { path: "$winnerProfile", preserveNullAndEmptyArrays: true } },
     );
 
     // 4. Server-side Search (Flexible across Campaign, Prize, and Winner details)
     if (search?.trim()) {
       const regex = new RegExp(
         search.trim().replace(/[.*+?^${}()|[\]\\]/g, "\\$&"),
-        "i"
+        "i",
       );
       pipeline.push({
         $match: {
           $or: [
-            { title: regex },                  // Search by Campaign Title
-            { "prize.title": regex },          // Search by Prize Title
+            { title: regex }, // Search by Campaign Title
+            { "prize.title": regex }, // Search by Prize Title
             { "prize.spinWheelLabel": regex }, // Search by Spin Wheel Label
-            { "winner.email": regex },         // Search by Winner Email
-            { "winner.phone": regex },         // Search by Winner Phone
+            { "winner.email": regex }, // Search by Winner Email
+            { "winner.phone": regex }, // Search by Winner Phone
             { "winner.profile.nickname": regex }, // [NAYA]: Search by Winner Nickname
           ],
         },
@@ -628,10 +643,10 @@ exports.getAllWinners = async (req, res) => {
       pipeline.push({
         $match: {
           $or: [
-            { title: searchRegex },             // Search by Campaign Title
-            { "prize.title": searchRegex },     // Search by Prize Title
-            { "winner.phone": searchRegex },     // Search by Winner Phone
-            { "winner.email": searchRegex },     // Search by Winner Email
+            { title: searchRegex }, // Search by Campaign Title
+            { "prize.title": searchRegex }, // Search by Prize Title
+            { "winner.phone": searchRegex }, // Search by Winner Phone
+            { "winner.email": searchRegex }, // Search by Winner Email
             { "winner.profile.nickname": searchRegex }, // [NAYA]: Search by Winner Nickname
           ],
         },
@@ -755,7 +770,13 @@ module.exports.resendPrize = async (req, res) => {
 
 module.exports.markPrizeAsDelivered = async (req, res) => {
   try {
-    const { winHistoryId, couponCode, actualDeliveredValue, emailTemplate, giftCardExpiryDate } = req.body;
+    const {
+      winHistoryId,
+      couponCode,
+      actualDeliveredValue,
+      emailTemplate,
+      giftCardExpiryDate,
+    } = req.body;
 
     const winHistory = await GiveawayWinHistory.findById(winHistoryId);
 
@@ -794,19 +815,20 @@ module.exports.markPrizeAsDelivered = async (req, res) => {
     if (prize.type === "GIFT_CARD" && !couponCode) {
       return res.status(400).json({
         success: false,
-        message: "Gift Card code (coupenCode) is required for GIFT_CARD prizes.",
+        message:
+          "Gift Card code (coupenCode) is required for GIFT_CARD prizes.",
       });
     }
 
-    console.log(prize.title, "prize title")
-
+    console.log(prize.title, "prize title");
 
     winHistory.deliveryStatus = "DELIVERED";
     winHistory.deliveredAt = new Date();
 
-    if (actualDeliveredValue) winHistory.actualDeliveredValue = actualDeliveredValue;
+    if (actualDeliveredValue)
+      winHistory.actualDeliveredValue = actualDeliveredValue;
     if (couponCode) winHistory.couponCode = couponCode.trim();
-    if (giftCardExpiryDate) winHistory.giftCardExpiryDate = giftCardExpiryDate
+    if (giftCardExpiryDate) winHistory.giftCardExpiryDate = giftCardExpiryDate;
 
     await winHistory.save();
 
@@ -821,25 +843,35 @@ module.exports.markPrizeAsDelivered = async (req, res) => {
         let emailSubject = "🎉 Your Prize has been Delivered";
         let emailBody = "";
         if (prize.type === "GIFT_CARD") {
-          const giftCode = couponCode || "Please contact support for your code.";
+          const giftCode =
+            couponCode || "Please contact support for your code.";
           const expiryDate = giftCardExpiryDate
-            ? new Date(giftCardExpiryDate).toLocaleDateString("en-AU", { day: "numeric", month: "long", year: "numeric" })
+            ? new Date(giftCardExpiryDate).toLocaleDateString("en-AU", {
+                day: "numeric",
+                month: "long",
+                year: "numeric",
+              })
             : null;
 
           const brandAqua = "#00d9d6";
-          const logoUrl = "https://res.cloudinary.com/dew7qscdq/image/upload/v1775202656/mustardLogo2_zn7b5v.png"; // Changed to .png for Email Client Compatibility
+          const logoUrl =
+            "https://res.cloudinary.com/dew7qscdq/image/upload/v1775202656/mustardLogo2_zn7b5v.png"; // Changed to .png for Email Client Compatibility
 
           if (emailTemplate) {
             // 🚀 New Dynamic Profile-Themed Email Payload
-            emailSubject = emailTemplate.subject || "🎉 Congratulations! Your Prize Awaits";
+            emailSubject =
+              emailTemplate.subject || "🎉 Congratulations! Your Prize Awaits";
 
             let stepsHtml = "";
-            if (Array.isArray(emailTemplate.steps) && emailTemplate.steps.length > 0) {
+            if (
+              Array.isArray(emailTemplate.steps) &&
+              emailTemplate.steps.length > 0
+            ) {
               stepsHtml = `
                   <div style="margin: 25px 0; padding: 20px; background-color: #f8fafc; border-radius: 12px; border-left: 4px solid ${brandAqua};">
                     <h3 style="margin-top: 0; color: #1e293b; font-size: 16px; font-weight: 600;">How to redeem:</h3>
                     <ol style="margin: 0; padding-left: 20px; color: #475569; font-size: 14px; line-height: 1.8;">
-                      ${emailTemplate.steps.map(step => `<li style="padding-left: 8px; margin-bottom: 6px;">${step}</li>`).join('')}
+                      ${emailTemplate.steps.map((step) => `<li style="padding-left: 8px; margin-bottom: 6px;">${step}</li>`).join("")}
                     </ol>
                   </div>
                 `;
@@ -897,7 +929,9 @@ module.exports.markPrizeAsDelivered = async (req, res) => {
                               
                               ${stepsHtml}
                               
-                              ${expiryDate ? `
+                              ${
+                                expiryDate
+                                  ? `
                               <table width="100%" border="0" cellspacing="0" cellpadding="0" style="margin-top: 20px;">
                                 <tr>
                                   <td align="center">
@@ -906,7 +940,9 @@ module.exports.markPrizeAsDelivered = async (req, res) => {
                                     </p>
                                   </td>
                                 </tr>
-                              </table>` : ""}
+                              </table>`
+                                  : ""
+                              }
   
                             </td>
                           </tr>
@@ -975,7 +1011,10 @@ module.exports.markPrizeAsDelivered = async (req, res) => {
         await utils.sendEmail(emailToSend, emailSubject, emailBody);
         emailSent = true;
       } catch (emailErr) {
-        console.error("Failed to send delivery email, but prize is delivered:", emailErr.message);
+        console.error(
+          "Failed to send delivery email, but prize is delivered:",
+          emailErr.message,
+        );
         emailSent = false;
       }
     } else {
@@ -1091,14 +1130,14 @@ module.exports.getPendingDeliveries = async (req, res) => {
           as: "prize",
         },
       },
-      { $unwind: { path: "$prize", preserveNullAndEmptyArrays: true } }
+      { $unwind: { path: "$prize", preserveNullAndEmptyArrays: true } },
     );
 
     // Stage 3: Global Search (Winner info or Prize info)
     if (search?.trim()) {
       const regex = new RegExp(
         search.trim().replace(/[.*+?^${}()|[\]\\]/g, "\\$&"),
-        "i"
+        "i",
       );
       pipeline.push({
         $match: {
@@ -1133,7 +1172,8 @@ module.exports.getPendingDeliveries = async (req, res) => {
                 gender: 1,
                 location: 1,
                 city: 1,
-                country: 1
+                country: 1,
+                photo: { $arrayElemAt: ["$profile.photos.url", 0] },
               },
               campaign: { _id: 1, date: 1, title: 1 },
               prize: {
@@ -1317,7 +1357,8 @@ module.exports.bulkCreateCampaignByRanges = async (req, res) => {
         // pehle se campaign hai (ya isi bulk batch mein already add ho chuka hai),
         // toh skip kar do.
         // ═══════════════════════════════════════════
-        const { weekStart: bulkWeekStart, weekEnd: bulkWeekEnd } = getWeekBoundaries(campaignDate);
+        const { weekStart: bulkWeekStart, weekEnd: bulkWeekEnd } =
+          getWeekBoundaries(campaignDate);
 
         // Check DB for existing campaign in this week
         const existsInWeekDB = await GiveawayCampaign.findOne({
@@ -1342,8 +1383,11 @@ module.exports.bulkCreateCampaignByRanges = async (req, res) => {
 
         // 🛡️ Friday Time Lock: Skip if this date falls in current week during cron window
         const bulkNowTZ = dayjs().tz(CURRENT_TZ);
-        const { weekStart: bulkCurrentWeekStart, weekEnd: bulkCurrentWeekEnd } = getWeekBoundaries(bulkNowTZ.toDate());
-        const isBulkCurrentWeek = campaignDate >= bulkCurrentWeekStart && campaignDate <= bulkCurrentWeekEnd;
+        const { weekStart: bulkCurrentWeekStart, weekEnd: bulkCurrentWeekEnd } =
+          getWeekBoundaries(bulkNowTZ.toDate());
+        const isBulkCurrentWeek =
+          campaignDate >= bulkCurrentWeekStart &&
+          campaignDate <= bulkCurrentWeekEnd;
 
         if (isBulkCurrentWeek && bulkNowTZ.day() === 5) {
           const bulkNowMins = bulkNowTZ.hour() * 60 + bulkNowTZ.minute();
@@ -1604,7 +1648,7 @@ module.exports.getParticipants = async (req, res) => {
           as: "user",
         },
       },
-      { $unwind: "$user" },
+      { $unwind: { path: "$user", preserveNullAndEmptyArrays: true } },
       {
         $project: {
           _id: "$userId",
@@ -1614,16 +1658,28 @@ module.exports.getParticipants = async (req, res) => {
           age: { $ifNull: ["$age", 0] },
           gender: "$gender",
           photo: {
-            $arrayElemAt: [
-              {
-                $filter: {
-                  input: "$photos",
-                  as: "p",
-                  cond: { $eq: ["$$p.order", 0] },
+            $let: {
+              vars: {
+                mainPhoto: {
+                  $arrayElemAt: [
+                    {
+                      $filter: {
+                        input: { $ifNull: ["$photos", []] },
+                        as: "p",
+                        cond: { $eq: ["$$p.order", 0] },
+                      },
+                    },
+                    0,
+                  ],
                 },
               },
-              0,
-            ],
+              in: {
+                $ifNull: [
+                  "$$mainPhoto.url",
+                  { $arrayElemAt: ["$photos.url", 0] },
+                ],
+              },
+            },
           },
           city: "$location.city",
           country: "$location.country",
@@ -1812,6 +1868,35 @@ module.exports.getCampaignWinners = async (req, res) => {
                     _id: "$winnerInfo._id",
                     phone: { $ifNull: ["$winnerInfo.phone", null] },
                     email: { $ifNull: ["$winnerInfo.email", null] },
+                    nickname: {
+                      $ifNull: ["$winnerProfile.nickname", "Unknown"],
+                    },
+                    photo: {
+                      $let: {
+                        vars: {
+                          mainPhoto: {
+                            $arrayElemAt: [
+                              {
+                                $filter: {
+                                  input: {
+                                    $ifNull: ["$winnerProfile.photos", []],
+                                  },
+                                  as: "p",
+                                  cond: { $eq: ["$$p.order", 0] },
+                                },
+                              },
+                              0,
+                            ],
+                          },
+                        },
+                        in: {
+                          $ifNull: [
+                            "$$mainPhoto.url",
+                            { $arrayElemAt: ["$winnerProfile.photos.url", 0] },
+                          ],
+                        },
+                      },
+                    },
                   },
                   else: null,
                 },

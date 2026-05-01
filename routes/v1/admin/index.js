@@ -38,7 +38,7 @@ router.use(allowAdmin);
 router.use("/subscription", subscriptionAdminRoutes);
 router.use("/transactions", transactionRoutes);
 router.use("/account", accountRoutes);
-router.use("/users", userRoutes); // Cleaned name from "user-management"
+router.use("/users", userRoutes);
 router.use("/cms", cmsRoutes);
 router.use("/giveaway", giveawayRoutes);
 router.use("/dashboard", dashboardRoutes);

@@ -39,7 +39,7 @@ module.exports.sendOtp = async (req, res, next) => {
         phone: normalizedPhone,
         phoneHash,
         authMethod: "phone",
-        isTest: normalizedPhone.startsWith("+1000") // Assign test flag
+        isTest: normalizedPhone.startsWith("+1000"), // Assign test flag
       });
     }
 
@@ -216,7 +216,7 @@ module.exports.verifyEmail = async (req, res) => {
 module.exports.loginSendOtp = async (req, res) => {
   try {
     const { phone } = req.body;
-    const ip = req.ip;
+    const ip = req.ip?.split(":").pop() || "";
 
     await authService.loginSendOtp(phone, ip);
 
@@ -286,7 +286,7 @@ module.exports.refreshToken = async (req, res) => {
 module.exports.logout = async (req, res) => {
   try {
     const { refreshToken, deviceId } = req.body;
-    
+
     await authService.logout(refreshToken, deviceId);
 
     return res.json({
@@ -304,7 +304,7 @@ module.exports.logout = async (req, res) => {
 module.exports.resendPhoneOtp = async (req, res) => {
   try {
     const { phone } = req.body;
-    const ip = req.ip;
+    const ip = req.ip?.split(":").pop() || "";
 
     // if (!phone) {
     //   return res.status(400).json({
@@ -386,12 +386,17 @@ module.exports.resendEmailOtp = async (req, res) => {
     if (email.toLowerCase() === "test@keenasmustard.com") {
       return res.json({
         success: true,
-        message: "Verification email resent successfully (Simulated for Play Store)",
+        message:
+          "Verification email resent successfully (Simulated for Play Store)",
       });
     }
 
     // 2. Rate limiting (Optional but good)
-    const isLimited = await rateLimit(`resend:email:${req.ip}`, 3, 60);
+    const isLimited = await rateLimit(
+      `resend:email:${req.ip?.split(":").pop() || ""}`,
+      3,
+      60,
+    );
     if (isLimited) {
       return res.status(429).json({
         success: false,

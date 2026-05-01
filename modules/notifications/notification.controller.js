@@ -1,5 +1,5 @@
 // modules/notifications/notification.controller.js
-const User = require('../auth/auth.model');
+const User = require("../auth/auth.model");
 const Profile = require("../profile/profile.model");
 const registerDeviceToken = async (req, res) => {
   try {
@@ -11,31 +11,28 @@ const registerDeviceToken = async (req, res) => {
     if (!token || !deviceId) {
       return res.status(400).json({
         success: false,
-        message: 'Token and deviceId are required'
+        message: "Token and deviceId are required",
       });
     }
 
     // Add the new token to the user's fcmTokens array
     // Using $addToSet to prevent duplicates
-    await User.findByIdAndUpdate(
-      userId,
-      {
-        $addToSet: {
-          fcmTokens: { token, deviceId }
-        }
-      }
-    );
+    await User.findByIdAndUpdate(userId, {
+      $addToSet: {
+        fcmTokens: { token, deviceId },
+      },
+    });
 
     return res.json({
       success: true,
-      message: 'Device token registered successfully'
+      message: "Device token registered successfully",
     });
   } catch (error) {
-    console.error('Error registering device token:', error);
+    console.error("Error registering device token:", error);
     return res.status(500).json({
       success: false,
-      message: 'Failed to register device token',
-      error: error.message
+      message: "Failed to register device token",
+      error: error.message,
     });
   }
 };
@@ -48,30 +45,27 @@ const unregisterDeviceToken = async (req, res) => {
     if (!deviceId) {
       return res.status(400).json({
         success: false,
-        message: 'deviceId is required'
+        message: "deviceId is required",
       });
     }
 
     // Remove the token for the given device
-    await User.findByIdAndUpdate(
-      userId,
-      {
-        $pull: {
-          fcmTokens: { deviceId }
-        }
-      }
-    );
+    await User.findByIdAndUpdate(userId, {
+      $pull: {
+        fcmTokens: { deviceId },
+      },
+    });
 
     return res.json({
       success: true,
-      message: 'Device token unregistered successfully'
+      message: "Device token unregistered successfully",
     });
   } catch (error) {
-    console.error('Error unregistering device token:', error);
+    console.error("Error unregistering device token:", error);
     return res.status(500).json({
       success: false,
-      message: 'Failed to unregister device token',
-      error: error.message
+      message: "Failed to unregister device token",
+      error: error.message,
     });
   }
 };
@@ -106,25 +100,25 @@ const updateNotificationSettings = async (req, res) => {
     const user = await User.findByIdAndUpdate(
       userId,
       { $set: update },
-      { new: true }
+      { new: true },
     ).select("notificationSettings");
 
     if (!user) {
       return res.status(404).json({
         success: false,
-        message: "User not found"
+        message: "User not found",
       });
     }
 
     return res.json({
       success: true,
       message: "Notification settings updated",
-      data: user.notificationSettings
+      data: user.notificationSettings,
     });
   } catch (err) {
     return res.status(500).json({
       success: false,
-      message: err.message
+      message: err.message,
     });
   }
 };
@@ -140,26 +134,25 @@ const getNotificationSettings = async (req, res) => {
     if (!user) {
       return res.status(404).json({
         success: false,
-        message: "User not found"
+        message: "User not found",
       });
     }
 
     return res.json({
       success: true,
-      data: user.notificationSettings
+      data: user.notificationSettings,
     });
   } catch (err) {
     return res.status(500).json({
       success: false,
-      message: err.message
+      message: err.message,
     });
   }
 };
-
 
 module.exports = {
   registerDeviceToken,
   unregisterDeviceToken,
   getNotificationSettings,
-  updateNotificationSettings
+  updateNotificationSettings,
 };

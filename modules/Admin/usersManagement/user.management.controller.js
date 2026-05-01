@@ -1176,7 +1176,7 @@ module.exports.GETSingleUserDetails = async (req, res) => {
             discoveryFilters: "$profile.discovery.advancedFilters",
           },
           settings: {
-            notifications: "$profile.settings.notifications",
+            notifications: "$notificationSettings",
             blockedContacts: {
               $map: {
                 input: "$blockedContactsData",
@@ -1487,136 +1487,6 @@ module.exports.DELETEPhoto = async (req, res) => {
 };
 
 /* ======: For Bluk exports in csv file to get all Users Data: API 4: GET api/v1/admin/user-management/export =========== */
-// module.exports.GETExportAllUsers = async (req, res) => {
-//   try {
-//     // 1️⃣ CHANGE: Use req.query for GET requests (req.body is often empty in GET)
-//     const filters = req.query || {};
-
-//     // USER MATCH
-//     const userMatch = { role: "USER" };
-//     if (filters.accountStatus) userMatch.accountStatus = filters.accountStatus;
-//     if (filters.isPremium !== undefined)
-//       userMatch.isPremium = filters.isPremium === "true";
-
-//     // PROFILE MATCH
-//     const profileMatch = {};
-//     if (filters.gender) profileMatch["profile.gender"] = filters.gender;
-
-//     // FILE SETUP
-//     const fileName = `users_export_${Date.now()}.csv`;
-//     const exportDir = path.join(__dirname, "../../../exports");
-//     const filePath = path.join(exportDir, fileName);
-
-//     if (!fs.existsSync(exportDir)) fs.mkdirSync(exportDir, { recursive: true });
-
-//     const writableStream = fs.createWriteStream(filePath);
-//     const csvStream = stringify({
-//       header: true,
-//       columns: [
-//         "UserId",
-//         "Email",
-//         "Phone",
-//         "AccountStatus",
-//         "IsPremium",
-//         "AuthMethod",
-//         "CreatedAt",
-//         "Nickname",
-//         "Gender",
-//         "Age",
-//         "JobTitle",
-//         "City",
-//         "ProfileCompletion",
-//         "KYCStatus",
-//       ],
-//     });
-
-//     csvStream.pipe(writableStream);
-
-//     // AGGREGATION CURSOR
-//     const cursor = User.aggregate([
-//       { $match: userMatch },
-//       {
-//         $lookup: {
-//           from: "profiles",
-//           localField: "_id",
-//           foreignField: "userId",
-//           as: "profile",
-//         },
-//       },
-//       { $unwind: { path: "$profile", preserveNullAndEmptyArrays: true } },
-//       ...(Object.keys(profileMatch).length ? [{ $match: profileMatch }] : []),
-//       {
-//         $project: {
-//           _id: 1,
-//           email: 1,
-//           phone: 1,
-//           accountStatus: 1,
-//           isPremium: 1,
-//           authMethod: 1,
-//           createdAt: 1,
-//           nickname: "$profile.nickname",
-//           gender: "$profile.gender",
-//           age: "$profile.age",
-//           jobTitle: "$profile.jobTitle",
-//           city: "$profile.location.city",
-//           profileCompletion: "$profile.onboardingProgress.totalCompletion",
-//           kycStatus: "$profile.verification.status",
-//         },
-//       },
-//     ]).cursor({ batchSize: 1000 });
-
-//     // STREAM DATA
-//     for await (const doc of cursor) {
-//       // 🛡️ SAFETY CHECK: Handle the Date properly
-//       const formattedDate =
-//         doc.createdAt instanceof Date
-//           ? doc.createdAt.toISOString()
-//           : doc.createdAt
-//             ? new Date(doc.createdAt).toISOString()
-//             : "";
-
-//       csvStream.write({
-//         UserId: doc._id.toString(),
-//         Email: doc.email || "",
-//         Phone: doc.phone || "",
-//         AccountStatus: doc.accountStatus,
-//         IsPremium: doc.isPremium ? "Yes" : "No",
-//         AuthMethod: doc.authMethod,
-//         CreatedAt: formattedDate, // Use the safe date string
-//         Nickname: doc.nickname || "",
-//         Gender: doc.gender || "",
-//         Age: doc.age || "",
-//         JobTitle: doc.jobTitle || "",
-//         City: doc.city || "",
-//         ProfileCompletion: `${doc.profileCompletion || 0}%`,
-//         KYCStatus: doc.kycStatus || "not_started",
-//       });
-//     }
-
-//     csvStream.end();
-
-//     return new Promise((resolve, reject) => {
-//       writableStream.on("finish", () => {
-//         res.status(200).json({
-//           success: true,
-//           message: "User export completed successfully",
-//           fileName: fileName,
-//           downloadUrl: `/api/v1/admin/user-management/download/${fileName}`,
-//         });
-//         resolve();
-//       });
-//       writableStream.on("error", (err) => reject(err));
-//     });
-//   } catch (error) {
-//     console.error("EXPORT USERS ERROR:", error);
-//     if (!res.headersSent) {
-//       return res
-//         .status(500)
-//         .json({ success: false, message: "Failed to export users" });
-//     }
-//   }
-// };
-
 module.exports.streamUsersExport = async (req, res) => {
   try {
     const filters = req.query || {};
