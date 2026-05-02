@@ -78,7 +78,12 @@ const SubscriptionTransactionSchema = new mongoose.Schema(
 SubscriptionTransactionSchema.index({ subscriptionId: 1, eventType: 1 });
 SubscriptionTransactionSchema.index({ transactionId: 1, platform: 1 });
 
+// Added for Dashboard Performance (Filters by Date and Type)
+SubscriptionTransactionSchema.index({ occurredAt: -1, eventType: 1 });
+
 module.exports = mongoose.model(
   "SubscriptionTransaction",
   SubscriptionTransactionSchema
 );
+
+

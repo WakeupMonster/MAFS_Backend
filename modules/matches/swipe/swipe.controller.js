@@ -350,7 +350,7 @@ module.exports.getKeenData = async (req, res, actionType) => {
         nickname: profile.nickname,
         age: age,
         mainPhotoUrl: profile.photos?.sort((a, b) => a.order - b.order)[0]?.url || "",
-        distanceText: distance <= 1 ? "1 km away" : `${distance} km away`,
+        distanceText: distance <= 1 ? "Nearby" : `${distance} km away`,
         city: profile.location?.city || "Nearby",
         action: item.action, // 'like' or 'superlike'
         likedAt: item.createdAt // Manager ne 'likedAt' manga hai

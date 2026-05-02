@@ -15,6 +15,7 @@ const otpLimiter = rateLimit({
   keyGenerator: (req) => {
     return req.body.phone || req.body.email || req.ip;
   },
+  validate: { keyGeneratorIpFallback: false },
   handler: (req, res) => {
     res.status(429).json({
       success: false,

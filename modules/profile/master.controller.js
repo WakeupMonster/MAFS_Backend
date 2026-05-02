@@ -38,6 +38,7 @@
 
 
 const MasterData = require("./master.model");
+const AppSettings = require("../AppConfiguration/appSettings.model");
 
 module.exports.getAppConfig = async (req, res) => {
   try {
@@ -75,6 +76,43 @@ module.exports.getAppConfig = async (req, res) => {
       age: { min: 18, max: 60 }
     };
 
+    // 3. Fetch Version and Store Links from AppSettings
+    const versionConfig = await AppSettings.findOne({ key: "app_version_config" }).lean();
+    const generalSettings = await AppSettings.findOne({ key: "general" }).lean();
+
+    const version = versionConfig?.value || {
+      ios: {
+        minSupported: "1.0.0",
+        latest: "1.0.0",
+        forceUpgrade: false,
+        message: "A new version is available with bug fixes and improvements."
+      },
+      android: {
+        minSupported: "1.0.0",
+        latest: "1.0.0",
+        forceUpgrade: false,
+        message: "A new version is available with bug fixes and improvements."
+      }
+    };
+
+    const storeLinks = {
+      ios: generalSettings?.value?.appStoreUrl || "https://apps.apple.com/",
+      android: generalSettings?.value?.playStoreUrl || "https://play.google.com/store"
+    };
+
+    // 4. Fetch Dynamic Premium Features
+    const SubscriptionConfig = require("../subscription/models_v3/SubscriptionConfig");
+    const subConfig = await SubscriptionConfig.getOrCreate();
+    const premiumFeatures = subConfig.dynamicFeatures ? subConfig.dynamicFeatures.map(feature => ({
+      key: feature.key,
+      name: feature.name,
+      description: feature.description,
+      icon: feature.icon,
+      isPremiumOnly: feature.isPremiumOnly,
+      isActive: feature.isActive,
+      enabled: false // Default for config API. Actual status is provided via /subscription/status
+    })) : [];
+
     return res.status(200).json({
       success: true,
       message: "App configuration fetched successfully",
@@ -84,10 +122,14 @@ module.exports.getAppConfig = async (req, res) => {
           googlePlaces: dbApiKeys.googlePlaces || process.env.GOOGLE_PLACES_API_KEY || "YOUR_GOOGLE_API_KEY",
           giphy: dbApiKeys.giphy || process.env.GIPHY_API_KEY || "YOUR_GIPHY_API_KEY"
         },
-        config: config
+        config: config,
+        version: version,
+        storeLinks: storeLinks,
+        PremiumFeatures: premiumFeatures
       }
     });
   } catch (err) {
+    console.error("getAppConfig error:", err);
     res.status(500).json({ success: false, message: "Server Error" });
   }
 };

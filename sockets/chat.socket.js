@@ -465,6 +465,14 @@ module.exports = function chatSocket(io, redisClient) {
         );
         if (!isParticipant) return;
 
+        // 🛡️ Block validation for read status
+        const otherUserId = match.users.find((u) => u.toString() !== currentUserId);
+        const blocked = await isBlocked(currentUserId, otherUserId);
+        if (blocked.isBlocked && !blocked.blockedByMe) {
+          // If I am the one who is blocked, I can't update read status
+          return;
+        }
+
         const result = await ChatMessage.updateMany(
           {
             matchId,

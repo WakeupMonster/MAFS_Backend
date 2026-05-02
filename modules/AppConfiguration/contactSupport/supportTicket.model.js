@@ -49,6 +49,9 @@ const SupportTicketSchema = new mongoose.Schema(
     adminAttachments: [{ url: String, publicId: String }],
 
     repliedAt: Date,
+    appVersion: { type: String },
+    appBuild: { type: String },
+    platform: { type: String, enum: ["ios", "android", "web"] },
   },
   { timestamps: true },
 );
