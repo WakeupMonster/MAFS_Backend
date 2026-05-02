@@ -48,14 +48,15 @@ class UsageService {
      */
     async getUsageStatus(userId) {
         const cache = require("../../../config/cache");
-        const [config, activeSub, daily, weekly, monthly, wallet, boostTTL] = await Promise.all([
+        const [config, activeSub, daily, weekly, monthly, wallet, boostTTL, user] = await Promise.all([
             SubscriptionConfig.getOrCreate(),
             Subscription.findActiveByUser(userId).lean(),
             UserDailyUsage.findOne({ userId, dateKey: dateHelpers.getDateKey() }).lean(),
             UserWeeklyUsage.findOne({ userId, weekKey: dateHelpers.getWeekKey() }).lean(),
             UserMonthlyUsage.findOne({ userId, monthKey: dateHelpers.getMonthKey() }).lean(),
             UserConsumableBalance.findOne({ userId }).lean(),
-            cache.ttl(`boost:${userId}`) // Instantly gets the expiry timer from Redis
+            cache.ttl(`boost:${userId}`), // Instantly gets the expiry timer from Redis
+            User.findById(userId).select("giveaway").lean()
         ]);
 
         const isPremium = !!activeSub;
@@ -179,7 +180,14 @@ class UsageService {
                 // ➕ NEW: Dynamic Features array (Single Source of Truth)
                 PremiumFeatures: await featureService.getDynamicFeaturesForUser(userId, isPremium),
 
-                showAds: !isPremium || !config.premiumFeatures.noAds
+                showAds: !isPremium || !config.premiumFeatures.noAds,
+                giveaway: user?.giveaway ? {
+                    isEligibleForFreeTrial: user.giveaway.isEligibleForFreeTrial || false,
+                    freeTrialDurationDays: user.giveaway.freeTrialDurationDays || 30,
+                    description: user.giveaway.description || "First 1000 users milestone",
+                    offerExpiresAt: user.giveaway.offerExpiresAt || null,
+                    claimedAt: user.giveaway.claimedAt || null
+                } : null
             }
         };
     }

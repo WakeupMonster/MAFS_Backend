@@ -176,7 +176,8 @@ const verifyPurchase = async (req, res, next) => {
     // Re-fetching status directly from source of truth
     const fullStatus = await UsageService.getUsageStatus(sub.userId);
 
-    if (sub.status === 'ACTIVE' && fullStatus.data) {
+    // if (sub.status === 'ACTIVE' && fullStatus.data)
+    if (sub.status === 'ACTIVE' && sub.expiresAt > new Date() && fullStatus.data) {
       fullStatus.data.isPremium = true;
       fullStatus.data.status = 'ACTIVE';
     }
