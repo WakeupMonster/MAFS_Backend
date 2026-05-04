@@ -6,6 +6,7 @@ const otpService = require("../../common/otp/otp.service");
 const { normalizePhone, hashPhone } = require("../../common/utils/phone.util");
 const AppError = require("../../common/errors/ApiError");
 const { formatProfileResponse } = require("../profile/profile.formatter");
+const { getClientIp } = require("../../common/constants/ip.extraction");
 // const { buildOnboardingResponse } = require("../../common/utils/onBoardingSteps");
 
 module.exports.sendOtp = async (req, res, next) => {
@@ -216,7 +217,7 @@ module.exports.verifyEmail = async (req, res) => {
 module.exports.loginSendOtp = async (req, res) => {
   try {
     const { phone } = req.body;
-    const ip = req.ip?.split(":").pop() || "";
+    const ip = getClientIp(req);
 
     await authService.loginSendOtp(phone, ip);
 
@@ -304,7 +305,7 @@ module.exports.logout = async (req, res) => {
 module.exports.resendPhoneOtp = async (req, res) => {
   try {
     const { phone } = req.body;
-    const ip = req.ip?.split(":").pop() || "";
+    const ip = getClientIp(req);
 
     // if (!phone) {
     //   return res.status(400).json({
@@ -393,7 +394,7 @@ module.exports.resendEmailOtp = async (req, res) => {
 
     // 2. Rate limiting (Optional but good)
     const isLimited = await rateLimit(
-      `resend:email:${req.ip?.split(":").pop() || ""}`,
+      `resend:email:${getClientIp(req)}`,
       3,
       60,
     );

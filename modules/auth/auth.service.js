@@ -10,6 +10,7 @@ const { normalizePhone, hashPhone } = require("../../common/utils/phone.util");
 const UserSubscription = require("../auth/UserSubscription.model");
 const { formatProfileResponse } = require("../profile/profile.formatter");
 const subscriptionService = require("../subscription/services/subscription.service");
+const { getClientIp } = require("../../common/constants/ip.extraction");
 const EMAIL_OTP_TTL_MS = Number(1000 * 60 * 10); // 10 min
 const OTP_TTL = 300; // 5 minutes
 const RATE_LIMIT_MAX = 2; // max OTP requests allowed
@@ -360,17 +361,9 @@ async function verifyPhoneTestOtpUnified(phone, otp, req) {
 
   // 3️⃣ Extract Device Info from Flutter Request (deviceId, deviceName, platform, os)
   const { deviceId, deviceName, platform, os } = req.body;
-  const currentIp = (
-    req.ip ||
-    req.headers["x-forwarded-for"] ||
-    req.socket.remoteAddress ||
-    ""
-  )
-    .split(":")
-    .pop();
+  const currentIp = getClientIp(req);
 
   const phoneHash = hashPhone(normalizedPhone);
-
   let user = await User.findOne({ phone: normalizedPhone });
   const isFirstVerification = !user || !user.isPhoneVerified;
 

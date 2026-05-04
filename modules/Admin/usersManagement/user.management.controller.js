@@ -852,6 +852,7 @@ module.exports.GETSingleUserDetails = async (req, res) => {
                 ouserId: "$otherProfile.userId",
                 nickname: "$otherProfile.nickname",
                 email: "$otherUser.email",
+                age: "$otherProfile.age",
                 photo: { $arrayElemAt: ["$otherProfile.photos.url", 0] },
               },
             },
