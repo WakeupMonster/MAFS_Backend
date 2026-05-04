@@ -22,6 +22,9 @@ initCronJobs();
 // ─── Security ───
 app.use(helmet());
 
+// Trust Proxy: Critical for getting real client IP behind Cloudflare/Load Balancer
+app.set("trust proxy", true); 
+
 // ─── Body Parser ───
 app.use(express.json({ limit: "10mb" }));
 app.use(express.urlencoded({ extended: true }));
