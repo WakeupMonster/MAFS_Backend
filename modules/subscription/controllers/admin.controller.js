@@ -558,10 +558,10 @@ exports.getDashboardStats = async (req, res, next) => {
                 createdAt: { $lt: startOfMonth },
                 expiresAt: { $gt: startOfMonth }
             }),
-            // [7] Cancellations (current month)
+            // [7] Cancellations (period range)
             SubscriptionTransaction.countDocuments({
                 eventType: "CANCEL",
-                occurredAt: { $gte: startOfMonth }
+                occurredAt: { $gte: startDate, $lte: endDate }
             }),
             // [8] Today's specific KPIs
             Promise.all([
@@ -602,9 +602,9 @@ exports.getDashboardStats = async (req, res, next) => {
                 { $match: { status: "ACTIVE", expiresAt: { $gt: now } } },
                 { $group: { _id: "$productId", count: { $sum: 1 } } }
             ]),
-            // [12] Total Consumable Revenue — Super Keen + Supercharge sales this month
+            // [12] Total Consumable Revenue — Super Keen + Supercharge sales in range
             SubscriptionTransaction.aggregate([
-                { $match: { eventType: "CONSUMABLE_PURCHASE", occurredAt: { $gte: startOfMonth } } },
+                { $match: { eventType: "CONSUMABLE_PURCHASE", occurredAt: { $gte: startDate, $lte: endDate } } },
                 { $group: { _id: null, totalAmount: { $sum: "$amount" } } }
             ]),
             // [13] Subscriber Growth Trend (new vs cancelled)
@@ -680,12 +680,16 @@ exports.getDashboardStats = async (req, res, next) => {
             if (p.googleProductId) categoryMap[p.googleProductId] = category;
         });
 
-        const formattedBestSelling = bestSellingProducts.map(p => ({
-            productId: p._id,
-            displayName: productNameMap[p._id] || p._id,
-            salesCount: p.salesCount,
-            revenue: parseFloat(p.revenue.toFixed(2))
-        }));
+        const formattedBestSelling = bestSellingProducts.map(p => {
+            const isSub = categoryMap[p._id] !== 'consumable' && categoryMap[p._id] !== 'SUPER_KEEN' && categoryMap[p._id] !== 'BOOST';
+            return {
+                productId: p._id,
+                displayName: productNameMap[p._id] || p._id,
+                productType: isSub ? 'Subscription' : 'Consumable',
+                salesCount: p.salesCount,
+                revenue: parseFloat(p.revenue.toFixed(2))
+            };
+        });
 
         let totalMRR = 0;
         activeSubscriptions.forEach(group => {
