@@ -16,4 +16,8 @@ router.put("/", settingsController.updateSettings);
 // Route to test SMTP (Optional utility)
 router.post("/test-smtp", settingsController.testSmtpConnection);
 
+router.post("/ads", settingsController.upsertAdsSettings);
+
+router.get("/ads", settingsController.getAdsSettings);
+
 module.exports = router;

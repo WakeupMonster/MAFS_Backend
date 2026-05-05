@@ -1488,11 +1488,128 @@ module.exports.DELETEPhoto = async (req, res) => {
 };
 
 /* ======: For Bluk exports in csv file to get all Users Data: API 4: GET api/v1/admin/user-management/export =========== */
+// module.exports.streamUsersExport = async (req, res) => {
+//   try {
+//     const filters = req.query || {};
+
+//     // 1. Build Filter Logic
+//     const userMatch = { role: "USER" };
+//     if (filters.accountStatus) userMatch.accountStatus = filters.accountStatus;
+//     if (filters.isPremium) userMatch.isPremium = filters.isPremium === "true";
+
+//     const profileMatch = {};
+//     if (filters.gender) profileMatch["profile.gender"] = filters.gender;
+
+//     // 2. HTTP Headers for Direct Download
+//     // Removed progress markers because they corrupt the CSV file structure
+//     res.setHeader(
+//       "Content-Disposition",
+//       `attachment; filename=KeenMustard_Users_${Date.now()}.csv`,
+//     );
+//     res.setHeader("Content-Type", "text/csv");
+//     res.setHeader("X-Content-Type-Options", "nosniff");
+
+//     const csvStream = stringify({
+//       header: true,
+//       columns: [
+//         "UserId",
+//         "Nickname",
+//         "Email",
+//         "Phone",
+//         "Gender",
+//         "Age",
+//         "JobTitle",
+//         "City",
+//         "KYCStatus",
+//         "LastActiveAt",
+//         "LastSeenAt",
+//         "ProfileCompletion",
+//         "AccountStatus",
+//         "IsPremium",
+//         "AuthMethod",
+//         "CreatedAt",
+//       ],
+//     });
+
+//     // Pipe the stringifier directly to the response
+//     //
+//     csvStream.pipe(res);
+
+//     // 3. The Aggregation Cursor
+//     const cursor = User.aggregate([
+//       { $match: userMatch },
+//       {
+//         $lookup: {
+//           from: "profiles",
+//           localField: "_id",
+//           foreignField: "userId",
+//           as: "profile",
+//         },
+//       },
+//       { $unwind: { path: "$profile", preserveNullAndEmptyArrays: true } },
+//       ...(Object.keys(profileMatch).length ? [{ $match: profileMatch }] : []),
+//       {
+//         $project: {
+//           _id: 1,
+//           email: 1,
+//           phone: 1,
+//           accountStatus: 1,
+//           isPremium: 1,
+//           authMethod: 1,
+//           createdAt: 1,
+//           nickname: "$profile.nickname",
+//           gender: "$profile.gender",
+//           age: "$profile.age",
+//           jobTitle: "$profile.jobTitle",
+//           city: "$profile.location.city",
+//           profileCompletion: "$profile.onboardingProgress.totalCompletion",
+//           kycStatus: "$profile.verification.status",
+//         },
+//       },
+//     ]).cursor({ batchSize: 1000 }); // Smaller batch size to prevent ETIMEDOUT
+
+//     for await (const doc of cursor) {
+//       csvStream.write({
+//         UserId: doc._id.toString(),
+//         Email: doc.email || "",
+//         Phone: doc.phone ? `="${doc.phone}"` : "",
+//         AccountStatus: doc.accountStatus,
+//         IsPremium: doc.isPremium ? "Yes" : "No",
+//         AuthMethod: doc.authMethod || "phone",
+//         CreatedAt: doc.createdAt
+//           ? new Date(doc.createdAt).toLocaleString("en-IN", {
+//               timeZone: "Asia/Kolkata",
+//               day: "2-digit",
+//               month: "short",
+//               year: "numeric",
+//               hour: "2-digit",
+//               minute: "2-digit",
+//               hour12: true,
+//             })
+//           : "",
+//         Nickname: doc.nickname || "",
+//         Gender: doc.gender || "",
+//         Age: doc.age || "",
+//         JobTitle: doc.jobTitle || "",
+//         City: doc.city || "",
+//         ProfileCompletion: `${doc.profileCompletion || 0}%`,
+//         KYCStatus: doc.kycStatus || "not_started",
+//       });
+//     }
+
+//     csvStream.end();
+//   } catch (error) {
+//     console.error("STREAM EXPORT ERROR:", error);
+//     if (!res.headersSent)
+//       res.status(500).json({ success: false, message: "Export failed" });
+//     else res.end();
+//   }
+// };
+
 module.exports.streamUsersExport = async (req, res) => {
   try {
     const filters = req.query || {};
 
-    // 1. Build Filter Logic
     const userMatch = { role: "USER" };
     if (filters.accountStatus) userMatch.accountStatus = filters.accountStatus;
     if (filters.isPremium) userMatch.isPremium = filters.isPremium === "true";
@@ -1500,11 +1617,9 @@ module.exports.streamUsersExport = async (req, res) => {
     const profileMatch = {};
     if (filters.gender) profileMatch["profile.gender"] = filters.gender;
 
-    // 2. HTTP Headers for Direct Download
-    // Removed progress markers because they corrupt the CSV file structure
     res.setHeader(
       "Content-Disposition",
-      `attachment; filename=MAFS_Users_${Date.now()}.csv`,
+      `attachment; filename=KeenMustard_Users_${Date.now()}.csv`,
     );
     res.setHeader("Content-Type", "text/csv");
     res.setHeader("X-Content-Type-Options", "nosniff");
@@ -1513,27 +1628,39 @@ module.exports.streamUsersExport = async (req, res) => {
       header: true,
       columns: [
         "UserId",
-        "Email",
-        "Phone",
-        "AccountStatus",
-        "IsPremium",
-        "AuthMethod",
-        "CreatedAt",
         "Nickname",
+        "Email",
+        "Phone", // ✅ Plain phone number
         "Gender",
         "Age",
         "JobTitle",
         "City",
-        "ProfileCompletion",
         "KYCStatus",
+        "LastActiveAt", // ✅ lastLoginAt from User
+        "ProfileCompletion",
+        "AccountStatus",
+        "IsPremium",
+        "AuthMethod",
+        "CreatedAt", // ✅ Fixed formatting
       ],
     });
 
-    // Pipe the stringifier directly to the response
-    //
     csvStream.pipe(res);
 
-    // 3. The Aggregation Cursor
+    // ✅ FIX 1: Helper function for consistent date formatting
+    const formatDate = (d) => {
+      if (!d) return "";
+      return new Date(d).toLocaleString("en-IN", {
+        timeZone: "Asia/Kolkata",
+        day: "2-digit",
+        month: "short",
+        year: "numeric",
+        hour: "2-digit",
+        minute: "2-digit",
+        hour12: true,
+      });
+    };
+
     const cursor = User.aggregate([
       { $match: userMatch },
       {
@@ -1555,6 +1682,7 @@ module.exports.streamUsersExport = async (req, res) => {
           isPremium: 1,
           authMethod: 1,
           createdAt: 1,
+          lastLoginAt: 1, // ✅ FIX 2: Was missing, causing LastActiveAt to be empty
           nickname: "$profile.nickname",
           gender: "$profile.gender",
           age: "$profile.age",
@@ -1564,19 +1692,18 @@ module.exports.streamUsersExport = async (req, res) => {
           kycStatus: "$profile.verification.status",
         },
       },
-    ]).cursor({ batchSize: 1000 }); // Smaller batch size to prevent ETIMEDOUT
+    ]).cursor({ batchSize: 1000 });
 
     for await (const doc of cursor) {
       csvStream.write({
         UserId: doc._id.toString(),
         Email: doc.email || "",
-        Phone: doc.phone || "",
-        AccountStatus: doc.accountStatus,
+        Phone: doc.phone || "", // ✅ FIX 1: Plain string, no Excel trick
+        AccountStatus: doc.accountStatus || "",
         IsPremium: doc.isPremium ? "Yes" : "No",
         AuthMethod: doc.authMethod || "phone",
-        CreatedAt: doc.createdAt
-          ? new Date(doc.createdAt).toISOString().split("T")[0]
-          : "",
+        CreatedAt: formatDate(doc.createdAt), // ✅ FIX 2: Using helper
+        LastActiveAt: formatDate(doc.lastLoginAt), // ✅ FIX 2: Now has data
         Nickname: doc.nickname || "",
         Gender: doc.gender || "",
         Age: doc.age || "",

@@ -1,9 +1,9 @@
-/* eslint-disable no-unused-vars */
 const User = require("../../../modules/auth/auth.model");
 const AdminNotificationCampaign = require("./admin.notification.model");
 const notificationService = require("../../../modules/notifications/notification.service");
 const NotificationLog = require("./notificationLog.model");
 const { addAdminPushJob } = require("../../../queues/adminPush.queue");
+const mongoose = require("mongoose");
 
 module.exports.sendNotificationToPremiumUsers = async (req, res) => {
   try {
@@ -307,51 +307,128 @@ module.exports.getNotificationHistory = async (req, res) => {
       limit = 10,
       campaignId,
       userId,
-      type,
-      status,
+      type, // 'email' | 'push'
+      status, // 'sent' | 'failed' | 'delivered'
       fromDate,
       toDate,
+      search,
     } = req.query;
 
-    const query = {};
+    const pageNum = parseInt(page);
+    const limitNum = parseInt(limit);
+    const skip = (pageNum - 1) * limitNum;
 
-    if (campaignId) query.campaignId = campaignId;
-    if (userId) query.userId = userId;
-    if (type) query.type = type;
-    if (status) query.status = status;
+    const matchQuery = {};
 
-    if (fromDate || toDate) {
-      query.sentAt = {};
-      if (fromDate) query.sentAt.$gte = new Date(fromDate);
-      if (toDate) query.sentAt.$lte = new Date(toDate);
+    // 1. Basic Filters
+    if (campaignId)
+      matchQuery.campaignId = new mongoose.Types.ObjectId(campaignId);
+    if (userId) matchQuery.userId = new mongoose.Types.ObjectId(userId);
+
+    // Channel / Type Filter
+    if (type && type !== "all") {
+      matchQuery.type = type;
     }
 
-    const skip = (page - 1) * limit;
+    // Status Filter
+    if (status && status !== "all") {
+      // Map 'delivered' to 'sent' if backend only stores 'sent'
+      if (status === "delivered") {
+        matchQuery.status = "sent";
+      } else {
+        matchQuery.status = status;
+      }
+    }
 
-    const [logs, total] = await Promise.all([
-      NotificationLog.find(query)
-        .populate("userId", "phone email")
-        .populate("campaignId", "campaignName target")
-        .sort({ sentAt: -1 })
-        .skip(skip)
-        .limit(Number(limit))
-        .lean(),
+    // Date Range Filter
+    if (fromDate || toDate) {
+      matchQuery.sentAt = {};
+      if (fromDate) matchQuery.sentAt.$gte = new Date(fromDate);
+      if (toDate) matchQuery.sentAt.$lte = new Date(toDate);
+    }
 
-      NotificationLog.countDocuments(query),
-    ]);
+    // Search by title or message
+    if (search) {
+      matchQuery.$or = [
+        { title: { $regex: search, $options: "i" } },
+        { message: { $regex: search, $options: "i" } },
+      ];
+    }
+
+    const pipeline = [
+      { $match: matchQuery },
+      { $sort: { sentAt: -1 } },
+
+      // Lookup User Details
+      {
+        $lookup: {
+          from: "users",
+          localField: "userId",
+          foreignField: "_id",
+          as: "userDetails",
+        },
+      },
+      { $unwind: { path: "$userDetails", preserveNullAndEmptyArrays: true } },
+
+      // Lookup Campaign Details
+      {
+        $lookup: {
+          from: "adminnotificationcampaigns",
+          localField: "campaignId",
+          foreignField: "_id",
+          as: "campaignDetails",
+        },
+      },
+      {
+        $unwind: { path: "$campaignDetails", preserveNullAndEmptyArrays: true },
+      },
+
+      // Project final fields
+      {
+        $project: {
+          _id: 1,
+          title: 1,
+          message: 1,
+          type: 1,
+          status: 1,
+          cta: 1,
+          sentAt: 1,
+          createdAt: 1,
+          user: {
+            phone: "$userDetails.phone",
+            email: "$userDetails.email",
+          },
+          campaignName: "$campaignDetails.campaignName",
+          target: "$campaignDetails.target",
+        },
+      },
+
+      // Pagination Facet
+      {
+        $facet: {
+          metadata: [{ $count: "total" }],
+          data: [{ $skip: skip }, { $limit: limitNum }],
+        },
+      },
+    ];
+
+    const result = await NotificationLog.aggregate(pipeline);
+
+    const data = result[0]?.data || [];
+    const total = result[0]?.metadata[0]?.total || 0;
 
     return res.json({
       success: true,
       pagination: {
         total,
-        page: Number(page),
-        limit: Number(limit),
-        totalPages: Math.ceil(total / limit),
+        page: pageNum,
+        limit: limitNum,
+        totalPages: Math.ceil(total / limitNum),
       },
-      data: logs,
+      data,
     });
   } catch (err) {
-    console.error("❌ Notification history error:", err);
+    console.error("❌ Notification history aggregation error:", err);
     return res.status(500).json({
       success: false,
       message: "Failed to fetch notification history",
