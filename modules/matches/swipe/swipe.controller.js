@@ -15,27 +15,27 @@ module.exports.getFeed = async (req, res) => {
 
     // Fresh users (only phone verified, no profile) cannot access feed
     const myProfile = await Profile.findOne({ userId }).select("_id verification").lean();
-    if (!myProfile) {
-      return res.status(403).json({
-        success: false,
-        message: "Please complete your profile setup to explore matches!",
-        data: {
-          actionAllowed: false,
-          reason: "PROFILE_NOT_FOUND"
-        }
-      });
-    }
+    // if (!myProfile) {
+    //   return res.status(403).json({
+    //     success: false,
+    //     message: "Please complete your profile setup to explore matches!",
+    //     data: {
+    //       actionAllowed: false,
+    //       reason: "PROFILE_NOT_FOUND"
+    //     }
+    //   });
+    // }
 
-    if (myProfile.verification?.status !== "approved") {
-      return res.status(403).json({
-        success: false,
-        message: "Your profile is under review. You can explore matches once verified.",
-        data: {
-          actionAllowed: false,
-          reason: "PROFILE_NOT_VERIFIED"
-        }
-      });
-    }
+    // if (myProfile.verification?.status !== "approved") {
+    //   return res.status(403).json({
+    //     success: false,
+    //     message: "Your profile is under review. You can explore matches once verified.",
+    //     data: {
+    //       actionAllowed: false,
+    //       reason: "PROFILE_NOT_VERIFIED"
+    //     }
+    //   });
+    // }
 
     const feedResult = await service.getFeedService(userId, limit, page);
 

@@ -1,6 +1,7 @@
 /* eslint-disable no-unused-vars */
 const User = require("../../../modules/auth/auth.model");
 const AdminNotificationCampaign = require("./admin.notification.model");
+const AdminEmailCampaign = require("./adminEmailCampaign.model");
 const notificationService = require("../../../modules/notifications/notification.service");
 const NotificationLog = require("./notificationLog.model");
 const { addAdminPushJob } = require("../../../queues/adminPush.queue");
@@ -305,56 +306,99 @@ module.exports.getNotificationHistory = async (req, res) => {
     const {
       page = 1,
       limit = 10,
-      campaignId,
-      userId,
-      type,
+      channel, // 'push' or 'email'
       status,
       fromDate,
       toDate,
     } = req.query;
 
-    const query = {};
+    const skip = (Number(page) - 1) * Number(limit);
 
-    if (campaignId) query.campaignId = campaignId;
-    if (userId) query.userId = userId;
-    if (type) query.type = type;
-    if (status) query.status = status;
+    // Filter for both models
+    const pushQuery = {};
+    const emailQuery = {};
 
-    if (fromDate || toDate) {
-      query.sentAt = {};
-      if (fromDate) query.sentAt.$gte = new Date(fromDate);
-      if (toDate) query.sentAt.$lte = new Date(toDate);
+    const statusVal = status?.toLowerCase();
+    if (statusVal) {
+      if (statusVal === "delivered") {
+        pushQuery.status = { $in: ["sent", "completed"] };
+        emailQuery.status = "completed";
+      } else if (statusVal === "failed") {
+        pushQuery.$or = [{ status: "failed" }, { failedCount: { $gt: 0 } }];
+        emailQuery.$or = [{ status: "failed" }, { failedCount: { $gt: 0 } }];
+      } else {
+        pushQuery.status = statusVal;
+        emailQuery.status = statusVal;
+      }
     }
 
-    const skip = (page - 1) * limit;
+    console.log("DEBUG: Status filter:", status);
+    console.log("DEBUG: Push Query:", JSON.stringify(pushQuery));
+    console.log("DEBUG: Email Query:", JSON.stringify(emailQuery));
 
-    const [logs, total] = await Promise.all([
-      NotificationLog.find(query)
-        .populate("userId", "phone email")
-        .populate("campaignId", "campaignName target")
-        .sort({ sentAt: -1 })
-        .skip(skip)
-        .limit(Number(limit))
-        .lean(),
+    if (fromDate || toDate) {
+      const dateRange = {};
+      if (fromDate) dateRange.$gte = new Date(fromDate);
+      if (toDate) dateRange.$lte = new Date(toDate);
+      pushQuery.createdAt = dateRange;
+      emailQuery.createdAt = dateRange;
+    }
 
-      NotificationLog.countDocuments(query),
+    let combinedHistory = [];
+    let totalCount = 0;
+
+    if (channel === "push") {
+      const [pushCamps, total] = await Promise.all([
+        AdminNotificationCampaign.find(pushQuery).sort({ createdAt: -1 }).skip(skip).limit(Number(limit)).lean(),
+        AdminNotificationCampaign.countDocuments(pushQuery)
+      ]);
+      combinedHistory = pushCamps.map(c => ({ ...c, channel: "push" }));
+      totalCount = total;
+    } else if (channel === "email") {
+      const [emailCamps, total] = await Promise.all([
+        AdminEmailCampaign.find(emailQuery).sort({ createdAt: -1 }).skip(skip).limit(Number(limit)).lean(),
+        AdminEmailCampaign.countDocuments(emailQuery)
+      ]);
+      combinedHistory = emailCamps.map(c => ({ ...c, channel: "email", title: c.subject, message: c.body }));
+      totalCount = total;
+    } else {
+      // Fetch both and merge
+      const [pushCamps, emailCamps] = await Promise.all([
+        AdminNotificationCampaign.find(pushQuery).sort({ createdAt: -1 }).limit(Number(limit) + skip).lean(),
+        AdminEmailCampaign.find(emailQuery).sort({ createdAt: -1 }).limit(Number(limit) + skip).lean()
+      ]);
+
+      const merged = [
+        ...pushCamps.map(c => ({ ...c, channel: "push" })),
+        ...emailCamps.map(c => ({ ...c, channel: "email", title: c.subject, message: c.body }))
+      ].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+
+      combinedHistory = merged.slice(skip, skip + Number(limit));
+    }
+
+    const [pushTotal, emailTotal] = await Promise.all([
+      AdminNotificationCampaign.countDocuments(pushQuery),
+      AdminEmailCampaign.countDocuments(emailQuery)
     ]);
+    totalCount = pushTotal + emailTotal;
 
     return res.json({
       success: true,
       pagination: {
-        total,
+        total: totalCount,
+        pushCount: pushTotal,
+        emailCount: emailTotal,
         page: Number(page),
         limit: Number(limit),
-        totalPages: Math.ceil(total / limit),
+        totalPages: Math.ceil(totalCount / limit),
       },
-      data: logs,
+      data: combinedHistory,
     });
   } catch (err) {
     console.error("❌ Notification history error:", err);
     return res.status(500).json({
       success: false,
-      message: "Failed to fetch notification history",
+      message: "Failed to fetch unified campaign history",
     });
   }
 };

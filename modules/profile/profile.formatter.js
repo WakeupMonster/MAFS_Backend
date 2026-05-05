@@ -33,7 +33,7 @@ const formatProfileResponse = async (
   blockedContacts = [],
   blockedUser = [],
   subData = {},
-  req,
+  req
 ) => {
   if (!user) return null;
   const p = profile || {}; // Agar profile nahi hai toh empty object

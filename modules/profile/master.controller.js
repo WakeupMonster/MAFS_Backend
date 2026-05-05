@@ -39,6 +39,7 @@
 
 const MasterData = require("./master.model");
 const AppSettings = require("../AppConfiguration/appSettings.model");
+const { getFormattedAdsConfig } = require("../AppConfiguration/adsConfig.controller");
 
 module.exports.getAppConfig = async (req, res) => {
   try {
@@ -113,6 +114,19 @@ module.exports.getAppConfig = async (req, res) => {
       enabled: false // Default for config API. Actual status is provided via /subscription/status
     })) : [];
 
+    // 5. Fetch Ads Configuration
+    let adsConfig = {};
+    try {
+      adsConfig = await getFormattedAdsConfig();
+    } catch (err) {
+      console.error("Ads config fetch error in getAppConfig:", err);
+      // Fallback to empty/default structure if it fails
+      adsConfig = {
+        android: { app_open: { id: "", active: false }, interstitial: { id: "", active: false }, native: { id: "", active: false } },
+        ios: { app_open: { id: "", active: false }, interstitial: { id: "", active: false }, native: { id: "", active: false } }
+      };
+    }
+
     return res.status(200).json({
       success: true,
       message: "App configuration fetched successfully",
@@ -125,7 +139,8 @@ module.exports.getAppConfig = async (req, res) => {
         config: config,
         version: version,
         storeLinks: storeLinks,
-        PremiumFeatures: premiumFeatures
+        PremiumFeatures: premiumFeatures,
+        ads: adsConfig
       }
     });
   } catch (err) {

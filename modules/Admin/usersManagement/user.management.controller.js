@@ -1595,3 +1595,238 @@ module.exports.streamUsersExport = async (req, res) => {
     else res.end();
   }
 };
+
+module.exports.GETGhostingUsers = async (req, res) => {
+  try {
+    const { page: reqPage, limit: reqLimit, search } = req.query;
+
+    const page = Math.max(parseInt(reqPage) || 1, 1);
+    const limit = Math.min(parseInt(reqLimit) || 10, 100);
+    const skip = (page - 1) * limit;
+    const searchTrimmed = search?.trim();
+
+    // ==========================================
+    // 1. PRODUCTION-READY GHOSTING IDENTIFICATION
+    // ==========================================
+    const Match = mongoose.model("Match");
+    
+    // Instead of fetching all matches, we ONLY fetch matches where lastMessage is empty or doesn't exist.
+    // This uses MongoDB indexes and prevents RAM overload.
+    const ghostingMatches = await Match.find({
+      $or: [
+        { lastMessage: { $exists: false } },
+        { lastMessage: null },
+        { lastMessage: "" }
+      ]
+    }).select("users").lean();
+    
+    const ghostingUserIds = new Set();
+    ghostingMatches.forEach(match => {
+      if (match.users && Array.isArray(match.users)) {
+        match.users.forEach(uId => ghostingUserIds.add(uId.toString()));
+      }
+    });
+
+    const ghostingUsersArray = Array.from(ghostingUserIds).map(id => new mongoose.Types.ObjectId(id));
+
+    if (ghostingUsersArray.length === 0) {
+      return res.status(200).json({
+        success: true,
+        cached: false,
+        pagination: { page, limit, total: 0, totalPages: 0 },
+        kpiStats: { totalUsers: 0, activeTotal: 0, premiumTotal: 0, bannedTotal: 0, suspendedTotal: 0 },
+        message: "Ghosting Users fetched successfully",
+        data: [],
+      });
+    }
+
+    // ==========================================
+    // 2. FETCH USERS EXACTLY LIKE GETAllUsers
+    // ==========================================
+    const baseMatch = { 
+      _id: { $in: ghostingUsersArray },
+      role: "USER", 
+      isFake: { $ne: true }, 
+      accountStatus: "active" 
+    };
+
+    const pipeline = [{ $match: baseMatch }];
+    const needsEarlyProfileLookup = !!searchTrimmed;
+
+    if (needsEarlyProfileLookup) {
+      pipeline.push(
+        {
+          $lookup: {
+            from: "profiles",
+            localField: "_id",
+            foreignField: "userId",
+            as: "profile",
+          },
+        },
+        { $unwind: { path: "$profile", preserveNullAndEmptyArrays: true } },
+        {
+          $addFields: {
+            "profile.calculatedAge": {
+              $cond: {
+                if: {
+                  $and: [
+                    { $gt: ["$profile.dob", null] },
+                    { $toLower: "$profile.dob" },
+                  ],
+                },
+                then: {
+                  $dateDiff: {
+                    startDate: { $toDate: "$profile.dob" },
+                    endDate: "$$NOW",
+                    unit: "year",
+                  },
+                },
+                else: null,
+              },
+            },
+          },
+        }
+      );
+
+      if (searchTrimmed) {
+        const searchRegex = new RegExp(
+          searchTrimmed.replace(/[.*+?^${}()|[\\/]\\]/g, "\\$&"),
+          "i"
+        );
+        pipeline.push({
+          $match: {
+            $or: [
+              { email: searchRegex },
+              { "profile.nickname": searchRegex },
+            ],
+          },
+        });
+      }
+    }
+
+    pipeline.push({
+      $facet: {
+        data: [
+          { $sort: { lastLoginAt: 1 } },
+          { $skip: skip },
+          { $limit: limit },
+          ...(!needsEarlyProfileLookup
+            ? [
+                {
+                  $lookup: {
+                    from: "profiles",
+                    localField: "_id",
+                    foreignField: "userId",
+                    as: "profile",
+                  },
+                },
+                {
+                  $unwind: {
+                    path: "$profile",
+                    preserveNullAndEmptyArrays: true,
+                  },
+                },
+                {
+                  $addFields: {
+                    "profile.calculatedAge": {
+                      $cond: {
+                        if: {
+                          $and: [
+                            { $gt: ["$profile.dob", null] },
+                            { $toLower: "$profile.dob" },
+                          ],
+                        },
+                        then: {
+                          $dateDiff: {
+                            startDate: { $toDate: "$profile.dob" },
+                            endDate: "$$NOW",
+                            unit: "year",
+                          },
+                        },
+                        else: null,
+                      },
+                    },
+                  },
+                },
+              ]
+            : []),
+          {
+            $project: {
+              _id: 1,
+              role: 1,
+              account: {
+                status: "$accountStatus",
+                isPremium: "$isPremium",
+                phone: "$phone",
+                email: "$email",
+                authMethod: "$authMethod",
+                banDetails: "$banDetails",
+                deactivationDetails: "$deactivationDetails",
+                deletionDetails: "$deletionDetails",
+                suspensionDetails: "$suspensionDetails",
+                createdAt: "$createdAt",
+              },
+              profile: {
+                profileId: "$profile._id",
+                nickname: "$profile.nickname",
+                dob: "$profile.dob",
+                age: "$profile.calculatedAge",
+                gender: "$profile.gender",
+                height: "$profile.height",
+                about: "$profile.about",
+                jobTitle: "$profile.jobTitle",
+                company: "$profile.company",
+                totalCompletion: "$profile.onboardingProgress.totalCompletion",
+              },
+              location: "$profile.location",
+              photos: { $arrayElemAt: ["$profile.photos.url", 0] },
+              lastProfileUpdate: "$profile.lastProfileUpdate",
+              createdAt: 1,
+              lastLoginAt: 1,
+            },
+          },
+        ],
+        total: [{ $count: "count" }],
+        activeCount: [{ $match: { accountStatus: "active" } }, { $count: "count" }],
+        premiumCount: [{ $match: { isPremium: true } }, { $count: "count" }],
+        bannedCount: [{ $match: { accountStatus: "banned" } }, { $count: "count" }],
+        suspendedCount: [{ $match: { accountStatus: "suspended" } }, { $count: "count" }],
+      },
+    });
+
+    const result = await User.aggregate(pipeline);
+    const users = result[0]?.data || [];
+    const total = result[0]?.total[0]?.count || 0;
+    const activeTotal = result[0]?.activeCount[0]?.count || 0;
+    const premiumTotal = result[0]?.premiumCount[0]?.count || 0;
+    const bannedTotal = result[0]?.bannedCount[0]?.count || 0;
+    const suspendedTotal = result[0]?.suspendedCount[0]?.count || 0;
+
+    const responseData = {
+      pagination: {
+        page,
+        limit,
+        total,
+        totalPages: Math.ceil(total / limit),
+      },
+      kpiStats: {
+        totalUsers: total,
+        activeTotal,
+        premiumTotal,
+        bannedTotal,
+        suspendedTotal,
+      },
+      message: "Ghosting Users fetched successfully",
+      data: users,
+    };
+
+    return res.status(200).json({
+      success: true,
+      cached: false,
+      ...responseData,
+    });
+  } catch (error) {
+    console.error("GET GHOSTING USER LIST ERROR:", error);
+    res.status(500).json({ success: false, message: "Failed to fetch ghosting users" });
+  }
+};

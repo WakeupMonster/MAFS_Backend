@@ -18,15 +18,30 @@ function calculateDistance(lat1, lon1, lat2, lon2) {
   const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
   return Math.round(R * c);
 }
-const formatPublictargetProfile = (viewertargetProfile, targetProfile, swipeAction, matchRecord, isBoosted, blockStatus) => {
+const { mapIdsToLabels } = require("../../common/utils/masterData.util");
+
+const formatPublictargetProfile = (
+  viewertargetProfile,
+  targetProfile,
+  swipeAction,
+  matchRecord,
+  isBoosted,
+  blockStatus,
+  masterMap // Added masterMap parameter
+) => {
   if (!targetProfile) return null;
 
   // --- 📏 DYNAMIC DISTANCE ---
   let distanceText = "Unknown distance";
-  if (viewertargetProfile?.location?.coordinates && targetProfile?.location?.coordinates) {
+  if (
+    viewertargetProfile?.location?.coordinates &&
+    targetProfile?.location?.coordinates
+  ) {
     const dist = calculateDistance(
-      viewertargetProfile.location.coordinates[1], viewertargetProfile.location.coordinates[0],
-      targetProfile.location.coordinates[1], targetProfile.location.coordinates[0]
+      viewertargetProfile.location.coordinates[1],
+      viewertargetProfile.location.coordinates[0],
+      targetProfile.location.coordinates[1],
+      targetProfile.location.coordinates[0],
     );
     distanceText = dist <= 1 ? "Nearby" : `${Math.round(dist)} km away`;
   }
@@ -39,38 +54,38 @@ const formatPublictargetProfile = (viewertargetProfile, targetProfile, swipeActi
       height: targetProfile.height ? `${targetProfile.height} cm` : "",
       title: targetProfile.jobTitle || "",
       company: targetProfile.company || "",
-      school: targetProfile.school || ""
+      school: targetProfile.school || "",
     },
     location: {
       city: targetProfile.location?.city || "",
-      distance: distanceText
+      distance: distanceText,
     },
     photos: (targetProfile.photos || []).sort((a, b) => a.order - b.order),
 
     attributes: {
-      zodiac: targetProfile.attributes?.zodiac || "",
-      education: targetProfile.attributes?.education || "",
-      familyPlans: targetProfile.attributes?.familyPlans || "",
-      vaccination: targetProfile.attributes?.vaccination || "",
-      personalityType: targetProfile.attributes?.personalityType || "",
-      communicationStyle: targetProfile.attributes?.communicationStyle || "",
-      loveStyle: targetProfile.attributes?.loveStyle || "",
-      bloodGroup: targetProfile.attributes?.bloodGroup || "",
-      pets: targetProfile.attributes?.pets || "",
-      drinking: targetProfile.attributes?.drinking || "",
-      smoking: targetProfile.attributes?.smoking || "",
-      workout: targetProfile.attributes?.workout || "",
-      dietary: targetProfile.attributes?.dietary || "",
-      socialMedia: targetProfile.attributes?.socialMedia || "",
-      sleeping: targetProfile.attributes?.sleeping || "",
-      relationshipGoals: targetProfile.discovery?.relationshipGoal || "",
-      religion: targetProfile.attributes?.religion || "",
-      interests: targetProfile.attributes?.interests || [],
-      languages: targetProfile.attributes?.languages || [],
-      music: targetProfile.attributes?.music || [],
-      movies: targetProfile.attributes?.movies || [],
-      books: targetProfile.attributes?.books || [],
-      travel: targetProfile.attributes?.travel || []
+      zodiac: mapIdsToLabels(targetProfile.attributes?.zodiac, "zodiac", masterMap),
+      education: mapIdsToLabels(targetProfile.attributes?.education, "education", masterMap),
+      familyPlans: mapIdsToLabels(targetProfile.attributes?.familyPlans, "family_plans", masterMap),
+      vaccination: mapIdsToLabels(targetProfile.attributes?.vaccination, "vaccination", masterMap),
+      personalityType: mapIdsToLabels(targetProfile.attributes?.personalityType, "personality_type", masterMap),
+      communicationStyle: mapIdsToLabels(targetProfile.attributes?.communicationStyle, "communication_style", masterMap),
+      loveStyle: mapIdsToLabels(targetProfile.attributes?.loveStyle, "love_style", masterMap),
+      bloodGroup: mapIdsToLabels(targetProfile.attributes?.bloodGroup, "blood_group", masterMap),
+      pets: mapIdsToLabels(targetProfile.attributes?.pets, "pets", masterMap),
+      drinking: mapIdsToLabels(targetProfile.attributes?.drinking, "drinking_habits", masterMap),
+      smoking: mapIdsToLabels(targetProfile.attributes?.smoking, "smoking_habits", masterMap),
+      workout: mapIdsToLabels(targetProfile.attributes?.workout, "workout", masterMap),
+      dietary: mapIdsToLabels(targetProfile.attributes?.dietary, "dietary_preferences", masterMap),
+      socialMedia: mapIdsToLabels(targetProfile.attributes?.socialMedia, "social_media", masterMap),
+      sleeping: mapIdsToLabels(targetProfile.attributes?.sleeping, "sleeping_habits", masterMap),
+      relationshipGoals: mapIdsToLabels(targetProfile.discovery?.relationshipGoal, "relationshipGoals", masterMap),
+      religion: mapIdsToLabels(targetProfile.attributes?.religion, "religion", masterMap),
+      interests: mapIdsToLabels(targetProfile.attributes?.interests, "interests", masterMap),
+      languages: mapIdsToLabels(targetProfile.attributes?.languages, "languages", masterMap),
+      music: mapIdsToLabels(targetProfile.attributes?.music, "music_preferences", masterMap),
+      movies: mapIdsToLabels(targetProfile.attributes?.movies, "movie_preferences", masterMap),
+      books: mapIdsToLabels(targetProfile.attributes?.books, "book_preferences", masterMap),
+      travel: mapIdsToLabels(targetProfile.attributes?.travel, "travel_preferences", masterMap),
     },
 
     status: {
@@ -79,9 +94,9 @@ const formatPublictargetProfile = (viewertargetProfile, targetProfile, swipeActi
       isMatch: !!matchRecord, // 🔥 LIVE match status
       isBoosted: !!isBoosted, // 🔥 LIVE boost status
       isBlocked: !!blockStatus,
-      BlockedDetail: blockStatus
+      BlockedDetail: blockStatus,
     },
-    verificationStatus: targetProfile.verification?.status || "pending"
+    verificationStatus: targetProfile.verification?.status || "pending",
   };
 };
 module.exports = { formatPublictargetProfile };

@@ -9,7 +9,9 @@ const {
   updateNotificationSettings,
 } = require("./adminNotification.controller");
 
-const { createEmailCampaign } = require("./adminEmail.controller");
+const { createEmailCampaign, getEmailCampaignLogs } = require("./adminEmail.controller");
+
+router.get("/email-campaign/:campaignId/logs", getEmailCampaignLogs);
 
 router.post("/broadcast", broadcastNotification);
 

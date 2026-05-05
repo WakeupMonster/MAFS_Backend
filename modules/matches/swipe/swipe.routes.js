@@ -21,10 +21,12 @@ const router = express.Router();
 const auth = require("../../auth/auth.middleware");
 
 const { allowDating } = require("../../../common/middlewares/allowDating.middleware");
+const { apiLimiter } = require("../../../common/middlewares/apiLimiter");
+
 router.use(auth);
-router.use(allowDating)
+router.use(allowDating);
 router.get("/feed", validation.feed, controllerOld.getFeed);
-router.post("/action", controllerOld.action);
+router.post("/action", apiLimiter("swipe_action", 40, 60), controllerOld.action);
 router.post("/unmatch", controllerOld.unmatchUser);
 router.get("/matches", controllerOld.getMatches);
 router.post("/undo", validation.undo, controllerOld.undo);

@@ -233,29 +233,35 @@ module.exports.getMyGiveaways = async (req, res) => {
     if (unclaimedWin && unclaimedWin.prizeId) {
       const prize = unclaimedWin.prizeId;
 
-      // Fetch supportive wheel items (generic items like "Try Again")
-      const supportItem = await Prize.findOne({ isActive: true }).lean();
-      let supportiveItems = supportItem ? [...supportItem.supportiveItems] : ["Try Again", "Oops", "Next Time"];
+      // 🎯 Fix: Wheel MUST have exactly 6 options (1 winner + 5 supporting prizes)
+      const DEFAULT_SUPPORTIVE = ["Better Luck Next Time", "Try Again", "Almost Had It", "Keep Spinning", "So Close!"];
 
-      // Combine with prize-specific items for UI
-      let wheelItems = (prize.supportiveItems && prize.supportiveItems.length > 0)
-        ? prize.supportiveItems.map(item => ({ label: item }))
-        : supportiveItems.map(item => ({ label: item }));
+      let supportiveItems = (prize.supportiveItems && prize.supportiveItems.length > 0)
+        ? [...prize.supportiveItems]
+        : DEFAULT_SUPPORTIVE;
 
-      // Calculate a random winner index (UI only, win is already decided)
-      const winnerIndex = Math.floor(Math.random() * (wheelItems.length + 1));
+      // Ensure we have exactly 5 supportive items (slice if more, pad if less)
+      if (supportiveItems.length > 5) {
+        supportiveItems = supportiveItems.slice(0, 5);
+      } else while (supportiveItems.length < 5) {
+        supportiveItems.push(DEFAULT_SUPPORTIVE[supportiveItems.length % DEFAULT_SUPPORTIVE.length]);
+      }
 
-      // Insert the actual win label at the calculated index
+      // Map to label format
+      let wheelItems = supportiveItems.map(item => ({ label: item }));
+
+      // Calculate a random winner index (0 to 5)
+      const winnerIndex = Math.floor(Math.random() * 6);
+
+      // Insert the actual win label at the winner index
       wheelItems.splice(winnerIndex, 0, {
         label: prize.spinWheelLabel || prize.title,
       });
-
       spinConfig = {
         available: true,
         showSpin: true,
         winnerIndex,
         items: wheelItems,
-        supportiveItems: prize.supportiveItems,
         prize: {
           title: prize.title,
           value: prize.value,

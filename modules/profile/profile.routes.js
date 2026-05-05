@@ -8,6 +8,7 @@ const controllerDis = require("../discovery/discovery.controller");
 const userAction = require("./userActionController");
 // const ENUMS = require("../../config/enums");
 const masterController = require("./master.controller");
+const { apiLimiter } = require("../../common/middlewares/apiLimiter");
 
 const { validateDiscoveryFilters } = require("../../common/utils/validators");
 
@@ -17,6 +18,7 @@ router.use(auth);
 
 router.patch(
   "/update",
+  apiLimiter("profile_update", 40, 3600), // Max 30 profile updates per hour
   // validation.validateProfileUpdate,
   controller.updateProfile,
 );
@@ -35,7 +37,7 @@ router.patch(
 );
 
 router.patch("/", controllerDis.updatePreference);
-router.post("/photos", uploadMiddleware.uploadPhotos, controller.uploadPhotos);
+router.post("/photos", apiLimiter("photo_upload", 10, 3600), uploadMiddleware.uploadPhotos, controller.uploadPhotos);
 
 // router.post(
 //   "/photos",
@@ -91,6 +93,7 @@ router.get("/config", masterController.getAppConfig);
 
 router.get(
   "/:userId",
+  apiLimiter("profile_view", 60, 60), // Max 60 profile views per minute (Prevents Scraping)
   validation.validateUserIdParam,
   controller.getUserProfile,
 );

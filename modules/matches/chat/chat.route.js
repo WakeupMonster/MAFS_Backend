@@ -12,6 +12,8 @@ const {
 
 const router = express.Router();
 const auth = require("../../auth/auth.middleware");
+const { apiLimiter } = require("../../../common/middlewares/apiLimiter");
+
 
 // 🔥 NEW: Chat-specific upload middleware (dedicated, production-ready)
 const {
@@ -25,7 +27,7 @@ router.use(auth);
 // ─── Chat Routes ───
 router.get("/messages/:matchId", getChatMessages);
 router.get("/list", getChatList);
-router.post("/send", sendMessage);
+router.post("/send", apiLimiter("chat_message", 30, 60), sendMessage);
 router.patch("/messages/:matchId/read", updateChatMsgRead);
 router.delete("/messages/:matchId/:mesId", deleteChatMessage);
 

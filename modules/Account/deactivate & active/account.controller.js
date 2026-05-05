@@ -16,14 +16,21 @@ const getFormattedUser = require("../../../common/utils/getFormattedUser");
 exports.deleteAccount = async (req, res) => {
   try {
     const userId = req.user._id;
-    const { otp, reason } = req.body;
+    const { reason } = req.body;
 
+    /**
+     * OTP logic removed as requested.
+     * Now only 'reason' is required for deletion.
+     */
+    /*
+    const { otp } = req.body;
     if (!otp) {
       return res.status(400).json({
         success: false,
         message: "OTP is required",
       });
     }
+    */
 
     if (!reason || reason.trim().length < 3) {
       return res.status(400).json({
@@ -32,13 +39,12 @@ exports.deleteAccount = async (req, res) => {
       });
     }
 
-    // const user = await User.findById(userId);
+    const user = await User.findById(userId);
+    /*
     const user = await User.findById(userId).select(
       "+deleteAccountOtp +deleteAccountOtpExpires"
     );
-
-    // console.log(user.deleteAccountOtp);
-    // console.log(otp);
+    */
 
     if (!user) {
       return res.status(404).json({
@@ -47,7 +53,8 @@ exports.deleteAccount = async (req, res) => {
       });
     }
 
-    // verify OTP
+    // verify OTP (Logic Commented Out)
+    /*
     if (
       user.deleteAccountOtp !== otp ||
       user.deleteAccountOtpExpires < new Date()
@@ -57,6 +64,7 @@ exports.deleteAccount = async (req, res) => {
         message: "Invalid or expired OTP",
       });
     }
+    */
 
     const now = new Date();
 

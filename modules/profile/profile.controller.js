@@ -11,6 +11,7 @@ const UserSubscription = require("../auth/UserSubscription.model");
 const { formatPublictargetProfile } = require("./profile.userFormatter");
 const { buildOnboardingResponse } = require("../../common/utils/onBoardingSteps");
 const getFormattedUser = require("../../common/utils/getFormattedUser");
+const { getMasterDataMap } = require("../../common/utils/masterData.util");
 
 async function getFullUserData(userId, existingProfile = null) {
   const [user, profile, blockedContacts, blockedUser, subData] = await Promise.all([
@@ -202,13 +203,13 @@ exports.uploadPhotos = async (req, res) => {
 
 
     await profile.save();
-    const [data] = await Promise.all([getFullUserData(userId, profile), clearProfileCache(userId)]);
+    const [data, masterMap] = await Promise.all([getFullUserData(userId, profile), clearProfileCache(userId), getMasterDataMap()]);
 
     res.json({
       success: true,
       message: `${newPhotosResults.length} photo uploaded successfully`,
       data: {
-        user: await formatProfileResponse(data.user, profile, data.blockedContacts, data.blockedUser, data.subData, req),
+        user: await formatProfileResponse(data.user, profile, data.blockedContacts, data.blockedUser, data.subData, req, masterMap),
         // onboarding: buildOnboardingResponse(req)
 
       }
@@ -235,7 +236,8 @@ exports.deletePhoto = async (req, res) => {
     });
 
     await profile.save();
-    const [data] = await Promise.all([getFullUserData(userId, profile), clearProfileCache(userId)]);
+    const data = await getFullUserData(userId, profile);
+    await clearProfileCache(userId);
 
     res.json({
       success: true,
@@ -328,7 +330,7 @@ exports.reorderPhotos = async (req, res) => {
     // ✅ 9. Response
     const [data] = await Promise.all([
       getFullUserData(userId, profile),
-      clearProfileCache(userId),
+      clearProfileCache(userId)
     ]);
 
     return res.json({
@@ -864,8 +866,8 @@ exports.getStatus = async (req, res) => {
     const cached = await cache.get(cacheKey);
     if (cached) return res.json({ success: true, data: JSON.parse(cached), cached: true });
 
-    const data = await getFullUserData(userId);
-    const formatted = await formatProfileResponse(data.user, data.profile, data.blockedContacts, data.blockedUser, data.subData, req);
+    const [data, masterMap] = await Promise.all([getFullUserData(userId), getMasterDataMap()]);
+    const formatted = await formatProfileResponse(data.user, data.profile, data.blockedContacts, data.blockedUser, data.subData, req, masterMap);
 
     await cache.set(cacheKey, JSON.stringify(formatted), { EX: 30 });
     res.json({ success: true, data: formatted, cached: false });
@@ -889,7 +891,8 @@ exports.getUserProfile = async (req, res) => {
       swipeAction,     // Kya maine ise like/superlike kiya?
       blockStatus,     // Blocked toh nahi hai?
       matchRecord,     // Kya hum match hain?
-      isBoosted        // Kya target boosted hai (Redis)
+      isBoosted,        // Kya target boosted hai (Redis)
+      masterMap        // Master data map for labels
     ] = await Promise.all([
       Profile.findOne({ userId: viewerId }).select("location").lean(),
       Profile.findOne({ userId: targetUserId }).lean(),
@@ -901,7 +904,8 @@ exports.getUserProfile = async (req, res) => {
         ]
       }).lean(),
       Match.findOne({ users: { $all: [viewerId, targetUserId] } }).lean(),
-      redis.get(`boost:${targetUserId}`)
+      redis.get(`boost:${targetUserId}`),
+      getMasterDataMap()
     ]);
 
     // 2️⃣ Edge Case Handlers
@@ -909,13 +913,14 @@ exports.getUserProfile = async (req, res) => {
     // if (blockStatus) return res.status(403).json({ success: false, message: "Profile unavailable" });
 
 
-    const formattedData = await formatPublictargetProfile(
+    const formattedData = formatPublictargetProfile(
       viewerProfile,
       targetProfile,
       swipeAction,
       matchRecord,
       isBoosted,
-      blockStatus
+      blockStatus,
+      masterMap
     );
 
     res.json({ success: true, message: "Profile Loaded Successfully", data: formattedData });
