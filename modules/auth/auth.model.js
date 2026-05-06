@@ -89,6 +89,7 @@ const userSchema = new mongoose.Schema(
     fcmTokens: [{
       token: String,
       deviceId: String,
+      platform: { type: String, enum: ["ios", "android"] },
       createdAt: { type: Date, default: Date.now }
     }],
     refreshTokens: [refreshTokenSchema],
@@ -186,6 +187,16 @@ const userSchema = new mongoose.Schema(
     isPremium: { type: Boolean, default: false },
     premiumExpiresAt: { type: Date, default: null },
     lastLoginAt: { type: Date, default: null, index: true },
+
+    // ➕ Initiative 3: First 1000 Users Milestone
+    registrationRank: { type: Number, index: true },
+    giveaway: {
+      isEligibleForFreeTrial: { type: Boolean, default: false },
+      freeTrialDurationDays: { type: Number, default: 30 },
+      description: { type: String, default: "First 1000 users milestone" },
+      claimedAt: { type: Date, default: null },
+      offerExpiresAt: { type: Date, default: null },
+    },
 
     // ============ PASSWORD (ADMIN ONLY) ============
     password: { type: String, select: false, minlength: 8 },

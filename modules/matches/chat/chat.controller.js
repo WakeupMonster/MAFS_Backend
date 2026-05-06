@@ -106,7 +106,9 @@ module.exports.getChatMessages = async (req, res) => {
 
     const blockStatus = await isBlocked(userId, otherUserId);
 
-    if (blockStatus.isBlocked) {
+    // If blocked, but ONLY by them (I didn't block them), deny access.
+    // If I blocked them (blockedByMe = true), allow me to read my own history.
+    if (blockStatus.isBlocked && !blockStatus.blockedByMe) {
       return res.status(403).json({
         success: false,
         message: "You cannot view messages",
@@ -172,10 +174,20 @@ module.exports.updateChatMsgRead = async (req, res) => {
       });
     }
 
-    // 3. Update unread messages where receiver = userId
+    // 3. Block validation
+    const otherUserId = match.users.find((u) => u.toString() !== userId.toString());
+    const blocked = await isBlocked(userId, otherUserId);
+    if (blocked.isBlocked && !blocked.blockedByMe) {
+      return res.status(403).json({
+        success: false,
+        message: "Forbidden — You cannot update read status while blocked",
+      });
+    }
+
+    // 4. Update unread messages where receiver = userId
     const result = await ChatMessage.updateMany(
-      { matchId, receiver: userId, read: false },
-      { $set: { read: true, readAt: new Date() } },
+      { matchId, receiver: userId, status: { $ne: "READ" } },
+      { $set: { status: "READ", readAt: new Date() } },
     );
 
     return res.json({ success: true, readCount: result.modifiedCount });

@@ -6,6 +6,8 @@ const Report = require("../../profile/user.report");
 const redis = require("../../../config/cache");
 const Block = require("../../profile/user.block");
 const utils = require("../../auth/auth.utils");
+const notificationService = require("../../notifications/notification.service");
+const { NOTIFICATION_TYPES } = require("../../notifications/notification.enums");
 
 module.exports.verifyUserProfile = async (req, res) => {
   const adminId = req.user.id;
@@ -82,6 +84,33 @@ module.exports.verifyUserProfile = async (req, res) => {
   // Invalidate KPI cache
   if (redis) {
     await redis.del("admin:kpi:overview");
+  }
+
+  // 🔔 Send Push Notification to User
+  try {
+    if (action === "approve") {
+      await notificationService.sendAdminNotification({
+        userId,
+        title: "Identity Verified! ✅",
+        message: "Congratulations! Your account has been verified. You can now access all features.",
+        data: {
+          type: NOTIFICATION_TYPES.KYC_VERIFIED,
+          cta: { action: "NAVIGATE_HOME" }
+        }
+      });
+    } else {
+      await notificationService.sendAdminNotification({
+        userId,
+        title: "Verification Rejected ❌",
+        message: `Your identity verification was rejected. Reason: ${reason}`,
+        data: {
+          type: NOTIFICATION_TYPES.KYC_REJECTED,
+          cta: { action: "NAVIGATE_HOME" }
+        }
+      });
+    }
+  } catch (notifErr) {
+    console.error("KYC Notification error (Non-blocking):", notifErr);
   }
 
   return res.json({

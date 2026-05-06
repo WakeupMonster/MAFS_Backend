@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>MAFS Giveaway Module API Sheet</title>
+    <style>
+        body { font-family: 'Segoe UI', sans-serif; background: #f0f2f5; padding: 20px }
+        .container { background: #fff; padding: 20px; border-radius: 12px; box-shadow: 0 4px 20px rgba(0,0,0,.1); overflow-x: auto }
+        h1 { color: #1e1b4b; text-align: center; font-size: 22px; text-transform: uppercase; letter-spacing: 1px }
+        table { width: 100%; border-collapse: collapse; min-width: 1800px; border: 2px solid #d97706 }
+        th { background: #d97706; color: #fff; padding: 14px; text-align: left; font-size: 13px; border: 1px solid #b45309 }
+        td { padding: 11px; border: 1px solid #e5e7eb; vertical-align: top; font-size: 12.5px; line-height: 1.5 }
+        .sr { text-align: center; font-weight: bold; color: #d97706; background: #fffbeb }
+        .method { font-weight: bold; padding: 4px 8px; border-radius: 4px; color: #fff; display: inline-block; font-size: 11px; width: 65px; text-align: center }
+        .post { background: #ef4444 } .get { background: #22c55e }
+        .sb { background: #f0fdf4; color: #166534; border: 1px solid #bbf7d0 !important }
+        .eb { background: #fef2f2; color: #991b1b; border: 1px solid #fecaca !important }
+        pre { white-space: pre-wrap; word-wrap: break-word; font-family: Consolas, monospace; font-size: 11.5px; margin: 0; color: inherit }
+        tr:nth-child(even) { background-color: #fffbeb }
+        .inst { background: #d97706; color: #fff; padding: 15px; border-radius: 8px; margin-bottom: 20px; text-align: center; font-size: 15px }
+    </style>
+</head>
+<body>
+    <div class="inst">🎯 <b>GIVEAWAY MODULE:</b> Ctrl+A → Ctrl+C → Paste in Google Sheet</div>
+    <div class="container">
+        <h1>🎰 MAFS — GIVEAWAY / SPINWHEEL API DOCUMENTATION</h1>
+        <table>
+            <thead>
+                <tr>
+                    <th>#</th><th>Sub-Module</th><th>API Endpoint</th><th>Method</th><th>Auth</th><th>Description</th><th>Request Body</th><th>Success Code</th><th>Success Response</th><th>Error Codes</th><th>Error Response</th><th>Error Scenarios</th><th>✏️ Improvements</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td class="sr">1</td>
+                    <td><b>Claim Prize</b></td>
+                    <td><code>/api/v1/giveaway/claim</code></td>
+                    <td><span class="method post">POST</span></td>
+                    <td>✅ Yes</td>
+                    <td>Claim a giveaway prize after winning the spin.
+                        Requires winHistoryId and claimEmail.
+                        Checks if user has active store subscription.
+                        Sets deliveryStatus to REVEALED.</td>
+                    <td><pre>{
+  "winHistoryId": "ObjectId",
+  "claimEmail": "user@example.com"
+}</pre></td>
+                    <td class="sb" style="text-align:center"><b>200</b></td>
+                    <td class="sb"><pre>{
+  "success": true,
+  "message": "Prize claimed successfully",
+  "data": {
+    "claimedAt": "ISO",
+    "deliveryStatus": "REVEALED",
+    "claimEmail": "user@example.com"
+  }
+}</pre></td>
+                    <td class="eb" style="text-align:center"><b>400, 404</b></td>
+                    <td class="eb"><pre>{ "success": false, "message": "Win ID (winHistoryId) is required" }
+{ "success": false, "message": "A valid email is required" }
+{ "success": false, "message": "No unclaimed prize found" }</pre></td>
+                    <td>1) Missing winHistoryId → 400<br>2) Invalid email → 400<br>3) Already claimed → 404</td>
+                    <td class="ib"></td>
+                </tr>
+                <tr>
+                    <td class="sr">2</td>
+                    <td><b>Get Giveaway Info</b></td>
+                    <td><code>/api/v1/giveaway/info</code></td>
+                    <td><span class="method get">GET</span></td>
+                    <td>✅ Yes</td>
+                    <td>Fetch giveaway landing page content. Returns brands, howItWorks steps, and importantInfo. Creates default doc if none exists.</td>
+                    <td><pre>None</pre></td>
+                    <td class="sb" style="text-align:center"><b>200</b></td>
+                    <td class="sb"><pre>{
+  "success": true,
+  "data": {
+    "brands": [{ "heading": "...", "subheading": "..." }],
+    "howItWorks": [...],
+    "importantInfo": { "heading": "...", "points": [...] }
+  }
+}</pre></td>
+                    <td class="eb" style="text-align:center"><b>500</b></td>
+                    <td class="eb"><pre>{ "success": false, "message": "Internal server error" }</pre></td>
+                    <td>1) Auto-creates defaults if empty</td>
+                    <td class="ib"></td>
+                </tr>
+                <tr>
+                    <td class="sr">3</td>
+                    <td><b>Update Giveaway Info</b></td>
+                    <td><code>/api/v1/giveaway/info</code></td>
+                    <td><span class="method post">POST</span></td>
+                    <td>✅ Yes</td>
+                    <td>Update giveaway landing page content. Accepts brands[], howItWorks[], importantInfo{}. Partial update supported.</td>
+                    <td><pre>{
+  "brands": [{ "heading": "Amazon", "subheading": "Gift Cards" }],
+  "howItWorks": [{ "heading": "Step 1", "subheading": "Subscribe" }],
+  "importantInfo": { "heading": "Note", "points": ["Point 1"] }
+}</pre></td>
+                    <td class="sb" style="text-align:center"><b>200</b></td>
+                    <td class="sb"><pre>{ "success": true, "message": "Giveaway info updated successfully", "data": { ... } }</pre></td>
+                    <td class="eb" style="text-align:center"><b>500</b></td>
+                    <td class="eb"><pre>{ "success": false, "message": "Internal server error" }</pre></td>
+                    <td>1) Partial update OK<br>2) Internal → 500</td>
+                    <td class="ib"></td>
+                </tr>
+                <tr>
+                    <td class="sr">4</td>
+                    <td><b>My Giveaways</b></td>
+                    <td><code>/api/v1/giveaway/my-giveaways</code></td>
+                    <td><span class="method get">GET</span></td>
+                    <td>✅ Yes</td>
+                    <td>Get user's full giveaway history + spin wheel config.
+                        Returns all wins with prize details, claim status, coupon codes (if delivered).
+                        Includes spinConfig with wheel items and winnerIndex for UI animation.</td>
+                    <td><pre>None</pre></td>
+                    <td class="sb" style="text-align:center"><b>200</b></td>
+                    <td class="sb"><pre>{
+  "success": true,
+  "totalWins": 2,
+  "data": {
+    "history": [{
+      "id": "...",
+      "wonAt": "ISO",
+      "deliveryStatus": "DELIVERED",
+      "couponCode": "ABC123",
+      "prize": { "title": "...", "value": 50 },
+      "campaign": { "title": "...", "drawStatus": "DRAWN" }
+    }],
+    "spinConfig": {
+      "showSpin": true,
+      "winnerIndex": 3,
+      "items": [{ "label": "..." }]
+    }
+  }
+}</pre></td>
+                    <td class="eb" style="text-align:center"><b>500</b></td>
+                    <td class="eb"><pre>{ "success": false, "message": "Failed to fetch giveaway history" }</pre></td>
+                    <td>1) No wins → empty history[]<br>2) Unclaimed → showSpin: true<br>3) Delivered → shows couponCode</td>
+                    <td class="ib"></td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+</body>
+</html>

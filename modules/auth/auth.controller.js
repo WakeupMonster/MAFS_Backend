@@ -274,6 +274,7 @@ module.exports.refreshToken = async (req, res) => {
 
     return res.json({
       success: true,
+      message: "Refresh token updated successfully",
       data: {
         accessToken: result.accessToken,
         user: result.user, // Same consistency!

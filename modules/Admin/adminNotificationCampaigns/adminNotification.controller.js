@@ -1,5 +1,6 @@
 const User = require("../../../modules/auth/auth.model");
 const AdminNotificationCampaign = require("./admin.notification.model");
+const AdminEmailCampaign = require("./adminEmailCampaign.model");
 const notificationService = require("../../../modules/notifications/notification.service");
 const NotificationLog = require("./notificationLog.model");
 const { addAdminPushJob } = require("../../../queues/adminPush.queue");
@@ -305,133 +306,100 @@ module.exports.getNotificationHistory = async (req, res) => {
     const {
       page = 1,
       limit = 10,
-      campaignId,
-      userId,
-      type, // 'email' | 'push'
-      status, // 'sent' | 'failed' | 'delivered'
+      channel, // 'push' or 'email'
+      status,
       fromDate,
       toDate,
       search,
     } = req.query;
 
-    const pageNum = parseInt(page);
-    const limitNum = parseInt(limit);
-    const skip = (pageNum - 1) * limitNum;
+    const skip = (Number(page) - 1) * Number(limit);
 
-    const matchQuery = {};
+    // Filter for both models
+    const pushQuery = {};
+    const emailQuery = {};
 
-    // 1. Basic Filters
-    if (campaignId)
-      matchQuery.campaignId = new mongoose.Types.ObjectId(campaignId);
-    if (userId) matchQuery.userId = new mongoose.Types.ObjectId(userId);
-
-    // Channel / Type Filter
-    if (type && type !== "all") {
-      matchQuery.type = type;
-    }
-
-    // Status Filter
-    if (status && status !== "all") {
-      // Map 'delivered' to 'sent' if backend only stores 'sent'
-      if (status === "delivered") {
-        matchQuery.status = "sent";
+    const statusVal = status?.toLowerCase();
+    if (statusVal) {
+      if (statusVal === "delivered") {
+        pushQuery.status = { $in: ["sent", "completed"] };
+        emailQuery.status = "completed";
+      } else if (statusVal === "failed") {
+        pushQuery.$or = [{ status: "failed" }, { failedCount: { $gt: 0 } }];
+        emailQuery.$or = [{ status: "failed" }, { failedCount: { $gt: 0 } }];
       } else {
-        matchQuery.status = status;
+        pushQuery.status = statusVal;
+        emailQuery.status = statusVal;
       }
     }
 
-    // Date Range Filter
+    console.log("DEBUG: Status filter:", status);
+    console.log("DEBUG: Push Query:", JSON.stringify(pushQuery));
+    console.log("DEBUG: Email Query:", JSON.stringify(emailQuery));
+
     if (fromDate || toDate) {
-      matchQuery.sentAt = {};
-      if (fromDate) matchQuery.sentAt.$gte = new Date(fromDate);
-      if (toDate) matchQuery.sentAt.$lte = new Date(toDate);
+      const dateRange = {};
+      if (fromDate) dateRange.$gte = new Date(fromDate);
+      if (toDate) dateRange.$lte = new Date(toDate);
+      pushQuery.createdAt = dateRange;
+      emailQuery.createdAt = dateRange;
     }
 
-    // Search by title or message
-    if (search) {
-      matchQuery.$or = [
-        { title: { $regex: search, $options: "i" } },
-        { message: { $regex: search, $options: "i" } },
-      ];
+    let combinedHistory = [];
+    let totalCount = 0;
+
+    if (channel === "push") {
+      const [pushCamps, total] = await Promise.all([
+        AdminNotificationCampaign.find(pushQuery).sort({ createdAt: -1 }).skip(skip).limit(Number(limit)).lean(),
+        AdminNotificationCampaign.countDocuments(pushQuery)
+      ]);
+      combinedHistory = pushCamps.map(c => ({ ...c, channel: "push" }));
+      totalCount = total;
+    } else if (channel === "email") {
+      const [emailCamps, total] = await Promise.all([
+        AdminEmailCampaign.find(emailQuery).sort({ createdAt: -1 }).skip(skip).limit(Number(limit)).lean(),
+        AdminEmailCampaign.countDocuments(emailQuery)
+      ]);
+      combinedHistory = emailCamps.map(c => ({ ...c, channel: "email", title: c.subject, message: c.body }));
+      totalCount = total;
+    } else {
+      // Fetch both and merge
+      const [pushCamps, emailCamps] = await Promise.all([
+        AdminNotificationCampaign.find(pushQuery).sort({ createdAt: -1 }).limit(Number(limit) + skip).lean(),
+        AdminEmailCampaign.find(emailQuery).sort({ createdAt: -1 }).limit(Number(limit) + skip).lean()
+      ]);
+
+      const merged = [
+        ...pushCamps.map(c => ({ ...c, channel: "push" })),
+        ...emailCamps.map(c => ({ ...c, channel: "email", title: c.subject, message: c.body }))
+      ].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+
+      combinedHistory = merged.slice(skip, skip + Number(limit));
     }
 
-    const pipeline = [
-      { $match: matchQuery },
-      { $sort: { sentAt: -1 } },
-
-      // Lookup User Details
-      {
-        $lookup: {
-          from: "users",
-          localField: "userId",
-          foreignField: "_id",
-          as: "userDetails",
-        },
-      },
-      { $unwind: { path: "$userDetails", preserveNullAndEmptyArrays: true } },
-
-      // Lookup Campaign Details
-      {
-        $lookup: {
-          from: "adminnotificationcampaigns",
-          localField: "campaignId",
-          foreignField: "_id",
-          as: "campaignDetails",
-        },
-      },
-      {
-        $unwind: { path: "$campaignDetails", preserveNullAndEmptyArrays: true },
-      },
-
-      // Project final fields
-      {
-        $project: {
-          _id: 1,
-          title: 1,
-          message: 1,
-          type: 1,
-          status: 1,
-          cta: 1,
-          sentAt: 1,
-          createdAt: 1,
-          user: {
-            phone: "$userDetails.phone",
-            email: "$userDetails.email",
-          },
-          campaignName: "$campaignDetails.campaignName",
-          target: "$campaignDetails.target",
-        },
-      },
-
-      // Pagination Facet
-      {
-        $facet: {
-          metadata: [{ $count: "total" }],
-          data: [{ $skip: skip }, { $limit: limitNum }],
-        },
-      },
-    ];
-
-    const result = await NotificationLog.aggregate(pipeline);
-
-    const data = result[0]?.data || [];
-    const total = result[0]?.metadata[0]?.total || 0;
+    const [pushTotal, emailTotal] = await Promise.all([
+      AdminNotificationCampaign.countDocuments(pushQuery),
+      AdminEmailCampaign.countDocuments(emailQuery)
+    ]);
+    totalCount = pushTotal + emailTotal;
 
     return res.json({
       success: true,
       pagination: {
-        total,
-        page: pageNum,
-        limit: limitNum,
-        totalPages: Math.ceil(total / limitNum),
+        total: totalCount,
+        pushCount: pushTotal,
+        emailCount: emailTotal,
+        page: Number(page),
+        limit: Number(limit),
+        totalPages: Math.ceil(totalCount / limit),
       },
-      data,
+      data: combinedHistory,
     });
   } catch (err) {
     console.error("❌ Notification history aggregation error:", err);
     return res.status(500).json({
       success: false,
-      message: "Failed to fetch notification history",
+      message: "Failed to fetch unified campaign history",
     });
   }
 };

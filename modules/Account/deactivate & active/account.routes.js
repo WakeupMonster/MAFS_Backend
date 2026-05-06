@@ -17,7 +17,7 @@ router.delete(
   auth,
   controller.deleteAccount
 );
-router.post("/delete/request-otp", auth,controller.requestDeleteAccountOtp)
+// router.post("/delete/request-otp", auth, controller.requestDeleteAccountOtp)
 
 router.post("/delete/restore", auth, controller.restoreAccount);
 

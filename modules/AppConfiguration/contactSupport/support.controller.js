@@ -8,7 +8,7 @@ const { uploadStream } = require("../../upload/cloudinary.service");
 module.exports.contactSupport = async (req, res) => {
   try {
     const userId = req.user._id;
-    const { category, message } = req.body;
+    const { category, message, appVersion, appBuild, platform } = req.body;
 
     if (!category || !message) {
       return res.status(400).json({
@@ -24,6 +24,9 @@ module.exports.contactSupport = async (req, res) => {
       userId,
       category,
       message,
+      appVersion,
+      appBuild,
+      platform,
     });
 
     return res.json({

@@ -31,25 +31,29 @@ const formatConfigs = (configs) => {
     return formattedData;
 };
 
+// Helper function to fetch and format ads config (used by other controllers too)
+const getFormattedAdsConfig = async () => {
+    // 1. Try to get data from Cache
+    const cachedData = await cache.get(REDIS_KEY);
+
+    if (cachedData) {
+        return JSON.parse(cachedData);
+    }
+
+    // 2. If not in cache, fetch from Database
+    const configs = await AdsConfiguration.find().lean();
+    const formattedData = formatConfigs(configs);
+
+    // 3. Save to cache
+    await cache.set(REDIS_KEY, JSON.stringify(formattedData));
+
+    return formattedData;
+};
+
 // GET API to fetch ads configurations
 module.exports.getAdsSettings = async (req, res) => {
     try {
-        // 1. Try to get data from Cache
-        const cachedData = await cache.get(REDIS_KEY);
-
-        if (cachedData) {
-            return res.json({
-                success: true,
-                data: JSON.parse(cachedData)
-            });
-        }
-
-        // 2. If not in cache, fetch from Database
-        const configs = await AdsConfiguration.find().lean();
-        const formattedData = formatConfigs(configs);
-
-        // 3. Save to cache before returning
-        await cache.set(REDIS_KEY, JSON.stringify(formattedData));
+        const formattedData = await getFormattedAdsConfig();
 
         return res.json({
             success: true,
@@ -65,6 +69,8 @@ module.exports.getAdsSettings = async (req, res) => {
         });
     }
 };
+
+module.exports.getFormattedAdsConfig = getFormattedAdsConfig;
 
 // POST/UPSERT API to update ads configurations (Admin Only)
 module.exports.upsertAdsSettings = async (req, res) => {

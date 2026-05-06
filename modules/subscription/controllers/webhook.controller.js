@@ -80,7 +80,14 @@ async function _processAppleWebhook(decoded, event) {
         }
         break;
       case "DID_FAIL_TO_RENEW":
-        // v3: No Grace Period! Treat as immediate expiry.
+        // Apple bhejta hai subtype: "GRACE_PERIOD" agar grace period ON ho
+        if (decoded.subtype === "GRACE_PERIOD") {
+          await subscriptionService.handleGracePeriodStart(data);
+        } else {
+          await subscriptionService.handleBillingRetryStart(data);
+        }
+        break;
+      case "GRACE_PERIOD_EXPIRED":
         await subscriptionService.handleExpire(data);
         break;
       case "EXPIRED":
@@ -112,16 +119,20 @@ async function _processAppleWebhook(decoded, event) {
     event.processedAt = new Date();
     await event.save();
 
-    // v3 Sync: Ensure User/Profile flags are updated after any webhook event
-    if (data.originalTransactionId) {
-      const sub = await require("../models/Subscription").findOne({
-        originalTransactionId: data.originalTransactionId,
+    // v3 Sync: Respect Grace Period and Billing Retry during sync
+    if (data.originalTransactionId || data.purchaseToken) {
+      const Subscription = require("../models/Subscription");
+      const sub = await Subscription.findOne({
+        $or: [
+          { originalTransactionId: data.originalTransactionId },
+          { purchaseToken: data.purchaseToken }
+        ]
       });
+
       if (sub) {
-        const isActive =
-          ["ACTIVE", "CANCELLED"].includes(sub.status) &&
-          sub.expiresAt > new Date();
-        UsageService._syncPremiumState(sub.userId, isActive).catch((err) =>
+        // const hasPremiumAccess = await sub.hasAccess();
+        const hasPremiumAccess = Subscription.hasPremiumAccess(sub);
+        UsageService._syncPremiumState(sub.userId, hasPremiumAccess).catch((err) =>
           logger.error("Webhook Sync Error:", err)
         );
       }
@@ -270,9 +281,10 @@ async function _processGoogleWebhook(notification, eventName, event, isConsumabl
           await subscriptionService.handleCancel(data);
           break;
         case "IN_GRACE_PERIOD":
+          await subscriptionService.handleGracePeriodStart(data);
+          break;
         case "ON_HOLD":
-          // v3: No Grace Period! Treat as immediate expiry.
-          await subscriptionService.handleExpire(data);
+          await subscriptionService.handleBillingRetryStart(data);
           break;
         case "EXPIRED":
           await subscriptionService.handleExpire(data);
@@ -292,16 +304,14 @@ async function _processGoogleWebhook(notification, eventName, event, isConsumabl
     event.processedAt = new Date();
     await event.save();
 
-    // v3 Sync: Ensure User/Profile flags are updated after any webhook event
+    // Sync logic already handled by the unified block above if merged, 
+    // but here we ensure Google also uses the unified hasAccess() check.
     if (data.purchaseToken) {
-      const sub = await require("../models/Subscription").findOne({
-        purchaseToken: data.purchaseToken,
-      });
+      const Subscription = require("../models/Subscription");
+      const sub = await Subscription.findOne({ purchaseToken: data.purchaseToken });
       if (sub) {
-        const isActive =
-          ["ACTIVE", "CANCELLED"].includes(sub.status) &&
-          sub.expiresAt > new Date();
-        UsageService._syncPremiumState(sub.userId, isActive).catch((err) =>
+        const hasPremiumAccess = Subscription.hasPremiumAccess(sub);
+        UsageService._syncPremiumState(sub.userId, hasPremiumAccess).catch((err) =>
           logger.error("Webhook Sync Error:", err)
         );
       }

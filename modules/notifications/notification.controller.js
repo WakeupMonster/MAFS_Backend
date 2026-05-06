@@ -6,7 +6,7 @@ const registerDeviceToken = async (req, res) => {
     // const { userId } = req.user;
     const userId = req.user._id;
 
-    const { token, deviceId } = req.body;
+    const { token, deviceId, platform } = req.body;
 
     if (!token || !deviceId) {
       return res.status(400).json({
@@ -15,11 +15,16 @@ const registerDeviceToken = async (req, res) => {
       });
     }
 
-    // Add the new token to the user's fcmTokens array
-    // Using $addToSet to prevent duplicates
+    // 1. Remove any existing entry for this specific deviceId to prevent duplicates
+    // This ensures one deviceId has only one token at any time.
     await User.findByIdAndUpdate(userId, {
-      $addToSet: {
-        fcmTokens: { token, deviceId },
+      $pull: { fcmTokens: { deviceId } },
+    });
+
+    // 2. Add the new token + platform
+    await User.findByIdAndUpdate(userId, {
+      $push: {
+        fcmTokens: { token, deviceId, platform: platform || "android" },
       },
     });
 
@@ -69,6 +74,7 @@ const unregisterDeviceToken = async (req, res) => {
     });
   }
 };
+
 
 const updateNotificationSettings = async (req, res) => {
   try {
@@ -122,6 +128,97 @@ const updateNotificationSettings = async (req, res) => {
     });
   }
 };
+
+
+// const updateNotificationSettings = async (req, res) => {
+//   try {
+//     const userId = req.user._id;
+//     const body = req.body;
+//     const update = {};
+
+//     if (push !== undefined) {
+//       update["notificationSettings.push"] = push;
+//     }
+
+//     if (email !== undefined) {
+//       update["notificationSettings.email"] = email;
+//     }
+
+//     if (matches !== undefined) {
+//       update["notificationSettings.matches"] = matches;
+//     }
+
+//     if (messages !== undefined) {
+//       update["notificationSettings.messages"] = messages;
+//     }
+
+//     if (likes !== undefined) {
+//       update["notificationSettings.likes"] = likes;
+//     }
+
+//     const user = await User.findByIdAndUpdate(
+//       userId,
+//       { $set: update },
+//       { new: true },
+//     ).select("notificationSettings");
+
+//     const user = await User.findById(userId);
+//     if (!user) {
+//       return res.status(404).json({
+//         success: false,
+//         message: "User not found",
+//       });
+//     }
+
+//     // 1. Update User Collection
+//     if (!user.notificationSettings) user.notificationSettings = {};
+
+//     const toBool = (val) => {
+//       if (val === "true" || val === true || val === 1 || val === "1") return true;
+//       if (val === "false" || val === false || val === 0 || val === "0") return false;
+//       return undefined;
+//     };
+
+//     const fields = ['push', 'email', 'matches', 'messages', 'likes'];
+//     let hasChanges = false;
+//     const profileUpdate = {};
+
+//     fields.forEach(field => {
+//       if (settings[field] !== undefined) {
+//         const boolVal = toBool(settings[field]);
+//         if (boolVal !== undefined) {
+//           user.notificationSettings[field] = boolVal;
+//           // Prepare update for Profile collection as well (using their field name 'notifications')
+//           profileUpdate[`notifications.${field}`] = boolVal;
+//           hasChanges = true;
+//         }
+//       }
+//     });
+
+//     if (hasChanges) {
+//       // Save to User
+//       user.markModified('notificationSettings');
+//       await user.save();
+
+//       // 2. Sync to Profile Collection
+//       await Profile.findOneAndUpdate(
+//         { userId: userId },
+//         { $set: profileUpdate }
+//       );
+//     }
+
+//     return res.json({
+//       success: true,
+//       message: "Notification settings updated",
+//       data: user.notificationSettings,
+//     });
+//   } catch (err) {
+//     return res.status(500).json({
+//       success: false,
+//       message: err.message,
+//     });
+//   }
+// };
 
 const getNotificationSettings = async (req, res) => {
   try {

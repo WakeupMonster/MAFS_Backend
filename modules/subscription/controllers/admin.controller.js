@@ -450,7 +450,9 @@ exports.extendSubscription = async (req, res, next) => {
 
 exports.getDashboardStats = async (req, res, next) => {
     try {
-        const { timeFilter = 'last7' } = req.query; // daily, weekly, last7, last15, last30, allTime
+        const { timeFilter = 'last7', startDate: queryStartDate, endDate: queryEndDate } = req.query;
+
+        // timeFilter - recent.
 
         const now = new Date();
         const startOfToday = new Date();
@@ -463,37 +465,43 @@ exports.getDashboardStats = async (req, res, next) => {
         const next24hEnd = new Date(now.getTime() + 24 * 60 * 60 * 1000);
 
         let startDate;
-        if (timeFilter === 'daily') {
-            startDate = startOfToday;
-        } else if (timeFilter === 'weekly' || timeFilter === 'last7') {
-            startDate = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
-        } else if (timeFilter === 'last15') {
-            startDate = new Date(now.getTime() - 15 * 24 * 60 * 60 * 1000);
-        } else if (timeFilter === 'last30') {
-            startDate = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
-        } else if (timeFilter === 'allTime') {
-            startDate = new Date(0);
+        let endDate = now; // Default end date
+
+        if (queryStartDate) {
+            // Frontend passes custom dates
+            startDate = new Date(queryStartDate);
+            if (queryEndDate) endDate = new Date(queryEndDate);
         } else {
-            startDate = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+            // Fallbacks: handles "daily", "last7", "90", "1", etc.
+            if (timeFilter === 'daily' || timeFilter === '1') {
+                startDate = startOfToday;
+            } else if (timeFilter === 'weekly' || timeFilter === 'last7' || timeFilter === '7') {
+                startDate = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+            } else if (timeFilter === 'last15' || timeFilter === '15') {
+                startDate = new Date(now.getTime() - 15 * 24 * 60 * 60 * 1000);
+            } else if (timeFilter === 'last30' || timeFilter === '30') {
+                startDate = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+            } else if (timeFilter === 'allTime') {
+                startDate = new Date(0);
+            } else if (!isNaN(timeFilter)) {
+                startDate = new Date(now.getTime() - Number(timeFilter) * 24 * 60 * 60 * 1000);
+            } else {
+                startDate = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+            }
         }
 
         // 1. Parallel aggregates for high performance
         const results = await Promise.all([
-            // [0] Overall Active Counts
-            Subscription.aggregate([
-                {
-                    $group: {
-                        _id: null,
-                        totalSubscribers: { $sum: 1 },
-                        activeSubscribers: { $sum: { $cond: [{ $eq: ["$status", "ACTIVE"] }, 1, 0] } }
-                    }
-                }
-            ]),
-            // [1] Revenue Trend (Filtered by startDate)
+            // [0] Overall Active Counts (Optimized to avoid full collection scan)
+            Promise.all([
+                Subscription.countDocuments(),
+                Subscription.countDocuments({ status: "ACTIVE" })
+            ]).then(([totalSubscribers, activeSubscribers]) => [{ totalSubscribers, activeSubscribers }]),
+            // [1] Revenue Trend (Filtered by date range)
             SubscriptionTransaction.aggregate([
                 {
                     $match: {
-                        occurredAt: { $gte: startDate },
+                        occurredAt: { $gte: startDate, $lte: endDate },
                         eventType: { $in: ["PURCHASE", "RENEW", "CONSUMABLE_PURCHASE"] }
                     }
                 },
@@ -512,7 +520,7 @@ exports.getDashboardStats = async (req, res, next) => {
             SubscriptionTransaction.aggregate([
                 {
                     $match: {
-                        occurredAt: { $gte: startDate },
+                        occurredAt: { $gte: startDate, $lte: endDate },
                         eventType: { $in: ["PURCHASE", "RENEW", "CONSUMABLE_PURCHASE"] }
                     }
                 },
@@ -527,7 +535,12 @@ exports.getDashboardStats = async (req, res, next) => {
             ]),
             // [3] Platform Distribution (Revenue Split)
             SubscriptionTransaction.aggregate([
-                { $match: { eventType: { $in: ["PURCHASE", "RENEW", "CONSUMABLE_PURCHASE"] } } },
+                {
+                    $match: {
+                        occurredAt: { $gte: startDate, $lte: endDate },
+                        eventType: { $in: ["PURCHASE", "RENEW", "CONSUMABLE_PURCHASE"] }
+                    }
+                },
                 {
                     $group: {
                         _id: "$platform",
@@ -545,10 +558,10 @@ exports.getDashboardStats = async (req, res, next) => {
                 createdAt: { $lt: startOfMonth },
                 expiresAt: { $gt: startOfMonth }
             }),
-            // [7] Cancellations (current month)
+            // [7] Cancellations (period range)
             SubscriptionTransaction.countDocuments({
                 eventType: "CANCEL",
-                occurredAt: { $gte: startOfMonth }
+                occurredAt: { $gte: startDate, $lte: endDate }
             }),
             // [8] Today's specific KPIs
             Promise.all([
@@ -584,21 +597,21 @@ exports.getDashboardStats = async (req, res, next) => {
                     }
                 }
             ]),
-            // [11] Active subs for MRR
-            Subscription.find({
-                status: "ACTIVE",
-                expiresAt: { $gt: now }
-            }).select("productId planType").lean(),
-            // [12] Total Consumable Revenue — Super Keen + Supercharge sales this month
+            // [11] Active subs for MRR (Optimized to aggregate DB-side instead of RAM)
+            Subscription.aggregate([
+                { $match: { status: "ACTIVE", expiresAt: { $gt: now } } },
+                { $group: { _id: "$productId", count: { $sum: 1 } } }
+            ]),
+            // [12] Total Consumable Revenue — Super Keen + Supercharge sales in range
             SubscriptionTransaction.aggregate([
-                { $match: { eventType: "CONSUMABLE_PURCHASE", occurredAt: { $gte: startOfMonth } } },
+                { $match: { eventType: "CONSUMABLE_PURCHASE", occurredAt: { $gte: startDate, $lte: endDate } } },
                 { $group: { _id: null, totalAmount: { $sum: "$amount" } } }
             ]),
             // [13] Subscriber Growth Trend (new vs cancelled)
             SubscriptionTransaction.aggregate([
                 {
                     $match: {
-                        occurredAt: { $gte: startDate },
+                        occurredAt: { $gte: startDate, $lte: endDate },
                         eventType: { $in: ["PURCHASE", "ADMIN_GRANT", "GIVEAWAY", "CANCEL", "EXPIRE", "REVOKE"] }
                     }
                 },
@@ -667,16 +680,20 @@ exports.getDashboardStats = async (req, res, next) => {
             if (p.googleProductId) categoryMap[p.googleProductId] = category;
         });
 
-        const formattedBestSelling = bestSellingProducts.map(p => ({
-            productId: p._id,
-            displayName: productNameMap[p._id] || p._id,
-            salesCount: p.salesCount,
-            revenue: parseFloat(p.revenue.toFixed(2))
-        }));
+        const formattedBestSelling = bestSellingProducts.map(p => {
+            const isSub = categoryMap[p._id] !== 'consumable' && categoryMap[p._id] !== 'SUPER_KEEN' && categoryMap[p._id] !== 'BOOST';
+            return {
+                productId: p._id,
+                displayName: productNameMap[p._id] || p._id,
+                productType: isSub ? 'Subscription' : 'Consumable',
+                salesCount: p.salesCount,
+                revenue: parseFloat(p.revenue.toFixed(2))
+            };
+        });
 
         let totalMRR = 0;
-        activeSubscriptions.forEach(sub => {
-            totalMRR += priceMap[sub.productId] || 0;
+        activeSubscriptions.forEach(group => {
+            totalMRR += (priceMap[group._id] || 0) * group.count;
         });
 
         // Format Trends Plan Distribution

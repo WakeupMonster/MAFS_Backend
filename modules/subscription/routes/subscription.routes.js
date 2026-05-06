@@ -15,7 +15,8 @@ const {
   getAllTransactions,
   makeMePremiumTemp,
   getCatalog,
-  restorePurchases
+  restorePurchases,
+  adminExpireSubscription
 } = require("../controllers/subscription.controller");
 const { apiLimiter } = require("../middlewares/rateLimiter.middleware");
 const {
@@ -55,5 +56,6 @@ router.get("/webhook", apiLimiter, protect, getWebhookEvents);
 router.get("/alltransection", apiLimiter, protect, getAllTransactions);
 
 router.post("/test-premium", protect, makeMePremiumTemp);
+router.post("/admin-expire", protect, adminExpireSubscription);
 
 module.exports = router;

@@ -5,6 +5,9 @@ const adminController = require("./user.management.controller");
 // List all users
 router.get("/", adminController.GETAllUsers);
 
+// List ghosting users
+router.get("/ghosting/list", adminController.GETGhostingUsers);
+
 /*====== GET API FOR EXPORT USERS DATA IN CSV FILE =========*/
 // Export users (Streamed for performance with large datasets)
 router.get("/export/stream", adminController.streamUsersExport);

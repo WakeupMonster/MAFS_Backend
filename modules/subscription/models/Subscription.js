@@ -30,6 +30,7 @@ const SubscriptionSchema = new mongoose.Schema(
         "PAUSED",
         "REVOKED",
         "PENDING",
+        "GRACE",
       ],
       required: true,
     },
@@ -77,7 +78,7 @@ const SubscriptionSchema = new mongoose.Schema(
     // Tracks how the subscription was created
     source: {
       type: String,
-      enum: ["STORE", "ADMIN", "GIVEAWAY", "MILESTONE"],
+      enum: ["STORE", "ADMIN", "GIVEAWAY", "MILESTONE", "FREE_TRIAL"],
       default: "STORE"
     },
 
@@ -98,7 +99,12 @@ const SubscriptionSchema = new mongoose.Schema(
     ],
     // ➕ NAYA: Dynamic naming and tracking for Giveaways/Milestones
     customDisplayName: { type: String, default: null },
-    prizeId: { type: mongoose.Schema.Types.ObjectId, ref: "GiveawayPrize", default: null }
+    prizeId: { type: mongoose.Schema.Types.ObjectId, ref: "GiveawayPrize", default: null },
+
+    // ➕ Initiative 1 & 2: Billing Retry and Grace Period
+    isInBillingRetry: { type: Boolean, default: false },
+    isInGracePeriod: { type: Boolean, default: false },
+    gracePeriodEndsAt: { type: Date, default: null },
 
   },
   {
@@ -111,6 +117,10 @@ const SubscriptionSchema = new mongoose.Schema(
 SubscriptionSchema.index({ userId: 1, status: 1 });
 SubscriptionSchema.index({ userId: 1, expiresAt: 1 });
 SubscriptionSchema.index({ expiresAt: 1, status: 1 });
+
+// Added for Dashboard Performance
+SubscriptionSchema.index({ status: 1 });
+SubscriptionSchema.index({ createdAt: 1 });
 
 SubscriptionSchema.pre("save", function (next) {
   if (this.isModified("status") && !this.isNew) {
@@ -125,16 +135,32 @@ SubscriptionSchema.pre("save", function (next) {
 });
 
 // V3 access logic: ACTIVE and CANCELLED both have access if not expired
-SubscriptionSchema.methods.hasAccess = function () {
-  const activeStatuses = ["ACTIVE", "CANCELLED"];
-  return activeStatuses.includes(this.status) && this.expiresAt > new Date();
+// SubscriptionSchema.methods.hasAccess = function () {
+//   const activeStatuses = ["ACTIVE", "CANCELLED", "GRACE"];
+//   return activeStatuses.includes(this.status) && (this.expiresAt > new Date() || this.isInGracePeriod || this.isInBillingRetry);
+// };
+
+SubscriptionSchema.statics.hasPremiumAccess = function (sub) {
+  if (!sub) return false;
+  const now = new Date();
+  const expiresAt = sub.expiresAt ? new Date(sub.expiresAt) : null;
+
+  return (
+    (["ACTIVE", "CANCELLED"].includes(sub.status) && expiresAt > now) ||
+    (sub.status === "GRACE" && sub.isInGracePeriod === true) ||
+    (sub.isInBillingRetry === true)
+  );
 };
+
 
 SubscriptionSchema.statics.findActiveByUser = function (userId) {
   return this.findOne({
     userId,
-    status: { $in: ["ACTIVE", "CANCELLED"] },
-    expiresAt: { $gt: new Date() },
+    $or: [
+      { status: { $in: ["ACTIVE", "CANCELLED"] }, expiresAt: { $gt: new Date() } },
+      { status: "GRACE", isInGracePeriod: true },
+      { isInBillingRetry: true }
+    ]
   }).sort({ expiresAt: -1 }); // Get the one that expires furthest in the future
 };
 

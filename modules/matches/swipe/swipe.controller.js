@@ -14,17 +14,28 @@ module.exports.getFeed = async (req, res) => {
     const page = Number(req.query.page) || 1;
 
     // Fresh users (only phone verified, no profile) cannot access feed
-    const profileExists = await Profile.findOne({ userId }).select("_id").lean();
-    if (!profileExists) {
-      return res.status(403).json({
-        success: false,
-        message: "Please complete your profile setup to explore matches!",
-        data: {
-          actionAllowed: false,
-          reason: "PROFILE_NOT_FOUND"
-        }
-      });
-    }
+    const myProfile = await Profile.findOne({ userId }).select("_id verification").lean();
+    // if (!myProfile) {
+    //   return res.status(403).json({
+    //     success: false,
+    //     message: "Please complete your profile setup to explore matches!",
+    //     data: {
+    //       actionAllowed: false,
+    //       reason: "PROFILE_NOT_FOUND"
+    //     }
+    //   });
+    // }
+
+    // if (myProfile.verification?.status !== "approved") {
+    //   return res.status(403).json({
+    //     success: false,
+    //     message: "Your profile is under review. You can explore matches once verified.",
+    //     data: {
+    //       actionAllowed: false,
+    //       reason: "PROFILE_NOT_VERIFIED"
+    //     }
+    //   });
+    // }
 
     const feedResult = await service.getFeedService(userId, limit, page);
 
@@ -118,6 +129,7 @@ module.exports.unmatchUser = async (req, res) => {
     const { matchId } = req.body;
     const userId = req.user._id;
 
+    let otherUserId = null;
     await session.withTransaction(async () => {
       // 1. Match dhundo aur check karo ki user us match ka part hai
       const match = await Match.findOne({ _id: matchId, users: userId }).session(session);
@@ -126,7 +138,7 @@ module.exports.unmatchUser = async (req, res) => {
         throw new Error("Match not found or already unmatched");
       }
 
-      const otherUserId = match.users.find(
+      otherUserId = match.users.find(
         (u) => u.toString() !== userId.toString()
       );
 
@@ -134,18 +146,28 @@ module.exports.unmatchUser = async (req, res) => {
       await Match.deleteOne({ _id: matchId }).session(session);
 
       // 3. Swipes delete karo (Dono taraf se)
-      // Isse wo log wapas feed mein dikhne lagenge (Optional: depend karta hai client ki requirement par)
       await Swipe.deleteMany({
         $or: [
           { swiperId: userId, targetId: otherUserId },
           { swiperId: otherUserId, targetId: userId },
         ],
       }).session(session);
+
+      // 4. Emit real-time event via Socket (through EventEmitter)
+      const chatEvents = require("../../../events/chat.events");
+      chatEvents.emit("match_deleted", {
+        matchId,
+        userId1: userId.toString(),
+        userId2: otherUserId.toString(),
+      });
     });
-    if (redis) {
-      const CACHE_KEY = `feed:${userId.toString()}`;
-      await redis.del(CACHE_KEY);
-      console.log("Redis cache cleared for new filters");
+
+    if (redis && otherUserId) {
+      await Promise.all([
+        redis.del(`feed:${userId.toString()}`),
+        redis.del(`feed:${otherUserId.toString()}`)
+      ]);
+      console.log("⚡ [UNMATCH] Redis cache cleared for both users");
     }
 
     session.endSession();
@@ -240,24 +262,11 @@ module.exports.getKeenData = async (req, res, actionType) => {
   try {
     const userId = req.user._id;
 
-    // 1. Premium Check for normal likes (v3 Requirements)
-    // if (actionType === 'like') {
-    //   const usageStatus = await UsageService.getUsageStatus(userId);
-    //   if (!usageStatus.data.premiumFeatures.seeWhoLikedYou) {
-    //     return res.status(200).json({
-    //       success: true,
-    //       code: "PREMIUM_REQUIRED",
-    //       message: "See who liked you is a premium feature.",
-    //       data: {
-    //         actionAllowed: false,
-    //         reason: "PREMIUM_REQUIRED"
-    //       }
-    //     });
-    //   }
-    // }
-
     const { page = 1, limit = 20 } = req.query;
     const skip = (parseInt(page) - 1) * parseInt(limit);
+
+    // Fetch my profile to get location for distance calculation
+    const myProfile = await Profile.findOne({ userId }).select("location").lean();
 
     // 1. Un IDs ko nikalna jinhe user ne already swipe kiya hai
     const mySwipedIds = await Swipe.find({ swiperId: userId }).distinct(
@@ -310,22 +319,21 @@ module.exports.getKeenData = async (req, res, actionType) => {
 
       const age = calculateAge(profile.dob);
       let distance = 0;
-      if (req.user.location?.coordinates && profile.location?.coordinates) {
+      if (myProfile?.location?.coordinates && profile.location?.coordinates) {
         distance = calculateDistance(
-          req.user.location.coordinates[1],
-          req.user.location.coordinates[0],
+          myProfile.location.coordinates[1],
+          myProfile.location.coordinates[0],
           profile.location.coordinates[1],
           profile.location.coordinates[0]
         );
       }
 
-      // 🔥 EXACT MANAGER RESPONSE FORMAT
       return {
         userId: profile.userId,
         nickname: profile.nickname,
         age: age,
         mainPhotoUrl: profile.photos?.sort((a, b) => a.order - b.order)[0]?.url || "",
-        distanceText: distance <= 1 ? "1 km away" : `${distance} km away`,
+        distanceText: distance <= 1 ? "Nearby" : `${distance} km away`,
         city: profile.location?.city || "Nearby",
         action: item.action, // 'like' or 'superlike'
         likedAt: item.createdAt // Manager ne 'likedAt' manga hai

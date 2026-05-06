@@ -15,17 +15,14 @@ const featureService = require("./feature.service");
  * Implements the "Two-Bucket" system (Free Quota vs. Wallet) with AEST timezone compliance.
  */
 
+
 class UsageService {
 
     async useItem(userId, type) {
         const config = await SubscriptionConfig.getOrCreate();
 
         // Determine Subscription State (Source of Truth)
-        const activeSub = await Subscription.findOne({
-            userId,
-            status: { $in: ['ACTIVE', 'CANCELLED'] },
-            expiresAt: { $gt: new Date() }
-        }).sort({ expiresAt: -1 }).lean();
+        const activeSub = await Subscription.findActiveByUser(userId).lean();
 
         const isPremium = !!activeSub;
 
@@ -51,16 +48,15 @@ class UsageService {
      */
     async getUsageStatus(userId) {
         const cache = require("../../../config/cache");
-        const [config, activeSub, daily, weekly, monthly, wallet, boostTTL] = await Promise.all([
+        const [config, activeSub, daily, weekly, monthly, wallet, boostTTL, user] = await Promise.all([
             SubscriptionConfig.getOrCreate(),
-            Subscription.findOne({ userId, status: { $in: ['ACTIVE', 'CANCELLED'] }, expiresAt: { $gt: new Date() } })
-                .sort({ expiresAt: -1 })
-                .lean(),
+            Subscription.findActiveByUser(userId).lean(),
             UserDailyUsage.findOne({ userId, dateKey: dateHelpers.getDateKey() }).lean(),
             UserWeeklyUsage.findOne({ userId, weekKey: dateHelpers.getWeekKey() }).lean(),
             UserMonthlyUsage.findOne({ userId, monthKey: dateHelpers.getMonthKey() }).lean(),
             UserConsumableBalance.findOne({ userId }).lean(),
-            cache.ttl(`boost:${userId}`) // Instantly gets the expiry timer from Redis
+            cache.ttl(`boost:${userId}`), // Instantly gets the expiry timer from Redis
+            User.findById(userId).select("giveaway").lean()
         ]);
 
         const isPremium = !!activeSub;
@@ -124,13 +120,16 @@ class UsageService {
                 status: activeSub ? activeSub.status : "NONE",
                 expiresAt: activeSub ? activeSub.expiresAt : null,
                 autoRenew: activeSub ? activeSub.autoRenew : false,
+                isInBillingRetry: activeSub ? (activeSub.isInBillingRetry || false) : false,
+                isInGracePeriod: activeSub ? (activeSub.isInGracePeriod || false) : false,
+                gracePeriodEndsAt: activeSub ? activeSub.gracePeriodEndsAt : null,
                 isCancelled: activeSub ? activeSub.status === 'CANCELLED' : false,
                 cancelledAt: (activeSub && activeSub.status === 'CANCELLED') ? activeSub.cancelledAt : null,
 
                 activeBoostSession: {
                     isBoostActive: boostTTL > 0,
                     remainingSeconds: boostTTL > 0 ? boostTTL : 0,
-                    formattedTime: boostTTL > 0 
+                    formattedTime: boostTTL > 0
                         ? `${String(Math.floor(boostTTL / 60)).padStart(2, '0')}:${String(boostTTL % 60).padStart(2, '0')}`
                         : "00:00"
                 },
@@ -181,7 +180,14 @@ class UsageService {
                 // ➕ NEW: Dynamic Features array (Single Source of Truth)
                 PremiumFeatures: await featureService.getDynamicFeaturesForUser(userId, isPremium),
 
-                showAds: !isPremium || !config.premiumFeatures.noAds
+                showAds: !isPremium || !config.premiumFeatures.noAds,
+                giveaway: user?.giveaway ? {
+                    isEligibleForFreeTrial: user.giveaway.isEligibleForFreeTrial || false,
+                    freeTrialDurationDays: user.giveaway.freeTrialDurationDays || 30,
+                    description: user.giveaway.description || "First 1000 users milestone",
+                    offerExpiresAt: user.giveaway.offerExpiresAt || null,
+                    claimedAt: user.giveaway.claimedAt || null
+                } : null
             }
         };
     }
@@ -194,11 +200,7 @@ class UsageService {
 
         if (isPremium) {
             const SubscriptionModel = require("../models/Subscription");
-            const activeSub = await SubscriptionModel.findOne({
-                userId,
-                status: { $in: ['ACTIVE', 'CANCELLED'] },
-                expiresAt: { $gt: new Date() }
-            }).sort({ expiresAt: -1 }).lean();
+            const activeSub = await SubscriptionModel.findActiveByUser(userId).lean();
 
             if (activeSub) {
                 premiumExpiresAt = activeSub.expiresAt;

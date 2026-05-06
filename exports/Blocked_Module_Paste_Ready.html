@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>MAFS Blocked Contacts Module API Sheet</title>
+    <style>
+        body { font-family: 'Segoe UI', sans-serif; background: #f0f2f5; padding: 20px }
+        .container { background: #fff; padding: 20px; border-radius: 12px; box-shadow: 0 4px 20px rgba(0,0,0,.1); overflow-x: auto }
+        h1 { color: #1e1b4b; text-align: center; font-size: 22px; text-transform: uppercase; letter-spacing: 1px }
+        table { width: 100%; border-collapse: collapse; min-width: 1800px; border: 2px solid #059669 }
+        th { background: #059669; color: #fff; padding: 14px; text-align: left; font-size: 13px; border: 1px solid #047857 }
+        td { padding: 11px; border: 1px solid #e5e7eb; vertical-align: top; font-size: 12.5px; line-height: 1.5 }
+        .sr { text-align: center; font-weight: bold; color: #059669; background: #ecfdf5 }
+        .method { font-weight: bold; padding: 4px 8px; border-radius: 4px; color: #fff; display: inline-block; font-size: 11px; width: 65px; text-align: center }
+        .post { background: #ef4444 } .get { background: #22c55e } .patch { background: #f59e0b } .delete { background: #b91c1c }
+        .sb { background: #f0fdf4; color: #166534; border: 1px solid #bbf7d0 !important }
+        .eb { background: #fef2f2; color: #991b1b; border: 1px solid #fecaca !important }
+        pre { white-space: pre-wrap; word-wrap: break-word; font-family: Consolas, monospace; font-size: 11.5px; margin: 0; color: inherit }
+        tr:nth-child(even) { background-color: #ecfdf5 }
+        .inst { background: #059669; color: #fff; padding: 15px; border-radius: 8px; margin-bottom: 20px; text-align: center; font-size: 15px }
+    </style>
+</head>
+<body>
+    <div class="inst">🎯 <b>BLOCKED CONTACTS:</b> Ctrl+A → Ctrl+C → Paste in Google Sheet</div>
+    <div class="container">
+        <h1>📱 MAFS — BLOCKED CONTACTS API DOCUMENTATION</h1>
+        <table>
+            <thead>
+                <tr>
+                    <th>#</th><th>Sub-Module</th><th>API Endpoint</th><th>Method</th><th>Auth</th><th>Description</th><th>Request Body</th><th>Success Code</th><th>Success Response</th><th>Error Codes</th><th>Error Response</th><th>Error Scenarios</th><th>✏️ Improvements</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td class="sr">1</td>
+                    <td><b>Import Contacts</b></td>
+                    <td><code>/api/v1/contacts/import</code></td>
+                    <td><span class="method post">POST</span></td>
+                    <td>✅ Yes</td>
+                    <td>Import phone contacts. Normalizes phones, hashes them. Checks which contacts are on app and which are already blocked.</td>
+                    <td><pre>{ "contacts": [{ "name": "John", "phone": "+614..." }] }</pre></td>
+                    <td class="sb" style="text-align:center"><b>200</b></td>
+                    <td class="sb"><pre>{ "success": true, "contacts": [{ "name": "John", "phone": "+614...", "isOnApp": true, "alreadyBlocked": false }] }</pre></td>
+                    <td class="eb" style="text-align:center"><b>400</b></td>
+                    <td class="eb"><pre>{ "success": false, "message": "No valid contacts found" }</pre></td>
+                    <td>1) No valid contacts → 400</td>
+                    <td class="ib"></td>
+                </tr>
+                <tr>
+                    <td class="sr">2</td>
+                    <td><b>Block Contacts</b></td>
+                    <td><code>/api/v1/contacts/block</code></td>
+                    <td><span class="method post">POST</span></td>
+                    <td>✅ Yes</td>
+                    <td>Block contacts by phone numbers. Accepts contacts[] or phones[] array. Normalizes, hashes, skips already blocked.</td>
+                    <td><pre>{ "contacts": [{ "phone": "+614...", "name": "John" }] }</pre></td>
+                    <td class="sb" style="text-align:center"><b>200</b></td>
+                    <td class="sb"><pre>{ "success": true, "message": "2 contact(s) blocked successfully", "alreadyBlocked": 1 }</pre></td>
+                    <td class="eb" style="text-align:center"><b>400</b></td>
+                    <td class="eb"><pre>{ "success": false, "message": "No valid contacts provided" }</pre></td>
+                    <td>1) No valid contacts → 400</td>
+                    <td class="ib"></td>
+                </tr>
+                <tr>
+                    <td class="sr">3</td>
+                    <td><b>Get Blocked Contacts</b></td>
+                    <td><code>/api/v1/contacts/blocked</code></td>
+                    <td><span class="method get">GET</span></td>
+                    <td>✅ Yes</td>
+                    <td>Get list of all blocked contacts. Sorted by createdAt descending. Returns phone, name, source, date.</td>
+                    <td><pre>None</pre></td>
+                    <td class="sb" style="text-align:center"><b>200</b></td>
+                    <td class="sb"><pre>{ "success": true, "data": [{ "blockedPhone": "+614...", "blockedName": "John", "source": "CONTACT", "createdAt": "ISO date" }] }</pre></td>
+                    <td class="eb" style="text-align:center"><b>500</b></td>
+                    <td class="eb"><pre>Server error</pre></td>
+                    <td>1) Empty → data[]</td>
+                    <td class="ib"></td>
+                </tr>
+                <tr>
+                    <td class="sr">4</td>
+                    <td><b>Unblock By Phone</b></td>
+                    <td><code>/api/v1/contacts/unblock</code></td>
+                    <td><span class="method delete">DELETE</span></td>
+                    <td>✅ Yes</td>
+                    <td>Unblock a contact by phone number. Normalizes and hashes phone. Clears Redis feed cache.</td>
+                    <td><pre>{ "phone": "+614..." }</pre></td>
+                    <td class="sb" style="text-align:center"><b>200</b></td>
+                    <td class="sb"><pre>{ "success": true, "message": "Contact unblocked successfully" }</pre></td>
+                    <td class="eb" style="text-align:center"><b>400</b></td>
+                    <td class="eb"><pre>{ "success": false, "message": "Invalid phone number" }</pre></td>
+                    <td>1) Invalid phone → 400</td>
+                    <td class="ib"></td>
+                </tr>
+                <tr>
+                    <td class="sr">5</td>
+                    <td><b>Unblock User By ID</b></td>
+                    <td><code>/api/v1/contacts/unblock/user</code></td>
+                    <td><span class="method delete">DELETE</span></td>
+                    <td>✅ Yes</td>
+                    <td>Unblock a contact by BlockedContact document _id. Validates MongoDB ObjectId format.</td>
+                    <td><pre>{ "blockedId": "ObjectId_string" }</pre></td>
+                    <td class="sb" style="text-align:center"><b>200</b></td>
+                    <td class="sb"><pre>{ "success": true, "message": "User unblocked successfully" }</pre></td>
+                    <td class="eb" style="text-align:center"><b>400</b></td>
+                    <td class="eb"><pre>{ "success": false, "message": "Valid blockedId is required" }</pre></td>
+                    <td>1) Invalid ID → 400</td>
+                    <td class="ib"></td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+</body>
+</html>

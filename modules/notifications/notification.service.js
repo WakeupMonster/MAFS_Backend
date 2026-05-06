@@ -14,6 +14,12 @@ class NotificationService {
     const tokens = tokensObj.map(t => (typeof t === 'object' && t.token) ? t.token : t).filter(Boolean);
     if (tokens.length === 0) return;
 
+    // 🎯 CTA (Call To Action) Logic
+    // If no CTA is provided, fallback to NAVIGATE_HOME as requested
+    if (!data.cta) {
+      data.cta = JSON.stringify({ action: "NAVIGATE_HOME" });
+    }
+
     const result = await sendNotificationToMultiple(tokens, notification, data);
 
     if (result.failedTokens && result.failedTokens.length > 0) {
@@ -66,6 +72,7 @@ class NotificationService {
           {
             type: NOTIFICATION_TYPES.NEW_MATCH,
             matchId: userId2.toString(),
+            cta: JSON.stringify({ action: "OPEN_MATCHES" }),
           },
         );
       }
@@ -87,6 +94,7 @@ class NotificationService {
           {
             type: NOTIFICATION_TYPES.NEW_MATCH,
             matchId: userId1.toString(),
+            cta: JSON.stringify({ action: "OPEN_MATCHES" }),
           },
         );
       }
@@ -130,6 +138,7 @@ class NotificationService {
           type: NOTIFICATION_TYPES.NEW_MESSAGE,
           senderId: senderId.toString(),
           conversationId: [senderId, receiverId].sort().join("_"),
+          cta: JSON.stringify({ action: "OPEN_CHAT" }),
         },
       );
     } catch (error) {
@@ -151,10 +160,14 @@ class NotificationService {
         receiver.notificationSettings?.push === false ||
         receiver.notificationSettings?.likes === false
       ) {
+        console.log(`🚫 Notification skipped for user ${receiverId}: Disabled likes/push settings.`);
         return;
       }
 
-      if (!receiver?.fcmTokens?.length) return;
+      if (!receiver?.fcmTokens?.length) {
+        console.log(`⚠️ Notification skipped for user ${receiverId}: No FCM tokens found.`);
+        return;
+      }
 
       const senderPhoto = senderProfile?.photos?.[0]?.url || null;
       const senderName = senderProfile?.nickname || "Someone";
@@ -170,6 +183,7 @@ class NotificationService {
         {
           type: NOTIFICATION_TYPES.NEW_LIKE,
           senderId: senderId.toString(),
+          cta: JSON.stringify({ action: "OPEN_LIKES" }),
         },
       );
     } catch (error) {
@@ -202,6 +216,7 @@ class NotificationService {
         },
         {
           type: NOTIFICATION_TYPES.GIVEAWAY_WINNER,
+          cta: JSON.stringify({ action: "OPEN_REWARDS" }),
         },
       );
 
@@ -234,6 +249,7 @@ class NotificationService {
         },
         {
           type: NOTIFICATION_TYPES.PRIZE_DELIVERED,
+          cta: JSON.stringify({ action: "OPEN_REWARDS" }),
         },
       );
     } catch (error) {

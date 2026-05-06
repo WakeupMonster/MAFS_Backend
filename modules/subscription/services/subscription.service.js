@@ -21,7 +21,8 @@ class SubscriptionService {
         return;
       }
 
-      const isActive = ["ACTIVE", "CANCELLED"].includes(subscription.status) && subscription.expiresAt > new Date();
+      const isActive = Subscription.hasPremiumAccess(subscription);
+
 
       const profileUpdate = {
         "subscription.planId": subscription.planType || "free",
@@ -49,9 +50,6 @@ class SubscriptionService {
       logger.error("Profile sync failed:", err.message);
     }
   }
-
-
-
   /**
    * v3 Purchase Router: Determines if the purchase is a SUBSCRIPTION or CONSUMABLE
    * and routes to the correct handler.
@@ -144,7 +142,7 @@ class SubscriptionService {
     // 📢 Fire real-time activity for Admin
     Profile.findOne({ userId: data.userId }).select('nickname').then(p => {
       adminEvents.emit("new_live_activity", {
-        id: identifier, 
+        id: identifier,
         createdAt: new Date(),
         description: `Top-up: ${p?.nickname || "User"} (${catalogProduct.quantity} ${catalogProduct.consumableType === 'SUPER_KEEN' ? 'Super Keens' : 'Boosts'})`,
         color: "#FFB800"
@@ -159,15 +157,6 @@ class SubscriptionService {
    * Creates or updates a Subscription record with expiresAt.
    */
   async _handleSubscriptionPurchase(data) {
-    const orConditions = [];
-
-    if (data.originalTransactionId) {
-      orConditions.push({ originalTransactionId: data.originalTransactionId });
-    }
-    if (data.purchaseToken) {
-      orConditions.push({ purchaseToken: data.purchaseToken });
-    }
-
     // v3: Enhanced product lookup. Check DB Catalog first, fallback to config.
     const dbProduct = await Product.findOne({
       $or: [
@@ -179,80 +168,55 @@ class SubscriptionService {
     const configProduct = iapConfig.getProductDetails(data.productId);
     const catalogPlanType = dbProduct ? dbProduct.planType : (configProduct ? configProduct.planType : "1_MONTH");
 
-    let existing = null;
-    if (orConditions.length > 0) {
-      existing = await Subscription.findOne({ $or: orConditions });
+    // Atomic Upsert: Keyed on originalTransactionId (iOS) or purchaseToken (Android)
+    const filter = {};
+    if (data.originalTransactionId) {
+      filter.originalTransactionId = data.originalTransactionId;
+    } else if (data.purchaseToken) {
+      filter.purchaseToken = data.purchaseToken;
+    } else {
+      // Fallback to userId if no remote IDs (should not happen in real StoreKit)
+      filter.userId = data.userId;
     }
 
-    if (existing) {
-      existing.userId = data.userId; // Ensure subscription belongs to current user
-      existing.status = "ACTIVE";
-      existing.startedAt = new Date(data.purchaseDate || Date.now()); // FIX: Update startedAt for new cycle
-      existing.expiresAt = new Date(data.expiresDate);
-      existing.latestTransactionId = data.transactionId || existing.latestTransactionId;
-      existing.previousStatus = existing.status;
-      existing.productId = data.productId; // Update the product ID in case of an upgrade/crossgrade
-      existing.planType = catalogPlanType; // v3: Ensure consistent planType on update/verify
-      await existing.save();
-
-      // v3 Sync: Use UsageService for consistent premium state
-      UsageService._syncPremiumState(existing.userId, true).catch(err => logger.error('Sync Error:', err));
-      await this._syncProfile(existing);
-
-      // FIX: Ensure transaction is logged in the DB for revenue tracking!
-      // If it's a duplicate verification, idempotencyKey in _logTransaction will safely ignore it.
-      const amount = dbProduct ? parseFloat(String(dbProduct.displayPrice).replace(/[^0-9.]/g, '')) : (configProduct ? configProduct.price : 0);
-      const currency = dbProduct ? dbProduct.currency : (configProduct ? configProduct.currency : "AUD");
-
-      await this._logTransaction({
-        subscriptionId: existing._id,
+    const update = {
+      $set: {
         userId: data.userId,
         platform: data.platform,
-        transactionId: data.transactionId,
-        purchaseToken: data.purchaseToken,
         productId: data.productId,
-        eventType: "PURCHASE", 
-        amount: amount,
-        currency: currency,
-        occurredAt: new Date(data.purchaseDate || Date.now()),
-      });
+        planType: catalogPlanType,
+        status: "ACTIVE",
+        autoRenew: true,
+        startedAt: new Date(data.purchaseDate || Date.now()),
+        expiresAt: new Date(data.expiresDate),
+        latestTransactionId: data.transactionId || undefined,
+        purchaseToken: data.purchaseToken || undefined,
+        orderId: data.orderId || undefined,
+        source: data.source || "STORE",
+        environment: iapConfig.apple.environment || "sandbox",
+        isInBillingRetry: false,
+        isInGracePeriod: false,
+        gracePeriodEndsAt: null,
+        updatedAt: new Date()
+      },
+      $setOnInsert: {
+        createdAt: new Date(),
+        originalTransactionId: data.originalTransactionId || undefined,
+      }
+    };
 
-      logger.info("Subscription updated (existing)", {
-        subscriptionId: existing._id,
-        userId: data.userId,
-      });
-
-      // 📢 Fire real-time activity for Admin (Renewal/Update)
-      Profile.findOne({ userId: data.userId }).select('nickname').then(p => {
-        adminEvents.emit("new_live_activity", {
-          id: existing._id,
-          createdAt: new Date(),
-          description: `Subscription Renewed: ${p?.nickname || "User"} (${catalogPlanType})`,
-          color: "#FFB800"
-        });
-      }).catch(err => console.error("Admin sub-renew event emit failed", err));
-
-      return { type: 'SUBSCRIPTION', subscription: existing };
-    }
-
-    const subscription = await Subscription.create({
-      userId: data.userId,
-      platform: data.platform,
-      productId: data.productId,
-      planType: catalogPlanType,
-      status: "ACTIVE",
-      autoRenew: true,
-      startedAt: new Date(data.purchaseDate || Date.now()),
-      expiresAt: new Date(data.expiresDate),
-      originalTransactionId: data.originalTransactionId || undefined,
-      latestTransactionId: data.transactionId || undefined,
-      purchaseToken: data.purchaseToken || undefined,
-      orderId: data.orderId || undefined,
-      source: "STORE",
-      environment: iapConfig.apple.environment || "sandbox",
+    const subscription = await Subscription.findOneAndUpdate(filter, update, {
+      upsert: true,
+      new: true,
+      runValidators: true
     });
 
-    const amount = dbProduct ? parseFloat(dbProduct.displayPrice.replace(/[^0-9.]/g, '')) : (configProduct ? configProduct.price : 0);
+    // v3 Sync: Update User/Profile flags
+    await UsageService._syncPremiumState(subscription.userId, true).catch(err => logger.error('Sync Error:', err));
+    await this._syncProfile(subscription);
+
+    // Revenue Tracking: Log the transaction
+    const amount = dbProduct ? parseFloat(String(dbProduct.displayPrice).replace(/[^0-9.]/g, '')) : (configProduct ? configProduct.price : 0);
     const currency = dbProduct ? dbProduct.currency : (configProduct ? configProduct.currency : "AUD");
 
     await this._logTransaction({
@@ -268,25 +232,20 @@ class SubscriptionService {
       occurredAt: new Date(data.purchaseDate || Date.now()),
     });
 
-    logger.info("New subscription created", {
+    logger.info(subscription.isNew ? "New subscription created" : "Subscription updated", {
       subscriptionId: subscription._id,
       userId: data.userId,
-      planType: subscription.planType,
     });
 
-    // v3 Sync: Use UsageService for consistent premium state
-    UsageService._syncPremiumState(subscription.userId, true).catch(err => logger.error('Sync Error:', err));
-    await this._syncProfile(subscription);
-
-    // 📢 Fire real-time activity for Admin (New Purchase)
+    // 📢 Admin Live Activity
     Profile.findOne({ userId: data.userId }).select('nickname').then(p => {
       adminEvents.emit("new_live_activity", {
         id: subscription._id,
         createdAt: new Date(),
-        description: `New Sale: ${p?.nickname || "User"} (${catalogPlanType})`,
+        description: `Purchase: ${p?.nickname || "User"} (${catalogPlanType})`,
         color: "#FFB800"
       });
-    }).catch(err => console.error("Admin new-sub event emit failed", err));
+    }).catch(err => console.error("Admin sub event failed", err));
 
     return { type: 'SUBSCRIPTION', subscription };
   }
@@ -317,6 +276,9 @@ class SubscriptionService {
     sub.latestTransactionId = data.transactionId || sub.latestTransactionId;
     sub.autoRenew = true;
     sub.retryCount = 0;
+    sub.isInBillingRetry = false;
+    sub.isInGracePeriod = false;
+    sub.gracePeriodEndsAt = null;
     await sub.save();
 
     await this._syncProfile(sub);
@@ -339,7 +301,7 @@ class SubscriptionService {
     return sub;
   }
 
-  // ─── CANCEL ───
+  // ─── CANCEL ─── 
   async handleCancel(data) {
     const sub = await this._findSubscription(data);
     if (!sub) {
@@ -403,6 +365,9 @@ class SubscriptionService {
     sub.previousStatus = sub.status;
     sub.status = "EXPIRED";
     sub.autoRenew = false;
+    sub.isInBillingRetry = false;
+    sub.isInGracePeriod = false;
+    sub.gracePeriodEndsAt = null;
     await sub.save();
     await this._syncProfile(sub);
 
@@ -564,11 +529,14 @@ class SubscriptionService {
   // ─── CHECK ACCESS ───
   async checkAccess(userId) {
     // v3: No Grace Period. CANCELLED users still have access until expiresAt.
-    const sub = await Subscription.findOne({
-      userId: userId,
-      status: { $in: ["ACTIVE", "CANCELLED"] },
-      expiresAt: { $gt: new Date() },
-    });
+    // const sub = await Subscription.findOne({
+    //   userId: userId,
+    //   status: { $in: ["ACTIVE", "CANCELLED"] },
+    //   expiresAt: { $gt: new Date() },
+    // });
+
+    const sub = await Subscription.findActiveByUser(userId);
+
 
     if (!sub) {
       return { isPremium: false, status: "NONE" };
@@ -648,64 +616,7 @@ class SubscriptionService {
       throw err;
     }
   }
-  /**
-   * Milestone Grant: Automatically grants premium to the first X users.
-   * Called during registration/onboarding.
-   */
-  async handleMilestoneGrant(userId) {
-    try {
-      const config = await SubscriptionConfig.getOrCreate();
 
-      // 1. Is milestone active?
-      if (!config.milestone || !config.milestone.isActive) return null;
-
-      // 2. Already premium? Check if any subscription exists for this user
-      const existingSub = await Subscription.findOne({ userId });
-      if (existingSub) return null;
-
-      // 3. User limit check
-      const User = require("../../auth/auth.model");
-      const userCount = await User.countDocuments({ isFake: false });
-
-      if (userCount > config.milestone.targetUserCount) {
-        // Auto-disable milestone if limit reached
-        config.milestone.isActive = false;
-        await config.save();
-        logger.info("Milestone target reached, auto-disabled milestone grant.");
-        return null;
-      }
-
-      // 4. Grant Premium (30 days)
-      const duration = config.milestone.grantDurationDays || 30;
-      const expiresAt = new Date();
-      expiresAt.setDate(expiresAt.getDate() + duration);
-
-      const subscription = await Subscription.create({
-        userId,
-        platform: "admin_granted",
-        productId: "milestone_premium_v3",
-        planType: "MILESTONE",
-        status: "ACTIVE",
-        autoRenew: false,
-        startedAt: new Date(),
-        expiresAt: expiresAt,
-        grantReason: "milestone_first_1000",
-        source: "MILESTONE",
-        environment: "production"
-      });
-
-      // 5. Sync Premium State (User/Profile flags)
-      await UsageService._syncPremiumState(userId, true);
-      await this._syncProfile(subscription);
-
-      logger.info(`Milestone premium granted to user ${userId} (Rank: ${userCount})`);
-      return subscription;
-
-    } catch (err) {
-      logger.error("Milestone grant failed:", err.message);
-      return null;
-    }
-  }
 
   // ─── ADMIN GRANTED GIVEAWAY (SAFE ISOLATED CREATION) ───
   async handleGiveawayGrant(userId, durationInDays, planType, prizeTitle, prizeId) {
@@ -755,6 +666,44 @@ class SubscriptionService {
       logger.error(`Error in handleGiveawayGrant for User ${userId}:`, error.message);
       throw error;
     }
+  }
+
+  // ─── INITIATIVE 1: BILLING RETRY ───
+  async handleBillingRetryStart(data) {
+    const sub = await this._findSubscription(data);
+    if (!sub) return;
+
+    sub.isInBillingRetry = true;
+    // Initiative says: Keep isPremium: true. So we keep status ACTIVE or set to ACTIVE if it was something else.
+    sub.status = "ACTIVE";
+    await sub.save();
+
+    await UsageService._syncPremiumState(sub.userId, true);
+    logger.info("Subscription entered Billing Retry mode", { userId: sub.userId });
+  }
+
+  // ─── INITIATIVE 2: GRACE PERIOD ───
+  async handleGracePeriodStart(data) {
+    const sub = await this._findSubscription(data);
+    if (!sub) return;
+
+    sub.isInGracePeriod = true;
+    sub.status = "GRACE";
+
+    // Calculate grace period end if not provided by store
+    // iOS (Apple): 6 days, Android (Google): 3 days
+    if (data.gracePeriodEndsAt) {
+      sub.gracePeriodEndsAt = new Date(data.gracePeriodEndsAt);
+    } else {
+      const days = sub.platform === 'ios' ? 6 : 3;
+      const endsAt = new Date();
+      endsAt.setDate(endsAt.getDate() + days);
+      sub.gracePeriodEndsAt = endsAt;
+    }
+
+    await sub.save();
+    await UsageService._syncPremiumState(sub.userId, true);
+    logger.info("Subscription entered Grace Period", { userId: sub.userId, endsAt: sub.gracePeriodEndsAt });
   }
 
 }
