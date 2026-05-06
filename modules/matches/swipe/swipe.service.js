@@ -256,7 +256,9 @@ async function getFeedService(userId, limit, page) {
             if (discovery.showMeGender?.length && !discovery.showMeGender.includes("everyone")) {
               boostQuery.gender = { $in: discovery.showMeGender };
             }
-            if (queryFilters.dob) boostQuery.dob = queryFilters.dob;
+            // if (queryFilters.dob) boostQuery.dob = queryFilters.dob;
+            if (queryFilters.location) boostQuery.location = queryFilters.location;
+
 
             // Limit to max 5 boosted profiles per page so it doesn't flood the limit
             const maxBoosted = Math.min(5, limit - profiles.length);
@@ -685,6 +687,15 @@ async function doSwipe(swiperId, targetId, action) {
             message: "It's a match!",
             data: {
               isMatch: true,
+              /* 
+              matchId: match._id,
+              matchedUser: {
+                userId: targetId,
+                nickname: targetProfile.nickname,
+                photos: targetProfile.photos || [],
+              },
+              isNewMatch: true,
+              */
               matchDetails: {
                 matchId: match._id,
                 chatId: match._id,

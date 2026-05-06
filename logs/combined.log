@@ -31651,3 +31651,15 @@
 {"level":"info","message":"🧪 [DEV] Dev tools routes registered at /api/v1/dev/*","service":"iap-service","timestamp":"2026-05-05 16:39:54"}
 {"level":"info","message":"[CRON] Subscription cron jobs initialized (v3 - Grace Period & Billing Retry Support)","service":"iap-service","timestamp":"2026-05-05 17:18:05"}
 {"level":"info","message":"🧪 [DEV] Dev tools routes registered at /api/v1/dev/*","service":"iap-service","timestamp":"2026-05-05 17:18:07"}
+{"level":"info","message":"[CRON] Subscription cron jobs initialized (v3 - Grace Period & Billing Retry Support)","service":"iap-service","timestamp":"2026-05-05 17:27:32"}
+{"level":"info","message":"🧪 [DEV] Dev tools routes registered at /api/v1/dev/*","service":"iap-service","timestamp":"2026-05-05 17:27:35"}
+{"level":"info","message":"Profile subscription synced","service":"iap-service","timestamp":"2026-05-05 18:44:35","userId":"69ae73313541f14bc378d0ff"}
+{"level":"info","message":"[CRON] Subscription cron jobs initialized (v3 - Grace Period & Billing Retry Support)","service":"iap-service","timestamp":"2026-05-06 10:00:19"}
+{"level":"info","message":"🧪 [DEV] Dev tools routes registered at /api/v1/dev/*","service":"iap-service","timestamp":"2026-05-06 10:00:22"}
+{"level":"info","message":"[CRON] Subscription cron jobs initialized (v3 - Grace Period & Billing Retry Support)","service":"iap-service","timestamp":"2026-05-06 11:39:36"}
+{"level":"info","message":"🧪 [DEV] Dev tools routes registered at /api/v1/dev/*","service":"iap-service","timestamp":"2026-05-06 11:39:39"}
+{"level":"error","message":"[CRON] Grace period check error:","service":"iap-service","timestamp":"2026-05-06 13:35:23"}
+{"level":"error","message":"[CRON] Expire check error:","service":"iap-service","timestamp":"2026-05-06 13:35:25"}
+{"level":"error","message":"[CRON] Cancelled expire check error:","service":"iap-service","timestamp":"2026-05-06 13:35:26"}
+{"level":"error","message":"[CRON] Cancelled expire check error:","service":"iap-service","timestamp":"2026-05-06 13:45:53"}
+{"level":"error","message":"[CRON] Expire check error:","service":"iap-service","timestamp":"2026-05-06 13:45:53"}

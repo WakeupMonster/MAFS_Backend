@@ -40,48 +40,10 @@ module.exports = function chatSocket(io, redisClient) {
     }
 
     /*
-     * PENDING DELIVERY: Jab user offline tha, uske liye aaye SENT messages
-     * ko DELIVERED mark karo. Bina iske sender ko kabhi delivery tick nahi
-     * dikhta jab tak receiver specific chat room join na kare.
-     *
-     * .select() se sirf zaroori fields laao — poore documents ki zaroorat nahi.
-     * .limit(500) se ek baar mein zyada load nahi aayega.
+     * 🚨 OPTIMIZATION (Arena AI Fix): Removed PENDING DELIVERY logic from connection.
+     * Touch MongoDB on connection is a massive bottleneck at scale.
+     * Logic moved to 'join_chat' and 'messages_read'.
      */
-    try {
-      const pendingMessages = await ChatMessage.find({
-        receiver: currentUserId,
-        status: "SENT",
-      })
-        .select("sender matchId")
-        .limit(500)
-        .lean();
-
-      if (pendingMessages.length > 0) {
-        await ChatMessage.updateMany(
-          { receiver: currentUserId, status: "SENT" },
-          { status: "DELIVERED", deliveredAt: new Date() }
-        );
-
-        /*
-         * Unique senders ko notify karo per match.
-         * Set use kiya taaki same sender:match pair ke liye
-         * duplicate events na jayein.
-         */
-        const notified = new Set();
-        pendingMessages.forEach((m) => {
-          const key = `${m.sender}:${m.matchId}`;
-          if (!notified.has(key)) {
-            notified.add(key);
-            io.to(`user:${m.sender}`).emit("messages_delivered", {
-              matchId: m.matchId,
-              deliveredAt: new Date(),
-            });
-          }
-        });
-      }
-    } catch (err) {
-      console.error("❌ Pending delivery error:", err);
-    }
 
 
 
@@ -133,6 +95,14 @@ module.exports = function chatSocket(io, redisClient) {
 
         const room = `chat:${matchId}`;
         socket.join(room);
+
+        // 🚀 Arena AI Optimization: Track active room in Redis for fast presence check
+        // Using set without TTL because user might keep chat open > 1 hour. Cleaned up on disconnect.
+        try {
+            await redisClient.set(`user:active_room:${currentUserId}`, matchId);
+        } catch (err) {
+            console.error("❌ Redis active_room set error:", err);
+        }
 
         // Mark pending messages as DELIVERED
         const deliveryResult = await ChatMessage.updateMany(
@@ -229,16 +199,26 @@ module.exports = function chatSocket(io, redisClient) {
             (u) => u.toString() !== currentUserId
           );
 
-          /* ── Common: Block check ── */
-          const blocked = await isBlocked(currentUserId, receiverId);
-          if (blocked.isBlocked) {
+          /* ── Common: Block check (🚀 Arena AI Optimization: Redis Cache) ── */
+          const blockCacheKey = `block:${currentUserId}:${receiverId}`;
+          let blockedStatus = await redisClient.get(blockCacheKey);
+
+          if (blockedStatus) {
+            blockedStatus = JSON.parse(blockedStatus);
+          } else {
+            blockedStatus = await isBlocked(currentUserId, receiverId);
+            // Cache for 5 minutes (300s)
+            await redisClient.setex(blockCacheKey, 300, JSON.stringify(blockedStatus));
+          }
+
+          if (blockedStatus.isBlocked) {
             socket.emit("chat_error", {
               type: "BLOCKED",
               matchId,
               clientMessageId,
               message: "You cannot send messages to this user",
-              isBlockedByMe: blocked.blockedByMe,
-              blockedBy: blocked.blockedBy
+              isBlockedByMe: blockedStatus.blockedByMe,
+              blockedBy: blockedStatus.blockedBy
             });
             if (typeof ack === "function") {
               ack({ success: false, error: "Cannot send message" });
@@ -357,11 +337,20 @@ module.exports = function chatSocket(io, redisClient) {
           const lastMessagePreview =
             msg.media && msg.media.length > 0 ? "📷 Media" : msg.text;
 
-          /* Update conversation metadata (Chat list ordering) */
-          await Match.findByIdAndUpdate(matchId, {
-            lastMessage: lastMessagePreview,
-            lastMessageAt: msg.createdAt,
-            lastMessageBy: currentUserId,
+          /* 
+           * Update conversation metadata (🚀 Arena AI Optimization: ASYNC)
+           * Don't wait for DB update to finish before emitting the message.
+           */
+          setImmediate(async () => {
+            try {
+              await Match.findByIdAndUpdate(matchId, {
+                lastMessage: lastMessagePreview,
+                lastMessageAt: msg.createdAt,
+                lastMessageBy: currentUserId,
+              });
+            } catch (err) {
+              console.error("❌ Async match update error:", err);
+            }
           });
 
           /* Emit message to chat room (dono users ko milega agar room mein hain) */
@@ -392,9 +381,10 @@ module.exports = function chatSocket(io, redisClient) {
           }
 
           /*
-           * Delivery check: Redis se check karo receiver online hai ya nahi.
-           * try-catch mein hai kyunki Redis down hone pe message toh bhej chuke,
-           * sirf delivery status miss hoga — acceptable fallback.
+           * Delivery check (🚀 Arena AI Optimization: Removed heavy DB write)
+           * Instead of updating every message in DB on delivery, we rely on 
+           * the receiver's 'join_chat' or 'messages_read' to batch update.
+           * We only notify the sender that the user is online.
            */
           try {
             const receiverOnline = await redisClient.exists(
@@ -402,11 +392,6 @@ module.exports = function chatSocket(io, redisClient) {
             );
 
             if (receiverOnline) {
-              await ChatMessage.findByIdAndUpdate(msg._id, {
-                status: "DELIVERED",
-                deliveredAt: new Date(),
-              });
-
               socket.emit("message_delivered", {
                 messageId: msg._id,
                 matchId,
@@ -418,21 +403,18 @@ module.exports = function chatSocket(io, redisClient) {
 
           /* Push notification (background worker) */
           try {
-            // 🧠 PRESENCE CHECK: Check if receiver is actively watching this chat room
-            const receiverSockets = await io.in(`user:${receiverId}`).fetchSockets();
-            const isReceiverWatchingChat = receiverSockets.some(s => s.rooms.has(`chat:${matchId}`));
+            // 🧠 PRESENCE CHECK (🚀 Arena AI Optimization: Redis instead of fetchSockets)
+            // Check if receiver is actively watching this specific chat room
+            const activeRoom = await redisClient.get(`user:active_room:${receiverId}`);
+            const isReceiverWatchingChat = activeRoom === matchId;
 
             if (!isReceiverWatchingChat) {
-              // 📱 User is NOT on the chat screen (either minimized or on another page) -> SEND PUSH
+              // 📱 User is NOT on the chat screen -> SEND PUSH
               await addNotificationJob(NOTIFICATION_TYPES.NEW_MESSAGE, {
                 senderId: currentUserId,
                 receiverId: receiverId.toString(),
                 messageText: lastMessagePreview,
               });
-              console.log(`📩 Push queued: User ${receiverId} is not in chat:${matchId}`);
-            } else {
-              // 🔇 User is actively looking at the chat screen -> SKIP PUSH
-              console.log(`🔇 Push skipped: User ${receiverId} is actively watching chat:${matchId}`);
             }
           } catch (notifErr) {
             console.error("❌ Notification queue error:", notifErr);
@@ -465,12 +447,22 @@ module.exports = function chatSocket(io, redisClient) {
         );
         if (!isParticipant) return;
 
-        // 🛡️ Block validation for read status
+        // 🛡️ Block validation for read status (🚀 Arena AI Optimization: Redis Cache)
         const otherUserId = match.users.find((u) => u.toString() !== currentUserId);
-        const blocked = await isBlocked(currentUserId, otherUserId);
-        if (blocked.isBlocked && !blocked.blockedByMe) {
-          // If I am the one who is blocked, I can't update read status
-          return;
+        const blockCacheKey = `block:${currentUserId}:${otherUserId}`;
+        let blockedStatus = await redisClient.get(blockCacheKey);
+
+        if (blockedStatus) {
+            blockedStatus = JSON.parse(blockedStatus);
+        } else {
+            blockedStatus = await isBlocked(currentUserId, otherUserId);
+            // Cache for 5 minutes (300s)
+            await redisClient.setex(blockCacheKey, 300, JSON.stringify(blockedStatus));
+        }
+
+        if (blockedStatus.isBlocked && !blockedStatus.blockedByMe) {
+            // If I am the one who is blocked, I can't update read status
+            return;
         }
 
         const result = await ChatMessage.updateMany(
@@ -712,9 +704,16 @@ module.exports = function chatSocket(io, redisClient) {
     /* ------------------------------------------------------------------ */
     /* 🔹 LEAVE CHAT ROOM                                                  */
     /* ------------------------------------------------------------------ */
-    socket.on("leave_chat", ({ matchId }) => {
+    socket.on("leave_chat", async ({ matchId }) => {
       if (!matchId) return;
       socket.leave(`chat:${matchId}`);
+      
+      // 🚀 Arena AI Optimization: Clear active room in Redis
+      try {
+          await redisClient.del(`user:active_room:${currentUserId}`);
+      } catch (err) {
+          console.error("❌ Redis active_room del error:", err);
+      }
     });
 
     // 🛡️ Dedicated Admin Dashboard Join Event (Developer Request)
@@ -748,6 +747,8 @@ module.exports = function chatSocket(io, redisClient) {
         const remaining = await redisClient.sCard(`user:sockets:${currentUserId}`);
         if (remaining === 0) {
           await redisClient.del(`user:online:${currentUserId}`);
+          // 🚀 Arena AI Optimization: Clear active room on total disconnect
+          await redisClient.del(`user:active_room:${currentUserId}`);
         }
         console.log("🔌 SOCKET DISCONNECTED:", currentUserId);
       } catch (err) {

@@ -262,22 +262,6 @@ module.exports.getKeenData = async (req, res, actionType) => {
   try {
     const userId = req.user._id;
 
-    // 1. Premium Check for normal likes (v3 Requirements)
-    // if (actionType === 'like') {
-    //   const usageStatus = await UsageService.getUsageStatus(userId);
-    //   if (!usageStatus.data.premiumFeatures.seeWhoLikedYou) {
-    //     return res.status(200).json({
-    //       success: true,
-    //       code: "PREMIUM_REQUIRED",
-    //       message: "See who liked you is a premium feature.",
-    //       data: {
-    //         actionAllowed: false,
-    //         reason: "PREMIUM_REQUIRED"
-    //       }
-    //     });
-    //   }
-    // }
-
     const { page = 1, limit = 20 } = req.query;
     const skip = (parseInt(page) - 1) * parseInt(limit);
 
@@ -344,7 +328,6 @@ module.exports.getKeenData = async (req, res, actionType) => {
         );
       }
 
-      // 🔥 EXACT MANAGER RESPONSE FORMAT
       return {
         userId: profile.userId,
         nickname: profile.nickname,
