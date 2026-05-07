@@ -86,26 +86,26 @@ exports.testSmtpConnection = async (req, res) => {
 
     // 1. Verify connection credentials
     await new Promise((resolve, reject) => {
-        transporter.verify((error, success) => {
-            if (error) {
-                console.error("Test SMTP Verification Error: ", error.message);
-                return reject(error);
-            }
-            resolve(success);
-        });
+      transporter.verify((error, success) => {
+        if (error) {
+          console.error("Test SMTP Verification Error: ", error.message);
+          return reject(error);
+        }
+        resolve(success);
+      });
     });
 
     // 2. Optionally, we can send a test email to the configured fromEmail (or admin user)
     // Here we'll send it back to the sender itself as proof of life.
-    const testToEmail = req.user.email || fromEmail; 
-    
+    const testToEmail = req.user.email || fromEmail;
+
     if (testToEmail) {
-       await transporter.sendMail({
-          from: `"${fromName} (Test)" <${fromEmail}>`,
-          to: testToEmail,
-          subject: "Test SMTP Email - WakeupMonster",
-          text: "If you received this email, your database SMTP configuration is working perfectly!",
-       });
+      await transporter.sendMail({
+        from: `"${fromName} (Test)" <${fromEmail}>`,
+        to: testToEmail,
+        subject: "Test SMTP Email - WakeupMonster",
+        text: "If you received this email, your database SMTP configuration is working perfectly!",
+      });
     }
 
     return res.status(200).json({

@@ -11,7 +11,7 @@ process.on("unhandledRejection", (err) => {
   process.exit(1);
 });
 
-// 🚀 PERFORMANCE FIX: Boost Libuv thread pool for high-concurrency bcrypt hashing
+// PERFORMANCE FIX: Boost Libuv thread pool for high-concurrency bcrypt hashing
 process.env.UV_THREADPOOL_SIZE = process.env.UV_THREADPOOL_SIZE || 128;
 
 const dns = require("dns");
@@ -21,7 +21,7 @@ const app = require("./app");
 const http = require("http").createServer(app);
 const { Server } = require("socket.io");
 const jwt = require("jsonwebtoken");
-const User = require("./modules/auth/auth.model"); // Path check kar lena
+const User = require("./modules/auth/auth.model");
 
 // Redis Client
 
@@ -46,7 +46,7 @@ const io = new Server(http, {
     methods: ["GET", "POST"],
     credentials: true,
   },
-  transports: ["polling", "websocket"], // ⚠️ YE ORDER IMPORTANT HAI
+  transports: ["polling", "websocket"], // YE ORDER IMPORTANT HAI
   pingTimeout: 60000,
   pingInterval: 25000,
   connectTimeout: 45000,
@@ -58,7 +58,6 @@ const io = new Server(http, {
 //   cors: { origin: "*" },
 //   pingTimeout: 60000,
 // });
-
 // Middleware: Taaki socket mein user._id mil sake
 
 io.use(async (socket, next) => {
@@ -237,5 +236,4 @@ io.use(async (socket, next) => {
     process.exit(1);
   }
 })();
-
 // console.log("REDIS_URL =", process.env.REDIS_URL);
