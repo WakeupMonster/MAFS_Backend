@@ -121,7 +121,7 @@ jobs:
             echo "🟢 Starting new container..."
             sudo docker run -d \
               --name mafs-backend \
-              -p 5000:5000 \
+              --network host \
               --restart always \
               --env-file /home/$EC2_USER/.env \
               -v /home/$EC2_USER/config/firebase-service-account.json:/app/config/firebase-service-account.json \
