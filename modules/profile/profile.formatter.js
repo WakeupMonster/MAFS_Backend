@@ -50,6 +50,8 @@ const formatProfileResponse = async (
   return {
     // 1. ACCOUNT (Data from User Model)
     account: {
+      phoneNumber: user.phone || null,
+      email: user.email || null,
       status: user.accountStatus || "active",
       banDetails: {
         isBanned: user.banDetails?.isBanned || false,
