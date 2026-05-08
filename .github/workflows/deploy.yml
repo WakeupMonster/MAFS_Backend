@@ -86,16 +86,16 @@ jobs:
           envs: ECR_REGISTRY,ECR_REPOSITORY,IMAGE_TAG
           script: |
             # 1. AWS CLI se Login karo
-            aws ecr get-login-password --region ap-southeast-2 | docker login --username AWS --password-stdin ${{ steps.login-ecr.outputs.registry }}
+            aws ecr get-login-password --region ap-southeast-2 | sudo docker login --username AWS --password-stdin ${{ steps.login-ecr.outputs.registry }}
             
             # 2. Nayi image pull karo
-            docker pull ${{ steps.login-ecr.outputs.registry }}/${{ github.ref == 'refs/heads/main' && secrets.ECR_PROD_REPO || secrets.ECR_STAGING_REPO }}:${{ github.sha }}
+            sudo docker pull ${{ steps.login-ecr.outputs.registry }}/${{ github.ref == 'refs/heads/main' && secrets.ECR_PROD_REPO || secrets.ECR_STAGING_REPO }}:${{ github.sha }}
             
             # 3. Purana container ruko aur naya start karo
-            docker stop mafs-backend || true
-            docker rm mafs-backend || true
+            sudo docker stop mafs-backend || true
+            sudo docker rm mafs-backend || true
             
-            docker run -d \
+            sudo docker run -d \
               --name mafs-backend \
               -p 5000:5000 \
               --restart always \
@@ -103,4 +103,4 @@ jobs:
               ${{ steps.login-ecr.outputs.registry }}/${{ github.ref == 'refs/heads/main' && secrets.ECR_PROD_REPO || secrets.ECR_STAGING_REPO }}:${{ github.sha }}
             
             # 4. Cleaning (Purani images delete karo space bachane ke liye)
-            docker image prune -af
+            sudo docker image prune -af
