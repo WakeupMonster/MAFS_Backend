@@ -98,7 +98,7 @@ exports.blockContacts = async (req, res) => {
     return res.json({ success: true, message: "All contacts already blocked" });
   }
 
-  await BlockedContact.insertMany(newDocs, { ordered: false }).catch(() => {});
+  await BlockedContact.insertMany(newDocs, { ordered: false }).catch(() => { });
 
   if (redis) await redis.del(`feed:${userId.toString()}`);
 
