@@ -1,7 +1,7 @@
-# Step 1: Base Image
-FROM node:20-slim AS base
+# Step 1: Base Image (Use full node 20 for build stability)
+FROM node:20 AS base
 
-# Install build dependencies (if needed for bcrypt, etc.)
+# Install build dependencies
 RUN apt-get update && apt-get install -y \
     python3 \
     make \
@@ -12,32 +12,27 @@ WORKDIR /app
 
 # Step 2: Dependencies
 COPY package*.json ./
-# RUN npm ci --only=production
-RUN npm ci --omit=dev
+
+# CRITICAL FIX: Add --legacy-peer-deps if you have version conflicts
+RUN npm ci --omit=dev --legacy-peer-deps
 
 # Step 3: Final Build Stage
 FROM node:20-slim AS runner
 
 WORKDIR /app
 
-# Copy production dependencies from base
+# Copy production dependencies from base stage
 COPY --from=base /app/node_modules ./node_modules
 COPY . .
 
-# Set Environment variables
 ENV NODE_ENV=production
 ENV PORT=5000
-
-# Expose port
 EXPOSE 5000
 
-# Use a non-root user for security
+# Security: Use non-root user
 RUN groupadd -r nodejs && useradd -r -g nodejs nodejs
+RUN chown -R nodejs:nodejs /app
 USER nodejs
 
-# Health check
-HEALTHCHECK --interval=30s --timeout=3s \
-  CMD node -e "require('http').get('http://localhost:5000/health', (res) => { if (res.statusCode !== 200) process.exit(1); })"
-
-# Start the application
+# Start
 CMD ["node", "index.js"]

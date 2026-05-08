@@ -26,7 +26,7 @@
     "express": "^5.2.1",
     "express-rate-limit": "^8.4.1",
     "firebase": "^12.6.0",
-    "firebase-admin": "^13.8.0",
+    "firebase-admin": "^13.9.0",
     "google-auth-library": "^10.5.0",
     "googleapis": "^171.4.0",
     "helmet": "^8.1.0",
