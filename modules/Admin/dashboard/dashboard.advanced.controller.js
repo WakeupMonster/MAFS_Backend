@@ -2001,7 +2001,7 @@ exports.getAdvancedDashboardMetrics = async (req, res) => {
               value: revR.boost,
               displayValue: fmtAmount(revR.boost),
               percentage:
-                revR.total > 0
+                revR.total > 0  
                   ? Math.round((revR.boost / revR.total) * 100)
                   : 0,
               color: "hsl(182 59% 54%)",

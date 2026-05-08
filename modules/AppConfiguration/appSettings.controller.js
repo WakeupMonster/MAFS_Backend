@@ -29,6 +29,7 @@ module.exports.getSocialLinks = async (req, res) => {
 
     return res.json({
       success: true,
+      message: "Social media links fetched successfully",
       data: {
         socialMedia,
       },
@@ -104,6 +105,7 @@ module.exports.getGeneralSettings = async (req, res) => {
 
     res.status(200).json({
       success: true,
+      message: "General settings fetched successfully",
       data,
     });
   } catch (error) {
@@ -193,4 +195,3 @@ module.exports.upsertGeneralSettings = async (req, res) => {
     res.status(500).json({ error: error.message });
   }
 };
-

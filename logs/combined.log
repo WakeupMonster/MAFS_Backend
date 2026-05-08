@@ -39043,3 +39043,480 @@
 {"level":"debug","message":"GET /api/v1/admin/dashboard/stats/kpi","service":"iap-service","timestamp":"2026-05-07 19:40:15"}
 {"level":"debug","message":"GET /api/v1/admin/dashboard/stats/kpi","service":"iap-service","timestamp":"2026-05-07 19:40:16"}
 {"level":"debug","message":"GET /api/v1/admin/dashboard/stats/kpi","service":"iap-service","timestamp":"2026-05-07 19:40:16"}
+{"level":"info","message":"[CRON] Subscription cron jobs initialized (v3 - Grace Period & Billing Retry Support)","service":"iap-service","timestamp":"2026-05-08 10:13:28"}
+{"level":"info","message":"🧪 [DEV] Dev tools routes registered at /api/v1/dev/*","service":"iap-service","timestamp":"2026-05-08 10:13:31"}
+{"level":"info","message":"[CRON] Expired ACTIVE subscriptions: 1","service":"iap-service","timestamp":"2026-05-08 11:10:00"}
+{"level":"info","message":"[CRON] Expired ACTIVE subscriptions: 1","service":"iap-service","timestamp":"2026-05-08 11:20:00"}
+{"level":"info","message":"[CRON] Subscription cron jobs initialized (v3 - Grace Period & Billing Retry Support)","service":"iap-service","timestamp":"2026-05-08 11:28:32"}
+{"level":"info","message":"🧪 [DEV] Dev tools routes registered at /api/v1/dev/*","service":"iap-service","timestamp":"2026-05-08 11:28:34"}
+{"level":"info","message":"[CRON] Subscription cron jobs initialized (v3 - Grace Period & Billing Retry Support)","service":"iap-service","timestamp":"2026-05-08 12:20:53"}
+{"level":"info","message":"🧪 [DEV] Dev tools routes registered at /api/v1/dev/*","service":"iap-service","timestamp":"2026-05-08 12:20:55"}
+{"level":"info","message":"[CRON] Subscription cron jobs initialized (v3 - Grace Period & Billing Retry Support)","service":"iap-service","timestamp":"2026-05-08 12:22:38"}
+{"level":"info","message":"🧪 [DEV] Dev tools routes registered at /api/v1/dev/*","service":"iap-service","timestamp":"2026-05-08 12:22:40"}
+{"level":"debug","message":"POST /api/v1/admin/auth/login","service":"iap-service","timestamp":"2026-05-08 12:23:00"}
+{"level":"debug","message":"GET /api/v1/admin/users/698f20c11ff3e123d1038296","service":"iap-service","timestamp":"2026-05-08 12:23:24"}
+{"level":"debug","message":"GET /api/v1/admin/account","service":"iap-service","timestamp":"2026-05-08 12:24:21"}
+{"level":"debug","message":"GET /api/v1/admin/account","service":"iap-service","timestamp":"2026-05-08 12:24:31"}
+{"level":"info","message":"[CRON] Subscription cron jobs initialized (v3 - Grace Period & Billing Retry Support)","service":"iap-service","timestamp":"2026-05-08 12:37:32"}
+{"level":"info","message":"🧪 [DEV] Dev tools routes registered at /api/v1/dev/*","service":"iap-service","timestamp":"2026-05-08 12:37:34"}
+{"level":"debug","message":"PATCH /api/v1/admin/account/update","service":"iap-service","timestamp":"2026-05-08 12:46:31"}
+{"level":"debug","message":"PATCH /api/v1/admin/account/update","service":"iap-service","timestamp":"2026-05-08 12:46:39"}
+{"level":"debug","message":"PATCH /api/v1/admin/account/update","service":"iap-service","timestamp":"2026-05-08 12:47:07"}
+{"level":"info","message":"[CRON] Subscription cron jobs initialized (v3 - Grace Period & Billing Retry Support)","service":"iap-service","timestamp":"2026-05-08 12:56:25"}
+{"level":"info","message":"🧪 [DEV] Dev tools routes registered at /api/v1/dev/*","service":"iap-service","timestamp":"2026-05-08 12:56:26"}
+{"level":"info","message":"[CRON] Subscription cron jobs initialized (v3 - Grace Period & Billing Retry Support)","service":"iap-service","timestamp":"2026-05-08 12:56:35"}
+{"level":"info","message":"🧪 [DEV] Dev tools routes registered at /api/v1/dev/*","service":"iap-service","timestamp":"2026-05-08 12:56:36"}
+{"level":"info","message":"[CRON] Subscription cron jobs initialized (v3 - Grace Period & Billing Retry Support)","service":"iap-service","timestamp":"2026-05-08 13:05:40"}
+{"level":"info","message":"🧪 [DEV] Dev tools routes registered at /api/v1/dev/*","service":"iap-service","timestamp":"2026-05-08 13:05:40"}
+{"level":"info","message":"[CRON] Subscription cron jobs initialized (v3 - Grace Period & Billing Retry Support)","service":"iap-service","timestamp":"2026-05-08 13:05:49"}
+{"level":"info","message":"🧪 [DEV] Dev tools routes registered at /api/v1/dev/*","service":"iap-service","timestamp":"2026-05-08 13:05:50"}
+{"level":"info","message":"[CRON] Subscription cron jobs initialized (v3 - Grace Period & Billing Retry Support)","service":"iap-service","timestamp":"2026-05-08 13:05:53"}
+{"level":"info","message":"🧪 [DEV] Dev tools routes registered at /api/v1/dev/*","service":"iap-service","timestamp":"2026-05-08 13:05:54"}
+{"level":"debug","message":"GET /api/v1/admin/dashboard/stats/kpi","service":"iap-service","timestamp":"2026-05-08 13:09:23"}
+{"level":"debug","message":"GET /api/v1/admin/dashboard/stats/kpi","service":"iap-service","timestamp":"2026-05-08 13:09:31"}
+{"level":"debug","message":"GET /api/v1/admin/dashboard-v2/advanced-metrics?from=2026-01-01&to=2026-04-21","service":"iap-service","timestamp":"2026-05-08 13:11:22"}
+{"level":"debug","message":"GET /api/v1/admin/dashboard-v2/advanced-metrics?preset=today","service":"iap-service","timestamp":"2026-05-08 13:12:04"}
+{"level":"debug","message":"GET /api/v1/admin/dashboard-v2/advanced-metrics?preset=last7","service":"iap-service","timestamp":"2026-05-08 13:13:05"}
+{"level":"debug","message":"GET /api/v1/admin/dashboard-v2/advanced-metrics?preset=today","service":"iap-service","timestamp":"2026-05-08 13:13:41"}
+{"level":"info","message":"[CRON] Subscription cron jobs initialized (v3 - Grace Period & Billing Retry Support)","service":"iap-service","timestamp":"2026-05-08 14:25:09"}
+{"level":"info","message":"🧪 [DEV] Dev tools routes registered at /api/v1/dev/*","service":"iap-service","timestamp":"2026-05-08 14:25:11"}
+{"level":"debug","message":"GET /api/v1/content/faq","service":"iap-service","timestamp":"2026-05-08 14:36:49"}
+{"level":"debug","message":"GET /api/v1/content/privacy-policy","service":"iap-service","timestamp":"2026-05-08 14:37:57"}
+{"level":"debug","message":"GET /api/v1/content/terms-conditions","service":"iap-service","timestamp":"2026-05-08 14:38:31"}
+{"level":"info","message":"[CRON] Subscription cron jobs initialized (v3 - Grace Period & Billing Retry Support)","service":"iap-service","timestamp":"2026-05-08 14:41:51"}
+{"level":"info","message":"🧪 [DEV] Dev tools routes registered at /api/v1/dev/*","service":"iap-service","timestamp":"2026-05-08 14:41:53"}
+{"level":"debug","message":"GET /api/v1/content/faq","service":"iap-service","timestamp":"2026-05-08 14:42:42"}
+{"level":"debug","message":"GET /api/v1/content/faq?category=dating","service":"iap-service","timestamp":"2026-05-08 14:44:20"}
+{"level":"debug","message":"GET /api/v1/admin/account","service":"iap-service","timestamp":"2026-05-08 15:52:28"}
+{"level":"debug","message":"GET /api/v1/admin/profile-review/reported?limit=1","service":"iap-service","timestamp":"2026-05-08 15:52:28"}
+{"level":"debug","message":"GET /api/v1/admin/giveaway/campaigns?page=1&limit=10","service":"iap-service","timestamp":"2026-05-08 15:52:28"}
+{"level":"debug","message":"GET /api/v1/contact/alltickets?limit=1","service":"iap-service","timestamp":"2026-05-08 15:52:28"}
+{"level":"debug","message":"GET /api/v1/admin/moderation/pending-verifications?limit=1","service":"iap-service","timestamp":"2026-05-08 15:52:28"}
+{"level":"debug","message":"GET /api/v1/contact/alltickets?limit=1","service":"iap-service","timestamp":"2026-05-08 15:52:28"}
+{"level":"debug","message":"GET /api/v1/admin/giveaway/campaigns?page=1&limit=10","service":"iap-service","timestamp":"2026-05-08 15:52:28"}
+{"level":"debug","message":"GET /api/v1/admin/profile-review/reported?limit=1","service":"iap-service","timestamp":"2026-05-08 15:52:28"}
+{"level":"debug","message":"GET /api/v1/admin/profile-review/69b98f007ab7e7b8f8ea9f94","service":"iap-service","timestamp":"2026-05-08 15:52:28"}
+{"level":"debug","message":"GET /api/v1/admin/account","service":"iap-service","timestamp":"2026-05-08 15:52:28"}
+{"level":"debug","message":"GET /api/v1/admin/giveaway/campaigns?page=1&limit=10","service":"iap-service","timestamp":"2026-05-08 15:52:28"}
+{"level":"debug","message":"GET /api/v1/admin/account","service":"iap-service","timestamp":"2026-05-08 15:52:28"}
+{"level":"debug","message":"GET /api/v1/admin/profile-review/reported?limit=1","service":"iap-service","timestamp":"2026-05-08 15:52:28"}
+{"level":"debug","message":"GET /api/v1/admin/moderation/pending-verifications?limit=1","service":"iap-service","timestamp":"2026-05-08 15:52:28"}
+{"level":"debug","message":"GET /api/v1/contact/alltickets?limit=1","service":"iap-service","timestamp":"2026-05-08 15:52:28"}
+{"level":"debug","message":"GET /api/v1/admin/giveaway/campaigns?page=1&limit=10","service":"iap-service","timestamp":"2026-05-08 15:52:29"}
+{"level":"debug","message":"GET /api/v1/admin/account","service":"iap-service","timestamp":"2026-05-08 15:52:29"}
+{"level":"debug","message":"GET /api/v1/admin/profile-review/reported?limit=1","service":"iap-service","timestamp":"2026-05-08 15:52:29"}
+{"level":"debug","message":"GET /api/v1/admin/giveaway/campaigns?page=1&limit=10","service":"iap-service","timestamp":"2026-05-08 15:52:29"}
+{"level":"debug","message":"GET /api/v1/admin/account","service":"iap-service","timestamp":"2026-05-08 15:52:29"}
+{"level":"debug","message":"GET /api/v1/admin/profile-review/reported?limit=1","service":"iap-service","timestamp":"2026-05-08 15:52:29"}
+{"level":"debug","message":"GET /api/v1/contact/alltickets?limit=1","service":"iap-service","timestamp":"2026-05-08 15:52:29"}
+{"level":"debug","message":"GET /api/v1/contact/alltickets?limit=1","service":"iap-service","timestamp":"2026-05-08 15:52:29"}
+{"level":"debug","message":"GET /api/v1/admin/profile-review/reported?limit=1","service":"iap-service","timestamp":"2026-05-08 15:52:29"}
+{"level":"debug","message":"GET /api/v1/contact/alltickets?limit=1","service":"iap-service","timestamp":"2026-05-08 15:52:29"}
+{"level":"debug","message":"GET /api/v1/admin/profile-review/reported?limit=1","service":"iap-service","timestamp":"2026-05-08 15:52:29"}
+{"level":"debug","message":"GET /api/v1/contact/alltickets?limit=1","service":"iap-service","timestamp":"2026-05-08 15:52:29"}
+{"level":"debug","message":"GET /api/v1/admin/account","service":"iap-service","timestamp":"2026-05-08 15:52:29"}
+{"level":"debug","message":"GET /api/v1/admin/giveaway/campaigns?page=1&limit=10","service":"iap-service","timestamp":"2026-05-08 15:52:29"}
+{"level":"debug","message":"GET /api/v1/admin/profile-review/reported?limit=1","service":"iap-service","timestamp":"2026-05-08 15:52:29"}
+{"level":"debug","message":"GET /api/v1/admin/moderation/pending-verifications?limit=1","service":"iap-service","timestamp":"2026-05-08 15:52:29"}
+{"level":"debug","message":"GET /api/v1/contact/alltickets?limit=1","service":"iap-service","timestamp":"2026-05-08 15:52:29"}
+{"level":"debug","message":"GET /api/v1/admin/giveaway/campaigns?page=1&limit=10","service":"iap-service","timestamp":"2026-05-08 15:52:29"}
+{"level":"debug","message":"GET /api/v1/admin/account","service":"iap-service","timestamp":"2026-05-08 15:52:29"}
+{"level":"debug","message":"GET /api/v1/admin/profile-review/reported?limit=1","service":"iap-service","timestamp":"2026-05-08 15:52:29"}
+{"level":"debug","message":"GET /api/v1/admin/profile-review/reported?limit=1","service":"iap-service","timestamp":"2026-05-08 15:52:29"}
+{"level":"debug","message":"GET /api/v1/admin/account","service":"iap-service","timestamp":"2026-05-08 15:52:29"}
+{"level":"debug","message":"GET /api/v1/admin/account","service":"iap-service","timestamp":"2026-05-08 15:52:29"}
+{"level":"debug","message":"GET /api/v1/admin/giveaway/campaigns?page=1&limit=10","service":"iap-service","timestamp":"2026-05-08 15:52:30"}
+{"level":"debug","message":"GET /api/v1/admin/account","service":"iap-service","timestamp":"2026-05-08 15:52:30"}
+{"level":"debug","message":"GET /api/v1/admin/moderation/pending-verifications?limit=1","service":"iap-service","timestamp":"2026-05-08 15:52:30"}
+{"level":"debug","message":"GET /api/v1/admin/giveaway/campaigns?page=1&limit=10","service":"iap-service","timestamp":"2026-05-08 15:52:30"}
+{"level":"debug","message":"GET /api/v1/admin/profile-review/69b98f007ab7e7b8f8ea9f94","service":"iap-service","timestamp":"2026-05-08 15:52:30"}
+{"level":"debug","message":"GET /api/v1/contact/alltickets?limit=1","service":"iap-service","timestamp":"2026-05-08 15:52:30"}
+{"level":"debug","message":"GET /api/v1/admin/giveaway/campaigns?page=1&limit=10","service":"iap-service","timestamp":"2026-05-08 15:52:30"}
+{"level":"debug","message":"GET /api/v1/admin/profile-review/69b98f007ab7e7b8f8ea9f94","service":"iap-service","timestamp":"2026-05-08 15:52:31"}
+{"level":"debug","message":"GET /api/v1/admin/moderation/pending-verifications?limit=1","service":"iap-service","timestamp":"2026-05-08 15:52:31"}
+{"level":"debug","message":"GET /api/v1/contact/alltickets?limit=1","service":"iap-service","timestamp":"2026-05-08 15:52:31"}
+{"level":"debug","message":"GET /api/v1/admin/profile-review/69b98f007ab7e7b8f8ea9f94","service":"iap-service","timestamp":"2026-05-08 15:52:31"}
+{"level":"debug","message":"GET /api/v1/admin/profile-review/69b98f007ab7e7b8f8ea9f94","service":"iap-service","timestamp":"2026-05-08 15:52:31"}
+{"level":"debug","message":"GET /api/v1/admin/profile-review/69b98f007ab7e7b8f8ea9f94","service":"iap-service","timestamp":"2026-05-08 15:52:31"}
+{"level":"debug","message":"GET /api/v1/admin/moderation/pending-verifications?limit=1","service":"iap-service","timestamp":"2026-05-08 15:52:31"}
+{"level":"debug","message":"GET /api/v1/admin/profile-review/reported?page=1&limit=10","service":"iap-service","timestamp":"2026-05-08 15:52:32"}
+{"level":"debug","message":"GET /api/v1/admin/moderation/pending-verifications?limit=1","service":"iap-service","timestamp":"2026-05-08 15:52:32"}
+{"level":"debug","message":"GET /api/v1/admin/profile-review/69b98f007ab7e7b8f8ea9f94","service":"iap-service","timestamp":"2026-05-08 15:52:32"}
+{"level":"debug","message":"GET /api/v1/admin/profile-review/69b98f007ab7e7b8f8ea9f94","service":"iap-service","timestamp":"2026-05-08 15:52:33"}
+{"level":"debug","message":"GET /api/v1/admin/moderation/pending-verifications?limit=1","service":"iap-service","timestamp":"2026-05-08 15:52:33"}
+{"level":"debug","message":"GET /api/v1/admin/moderation/pending-verifications?limit=1","service":"iap-service","timestamp":"2026-05-08 15:52:34"}
+{"level":"debug","message":"GET /api/v1/admin/moderation/pending-verifications?limit=1","service":"iap-service","timestamp":"2026-05-08 15:52:35"}
+{"level":"debug","message":"PUT /api/v1/admin/profile-review/69b98f007ab7e7b8f8ea9f94/status","service":"iap-service","timestamp":"2026-05-08 15:52:42"}
+{"level":"debug","message":"GET /api/v1/admin/profile-review/69b98f007ab7e7b8f8ea9f94","service":"iap-service","timestamp":"2026-05-08 15:52:44"}
+{"level":"debug","message":"GET /api/v1/admin/profile-review/reported?page=1&limit=20","service":"iap-service","timestamp":"2026-05-08 15:52:44"}
+{"level":"info","message":"[CRON] Subscription cron jobs initialized (v3 - Grace Period & Billing Retry Support)","service":"iap-service","timestamp":"2026-05-08 16:01:40"}
+{"level":"info","message":"🧪 [DEV] Dev tools routes registered at /api/v1/dev/*","service":"iap-service","timestamp":"2026-05-08 16:01:42"}
+{"level":"info","message":"[CRON] Subscription cron jobs initialized (v3 - Grace Period & Billing Retry Support)","service":"iap-service","timestamp":"2026-05-08 16:02:09"}
+{"level":"info","message":"🧪 [DEV] Dev tools routes registered at /api/v1/dev/*","service":"iap-service","timestamp":"2026-05-08 16:02:10"}
+{"level":"info","message":"[CRON] Subscription cron jobs initialized (v3 - Grace Period & Billing Retry Support)","service":"iap-service","timestamp":"2026-05-08 16:02:26"}
+{"level":"info","message":"🧪 [DEV] Dev tools routes registered at /api/v1/dev/*","service":"iap-service","timestamp":"2026-05-08 16:02:27"}
+{"level":"info","message":"[CRON] Subscription cron jobs initialized (v3 - Grace Period & Billing Retry Support)","service":"iap-service","timestamp":"2026-05-08 16:03:01"}
+{"level":"info","message":"🧪 [DEV] Dev tools routes registered at /api/v1/dev/*","service":"iap-service","timestamp":"2026-05-08 16:03:02"}
+{"level":"debug","message":"GET /api/v1/admin/giveaway/campaigns?page=1&limit=10","service":"iap-service","timestamp":"2026-05-08 16:03:17"}
+{"level":"debug","message":"GET /api/v1/admin/account","service":"iap-service","timestamp":"2026-05-08 16:03:17"}
+{"level":"debug","message":"GET /api/v1/admin/profile-review/reported?limit=1","service":"iap-service","timestamp":"2026-05-08 16:03:17"}
+{"level":"debug","message":"GET /api/v1/admin/moderation/pending-verifications?limit=1","service":"iap-service","timestamp":"2026-05-08 16:03:17"}
+{"level":"debug","message":"GET /api/v1/contact/alltickets?limit=1","service":"iap-service","timestamp":"2026-05-08 16:03:17"}
+{"level":"debug","message":"GET /api/v1/contact/alltickets?limit=1","service":"iap-service","timestamp":"2026-05-08 16:03:17"}
+{"level":"debug","message":"GET /api/v1/admin/profile-review/reported?limit=1","service":"iap-service","timestamp":"2026-05-08 16:03:17"}
+{"level":"debug","message":"GET /api/v1/contact/alltickets?limit=1","service":"iap-service","timestamp":"2026-05-08 16:03:17"}
+{"level":"debug","message":"GET /api/v1/admin/moderation/pending-verifications?limit=1","service":"iap-service","timestamp":"2026-05-08 16:03:17"}
+{"level":"debug","message":"GET /api/v1/admin/profile-review/reported?limit=1","service":"iap-service","timestamp":"2026-05-08 16:03:18"}
+{"level":"debug","message":"GET /api/v1/contact/alltickets?limit=1","service":"iap-service","timestamp":"2026-05-08 16:03:18"}
+{"level":"debug","message":"GET /api/v1/admin/moderation/pending-verifications?limit=1","service":"iap-service","timestamp":"2026-05-08 16:03:18"}
+{"level":"debug","message":"GET /api/v1/contact/alltickets?limit=1","service":"iap-service","timestamp":"2026-05-08 16:03:18"}
+{"level":"debug","message":"GET /api/v1/admin/profile-review/reported?limit=1","service":"iap-service","timestamp":"2026-05-08 16:03:18"}
+{"level":"debug","message":"GET /api/v1/admin/moderation/pending-verifications?limit=1","service":"iap-service","timestamp":"2026-05-08 16:03:18"}
+{"level":"debug","message":"GET /api/v1/contact/alltickets?limit=1","service":"iap-service","timestamp":"2026-05-08 16:03:18"}
+{"level":"debug","message":"GET /api/v1/admin/account","service":"iap-service","timestamp":"2026-05-08 16:03:18"}
+{"level":"debug","message":"GET /api/v1/admin/profile-review/reported?limit=1","service":"iap-service","timestamp":"2026-05-08 16:03:18"}
+{"level":"debug","message":"GET /api/v1/admin/moderation/pending-verifications?limit=1","service":"iap-service","timestamp":"2026-05-08 16:03:18"}
+{"level":"debug","message":"GET /api/v1/admin/profile-review/reported?limit=1","service":"iap-service","timestamp":"2026-05-08 16:03:18"}
+{"level":"debug","message":"GET /api/v1/admin/moderation/pending-verifications?limit=1","service":"iap-service","timestamp":"2026-05-08 16:03:18"}
+{"level":"debug","message":"GET /api/v1/admin/giveaway/campaigns?page=1&limit=10","service":"iap-service","timestamp":"2026-05-08 16:03:18"}
+{"level":"debug","message":"GET /api/v1/admin/account","service":"iap-service","timestamp":"2026-05-08 16:03:18"}
+{"level":"debug","message":"GET /api/v1/admin/giveaway/campaigns?page=1&limit=10","service":"iap-service","timestamp":"2026-05-08 16:03:18"}
+{"level":"debug","message":"GET /api/v1/admin/profile-review/69b98f007ab7e7b8f8ea9f94","service":"iap-service","timestamp":"2026-05-08 16:03:19"}
+{"level":"debug","message":"GET /api/v1/admin/account","service":"iap-service","timestamp":"2026-05-08 16:03:19"}
+{"level":"debug","message":"GET /api/v1/admin/giveaway/campaigns?page=1&limit=10","service":"iap-service","timestamp":"2026-05-08 16:03:19"}
+{"level":"debug","message":"GET /api/v1/admin/profile-review/69b98f007ab7e7b8f8ea9f94","service":"iap-service","timestamp":"2026-05-08 16:03:19"}
+{"level":"debug","message":"GET /api/v1/admin/profile-review/69b98f007ab7e7b8f8ea9f94","service":"iap-service","timestamp":"2026-05-08 16:03:19"}
+{"level":"debug","message":"GET /api/v1/admin/giveaway/campaigns?page=1&limit=10","service":"iap-service","timestamp":"2026-05-08 16:03:19"}
+{"level":"debug","message":"GET /api/v1/admin/profile-review/69b98f007ab7e7b8f8ea9f94","service":"iap-service","timestamp":"2026-05-08 16:03:19"}
+{"level":"debug","message":"GET /api/v1/admin/giveaway/campaigns?page=1&limit=10","service":"iap-service","timestamp":"2026-05-08 16:03:19"}
+{"level":"debug","message":"GET /api/v1/admin/account","service":"iap-service","timestamp":"2026-05-08 16:03:19"}
+{"level":"debug","message":"GET /api/v1/admin/profile-review/69b98f007ab7e7b8f8ea9f94","service":"iap-service","timestamp":"2026-05-08 16:03:19"}
+{"level":"debug","message":"GET /api/v1/admin/account","service":"iap-service","timestamp":"2026-05-08 16:03:19"}
+{"level":"debug","message":"GET /api/v1/admin/profile-review/69b98f007ab7e7b8f8ea9f94","service":"iap-service","timestamp":"2026-05-08 16:03:21"}
+{"level":"debug","message":"GET /api/v1/admin/giveaway/campaigns?page=1&limit=10","service":"iap-service","timestamp":"2026-05-08 16:10:21"}
+{"level":"debug","message":"GET /api/v1/admin/account","service":"iap-service","timestamp":"2026-05-08 16:10:21"}
+{"level":"debug","message":"GET /api/v1/admin/profile-review/reported?limit=1","service":"iap-service","timestamp":"2026-05-08 16:10:21"}
+{"level":"debug","message":"GET /api/v1/admin/moderation/pending-verifications?limit=1","service":"iap-service","timestamp":"2026-05-08 16:10:21"}
+{"level":"debug","message":"GET /api/v1/contact/alltickets?limit=1","service":"iap-service","timestamp":"2026-05-08 16:10:21"}
+{"level":"debug","message":"GET /api/v1/contact/alltickets?limit=1","service":"iap-service","timestamp":"2026-05-08 16:10:21"}
+{"level":"debug","message":"GET /api/v1/admin/profile-review/reported?limit=1","service":"iap-service","timestamp":"2026-05-08 16:10:21"}
+{"level":"debug","message":"GET /api/v1/admin/moderation/pending-verifications?limit=1","service":"iap-service","timestamp":"2026-05-08 16:10:22"}
+{"level":"debug","message":"GET /api/v1/admin/giveaway/campaigns?page=1&limit=10","service":"iap-service","timestamp":"2026-05-08 16:10:22"}
+{"level":"debug","message":"GET /api/v1/admin/profile-review/69b98f007ab7e7b8f8ea9f94","service":"iap-service","timestamp":"2026-05-08 16:10:22"}
+{"level":"debug","message":"GET /api/v1/admin/profile-review/69b98f007ab7e7b8f8ea9f94","service":"iap-service","timestamp":"2026-05-08 16:10:22"}
+{"level":"debug","message":"GET /api/v1/admin/account","service":"iap-service","timestamp":"2026-05-08 16:10:22"}
+{"level":"debug","message":"GET /api/v1/admin/profile-review/reported?page=1&limit=10","service":"iap-service","timestamp":"2026-05-08 16:10:24"}
+{"level":"debug","message":"GET /api/v1/admin/profile-review/69aec3e9487b06dcecd89128","service":"iap-service","timestamp":"2026-05-08 16:10:35"}
+{"level":"debug","message":"GET /api/v1/admin/profile-review/69aec3e9487b06dcecd89128","service":"iap-service","timestamp":"2026-05-08 16:10:36"}
+{"level":"debug","message":"GET /api/v1/admin/profile-review/reported?page=1&limit=10","service":"iap-service","timestamp":"2026-05-08 16:10:44"}
+{"level":"debug","message":"GET /api/v1/admin/profile-review/69b98f007ab7e7b8f8ea9f94","service":"iap-service","timestamp":"2026-05-08 16:10:47"}
+{"level":"debug","message":"GET /api/v1/admin/profile-review/69b98f007ab7e7b8f8ea9f94","service":"iap-service","timestamp":"2026-05-08 16:10:48"}
+{"level":"debug","message":"GET /api/v1/admin/profile-review/reported?page=1&limit=10","service":"iap-service","timestamp":"2026-05-08 16:10:56"}
+{"level":"debug","message":"GET /api/v1/admin/profile-review/695e0a0f799fda33e30a7f92","service":"iap-service","timestamp":"2026-05-08 16:11:01"}
+{"level":"debug","message":"GET /api/v1/admin/profile-review/695e0a0f799fda33e30a7f92","service":"iap-service","timestamp":"2026-05-08 16:11:01"}
+{"level":"debug","message":"GET /api/v1/admin/profile-review/reported?page=1&limit=10","service":"iap-service","timestamp":"2026-05-08 16:11:04"}
+{"level":"debug","message":"GET /api/v1/admin/profile-review/reported?page=1&limit=10&status=in_progress","service":"iap-service","timestamp":"2026-05-08 16:13:53"}
+{"level":"debug","message":"GET /api/v1/admin/giveaway/campaigns?page=1&limit=10","service":"iap-service","timestamp":"2026-05-08 16:14:44"}
+{"level":"debug","message":"GET /api/v1/admin/account","service":"iap-service","timestamp":"2026-05-08 16:14:44"}
+{"level":"debug","message":"GET /api/v1/admin/profile-review/reported?limit=1","service":"iap-service","timestamp":"2026-05-08 16:14:44"}
+{"level":"debug","message":"GET /api/v1/admin/moderation/pending-verifications?limit=1","service":"iap-service","timestamp":"2026-05-08 16:14:44"}
+{"level":"debug","message":"GET /api/v1/contact/alltickets?limit=1","service":"iap-service","timestamp":"2026-05-08 16:14:44"}
+{"level":"debug","message":"GET /api/v1/contact/alltickets?limit=1","service":"iap-service","timestamp":"2026-05-08 16:14:44"}
+{"level":"debug","message":"GET /api/v1/admin/profile-review/reported?limit=1","service":"iap-service","timestamp":"2026-05-08 16:14:44"}
+{"level":"debug","message":"GET /api/v1/admin/moderation/pending-verifications?limit=1","service":"iap-service","timestamp":"2026-05-08 16:14:44"}
+{"level":"debug","message":"GET /api/v1/admin/giveaway/campaigns?page=1&limit=10","service":"iap-service","timestamp":"2026-05-08 16:14:44"}
+{"level":"debug","message":"GET /api/v1/admin/account","service":"iap-service","timestamp":"2026-05-08 16:14:44"}
+{"level":"debug","message":"GET /api/v1/admin/profile-review/reported?page=1&limit=10","service":"iap-service","timestamp":"2026-05-08 16:14:45"}
+{"level":"debug","message":"GET /api/v1/admin/profile-review/reported?page=1&limit=10&status=in_progress","service":"iap-service","timestamp":"2026-05-08 16:14:47"}
+{"level":"debug","message":"GET /api/v1/admin/profile-review/reported?page=1&limit=10&status=new","service":"iap-service","timestamp":"2026-05-08 16:16:46"}
+{"level":"debug","message":"GET /api/v1/admin/profile-review/reported?page=1&limit=10&status=resolved","service":"iap-service","timestamp":"2026-05-08 16:16:50"}
+{"level":"debug","message":"GET /api/v1/admin/profile-review/reported?page=1&limit=10&status=high","service":"iap-service","timestamp":"2026-05-08 16:16:56"}
+{"level":"debug","message":"GET /api/v1/admin/profile-review/reported?page=1&limit=10&status=resolved","service":"iap-service","timestamp":"2026-05-08 16:17:01"}
+{"level":"debug","message":"GET /api/v1/admin/profile-review/reported?page=1&limit=10&status=in_progress","service":"iap-service","timestamp":"2026-05-08 16:17:03"}
+{"level":"debug","message":"GET /api/v1/admin/profile-review/reported?page=1&limit=10&status=new","service":"iap-service","timestamp":"2026-05-08 16:17:05"}
+{"level":"debug","message":"GET /api/v1/admin/profile-review/reported?page=1&limit=10","service":"iap-service","timestamp":"2026-05-08 16:17:07"}
+{"level":"debug","message":"GET /api/v1/admin/profile-review/reported?page=1&limit=10&status=new","service":"iap-service","timestamp":"2026-05-08 16:19:53"}
+{"level":"debug","message":"GET /api/v1/admin/profile-review/reported?page=1&limit=10","service":"iap-service","timestamp":"2026-05-08 16:19:54"}
+{"level":"debug","message":"GET /api/v1/admin/profile-review/reported?page=1&limit=10&status=new","service":"iap-service","timestamp":"2026-05-08 16:19:55"}
+{"level":"debug","message":"GET /api/v1/admin/profile-review/reported?page=1&limit=10&status=in_progress","service":"iap-service","timestamp":"2026-05-08 16:19:55"}
+{"level":"debug","message":"GET /api/v1/admin/profile-review/reported?page=1&limit=10&status=resolved","service":"iap-service","timestamp":"2026-05-08 16:19:56"}
+{"level":"debug","message":"GET /api/v1/admin/profile-review/reported?page=1&limit=10&status=high","service":"iap-service","timestamp":"2026-05-08 16:19:57"}
+{"level":"debug","message":"GET /api/v1/admin/users?page=1&limit=10&gender=","service":"iap-service","timestamp":"2026-05-08 16:20:01"}
+{"level":"debug","message":"GET /api/v1/admin/fake-profiles?page=1&limit=10","service":"iap-service","timestamp":"2026-05-08 16:21:55"}
+{"level":"debug","message":"GET /api/v1/admin/moderation/pending-verifications?page=1&limit=10","service":"iap-service","timestamp":"2026-05-08 16:21:59"}
+{"level":"debug","message":"GET /api/v1/admin/users?page=1&limit=10&gender=","service":"iap-service","timestamp":"2026-05-08 16:22:04"}
+{"level":"debug","message":"GET /api/v1/admin/moderation/pending-verifications?page=1&limit=10","service":"iap-service","timestamp":"2026-05-08 16:22:10"}
+{"level":"debug","message":"GET /api/v1/admin/subscription/stats?timeFilter=today","service":"iap-service","timestamp":"2026-05-08 16:22:12"}
+{"level":"debug","message":"GET /api/v1/admin/subscription/stats?timeFilter=today","service":"iap-service","timestamp":"2026-05-08 16:22:12"}
+{"level":"debug","message":"GET /api/v1/admin/users?page=1&limit=10&gender=","service":"iap-service","timestamp":"2026-05-08 16:22:16"}
+{"level":"debug","message":"GET /api/v1/admin/profile-review/reported?page=1&limit=10","service":"iap-service","timestamp":"2026-05-08 16:22:47"}
+{"level":"debug","message":"GET /api/v1/admin/users?page=1&limit=10&gender=","service":"iap-service","timestamp":"2026-05-08 16:22:58"}
+{"level":"debug","message":"GET /api/v1/admin/users?page=1&limit=10&isPremium=true&gender=","service":"iap-service","timestamp":"2026-05-08 16:22:59"}
+{"level":"debug","message":"GET /api/v1/admin/users?page=1&limit=10&accountStatus=banned&gender=","service":"iap-service","timestamp":"2026-05-08 16:23:01"}
+{"level":"debug","message":"GET /api/v1/admin/users?page=1&limit=10&accountStatus=active&gender=","service":"iap-service","timestamp":"2026-05-08 16:23:04"}
+{"level":"debug","message":"GET /api/v1/admin/users?page=1&limit=10&isPremium=true&gender=","service":"iap-service","timestamp":"2026-05-08 16:23:07"}
+{"level":"debug","message":"GET /api/v1/admin/users?page=1&limit=10&accountStatus=banned&gender=","service":"iap-service","timestamp":"2026-05-08 16:23:12"}
+{"level":"debug","message":"GET /api/v1/admin/users?page=1&limit=10&accountStatus=suspended&gender=","service":"iap-service","timestamp":"2026-05-08 16:23:19"}
+{"level":"debug","message":"GET /api/v1/admin/users?page=1&limit=10&accountStatus=active&gender=","service":"iap-service","timestamp":"2026-05-08 16:23:23"}
+{"level":"debug","message":"GET /api/v1/admin/users?page=1&limit=10&gender=","service":"iap-service","timestamp":"2026-05-08 16:23:25"}
+{"level":"debug","message":"GET /api/v1/admin/fake-profiles?page=1&limit=10","service":"iap-service","timestamp":"2026-05-08 16:23:41"}
+{"level":"debug","message":"GET /api/v1/admin/moderation/pending-verifications?page=1&limit=10","service":"iap-service","timestamp":"2026-05-08 16:23:43"}
+{"level":"debug","message":"GET /api/v1/contact/alltickets?page=1&limit=10","service":"iap-service","timestamp":"2026-05-08 16:23:45"}
+{"level":"debug","message":"GET /api/v1/admin/subscription/stats?timeFilter=today","service":"iap-service","timestamp":"2026-05-08 16:23:46"}
+{"level":"debug","message":"GET /api/v1/admin/subscription/stats?timeFilter=today","service":"iap-service","timestamp":"2026-05-08 16:23:46"}
+{"level":"debug","message":"GET /api/v1/contact/alltickets?page=1&limit=10","service":"iap-service","timestamp":"2026-05-08 16:23:48"}
+{"level":"debug","message":"GET /api/v1/contact/alltickets?page=1&limit=10&status=open","service":"iap-service","timestamp":"2026-05-08 16:25:25"}
+{"level":"debug","message":"GET /api/v1/contact/alltickets?page=1&limit=10&status=resolved","service":"iap-service","timestamp":"2026-05-08 16:25:31"}
+{"level":"debug","message":"GET /api/v1/contact/alltickets?page=1&limit=10&status=in_progress","service":"iap-service","timestamp":"2026-05-08 16:25:36"}
+{"level":"debug","message":"GET /api/v1/contact/alltickets?page=1&limit=10&status=resolved","service":"iap-service","timestamp":"2026-05-08 16:25:39"}
+{"level":"debug","message":"GET /api/v1/contact/alltickets?page=1&limit=10&status=in_progress","service":"iap-service","timestamp":"2026-05-08 16:26:22"}
+{"level":"debug","message":"GET /api/v1/contact/alltickets?page=1&limit=10&status=resolved","service":"iap-service","timestamp":"2026-05-08 16:26:23"}
+{"level":"debug","message":"GET /api/v1/contact/alltickets?page=1&limit=10&status=closed","service":"iap-service","timestamp":"2026-05-08 16:26:25"}
+{"level":"debug","message":"GET /api/v1/admin/moderation/pending-verifications?page=1&limit=10","service":"iap-service","timestamp":"2026-05-08 16:26:30"}
+{"level":"debug","message":"GET /api/v1/admin/moderation/pending-verifications?page=1&limit=10&status=approved","service":"iap-service","timestamp":"2026-05-08 16:26:36"}
+{"level":"debug","message":"GET /api/v1/admin/moderation/pending-verifications?page=1&limit=10&status=pending","service":"iap-service","timestamp":"2026-05-08 16:26:38"}
+{"level":"debug","message":"GET /api/v1/admin/moderation/pending-verifications?page=1&limit=10&status=rejected","service":"iap-service","timestamp":"2026-05-08 16:26:40"}
+{"level":"debug","message":"GET /api/v1/admin/moderation/pending-verifications?page=1&limit=10&status=not_started","service":"iap-service","timestamp":"2026-05-08 16:27:12"}
+{"level":"debug","message":"GET /api/v1/admin/moderation/pending-verifications?page=1&limit=10&status=approved","service":"iap-service","timestamp":"2026-05-08 16:27:15"}
+{"level":"debug","message":"GET /api/v1/admin/moderation/pending-verifications?page=1&limit=10&status=not_started","service":"iap-service","timestamp":"2026-05-08 16:27:16"}
+{"level":"debug","message":"GET /api/v1/admin/moderation/pending-verifications?page=1&limit=10&status=approved","service":"iap-service","timestamp":"2026-05-08 16:27:18"}
+{"level":"debug","message":"GET /api/v1/admin/moderation/pending-verifications?page=1&limit=10&status=pending","service":"iap-service","timestamp":"2026-05-08 16:27:19"}
+{"level":"debug","message":"GET /api/v1/admin/moderation/pending-verifications?page=1&limit=10&status=rejected","service":"iap-service","timestamp":"2026-05-08 16:27:21"}
+{"level":"debug","message":"GET /api/v1/admin/profile-review/reported?page=1&limit=10","service":"iap-service","timestamp":"2026-05-08 16:27:24"}
+{"level":"debug","message":"GET /api/v1/admin/subscription/stats?timeFilter=today","service":"iap-service","timestamp":"2026-05-08 16:27:26"}
+{"level":"debug","message":"GET /api/v1/admin/subscription/stats?timeFilter=today","service":"iap-service","timestamp":"2026-05-08 16:27:26"}
+{"level":"debug","message":"GET /api/v1/admin/subscription/subscribers?page=1&limit=10","service":"iap-service","timestamp":"2026-05-08 16:27:28"}
+{"level":"debug","message":"GET /api/v1/admin/subscription/subscribers?page=1&limit=10&status=ACTIVE","service":"iap-service","timestamp":"2026-05-08 16:27:36"}
+{"level":"debug","message":"GET /api/v1/admin/subscription/subscribers?page=1&limit=10&status=CANCELLED","service":"iap-service","timestamp":"2026-05-08 16:27:40"}
+{"level":"debug","message":"GET /api/v1/admin/subscription/subscribers?page=1&limit=10&status=REVOKED","service":"iap-service","timestamp":"2026-05-08 16:27:42"}
+{"level":"debug","message":"GET /api/v1/admin/subscription/subscribers?page=1&limit=10","service":"iap-service","timestamp":"2026-05-08 16:27:49"}
+{"level":"debug","message":"GET /api/v1/admin/subscription/subscribers?page=1&limit=10&status=ACTIVE","service":"iap-service","timestamp":"2026-05-08 16:29:53"}
+{"level":"debug","message":"GET /api/v1/admin/subscription/subscribers?page=1&limit=10&status=REVOKED%2FEXPIRED","service":"iap-service","timestamp":"2026-05-08 16:29:55"}
+{"level":"debug","message":"GET /api/v1/admin/subscription/subscribers?page=1&limit=10&status=REVOKED","service":"iap-service","timestamp":"2026-05-08 16:30:00"}
+{"level":"debug","message":"GET /api/v1/admin/subscription/subscribers?page=1&limit=10&status=ACTIVE","service":"iap-service","timestamp":"2026-05-08 16:30:11"}
+{"level":"debug","message":"GET /api/v1/admin/subscription/subscribers?page=1&limit=10&status=REVOKED","service":"iap-service","timestamp":"2026-05-08 16:30:13"}
+{"level":"debug","message":"GET /api/v1/admin/subscription/subscribers?page=1&limit=10&status=ALL","service":"iap-service","timestamp":"2026-05-08 16:30:34"}
+{"level":"debug","message":"GET /api/v1/admin/subscription/subscribers?page=1&limit=10","service":"iap-service","timestamp":"2026-05-08 16:30:36"}
+{"level":"debug","message":"GET /api/v1/admin/subscription/subscribers?page=1&limit=10&status=ACTIVE","service":"iap-service","timestamp":"2026-05-08 16:30:55"}
+{"level":"debug","message":"GET /api/v1/admin/subscription/subscribers?page=1&limit=10&status=REVOKED","service":"iap-service","timestamp":"2026-05-08 16:30:56"}
+{"level":"debug","message":"GET /api/v1/admin/subscription/subscribers?page=1&limit=10&status=ACTIVE","service":"iap-service","timestamp":"2026-05-08 16:30:59"}
+{"level":"debug","message":"GET /api/v1/admin/subscription/subscribers?page=1&limit=10","service":"iap-service","timestamp":"2026-05-08 16:31:03"}
+{"level":"debug","message":"GET /api/v1/admin/subscription/stats?timeFilter=today","service":"iap-service","timestamp":"2026-05-08 16:31:15"}
+{"level":"debug","message":"GET /api/v1/admin/subscription/stats?timeFilter=today","service":"iap-service","timestamp":"2026-05-08 16:31:16"}
+{"level":"debug","message":"GET /api/v1/admin/users?page=1&limit=10&gender=","service":"iap-service","timestamp":"2026-05-08 16:31:28"}
+{"level":"debug","message":"GET /api/v1/content/faq","service":"iap-service","timestamp":"2026-05-08 16:34:36"}
+{"level":"debug","message":"GET /api/v1/content/faq","service":"iap-service","timestamp":"2026-05-08 16:34:36"}
+{"level":"debug","message":"POST /api/v1/admin/cms/add-faq","service":"iap-service","timestamp":"2026-05-08 16:35:40"}
+{"level":"debug","message":"POST /api/v1/admin/cms/add-faq","service":"iap-service","timestamp":"2026-05-08 16:35:48"}
+{"level":"debug","message":"POST /api/v1/admin/cms/faq","service":"iap-service","timestamp":"2026-05-08 16:37:11"}
+{"level":"debug","message":"GET /api/v1/content/faq","service":"iap-service","timestamp":"2026-05-08 16:38:13"}
+{"level":"debug","message":"PATCH /api/v1/admin/cms/update-faq?id=695e1ba017d04e569c901ad2","service":"iap-service","timestamp":"2026-05-08 16:38:22"}
+{"level":"debug","message":"PATCH /api/v1/admin/cms/update-faq?id=695e1ba017d04e569c901ad2","service":"iap-service","timestamp":"2026-05-08 16:39:07"}
+{"level":"debug","message":"PATCH /api/v1/admin/cms/update-faq?id=695e1ba017d04e569c901ad2","service":"iap-service","timestamp":"2026-05-08 16:39:20"}
+{"level":"debug","message":"PATCH /api/v1/admin/cms/faq?id=695e1ba017d04e569c901ad2","service":"iap-service","timestamp":"2026-05-08 16:39:26"}
+{"level":"debug","message":"PATCH /api/v1/admin/cms/faq?id=695e1ba017d04e569c901ad2","service":"iap-service","timestamp":"2026-05-08 16:39:30"}
+{"level":"debug","message":"PATCH /api/v1/admin/cms/faq/695e1ba017d04e569c901ad2","service":"iap-service","timestamp":"2026-05-08 16:39:48"}
+{"level":"debug","message":"PATCH /api/v1/admin/cms/faq/6974d8993a07f8d6ecdf36ec","service":"iap-service","timestamp":"2026-05-08 16:40:04"}
+{"level":"debug","message":"PATCH /api/v1/admin/cms/faq/6974d8993a07f8d6ecdf36ec","service":"iap-service","timestamp":"2026-05-08 16:40:12"}
+{"level":"debug","message":"GET /api/v1/content/faq","service":"iap-service","timestamp":"2026-05-08 16:41:57"}
+{"level":"debug","message":"DELETE /api/v1/admin/cms/faq/69fdc3df82242d1a52172b01","service":"iap-service","timestamp":"2026-05-08 16:43:02"}
+{"level":"debug","message":"GET /api/v1/app-settings/general","service":"iap-service","timestamp":"2026-05-08 16:49:18"}
+{"level":"debug","message":"GET /api/v1/app-settings/general","service":"iap-service","timestamp":"2026-05-08 16:49:31"}
+{"level":"debug","message":"GET /api/v1/app-settings/general","service":"iap-service","timestamp":"2026-05-08 16:49:31"}
+{"level":"debug","message":"POST /api/v1/app-settings/general","service":"iap-service","timestamp":"2026-05-08 16:50:49"}
+{"level":"debug","message":"POST /api/v1/app-settings/general","service":"iap-service","timestamp":"2026-05-08 16:50:59"}
+{"level":"debug","message":"POST /api/v1/app-settings/general","service":"iap-service","timestamp":"2026-05-08 16:51:04"}
+{"level":"debug","message":"GET /api/v1/app-settings/general","service":"iap-service","timestamp":"2026-05-08 16:51:36"}
+{"level":"debug","message":"POST /api/v1/app-settings/general","service":"iap-service","timestamp":"2026-05-08 16:52:04"}
+{"level":"debug","message":"GET /api/v1/app-settings/general","service":"iap-service","timestamp":"2026-05-08 16:52:29"}
+{"level":"debug","message":"GET /api/v1/app-settings/social-links","service":"iap-service","timestamp":"2026-05-08 16:59:09"}
+{"level":"info","message":"[CRON] Subscription cron jobs initialized (v3 - Grace Period & Billing Retry Support)","service":"iap-service","timestamp":"2026-05-08 16:59:40"}
+{"level":"info","message":"🧪 [DEV] Dev tools routes registered at /api/v1/dev/*","service":"iap-service","timestamp":"2026-05-08 16:59:41"}
+{"level":"info","message":"[CRON] Subscription cron jobs initialized (v3 - Grace Period & Billing Retry Support)","service":"iap-service","timestamp":"2026-05-08 16:59:48"}
+{"level":"info","message":"🧪 [DEV] Dev tools routes registered at /api/v1/dev/*","service":"iap-service","timestamp":"2026-05-08 16:59:49"}
+{"level":"debug","message":"GET /api/v1/app-settings/social-links","service":"iap-service","timestamp":"2026-05-08 17:00:14"}
+{"level":"debug","message":"GET /api/v1/app-settings/general","service":"iap-service","timestamp":"2026-05-08 17:00:50"}
+{"level":"debug","message":"GET /api/v1/app-settings/social-links","service":"iap-service","timestamp":"2026-05-08 17:01:55"}
+{"level":"debug","message":"GET /api/v1/app-settings/social-links","service":"iap-service","timestamp":"2026-05-08 17:01:55"}
+{"level":"debug","message":"POST /api/v1/app-settings/social-links","service":"iap-service","timestamp":"2026-05-08 17:02:09"}
+{"level":"debug","message":"GET /api/v1/app-settings/social-links","service":"iap-service","timestamp":"2026-05-08 17:02:09"}
+{"level":"debug","message":"GET /api/v1/admin/settings","service":"iap-service","timestamp":"2026-05-08 17:05:21"}
+{"level":"debug","message":"GET /api/v1/admin/settings","service":"iap-service","timestamp":"2026-05-08 17:05:21"}
+{"level":"debug","message":"PUT /api/v1/admin/settings","service":"iap-service","timestamp":"2026-05-08 17:08:14"}
+{"level":"debug","message":"GET /api/v1/admin/settings","service":"iap-service","timestamp":"2026-05-08 17:08:14"}
+{"level":"debug","message":"GET /api/v1/admin/giveaway/campaigns?page=1&limit=10","service":"iap-service","timestamp":"2026-05-08 17:09:39"}
+{"level":"debug","message":"GET /api/v1/admin/account","service":"iap-service","timestamp":"2026-05-08 17:09:39"}
+{"level":"debug","message":"GET /api/v1/admin/profile-review/reported?limit=1","service":"iap-service","timestamp":"2026-05-08 17:09:39"}
+{"level":"debug","message":"GET /api/v1/admin/moderation/pending-verifications?limit=1","service":"iap-service","timestamp":"2026-05-08 17:09:39"}
+{"level":"debug","message":"GET /api/v1/contact/alltickets?limit=1","service":"iap-service","timestamp":"2026-05-08 17:09:39"}
+{"level":"debug","message":"GET /api/v1/contact/alltickets?limit=1","service":"iap-service","timestamp":"2026-05-08 17:09:39"}
+{"level":"debug","message":"GET /api/v1/admin/giveaway/campaigns?page=1&limit=10","service":"iap-service","timestamp":"2026-05-08 17:09:39"}
+{"level":"debug","message":"GET /api/v1/admin/account","service":"iap-service","timestamp":"2026-05-08 17:09:39"}
+{"level":"debug","message":"GET /api/v1/admin/profile-review/reported?limit=1","service":"iap-service","timestamp":"2026-05-08 17:09:39"}
+{"level":"debug","message":"GET /api/v1/admin/moderation/pending-verifications?limit=1","service":"iap-service","timestamp":"2026-05-08 17:09:40"}
+{"level":"debug","message":"GET /api/v1/app-settings/general","service":"iap-service","timestamp":"2026-05-08 17:10:10"}
+{"level":"debug","message":"GET /api/v1/app-settings/general","service":"iap-service","timestamp":"2026-05-08 17:10:10"}
+{"level":"debug","message":"GET /api/v1/admin/users?page=1&limit=10&gender=","service":"iap-service","timestamp":"2026-05-08 17:10:13"}
+{"level":"debug","message":"GET /api/v1/admin/users?page=1&limit=10&isPremium=true&gender=","service":"iap-service","timestamp":"2026-05-08 17:10:14"}
+{"level":"debug","message":"GET /api/v1/admin/users?page=1&limit=10&gender=","service":"iap-service","timestamp":"2026-05-08 17:10:18"}
+{"level":"debug","message":"GET /api/v1/admin/fake-profiles?page=1&limit=10","service":"iap-service","timestamp":"2026-05-08 17:13:05"}
+{"level":"debug","message":"GET /api/v1/admin/users/69edd6fee8ecb7905befa4ef","service":"iap-service","timestamp":"2026-05-08 17:13:26"}
+{"level":"debug","message":"GET /api/v1/admin/users/69edd6fee8ecb7905befa4ef","service":"iap-service","timestamp":"2026-05-08 17:13:26"}
+{"level":"debug","message":"GET /api/v1/admin/fake-profiles?page=1&limit=10","service":"iap-service","timestamp":"2026-05-08 17:13:35"}
+{"level":"debug","message":"GET /api/v1/admin/users/69edd6fee8ecb7905befa4ef","service":"iap-service","timestamp":"2026-05-08 17:13:36"}
+{"level":"debug","message":"GET /api/v1/admin/users/69edd6fee8ecb7905befa4ef","service":"iap-service","timestamp":"2026-05-08 17:13:36"}
+{"level":"debug","message":"GET /api/v1/admin/fake-profiles?page=1&limit=10","service":"iap-service","timestamp":"2026-05-08 17:14:30"}
+{"level":"info","message":"[CRON] Subscription cron jobs initialized (v3 - Grace Period & Billing Retry Support)","service":"iap-service","timestamp":"2026-05-08 17:17:20"}
+{"level":"info","message":"🧪 [DEV] Dev tools routes registered at /api/v1/dev/*","service":"iap-service","timestamp":"2026-05-08 17:17:21"}
+{"level":"debug","message":"GET /api/v1/admin/dashboard/stats/kpi","service":"iap-service","timestamp":"2026-05-08 17:19:53"}
+{"level":"debug","message":"GET /api/v1/admin/dashboard-v2/advanced-metrics?preset=today","service":"iap-service","timestamp":"2026-05-08 17:19:53"}
+{"level":"debug","message":"GET /api/v1/admin/dashboard/stats/kpi?preset=today","service":"iap-service","timestamp":"2026-05-08 17:19:53"}
+{"level":"debug","message":"GET /api/v1/admin/dashboard/stats/kpi","service":"iap-service","timestamp":"2026-05-08 17:19:53"}
+{"level":"debug","message":"GET /api/v1/admin/dashboard/stats/kpi?preset=today","service":"iap-service","timestamp":"2026-05-08 17:19:53"}
+{"level":"debug","message":"GET /api/v1/admin/dashboard-v2/advanced-metrics?preset=today","service":"iap-service","timestamp":"2026-05-08 17:19:54"}
+{"level":"debug","message":"GET /api/v1/admin/dashboard/stats/kpi","service":"iap-service","timestamp":"2026-05-08 17:19:54"}
+{"level":"debug","message":"GET /api/v1/admin/dashboard-v2/advanced-metrics?preset=today","service":"iap-service","timestamp":"2026-05-08 17:19:54"}
+{"level":"debug","message":"GET /api/v1/admin/dashboard/stats/kpi?preset=today","service":"iap-service","timestamp":"2026-05-08 17:19:54"}
+{"level":"debug","message":"GET /api/v1/admin/dashboard/stats/kpi","service":"iap-service","timestamp":"2026-05-08 17:19:54"}
+{"level":"debug","message":"GET /api/v1/admin/dashboard/stats/kpi?preset=today","service":"iap-service","timestamp":"2026-05-08 17:19:54"}
+{"level":"debug","message":"GET /api/v1/admin/dashboard-v2/advanced-metrics?preset=today","service":"iap-service","timestamp":"2026-05-08 17:19:55"}
+{"level":"debug","message":"GET /api/v1/admin/dashboard/stats/kpi","service":"iap-service","timestamp":"2026-05-08 17:19:55"}
+{"level":"debug","message":"GET /api/v1/admin/dashboard/stats/kpi","service":"iap-service","timestamp":"2026-05-08 17:19:55"}
+{"level":"debug","message":"GET /api/v1/admin/dashboard/stats/kpi","service":"iap-service","timestamp":"2026-05-08 17:19:55"}
+{"level":"debug","message":"GET /api/v1/admin/dashboard/stats/kpi","service":"iap-service","timestamp":"2026-05-08 17:19:55"}
+{"level":"info","message":"[CRON] Subscription cron jobs initialized (v3 - Grace Period & Billing Retry Support)","service":"iap-service","timestamp":"2026-05-08 17:23:50"}
+{"level":"info","message":"🧪 [DEV] Dev tools routes registered at /api/v1/dev/*","service":"iap-service","timestamp":"2026-05-08 17:23:51"}
+{"level":"debug","message":"GET /api/v1/admin/dashboard/stats/kpi","service":"iap-service","timestamp":"2026-05-08 17:24:55"}
+{"level":"debug","message":"GET /api/v1/admin/giveaway/campaigns?page=1&limit=10","service":"iap-service","timestamp":"2026-05-08 17:27:40"}
+{"level":"debug","message":"GET /api/v1/admin/account","service":"iap-service","timestamp":"2026-05-08 17:27:40"}
+{"level":"debug","message":"GET /api/v1/admin/profile-review/reported?limit=1","service":"iap-service","timestamp":"2026-05-08 17:27:40"}
+{"level":"debug","message":"GET /api/v1/admin/moderation/pending-verifications?limit=1","service":"iap-service","timestamp":"2026-05-08 17:27:40"}
+{"level":"debug","message":"GET /api/v1/contact/alltickets?limit=1","service":"iap-service","timestamp":"2026-05-08 17:27:40"}
+{"level":"debug","message":"GET /api/v1/admin/giveaway/campaigns?page=1&limit=10","service":"iap-service","timestamp":"2026-05-08 17:27:40"}
+{"level":"debug","message":"GET /api/v1/contact/alltickets?limit=1","service":"iap-service","timestamp":"2026-05-08 17:27:40"}
+{"level":"debug","message":"GET /api/v1/admin/account","service":"iap-service","timestamp":"2026-05-08 17:27:40"}
+{"level":"debug","message":"GET /api/v1/admin/profile-review/reported?limit=1","service":"iap-service","timestamp":"2026-05-08 17:27:40"}
+{"level":"debug","message":"GET /api/v1/admin/moderation/pending-verifications?limit=1","service":"iap-service","timestamp":"2026-05-08 17:27:40"}
+{"level":"debug","message":"GET /api/v1/admin/giveaway/campaigns?page=1&limit=10","service":"iap-service","timestamp":"2026-05-08 17:27:44"}
+{"level":"debug","message":"GET /api/v1/admin/account","service":"iap-service","timestamp":"2026-05-08 17:27:44"}
+{"level":"debug","message":"GET /api/v1/admin/profile-review/reported?limit=1","service":"iap-service","timestamp":"2026-05-08 17:27:44"}
+{"level":"debug","message":"GET /api/v1/admin/moderation/pending-verifications?limit=1","service":"iap-service","timestamp":"2026-05-08 17:27:44"}
+{"level":"debug","message":"GET /api/v1/contact/alltickets?limit=1","service":"iap-service","timestamp":"2026-05-08 17:27:44"}
+{"level":"debug","message":"GET /api/v1/admin/giveaway/campaigns?page=1&limit=10","service":"iap-service","timestamp":"2026-05-08 17:27:44"}
+{"level":"debug","message":"GET /api/v1/contact/alltickets?limit=1","service":"iap-service","timestamp":"2026-05-08 17:27:44"}
+{"level":"debug","message":"GET /api/v1/admin/account","service":"iap-service","timestamp":"2026-05-08 17:27:44"}
+{"level":"debug","message":"GET /api/v1/admin/profile-review/reported?limit=1","service":"iap-service","timestamp":"2026-05-08 17:27:44"}
+{"level":"debug","message":"GET /api/v1/admin/moderation/pending-verifications?limit=1","service":"iap-service","timestamp":"2026-05-08 17:27:44"}
+{"level":"debug","message":"GET /api/v1/admin/dashboard/stats/kpi","service":"iap-service","timestamp":"2026-05-08 17:27:46"}
+{"level":"debug","message":"GET /api/v1/admin/users?page=1&limit=10","service":"iap-service","timestamp":"2026-05-08 17:27:46"}
+{"level":"debug","message":"GET /api/v1/admin/dashboard-v2/advanced-metrics?preset=today","service":"iap-service","timestamp":"2026-05-08 17:27:46"}
+{"level":"debug","message":"GET /api/v1/admin/dashboard/stats/kpi?preset=today","service":"iap-service","timestamp":"2026-05-08 17:27:46"}
+{"level":"debug","message":"GET /api/v1/admin/dashboard/stats/kpi","service":"iap-service","timestamp":"2026-05-08 17:27:46"}
+{"level":"debug","message":"GET /api/v1/admin/users?page=1&limit=10","service":"iap-service","timestamp":"2026-05-08 17:27:46"}
+{"level":"debug","message":"GET /api/v1/admin/dashboard/stats/kpi?preset=today","service":"iap-service","timestamp":"2026-05-08 17:27:46"}
+{"level":"debug","message":"GET /api/v1/admin/dashboard-v2/advanced-metrics?preset=today","service":"iap-service","timestamp":"2026-05-08 17:27:46"}
+{"level":"debug","message":"GET /api/v1/admin/dashboard/stats/kpi","service":"iap-service","timestamp":"2026-05-08 17:27:46"}
+{"level":"debug","message":"GET /api/v1/admin/users?page=1&limit=10","service":"iap-service","timestamp":"2026-05-08 17:27:46"}
+{"level":"debug","message":"GET /api/v1/admin/dashboard/stats/kpi?preset=today","service":"iap-service","timestamp":"2026-05-08 17:27:46"}
+{"level":"debug","message":"GET /api/v1/admin/dashboard-v2/advanced-metrics?preset=today","service":"iap-service","timestamp":"2026-05-08 17:27:46"}
+{"level":"debug","message":"GET /api/v1/admin/users?page=1&limit=10","service":"iap-service","timestamp":"2026-05-08 17:27:46"}
+{"level":"debug","message":"GET /api/v1/admin/dashboard/stats/kpi","service":"iap-service","timestamp":"2026-05-08 17:27:46"}
+{"level":"debug","message":"GET /api/v1/admin/dashboard/stats/kpi","service":"iap-service","timestamp":"2026-05-08 17:27:47"}
+{"level":"debug","message":"GET /api/v1/admin/dashboard-v2/advanced-metrics?preset=today","service":"iap-service","timestamp":"2026-05-08 17:27:47"}
+{"level":"debug","message":"GET /api/v1/admin/dashboard/stats/kpi?preset=today","service":"iap-service","timestamp":"2026-05-08 17:27:47"}
+{"level":"debug","message":"GET /api/v1/admin/dashboard/stats/kpi","service":"iap-service","timestamp":"2026-05-08 17:27:47"}
+{"level":"debug","message":"GET /api/v1/admin/dashboard/stats/kpi","service":"iap-service","timestamp":"2026-05-08 17:27:47"}
+{"level":"debug","message":"GET /api/v1/admin/dashboard/stats/kpi","service":"iap-service","timestamp":"2026-05-08 17:27:47"}
+{"level":"debug","message":"GET /api/v1/admin/dashboard/stats/kpi","service":"iap-service","timestamp":"2026-05-08 17:32:48"}
+{"level":"debug","message":"GET /api/v1/admin/dashboard/stats/kpi","service":"iap-service","timestamp":"2026-05-08 17:37:49"}
+{"level":"debug","message":"GET /api/v1/admin/dashboard-v2/advanced-metrics?preset=last7&from=2026-04-30T18:30:00.000Z&to=2026-05-08T18:29:59.999Z","service":"iap-service","timestamp":"2026-05-08 17:39:19"}
+{"level":"debug","message":"GET /api/v1/admin/dashboard/stats/kpi?preset=last7&from=2026-05-01&to=2026-05-08","service":"iap-service","timestamp":"2026-05-08 17:39:19"}
+{"level":"debug","message":"GET /api/v1/admin/dashboard-v2/advanced-metrics?preset=last90&from=2026-02-06T18:30:00.000Z&to=2026-05-08T18:29:59.999Z","service":"iap-service","timestamp":"2026-05-08 17:39:27"}
+{"level":"debug","message":"GET /api/v1/admin/dashboard/stats/kpi?preset=last90&from=2026-02-07&to=2026-05-08","service":"iap-service","timestamp":"2026-05-08 17:39:27"}
+{"level":"debug","message":"GET /api/v1/admin/dashboard/stats/kpi","service":"iap-service","timestamp":"2026-05-08 17:42:48"}
+{"level":"info","message":"[CRON] Subscription cron jobs initialized (v3 - Grace Period & Billing Retry Support)","service":"iap-service","timestamp":"2026-05-08 17:44:35"}
+{"level":"info","message":"🧪 [DEV] Dev tools routes registered at /api/v1/dev/*","service":"iap-service","timestamp":"2026-05-08 17:44:36"}
+{"level":"info","message":"[CRON] Subscription cron jobs initialized (v3 - Grace Period & Billing Retry Support)","service":"iap-service","timestamp":"2026-05-08 17:44:40"}
+{"level":"info","message":"🧪 [DEV] Dev tools routes registered at /api/v1/dev/*","service":"iap-service","timestamp":"2026-05-08 17:44:41"}
+{"level":"info","message":"[CRON] Subscription cron jobs initialized (v3 - Grace Period & Billing Retry Support)","service":"iap-service","timestamp":"2026-05-08 17:44:46"}
+{"level":"info","message":"🧪 [DEV] Dev tools routes registered at /api/v1/dev/*","service":"iap-service","timestamp":"2026-05-08 17:44:47"}
+{"level":"info","message":"[CRON] Subscription cron jobs initialized (v3 - Grace Period & Billing Retry Support)","service":"iap-service","timestamp":"2026-05-08 17:44:56"}
+{"level":"info","message":"🧪 [DEV] Dev tools routes registered at /api/v1/dev/*","service":"iap-service","timestamp":"2026-05-08 17:44:57"}
+{"level":"debug","message":"GET /api/v1/admin/dashboard/stats/kpi","service":"iap-service","timestamp":"2026-05-08 17:47:48"}
+{"level":"debug","message":"GET /api/v1/admin/dashboard/stats/kpi","service":"iap-service","timestamp":"2026-05-08 17:52:48"}
+{"level":"debug","message":"GET /api/v1/admin/dashboard/stats/kpi","service":"iap-service","timestamp":"2026-05-08 17:57:49"}
+{"level":"debug","message":"GET /api/v1/admin/subscription/stats?timeFilter=today","service":"iap-service","timestamp":"2026-05-08 17:57:57"}
+{"level":"debug","message":"GET /api/v1/admin/subscription/stats?timeFilter=today","service":"iap-service","timestamp":"2026-05-08 17:57:57"}
+{"level":"debug","message":"GET /api/v1/admin/giveaway/campaigns?page=1&limit=10","service":"iap-service","timestamp":"2026-05-08 18:01:12"}
+{"level":"debug","message":"GET /api/v1/admin/account","service":"iap-service","timestamp":"2026-05-08 18:01:12"}
+{"level":"debug","message":"GET /api/v1/admin/profile-review/reported?limit=1","service":"iap-service","timestamp":"2026-05-08 18:01:12"}
+{"level":"debug","message":"GET /api/v1/admin/moderation/pending-verifications?limit=1","service":"iap-service","timestamp":"2026-05-08 18:01:12"}
+{"level":"debug","message":"GET /api/v1/contact/alltickets?limit=1","service":"iap-service","timestamp":"2026-05-08 18:01:12"}
+{"level":"debug","message":"GET /api/v1/admin/giveaway/campaigns?page=1&limit=10","service":"iap-service","timestamp":"2026-05-08 18:01:12"}
+{"level":"debug","message":"GET /api/v1/contact/alltickets?limit=1","service":"iap-service","timestamp":"2026-05-08 18:01:12"}
+{"level":"debug","message":"GET /api/v1/admin/account","service":"iap-service","timestamp":"2026-05-08 18:01:12"}
+{"level":"debug","message":"GET /api/v1/admin/profile-review/reported?limit=1","service":"iap-service","timestamp":"2026-05-08 18:01:12"}
+{"level":"debug","message":"GET /api/v1/admin/moderation/pending-verifications?limit=1","service":"iap-service","timestamp":"2026-05-08 18:01:12"}
+{"level":"debug","message":"GET /api/v1/admin/dashboard/stats/kpi","service":"iap-service","timestamp":"2026-05-08 18:01:16"}
+{"level":"debug","message":"GET /api/v1/admin/users?page=1&limit=10","service":"iap-service","timestamp":"2026-05-08 18:01:16"}
+{"level":"debug","message":"GET /api/v1/admin/dashboard-v2/advanced-metrics?preset=today","service":"iap-service","timestamp":"2026-05-08 18:01:16"}
+{"level":"debug","message":"GET /api/v1/admin/dashboard/stats/kpi?preset=today","service":"iap-service","timestamp":"2026-05-08 18:01:16"}
+{"level":"debug","message":"GET /api/v1/admin/dashboard/stats/kpi","service":"iap-service","timestamp":"2026-05-08 18:01:16"}
+{"level":"debug","message":"GET /api/v1/admin/users?page=1&limit=10","service":"iap-service","timestamp":"2026-05-08 18:01:16"}
+{"level":"debug","message":"GET /api/v1/admin/dashboard/stats/kpi?preset=today","service":"iap-service","timestamp":"2026-05-08 18:01:16"}
+{"level":"debug","message":"GET /api/v1/admin/dashboard-v2/advanced-metrics?preset=today","service":"iap-service","timestamp":"2026-05-08 18:01:16"}
+{"level":"debug","message":"GET /api/v1/admin/dashboard/stats/kpi","service":"iap-service","timestamp":"2026-05-08 18:01:17"}
+{"level":"debug","message":"GET /api/v1/admin/users?page=1&limit=10","service":"iap-service","timestamp":"2026-05-08 18:01:17"}
+{"level":"debug","message":"GET /api/v1/admin/dashboard-v2/advanced-metrics?preset=today","service":"iap-service","timestamp":"2026-05-08 18:01:17"}
+{"level":"debug","message":"GET /api/v1/admin/dashboard/stats/kpi?preset=today","service":"iap-service","timestamp":"2026-05-08 18:01:17"}
+{"level":"debug","message":"GET /api/v1/admin/dashboard/stats/kpi","service":"iap-service","timestamp":"2026-05-08 18:01:17"}
+{"level":"debug","message":"GET /api/v1/admin/users?page=1&limit=10","service":"iap-service","timestamp":"2026-05-08 18:01:17"}
+{"level":"debug","message":"GET /api/v1/admin/dashboard/stats/kpi?preset=today","service":"iap-service","timestamp":"2026-05-08 18:01:17"}
+{"level":"debug","message":"GET /api/v1/admin/dashboard-v2/advanced-metrics?preset=today","service":"iap-service","timestamp":"2026-05-08 18:01:17"}
+{"level":"debug","message":"GET /api/v1/admin/dashboard/stats/kpi","service":"iap-service","timestamp":"2026-05-08 18:01:17"}
+{"level":"debug","message":"GET /api/v1/admin/dashboard/stats/kpi","service":"iap-service","timestamp":"2026-05-08 18:01:17"}
+{"level":"debug","message":"GET /api/v1/admin/dashboard/stats/kpi","service":"iap-service","timestamp":"2026-05-08 18:01:19"}
+{"level":"debug","message":"GET /api/v1/admin/dashboard/stats/kpi","service":"iap-service","timestamp":"2026-05-08 18:01:19"}
+{"level":"debug","message":"GET /api/v1/admin/subscription/stats?timeFilter=last90&startDate=2026-02-07&endDate=2026-05-08","service":"iap-service","timestamp":"2026-05-08 18:05:47"}
+{"level":"debug","message":"GET /api/v1/admin/dashboard/stats/kpi","service":"iap-service","timestamp":"2026-05-08 18:06:20"}
+{"level":"info","message":"[CRON] Subscription cron jobs initialized (v3 - Grace Period & Billing Retry Support)","service":"iap-service","timestamp":"2026-05-08 18:07:56"}
+{"level":"info","message":"🧪 [DEV] Dev tools routes registered at /api/v1/dev/*","service":"iap-service","timestamp":"2026-05-08 18:07:58"}
+{"level":"debug","message":"GET /api/v1/admin/dashboard/stats/kpi","service":"iap-service","timestamp":"2026-05-08 18:08:36"}
+{"level":"debug","message":"GET /api/v1/admin/dashboard/stats/kpi","service":"iap-service","timestamp":"2026-05-08 18:08:36"}
+{"level":"debug","message":"GET /api/v1/admin/subscription/stats?timeFilter=today","service":"iap-service","timestamp":"2026-05-08 18:08:49"}
+{"level":"debug","message":"GET /api/v1/admin/subscription/stats?timeFilter=today","service":"iap-service","timestamp":"2026-05-08 18:08:50"}
+{"level":"debug","message":"GET /api/v1/admin/dashboard/stats/kpi","service":"iap-service","timestamp":"2026-05-08 18:11:19"}
+{"level":"debug","message":"GET /api/v1/admin/dashboard-v2/advanced-metrics?preset=last90&from=2026-02-06T18:30:00.000Z&to=2026-05-08T18:29:59.999Z","service":"iap-service","timestamp":"2026-05-08 18:13:10"}
+{"level":"debug","message":"GET /api/v1/admin/dashboard/stats/kpi?preset=last90&from=2026-02-07&to=2026-05-08","service":"iap-service","timestamp":"2026-05-08 18:13:10"}
+{"level":"debug","message":"GET /api/v1/admin/dashboard/stats/kpi","service":"iap-service","timestamp":"2026-05-08 18:16:20"}
+{"level":"debug","message":"GET /api/v1/admin/dashboard/stats/kpi","service":"iap-service","timestamp":"2026-05-08 18:21:20"}
+{"level":"debug","message":"GET /api/v1/admin/giveaway/campaigns?page=1&limit=10","service":"iap-service","timestamp":"2026-05-08 18:24:37"}
+{"level":"debug","message":"GET /api/v1/admin/account","service":"iap-service","timestamp":"2026-05-08 18:24:37"}
+{"level":"debug","message":"GET /api/v1/admin/profile-review/reported?limit=1","service":"iap-service","timestamp":"2026-05-08 18:24:37"}
+{"level":"debug","message":"GET /api/v1/admin/moderation/pending-verifications?limit=1","service":"iap-service","timestamp":"2026-05-08 18:24:37"}
+{"level":"debug","message":"GET /api/v1/contact/alltickets?limit=1","service":"iap-service","timestamp":"2026-05-08 18:24:37"}
+{"level":"debug","message":"GET /api/v1/admin/subscription/stats?timeFilter=today","service":"iap-service","timestamp":"2026-05-08 18:24:37"}
+{"level":"debug","message":"GET /api/v1/admin/dashboard/stats/kpi","service":"iap-service","timestamp":"2026-05-08 18:26:19"}
+{"level":"debug","message":"GET /api/v1/admin/dashboard/stats/kpi","service":"iap-service","timestamp":"2026-05-08 18:31:19"}
+{"level":"debug","message":"GET /api/v1/admin/dashboard/stats/kpi","service":"iap-service","timestamp":"2026-05-08 18:36:47"}
+{"level":"debug","message":"GET /api/v1/admin/dashboard/stats/kpi","service":"iap-service","timestamp":"2026-05-08 18:41:20"}
+{"level":"debug","message":"GET /api/v1/admin/dashboard/stats/kpi","service":"iap-service","timestamp":"2026-05-08 18:46:47"}
+{"level":"debug","message":"GET /api/v1/admin/dashboard/stats/kpi","service":"iap-service","timestamp":"2026-05-08 18:51:46"}
+{"level":"debug","message":"GET /api/v1/admin/subscription/stats?timeFilter=last7&startDate=2026-05-01&endDate=2026-05-08","service":"iap-service","timestamp":"2026-05-08 18:52:29"}
+{"level":"debug","message":"GET /api/v1/admin/subscription/stats?timeFilter=last90&startDate=2026-02-07&endDate=2026-05-08","service":"iap-service","timestamp":"2026-05-08 18:52:34"}
+{"level":"debug","message":"GET /api/v1/admin/users?page=1&limit=10&gender=","service":"iap-service","timestamp":"2026-05-08 18:52:49"}
+{"level":"debug","message":"GET /api/v1/admin/fake-profiles?page=1&limit=10","service":"iap-service","timestamp":"2026-05-08 18:54:01"}
+{"level":"debug","message":"GET /api/v1/admin/dashboard/stats/kpi","service":"iap-service","timestamp":"2026-05-08 18:56:12"}
+{"level":"debug","message":"GET /api/v1/admin/dashboard/stats/kpi","service":"iap-service","timestamp":"2026-05-08 18:56:12"}
+{"level":"debug","message":"GET /api/v1/admin/dashboard/stats/kpi","service":"iap-service","timestamp":"2026-05-08 18:56:46"}
+{"level":"debug","message":"GET /api/v1/admin/profile-review/reported?page=1&limit=10","service":"iap-service","timestamp":"2026-05-08 18:59:50"}
+{"level":"debug","message":"GET /api/v1/admin/dashboard/stats/kpi","service":"iap-service","timestamp":"2026-05-08 19:01:46"}
+{"level":"debug","message":"GET /api/v1/admin/fake-profiles?page=1&limit=10","service":"iap-service","timestamp":"2026-05-08 19:03:55"}
+{"level":"debug","message":"GET /api/v1/admin/giveaway/campaigns?page=1&limit=10","service":"iap-service","timestamp":"2026-05-08 19:04:03"}
+{"level":"debug","message":"GET /api/v1/admin/account","service":"iap-service","timestamp":"2026-05-08 19:04:03"}
+{"level":"debug","message":"GET /api/v1/admin/profile-review/reported?limit=1","service":"iap-service","timestamp":"2026-05-08 19:04:03"}
+{"level":"debug","message":"GET /api/v1/admin/moderation/pending-verifications?limit=1","service":"iap-service","timestamp":"2026-05-08 19:04:03"}
+{"level":"debug","message":"GET /api/v1/contact/alltickets?limit=1","service":"iap-service","timestamp":"2026-05-08 19:04:03"}
+{"level":"debug","message":"GET /api/v1/admin/giveaway/campaigns?page=1&limit=10","service":"iap-service","timestamp":"2026-05-08 19:04:03"}
+{"level":"debug","message":"GET /api/v1/admin/profile-review/reported?limit=1","service":"iap-service","timestamp":"2026-05-08 19:04:03"}
+{"level":"debug","message":"GET /api/v1/contact/alltickets?limit=1","service":"iap-service","timestamp":"2026-05-08 19:04:03"}

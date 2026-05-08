@@ -8,7 +8,7 @@ router.patch(
   "/update",
   upload.fields([{ name: "avatar", maxCount: 1 }]),
   handleMulterError,
-  adminCtrl.updateAdminAccount
+  adminCtrl.updateAdminAccount,
 );
 
 module.exports = router;
