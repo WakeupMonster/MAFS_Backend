@@ -4,7 +4,7 @@ on:
   push:
     branches: ["main", "dev"]
 
-# Prevent parallel deployments to the same environment
+# Prevent parallel deployments to the same environmentt
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
