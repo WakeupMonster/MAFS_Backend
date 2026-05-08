@@ -12,7 +12,8 @@ WORKDIR /app
 
 # Step 2: Dependencies
 COPY package*.json ./
-RUN npm ci --only=production
+# RUN npm ci --only=production
+RUN npm ci --omit=dev
 
 # Step 3: Final Build Stage
 FROM node:20-slim AS runner
