@@ -20,17 +20,17 @@ jobs:
 
     steps:
       - name: Checkout Repo
-        uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1
+        uses: actions/checkout@v4
 
       - name: Configure AWS Credentials
-        uses: aws-actions/configure-aws-credentials@e3dd6a429d7300a6a4c196c26e071d44e03b00a1 # v4.0.2
+        uses: aws-actions/configure-aws-credentials@v4
         with:
           role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
           aws-region: ap-southeast-2
 
       - name: Login to Amazon ECR
         id: login-ecr
-        uses: aws-actions/amazon-ecr-login@062b1d286f6c91262f958b280016f099c1523ac3 # v2.0.1
+        uses: aws-actions/amazon-ecr-login@v2
 
       - name: Build and Load Docker Image (for scanning)
         id: build-local
@@ -38,7 +38,7 @@ jobs:
           ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
           ECR_REPOSITORY: ${{ github.ref == 'refs/heads/main' && secrets.ECR_PROD_REPO || secrets.ECR_STAGING_REPO }}
           IMAGE_TAG: ${{ github.sha }}
-        uses: docker/build-push-action@2cd201d51f2f65a7f92025ed9969634e8ec6aa4b # v5.1.0
+        uses: docker/build-push-action@v5
         with:
           context: .
           push: false
@@ -59,7 +59,7 @@ jobs:
           ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
           ECR_REPOSITORY: ${{ github.ref == 'refs/heads/main' && secrets.ECR_PROD_REPO || secrets.ECR_STAGING_REPO }}
           IMAGE_TAG: ${{ github.sha }}
-        uses: docker/build-push-action@2cd201d51f2f65a7f92025ed9969634e8ec6aa4b # v5.1.0
+        uses: docker/build-push-action@v5
         with:
           context: .
           push: true
