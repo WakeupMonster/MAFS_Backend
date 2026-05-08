@@ -124,6 +124,9 @@ jobs:
               -p 5000:5000 \
               --restart always \
               --env-file /home/$EC2_USER/.env \
+              -v /home/$EC2_USER/config/firebase-service-account.json:/app/config/firebase-service-account.json \
+              -v /home/$EC2_USER/certs/SubscriptionKey_3659YR6BSM.p8:/app/certs/SubscriptionKey_3659YR6BSM.p8 \
+              -v /home/$EC2_USER/keys/google-service-account.json:/app/keys/google-service-account.json \
               -e NODE_ENV=production \
               "$FULL_IMAGE"
 

@@ -1,12 +1,27 @@
 // modules/notifications/firebase-admin.js
 const admin = require('firebase-admin');
-const serviceAccount = require('../../config/firebase-service-account.json'); // You'll need to create this file
 const axios = require('axios');
 
-// Initialize Firebase Admin
-admin.initializeApp({
-  credential: admin.credential.cert(serviceAccount)
-});
+let serviceAccount;
+
+try {
+  // SMART FIX: Check environment variable first (for Docker/Production)
+  if (process.env.FIREBASE_SERVICE_ACCOUNT) {
+    serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
+  } else {
+    // Fallback to local file (for Development)
+    serviceAccount = require('../../config/firebase-service-account.json');
+  }
+
+  // Initialize Firebase Admin
+  admin.initializeApp({
+    credential: admin.credential.cert(serviceAccount)
+  });
+} catch (error) {
+  console.error("❌ Firebase Initialization Error:", error.message);
+  // Don't crash immediately, but log the error
+}
+
 const sendNotification = async (deviceToken, notification, data = {}) => {
   try {
     const message = {
