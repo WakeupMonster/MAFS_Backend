@@ -4,7 +4,7 @@ on:
   push:
     branches: ["main", "dev"]
 
-# Prevent parallel deployments to the same environmentt
+# Prevent parallel deployments to the same environmenttt
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
@@ -31,6 +31,9 @@ jobs:
       - name: Login to Amazon ECR
         id: login-ecr
         uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
 
       - name: Build and Load Docker Image (for scanning)
         id: build-local
