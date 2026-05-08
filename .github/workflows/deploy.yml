@@ -100,6 +100,10 @@ jobs:
               -p 5000:5000 \
               --restart always \
               -e NODE_ENV=production \
+              -e PORT=5000 \
+              -e MONGODB_URI="${{ secrets.MONGODB_URI }}" \
+              -e JWT_SECRET="${{ secrets.JWT_SECRET }}" \
+              -e REDIS_URL="${{ secrets.REDIS_URL }}" \
               ${{ steps.login-ecr.outputs.registry }}/${{ github.ref == 'refs/heads/main' && secrets.ECR_PROD_REPO || secrets.ECR_STAGING_REPO }}:${{ github.sha }}
             
             # 4. Cleaning (Purani images delete karo space bachane ke liye)
