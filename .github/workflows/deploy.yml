@@ -77,6 +77,13 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
+      - name: Get ECR Login Password
+        id: ecr-token
+        run: |
+          TOKEN=$(aws ecr get-login-password --region ap-southeast-2)
+          echo "::add-mask::$TOKEN"
+          echo "password=$TOKEN" >> $GITHUB_OUTPUT
+
       - name: Deploy to EC2 via SSH
         uses: appleboy/ssh-action@v1.0.3
         env:
@@ -84,11 +91,12 @@ jobs:
           ECR_REPOSITORY: ${{ github.ref == 'refs/heads/main' && secrets.ECR_PROD_REPO || secrets.ECR_STAGING_REPO }}
           IMAGE_TAG: ${{ github.sha }}
           EC2_USER: ${{ secrets.EC2_USERNAME }}
+          ECR_PASSWORD: ${{ steps.ecr-token.outputs.password }}
         with:
           host: ${{ secrets.EC2_HOST }}
           username: ${{ secrets.EC2_USERNAME }}
           key: ${{ secrets.EC2_SSH_KEY }}
-          envs: ECR_REGISTRY,ECR_REPOSITORY,IMAGE_TAG,EC2_USER
+          envs: ECR_REGISTRY,ECR_REPOSITORY,IMAGE_TAG,EC2_USER,ECR_PASSWORD
           script_stop: true
           script: |
             echo "🚀 Starting deployment..."
@@ -96,9 +104,9 @@ jobs:
             echo "Repository: $ECR_REPOSITORY"
             echo "Image Tag: $IMAGE_TAG"
 
-            # 1. AWS CLI se ECR Login karo
+            # 1. AWS CLI se ECR Login karo (Runner se password pass kiya hai)
             echo "🔐 Logging into ECR..."
-            aws ecr get-login-password --region ap-southeast-2 | sudo docker login --username AWS --password-stdin "$ECR_REGISTRY"
+            echo "$ECR_PASSWORD" | sudo docker login --username AWS --password-stdin "$ECR_REGISTRY"
 
             # 2. Nayi image pull karo
             FULL_IMAGE="$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG"
