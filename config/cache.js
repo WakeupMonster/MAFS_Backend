@@ -88,6 +88,22 @@ async function safeExists(key) {
   return redisClient.exists(key);
 }
 
+async function safeExpire(key, seconds) {
+  await connectRedis();
+  return redisClient.expire(key, seconds);
+}
+
+async function safeSMembers(key) {
+  await connectRedis();
+  return redisClient.sMembers(key);
+}
+
+function safeMulti() {
+  // Connection handling for multi is tricky because it's sync but requires open socket
+  // redisClient v4's multi() works if client is connected.
+  return redisClient.multi();
+}
+
 module.exports = {
   redisClient,
   connectRedis,
@@ -100,4 +116,7 @@ module.exports = {
   sRem: safeSRem,
   sCard: safeSCard,
   exists: safeExists,
+  expire: safeExpire,
+  sMembers: safeSMembers,
+  multi: safeMulti,
 };

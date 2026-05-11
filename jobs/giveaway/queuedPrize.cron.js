@@ -18,5 +18,4 @@ cron.schedule(cronSchedule, async () => {
 }, {
   timezone: "Asia/Kolkata"
 });
-
 console.log("[QUEUED-PRIZE CRON] ✅ Registered. Schedule:", process.env.NODE_ENV === "development" ? "Every 5 min" : "Daily 11:45 PM IST");

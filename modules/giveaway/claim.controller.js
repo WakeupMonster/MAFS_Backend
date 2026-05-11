@@ -29,11 +29,19 @@ module.exports.claimPrize = async (req, res) => {
      * Fetch the specific win history record by ID and ensure it belongs to the user
      * and is not already claimed.
      */
-    const winHistory = await GiveawayWinHistory.findOne({
+    const query = {
       _id: winHistoryId,
       userId: userId,
       claimedAt: null // only unclaimed wins
-    });
+    };
+
+    // 🛠️ [TESTING MODE] Allow test user to bypass the 'claimedAt: null' check to claim repeatedly
+    const TESTING_USER_ID = process.env.GIVEAWAY_TEST_USER_ID;
+    if (TESTING_USER_ID && userId.toString() === TESTING_USER_ID) {
+      delete query.claimedAt;
+    }
+
+    const winHistory = await GiveawayWinHistory.findOne(query);
 
     if (!winHistory) {
       return res.status(404).json({

@@ -26,7 +26,7 @@ const giveawayCampaignSchema = new mongoose.Schema(
     // Cron job state (crash-safe & multi-server safe)
     drawStatus: {
       type: String,
-      enum: ["PENDING", "PROCESSING", "COMPLETED"],
+      enum: ["PENDING", "PROCESSING", "COMPLETED", "TEST_PENDING"],
       default: "PENDING",
       index: true,
     },

@@ -3,7 +3,7 @@ const ChatMessage = require("../modules/matches/chat/chat.message.model");
 const User = require("../modules/auth/auth.model");
 const { sendNotification } = require("../modules/notifications/firebase-admin");
 const { connection } = require("../queues/bull");
-const { client: redis } = require("../config/cache");
+const redis = require("../config/cache");
 
 new Worker(
   "message-delivery",
