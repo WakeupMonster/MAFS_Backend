@@ -1,10 +1,10 @@
-/* eslint-disable no-unused-vars */
 const User = require("../../../modules/auth/auth.model");
 const AdminNotificationCampaign = require("./admin.notification.model");
 const AdminEmailCampaign = require("./adminEmailCampaign.model");
 const notificationService = require("../../../modules/notifications/notification.service");
 const NotificationLog = require("./notificationLog.model");
 const { addAdminPushJob } = require("../../../queues/adminPush.queue");
+const mongoose = require("mongoose");
 
 module.exports.sendNotificationToPremiumUsers = async (req, res) => {
   try {
@@ -310,6 +310,7 @@ module.exports.getNotificationHistory = async (req, res) => {
       status,
       fromDate,
       toDate,
+      search,
     } = req.query;
 
     const skip = (Number(page) - 1) * Number(limit);
@@ -395,7 +396,7 @@ module.exports.getNotificationHistory = async (req, res) => {
       data: combinedHistory,
     });
   } catch (err) {
-    console.error("❌ Notification history error:", err);
+    console.error("❌ Notification history aggregation error:", err);
     return res.status(500).json({
       success: false,
       message: "Failed to fetch unified campaign history",

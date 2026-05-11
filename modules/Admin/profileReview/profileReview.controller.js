@@ -200,6 +200,21 @@ const getProfileForReview = async (req, res) => {
         .json({ success: false, message: "User or profile not found" });
     }
 
+    // Calculate most common reason
+    const reasonCounts = {};
+    let mostCommonReason = "N/A";
+    let maxCount = 0;
+
+    reports.forEach((report) => {
+      if (report.reason) {
+        reasonCounts[report.reason] = (reasonCounts[report.reason] || 0) + 1;
+        if (reasonCounts[report.reason] > maxCount) {
+          maxCount = reasonCounts[report.reason];
+          mostCommonReason = report.reason;
+        }
+      }
+    });
+
     const response = {
       userId: user._id,
       email: user.email,
@@ -234,11 +249,16 @@ const getProfileForReview = async (req, res) => {
             avatar: reporterData?.avatar || null,
           },
           status: report.status,
+          actionTaken: report.actionTaken,
+          replyHistory: report.replyHistory || [],
           createdAt: report.createdAt,
+          resolvedAt: report.resolvedAt,
         };
       }),
 
       reportCount: reports.length,
+      uniqueReporters: reporterIds.length,
+      mostCommonReason: mostCommonReason,
     };
 
     res.status(200).json({ success: true, data: response });
@@ -251,14 +271,8 @@ const getProfileForReview = async (req, res) => {
 const updateProfileStatus = async (req, res) => {
   try {
     const { userId } = req.params;
-    const {
-      action,
-      reason,
-      banDuration,
-      suspendDuration,
-      replyMessage,
-      reportId,
-    } = req.body;
+    const { action, reason, suspendDuration, replyMessage, reportId } =
+      req.body;
     const adminId = req.user?._id;
 
     // 1. Expanded validation to include 'suspend', 'resolve', and 'reply'
@@ -298,29 +312,37 @@ const updateProfileStatus = async (req, res) => {
               status: "resolved",
               resolvedAt: new Date(),
               resolvedBy: adminId,
-              resolution: reason || "Profile reviewed and cleared by admin.",
             },
           },
         );
-        // Ensure user is active
+        // Ensure user is active — clear both ban and suspension
         user.accountStatus = "active";
-        user.banDetails = { isBanned: false };
+        user.banDetails = {
+          isBanned: false,
+          reason: null,
+          bannedBy: null,
+          bannedAt: null,
+        };
+        user.suspensionDetails = {
+          isSuspended: false,
+          reason: null,
+          suspendedBy: null,
+          suspendedAt: null,
+          suspendUntil: null,
+        };
         await user.save();
         message = "Profile marked as safe and reports resolved.";
         break;
 
       case "reject":
       case "ban":
-        // Permanent or temporary ban
+        // Permanent ban
         user.accountStatus = "banned";
         user.banDetails = {
           isBanned: true,
           reason: reason,
           bannedBy: adminId,
           bannedAt: new Date(),
-          banExpiresAt: banDuration
-            ? new Date(Date.now() + banDuration * 24 * 60 * 60 * 1000)
-            : null,
         };
         await user.save();
 
@@ -332,7 +354,6 @@ const updateProfileStatus = async (req, res) => {
               status: "resolved",
               resolvedAt: new Date(),
               resolvedBy: adminId,
-              resolution: `User banned: ${reason}`,
             },
           },
         );
@@ -340,20 +361,20 @@ const updateProfileStatus = async (req, res) => {
         break;
 
       case "suspend":
-        // Suspension uses suspendDuration in HOURS (based on your frontend input)
+        // Suspension uses suspendDuration in HOURS
         user.accountStatus = "suspended";
-        user.banDetails = {
-          isBanned: true, // We treat suspension as a temporary ban
+        user.suspensionDetails = {
+          isSuspended: true,
           reason: reason,
-          bannedBy: adminId,
-          bannedAt: new Date(),
-          banExpiresAt: new Date(Date.now() + suspendDuration * 60 * 60 * 1000),
+          suspendedBy: adminId,
+          suspendedAt: new Date(),
+          suspendUntil: new Date(Date.now() + suspendDuration * 60 * 60 * 1000),
         };
         await user.save();
         message = `User suspended for ${suspendDuration} hours.`;
         break;
 
-      case "reply":
+      case "reply": {
         // Specific reply to a single report
         if (!reportId || !replyMessage) {
           return res.status(400).json({
@@ -362,19 +383,33 @@ const updateProfileStatus = async (req, res) => {
           });
         }
 
-        await Report.findByIdAndUpdate(reportId, {
-          $set: {
-            adminReply: replyMessage,
-            repliedAt: new Date(),
-            repliedBy: adminId,
-            status: "in_progress", // Moving to in_progress because admin has engaged
-          },
+        const report = await Report.findById(reportId);
+        if (!report) {
+          return res.status(404).json({
+            success: false,
+            message: "Report not found",
+          });
+        }
+
+        if (!Array.isArray(report.replyHistory)) {
+          report.replyHistory = [];
+        }
+        report.replyHistory.push({
+          message: replyMessage,
+          repliedBy: adminId,
+          repliedAt: new Date(),
         });
+        report.handledBy = adminId;
+        if (report.status === "new") {
+          report.status = "in_progress";
+        }
+        await report.save();
         message = "Reply sent to the reporter.";
         break;
+      }
     }
 
-    res.json({
+    res.status(200).json({
       success: true,
       message,
     });
@@ -588,9 +623,11 @@ const getReportedProfiles = async (req, res) => {
     // 1. Initial Match Stage (Basic filter)
     const baseMatch = { reportedId: { $exists: true, $ne: null } };
 
-    // 2. Status Filter Logic
+    // 2. Status & Severity Filter Logic
     const statusMatch = {};
-    if (status && status !== "all") {
+    if (status === "high") {
+      statusMatch.severity = "high";
+    } else if (status && status !== "all") {
       statusMatch.status = status;
     } else {
       statusMatch.status = { $in: ["new", "in_progress", "resolved"] };
@@ -715,25 +752,47 @@ const getReportedProfiles = async (req, res) => {
     };
 
     // 6. Format Response
-    const formattedData = reports.map((item) => ({
-      userId: item._id,
-      nickname: item.profile?.nickname || item.user?.name || "Unknown",
-      profilePhoto: item.profile?.photos?.[0]?.url || null,
-      reportCount: item.reportCount,
-      lastReportedAt: item.latestReport,
-      status: item.latestStatus,
-      severity: item.latestSeverity,
-      reasons: item.reasons,
-      profile: {
-        photos: item.profile?.photos || [],
-        bio: item.profile?.about || "",
-        gender: item.profile?.gender || "",
-        age: item.profile?.age || null,
-        location: item.profile?.location || {},
-        verification: item.profile?.verification || {},
-      },
-      reports: item.allReports,
-    }));
+    const formattedData = reports.map((item) => {
+      // Calculate unique reporters and most common reason for this user
+      const uniqueReporters = new Set(
+        item.allReports.map((r) => r.reportedById?.toString()),
+      ).size;
+
+      const reasonCounts = {};
+      let mostCommonReason = "N/A";
+      let maxCount = 0;
+      item.allReports.forEach((r) => {
+        if (r.reason) {
+          reasonCounts[r.reason] = (reasonCounts[r.reason] || 0) + 1;
+          if (reasonCounts[r.reason] > maxCount) {
+            maxCount = reasonCounts[r.reason];
+            mostCommonReason = r.reason;
+          }
+        }
+      });
+
+      return {
+        userId: item._id,
+        nickname: item.profile?.nickname || item.user?.name || "Unknown",
+        profilePhoto: item.profile?.photos?.[0]?.url || null,
+        reportCount: item.reportCount,
+        uniqueReporters,
+        mostCommonReason,
+        lastReportedAt: item.latestReport,
+        status: item.latestStatus,
+        severity: item.latestSeverity,
+        reasons: item.reasons,
+        profile: {
+          photos: item.profile?.photos || [],
+          bio: item.profile?.about || "",
+          gender: item.profile?.gender || "",
+          age: item.profile?.age || null,
+          location: item.profile?.location || {},
+          verification: item.profile?.verification || {},
+        },
+        reports: item.allReports,
+      };
+    });
 
     return res.json({
       success: true,

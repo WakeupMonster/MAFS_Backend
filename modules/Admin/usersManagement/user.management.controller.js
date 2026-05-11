@@ -22,444 +22,6 @@ API 4: POST api/v1/admin/user-management/export
 
 /* =============== SAMPLE GET ALL USERS – ADMIN ================== */
 /* ======== GET ALL USERS – ADMIN DATATABLE (REDIS) & Search or filters:API 1: GET api/v1/admin/user-management/user-list ====== */
-// module.exports.GETAllUsers = async (req, res) => {
-//   try {
-//     const {
-//       page: reqPage,
-//       limit: reqLimit,
-//       search,
-//       accountStatus,
-//       isPremium,
-//       isBanned,
-//       last24Hours,
-//       gender,
-//       isDeactivated,
-//       isScheduledForDeletion,
-//     } = req.query;
-
-//     // 1. Generate a unique cache key based on query params
-//     // const cacheKey = `users:list:${JSON.stringify({
-//     //   reqPage,
-//     //   reqLimit,
-//     //   search,
-//     //   accountStatus,
-//     //   isPremium,
-//     //   isBanned,
-//     // })}`;
-
-//     // 2. Try to fetch from Redis
-//     // const cachedData = await redis.get(cacheKey);
-//     // if (cachedData) {
-//     //   console.log("CACHE HIT");
-//     //   return res.status(200).json({
-//     //     success: true,
-//     //     cached: true,
-//     //     ...JSON.parse(cachedData),
-//     //   });
-//     // }
-
-//     // --- YOUR EXISTING LOGIC START ---
-//     const page = Math.max(parseInt(reqPage) || 1, 1);
-//     const limit = Math.min(parseInt(reqLimit) || 10, 100);
-//     const skip = (page - 1) * limit;
-//     const searchTrimmed = search?.trim();
-
-//     const baseMatch = { role: "USER" };
-//     if (accountStatus) baseMatch.accountStatus = accountStatus;
-//     if (isPremium) baseMatch.isPremium = isPremium === "true";
-//     if (isBanned !== undefined)
-//       baseMatch["banDetails.isBanned"] = isBanned === "true";
-
-//     if (isDeactivated !== undefined) {
-//       baseMatch["deactivationDetails.isDeactivated"] = isDeactivated === "true";
-//     }
-
-//     if (isScheduledForDeletion !== undefined) {
-//       baseMatch["deletionDetails.isScheduledForDeletion"] =
-//         isScheduledForDeletion === "true";
-//     }
-
-//     if (last24Hours === "true") {
-//       const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
-//       baseMatch.lastLoginAt = { $gte: twentyFourHoursAgo };
-//     }
-
-//     // Your Pipeline (Keeping your existing pipeline structure)
-//     const pipeline = [
-//       { $match: baseMatch },
-//       {
-//         $lookup: {
-//           from: "profiles",
-//           localField: "_id",
-//           foreignField: "userId",
-//           as: "profile",
-//         },
-//       },
-//       { $unwind: { path: "$profile", preserveNullAndEmptyArrays: true } },
-//       // 2. NEW: Apply Gender Filter (Post-Lookup)
-//       ...(gender ? [{ $match: { "profile.gender": gender } }] : []),
-//       ...(searchTrimmed
-//         ? [
-//             {
-//               $match: {
-//                 $or: [
-//                   {
-//                     email: new RegExp(
-//                       searchTrimmed.replace(/[.*+?^${}()|[\\/]\\]/g, "\\$&"),
-//                       "i",
-//                     ),
-//                   },
-//                   {
-//                     phone: new RegExp(
-//                       searchTrimmed.replace(/[.*+?^${}()|[\\/]\\]/g, "\\$&"),
-//                       "i",
-//                     ),
-//                   },
-//                   {
-//                     "profile.nickname": new RegExp(
-//                       searchTrimmed.replace(/[.*+?^${}()|[\\/]\\]/g, "\\$&"),
-//                       "i",
-//                     ),
-//                   },
-//                   {
-//                     "profile.gender": new RegExp(
-//                       searchTrimmed.replace(/[.*+?^${}()|[\\/]\\]/g, "\\$&"),
-//                       "i",
-//                     ),
-//                   },
-//                   {
-//                     "profile.location.city": new RegExp(
-//                       searchTrimmed.replace(/[.*+?^${}()|[\\/]\\]/g, "\\$&"),
-//                       "i",
-//                     ),
-//                   },
-//                   {
-//                     "profile.location.country": new RegExp(
-//                       searchTrimmed.replace(/[.*+?^${}()|[\\/]\\]/g, "\\$&"),
-//                       "i",
-//                     ),
-//                   },
-//                   // Exact match for Age if search is a number
-//                   ...(!isNaN(parseInt(searchTrimmed))
-//                     ? [{ "profile.age": parseInt(searchTrimmed) }]
-//                     : []),
-//                 ],
-//               },
-//             },
-//           ]
-//         : [{ $sort: { createdAt: -1 } }]),
-//       {
-//         $lookup: {
-//           from: "accounts",
-//           localField: "_id",
-//           foreignField: "userId",
-//           as: "account",
-//         },
-//       },
-//       { $unwind: { path: "$account", preserveNullAndEmptyArrays: true } },
-//       {
-//         $lookup: {
-//           from: "subscriptions", // Look up the main subscription record
-//           localField: "_id",
-//           foreignField: "userId",
-//           as: "subscriptionInfo",
-//         },
-//       },
-//       {
-//         $addFields: {
-//           // Get the most recent/active subscription
-//           currentSubscription: {
-//             $arrayElemAt: [
-//               {
-//                 $filter: {
-//                   input: "$subscriptionInfo",
-//                   as: "sub",
-//                   cond: { $eq: ["$$sub.status", "ACTIVE"] }, // Prioritize active ones
-//                 },
-//               },
-//               0,
-//             ],
-//           },
-//           // If no active, just get the latest one by date
-//           latestSubscription: {
-//             $arrayElemAt: [
-//               {
-//                 $sortArray: {
-//                   input: "$subscriptionInfo",
-//                   sortBy: { expiresAt: -1 },
-//                 },
-//               },
-//               0,
-//             ],
-//           },
-//         },
-//       },
-//       {
-//         $lookup: {
-//           from: "subscriptiontransactions",
-//           localField: "_id",
-//           foreignField: "userId",
-//           as: "transactionHistory",
-//         },
-//       },
-//       {
-//         $addFields: {
-//           transactionHistory: {
-//             $sortArray: {
-//               input: "$transactionHistory",
-//               sortBy: { createdAt: -1 },
-//             },
-//           },
-//         },
-//       },
-//       {
-//         $facet: {
-//           data: [
-//             { $skip: skip },
-//             { $limit: limit },
-//             // 🔥 NEW STATS LOOKUPS: Swipe Stats
-//             {
-//               $lookup: {
-//                 from: "swipes",
-//                 let: { userId: "$_id" },
-//                 pipeline: [
-//                   { $match: { $expr: { $eq: ["$swiperId", "$$userId"] } } },
-//                   {
-//                     $group: {
-//                       _id: null,
-//                       totalSwipes: { $sum: 1 },
-//                       likes: {
-//                         $sum: { $cond: [{ $eq: ["$action", "like"] }, 1, 0] },
-//                       },
-//                       superLikes: {
-//                         $sum: {
-//                           $cond: [{ $eq: ["$action", "superlike"] }, 1, 0],
-//                         },
-//                       },
-//                     },
-//                   },
-//                 ],
-//                 as: "swipeStats",
-//               },
-//             },
-//             {
-//               $unwind: {
-//                 path: "$swipeStats",
-//                 preserveNullAndEmptyArrays: true,
-//               },
-//             },
-//             // 🔥 NEW STATS LOOKUPS: Match Stats HISTORY & COUNT
-//             {
-//               $lookup: {
-//                 from: "matches",
-//                 let: { currentUserId: "$_id" },
-//                 pipeline: [
-//                   { $match: { $expr: { $in: ["$$currentUserId", "$users"] } } },
-//                   { $sort: { matchedAt: -1 } },
-//                   // We identify the "Other User" and get their profile info
-//                   {
-//                     $addFields: {
-//                       otherUserId: {
-//                         $first: {
-//                           $filter: {
-//                             input: "$users",
-//                             as: "uId",
-//                             cond: { $ne: ["$$uId", "$$currentUserId"] },
-//                           },
-//                         },
-//                       },
-//                     },
-//                   },
-//                   {
-//                     $lookup: {
-//                       from: "profiles",
-//                       localField: "otherUserId",
-//                       foreignField: "userId",
-//                       as: "otherProfile",
-//                     },
-//                   },
-//                   {
-//                     $unwind: {
-//                       path: "$otherProfile",
-//                       preserveNullAndEmptyArrays: true,
-//                     },
-//                   },
-//                   {
-//                     $project: {
-//                       _id: 1,
-//                       matchedAt: 1,
-//                       ouserId: "$otherProfile.userId",
-//                       nickname: "$otherProfile.nickname",
-//                       photo: { $arrayElemAt: ["$otherProfile.photos.url", 0] },
-//                     },
-//                   },
-//                 ],
-//                 as: "matchData",
-//               },
-//             },
-//             {
-//               $project: {
-//                 _id: 1,
-//                 role: 1,
-//                 // 🔥 ADD THE STATS TO THE PROJECT OUTPUT
-//                 stats: {
-//                   totalSwipes: { $ifNull: ["$swipeStats.totalSwipes", 0] },
-//                   totalLikes: { $ifNull: ["$swipeStats.likes", 0] },
-//                   totalSuperLikes: { $ifNull: ["$swipeStats.superLikes", 0] },
-//                   totalMatches: { $size: "$matchData" },
-//                   totalTransactions: { $size: "$transactionHistory" }, // Useful stat
-//                 },
-//                 // Show only the 5 most recent matches in the array
-//                 recentMatches: { $slice: ["$matchData", 5] },
-//                 account: {
-//                   status: "$accountStatus",
-//                   isPremium: "$isPremium",
-//                   phone: "$phone",
-//                   email: "$email",
-//                   authMethod: "$authMethod",
-//                   banDetails: "$banDetails",
-//                   deactivationDetails: "$deactivationDetails",
-//                   deletionDetails: "$deletionDetails",
-//                   suspensionDetails: "$suspensionDetails",
-//                   createdAt: "$createdAt",
-//                 },
-//                 profile: {
-//                   profileId: "$profile._id",
-//                   nickname: "$profile.nickname",
-//                   dob: "$profile.dob",
-//                   age: "$profile.age",
-//                   gender: "$profile.gender",
-//                   height: "$profile.height",
-//                   about: "$profile.about",
-//                   jobTitle: "$profile.jobTitle",
-//                   company: "$profile.company",
-//                   totalCompletion:
-//                     "$profile.onboardingProgress.totalCompletion",
-//                 },
-//                 subscription: {
-//                   _id: {
-//                     $ifNull: [
-//                       "$currentSubscription._id",
-//                       "$latestSubscription._id",
-//                     ],
-//                   },
-//                   status: {
-//                     $ifNull: [
-//                       "$currentSubscription.status",
-//                       "$latestSubscription.status",
-//                     ],
-//                   },
-//                   planType: {
-//                     $ifNull: [
-//                       "$currentSubscription.planType",
-//                       "$latestSubscription.planType",
-//                     ],
-//                   },
-//                   platform: {
-//                     $ifNull: [
-//                       "$currentSubscription.platform",
-//                       "$latestSubscription.platform",
-//                     ],
-//                   },
-//                   startedAt: {
-//                     $ifNull: [
-//                       "$currentSubscription.startedAt",
-//                       "$latestSubscription.startedAt",
-//                     ],
-//                   },
-//                   expiresAt: {
-//                     $ifNull: [
-//                       "$currentSubscription.expiresAt",
-//                       "$latestSubscription.expiresAt",
-//                     ],
-//                   },
-//                   isCurrentlyActive: {
-//                     $and: [
-//                       {
-//                         $eq: [
-//                           { $ifNull: ["$currentSubscription.status", ""] },
-//                           "ACTIVE",
-//                         ],
-//                       },
-//                       { $gt: ["$currentSubscription.expiresAt", new Date()] },
-//                     ],
-//                   },
-//                 },
-//                 transactions: "$transactionHistory",
-//                 attributes: {
-//                   zodiac: "$profile.attributes.zodiac",
-//                   education: "$profile.attributes.education",
-//                   familyPlans: "$profile.attributes.familyPlans",
-//                   personalityType: "$profile.attributes.personalityType",
-//                   communicationStyle: "$profile.attributes.communicationStyle",
-//                   loveStyle: "$profile.attributes.loveStyle",
-//                   pets: "$profile.attributes.pets",
-//                   drinking: "$profile.attributes.drinking",
-//                   smoking: "$profile.attributes.smoking",
-//                   workout: "$profile.attributes.workout",
-//                   dietary: "$profile.attributes.dietary",
-//                   sleeping: "$profile.attributes.sleeping",
-//                   socialMedia: "$profile.attributes.socialMedia",
-//                   languages: "$profile.attributes.languages",
-//                   interests: "$profile.attributes.interests",
-//                   music: "$profile.attributes.music",
-//                   movies: "$profile.attributes.movies",
-//                   books: "$profile.attributes.books",
-//                   travel: "$profile.attributes.travel",
-//                   religion: "$profile.attributes.religion",
-//                 },
-//                 discovery: {
-//                   distanceRange: "$profile.discovery.distanceRange",
-//                   ageRange: "$profile.discovery.ageRange",
-//                   showMeGender: "$profile.discovery.showMeGender",
-//                   relationshipGoal: "$profile.discovery.relationshipGoal",
-//                   globalVisibility: "$profile.discovery.globalVisibility",
-//                   discoveryFilters: "$profile.discovery.advancedFilters",
-//                 },
-//                 location: "$profile.location",
-//                 photos: "$profile.photos",
-//                 verification: "$profile.verification",
-//                 lastProfileUpdate: "$profile.lastProfileUpdate",
-//                 createdAt: 1,
-//                 lastLoginAt: 1,
-//                 isPhoneVerified: 1,
-//                 isEmailVerified: 1,
-//               },
-//             },
-//           ],
-//           total: [{ $count: "count" }],
-//         },
-//       },
-//     ];
-
-//     const result = await User.aggregate(pipeline);
-//     const users = result[0]?.data || [];
-//     const total = result[0]?.total[0]?.count || 0;
-
-//     const responseData = {
-//       pagination: {
-//         page,
-//         limit,
-//         total,
-//         totalPages: Math.ceil(total / limit),
-//       },
-//       data: users,
-//     };
-//     // --- YOUR EXISTING LOGIC END ---
-
-//     // 3. Save to Redis with an expiration time (e.g., 5 minutes / 300 seconds)
-//     // await redis.set(cacheKey, responseData, "EX", 300);
-
-//     return res.status(200).json({
-//       success: true,
-//       cached: false,
-//       ...responseData,
-//     });
-//   } catch (error) {
-//     console.error("GET USER LIST ERROR:", error);
-//     res.status(500).json({ success: false, message: "Failed to fetch users" });
-//   }
-// };
 module.exports.GETAllUsers = async (req, res) => {
   try {
     const {
@@ -625,7 +187,20 @@ module.exports.GETAllUsers = async (req, res) => {
                 banDetails: "$banDetails",
                 deactivationDetails: "$deactivationDetails",
                 deletionDetails: "$deletionDetails",
-                suspensionDetails: "$suspensionDetails",
+                suspensionDetails: {
+                  $mergeObjects: [
+                    "$suspensionDetails",
+                    {
+                      suspendedByName: {
+                        $ifNull: [
+                          "$suspendedByProfile.nickname",
+                          "$suspendedByProfile.fullName",
+                        ],
+                      },
+                      suspendedByEmail: "$suspendedByUser.email",
+                    },
+                  ],
+                },
                 createdAt: "$createdAt",
               },
               profile: {
@@ -1021,6 +596,64 @@ module.exports.GETSingleUserDetails = async (req, res) => {
           as: "reportsReceived",
         },
       },
+      // 9. Lookup for Suspended By
+      {
+        $lookup: {
+          from: "users",
+          localField: "suspensionDetails.suspendedBy",
+          foreignField: "_id",
+          as: "suspendedByUser",
+        },
+      },
+      {
+        $unwind: {
+          path: "$suspendedByUser",
+          preserveNullAndEmptyArrays: true,
+        },
+      },
+      {
+        $lookup: {
+          from: "profiles",
+          localField: "suspensionDetails.suspendedBy",
+          foreignField: "userId",
+          as: "suspendedByProfile",
+        },
+      },
+      {
+        $unwind: {
+          path: "$suspendedByProfile",
+          preserveNullAndEmptyArrays: true,
+        },
+      },
+      // 10. Lookup for Banned By
+      {
+        $lookup: {
+          from: "users",
+          localField: "banDetails.bannedBy",
+          foreignField: "_id",
+          as: "bannedByUser",
+        },
+      },
+      {
+        $unwind: {
+          path: "$bannedByUser",
+          preserveNullAndEmptyArrays: true,
+        },
+      },
+      {
+        $lookup: {
+          from: "profiles",
+          localField: "banDetails.bannedBy",
+          foreignField: "userId",
+          as: "bannedByProfile",
+        },
+      },
+      {
+        $unwind: {
+          path: "$bannedByProfile",
+          preserveNullAndEmptyArrays: true,
+        },
+      },
       {
         $project: {
           _id: 1,
@@ -1066,10 +699,36 @@ module.exports.GETSingleUserDetails = async (req, res) => {
             phone: "$phone",
             email: "$email",
             authMethod: "$authMethod",
-            banDetails: "$banDetails",
+            banDetails: {
+              $mergeObjects: [
+                "$banDetails",
+                {
+                  bannedByName: {
+                    $ifNull: [
+                      "$bannedByProfile.nickname",
+                      "$bannedByProfile.fullName",
+                    ],
+                  },
+                  bannedByEmail: "$bannedByUser.email",
+                },
+              ],
+            },
             deactivationDetails: "$deactivationDetails",
             deletionDetails: "$deletionDetails",
-            suspensionDetails: "$suspensionDetails",
+            suspensionDetails: {
+              $mergeObjects: [
+                "$suspensionDetails",
+                {
+                  suspendedByName: {
+                    $ifNull: [
+                      "$suspendedByProfile.nickname",
+                      "$suspendedByProfile.fullName",
+                    ],
+                  },
+                  suspendedByEmail: "$suspendedByUser.email",
+                },
+              ],
+            },
             createdAt: "$createdAt",
           },
           // Profile Info
@@ -1488,11 +1147,128 @@ module.exports.DELETEPhoto = async (req, res) => {
 };
 
 /* ======: For Bluk exports in csv file to get all Users Data: API 4: GET api/v1/admin/user-management/export =========== */
+// module.exports.streamUsersExport = async (req, res) => {
+//   try {
+//     const filters = req.query || {};
+
+//     // 1. Build Filter Logic
+//     const userMatch = { role: "USER" };
+//     if (filters.accountStatus) userMatch.accountStatus = filters.accountStatus;
+//     if (filters.isPremium) userMatch.isPremium = filters.isPremium === "true";
+
+//     const profileMatch = {};
+//     if (filters.gender) profileMatch["profile.gender"] = filters.gender;
+
+//     // 2. HTTP Headers for Direct Download
+//     // Removed progress markers because they corrupt the CSV file structure
+//     res.setHeader(
+//       "Content-Disposition",
+//       `attachment; filename=KeenMustard_Users_${Date.now()}.csv`,
+//     );
+//     res.setHeader("Content-Type", "text/csv");
+//     res.setHeader("X-Content-Type-Options", "nosniff");
+
+//     const csvStream = stringify({
+//       header: true,
+//       columns: [
+//         "UserId",
+//         "Nickname",
+//         "Email",
+//         "Phone",
+//         "Gender",
+//         "Age",
+//         "JobTitle",
+//         "City",
+//         "KYCStatus",
+//         "LastActiveAt",
+//         "LastSeenAt",
+//         "ProfileCompletion",
+//         "AccountStatus",
+//         "IsPremium",
+//         "AuthMethod",
+//         "CreatedAt",
+//       ],
+//     });
+
+//     // Pipe the stringifier directly to the response
+//     //
+//     csvStream.pipe(res);
+
+//     // 3. The Aggregation Cursor
+//     const cursor = User.aggregate([
+//       { $match: userMatch },
+//       {
+//         $lookup: {
+//           from: "profiles",
+//           localField: "_id",
+//           foreignField: "userId",
+//           as: "profile",
+//         },
+//       },
+//       { $unwind: { path: "$profile", preserveNullAndEmptyArrays: true } },
+//       ...(Object.keys(profileMatch).length ? [{ $match: profileMatch }] : []),
+//       {
+//         $project: {
+//           _id: 1,
+//           email: 1,
+//           phone: 1,
+//           accountStatus: 1,
+//           isPremium: 1,
+//           authMethod: 1,
+//           createdAt: 1,
+//           nickname: "$profile.nickname",
+//           gender: "$profile.gender",
+//           age: "$profile.age",
+//           jobTitle: "$profile.jobTitle",
+//           city: "$profile.location.city",
+//           profileCompletion: "$profile.onboardingProgress.totalCompletion",
+//           kycStatus: "$profile.verification.status",
+//         },
+//       },
+//     ]).cursor({ batchSize: 1000 }); // Smaller batch size to prevent ETIMEDOUT
+
+//     for await (const doc of cursor) {
+//       csvStream.write({
+//         UserId: doc._id.toString(),
+//         Email: doc.email || "",
+//         Phone: doc.phone ? `="${doc.phone}"` : "",
+//         AccountStatus: doc.accountStatus,
+//         IsPremium: doc.isPremium ? "Yes" : "No",
+//         AuthMethod: doc.authMethod || "phone",
+//         CreatedAt: doc.createdAt
+//           ? new Date(doc.createdAt).toLocaleString("en-IN", {
+//               timeZone: "Asia/Kolkata",
+//               day: "2-digit",
+//               month: "short",
+//               year: "numeric",
+//               hour: "2-digit",
+//               minute: "2-digit",
+//               hour12: true,
+//             })
+//           : "",
+//         Nickname: doc.nickname || "",
+//         Gender: doc.gender || "",
+//         Age: doc.age || "",
+//         JobTitle: doc.jobTitle || "",
+//         City: doc.city || "",
+//         ProfileCompletion: `${doc.profileCompletion || 0}%`,
+//         KYCStatus: doc.kycStatus || "not_started",
+//       });
+//     }
+
+//     csvStream.end();
+//   } catch (error) {
+//     console.error("STREAM EXPORT ERROR:", error);
+//     if (!res.headersSent)
+//       res.status(500).json({ success: false, message: "Export failed" });
+//     else res.end();
+//   }
+// };
+
 module.exports.streamUsersExport = async (req, res) => {
   try {
     const filters = req.query || {};
 
-    // 1. Build Filter Logic
     const userMatch = { role: "USER" };
     if (filters.accountStatus) userMatch.accountStatus = filters.accountStatus;
     if (filters.isPremium) userMatch.isPremium = filters.isPremium === "true";
@@ -1500,11 +1276,9 @@ module.exports.streamUsersExport = async (req, res) => {
     const profileMatch = {};
     if (filters.gender) profileMatch["profile.gender"] = filters.gender;
 
-    // 2. HTTP Headers for Direct Download
-    // Removed progress markers because they corrupt the CSV file structure
     res.setHeader(
       "Content-Disposition",
-      `attachment; filename=MAFS_Users_${Date.now()}.csv`,
+      `attachment; filename=KeenMustard_Users_${Date.now()}.csv`,
     );
     res.setHeader("Content-Type", "text/csv");
     res.setHeader("X-Content-Type-Options", "nosniff");
@@ -1513,27 +1287,39 @@ module.exports.streamUsersExport = async (req, res) => {
       header: true,
       columns: [
         "UserId",
-        "Email",
-        "Phone",
-        "AccountStatus",
-        "IsPremium",
-        "AuthMethod",
-        "CreatedAt",
         "Nickname",
+        "Email",
+        "Phone", // ✅ Plain phone number
         "Gender",
         "Age",
         "JobTitle",
         "City",
-        "ProfileCompletion",
         "KYCStatus",
+        "LastActiveAt", // ✅ lastLoginAt from User
+        "ProfileCompletion",
+        "AccountStatus",
+        "IsPremium",
+        "AuthMethod",
+        "CreatedAt", // ✅ Fixed formatting
       ],
     });
 
-    // Pipe the stringifier directly to the response
-    //
     csvStream.pipe(res);
 
-    // 3. The Aggregation Cursor
+    // ✅ FIX 1: Helper function for consistent date formatting
+    const formatDate = (d) => {
+      if (!d) return "";
+      return new Date(d).toLocaleString("en-IN", {
+        timeZone: "Asia/Kolkata",
+        day: "2-digit",
+        month: "short",
+        year: "numeric",
+        hour: "2-digit",
+        minute: "2-digit",
+        hour12: true,
+      });
+    };
+
     const cursor = User.aggregate([
       { $match: userMatch },
       {
@@ -1555,6 +1341,7 @@ module.exports.streamUsersExport = async (req, res) => {
           isPremium: 1,
           authMethod: 1,
           createdAt: 1,
+          lastLoginAt: 1, // ✅ FIX 2: Was missing, causing LastActiveAt to be empty
           nickname: "$profile.nickname",
           gender: "$profile.gender",
           age: "$profile.age",
@@ -1564,19 +1351,18 @@ module.exports.streamUsersExport = async (req, res) => {
           kycStatus: "$profile.verification.status",
         },
       },
-    ]).cursor({ batchSize: 1000 }); // Smaller batch size to prevent ETIMEDOUT
+    ]).cursor({ batchSize: 1000 });
 
     for await (const doc of cursor) {
       csvStream.write({
         UserId: doc._id.toString(),
         Email: doc.email || "",
-        Phone: doc.phone || "",
-        AccountStatus: doc.accountStatus,
+        Phone: doc.phone || "", // ✅ FIX 1: Plain string, no Excel trick
+        AccountStatus: doc.accountStatus || "",
         IsPremium: doc.isPremium ? "Yes" : "No",
         AuthMethod: doc.authMethod || "phone",
-        CreatedAt: doc.createdAt
-          ? new Date(doc.createdAt).toISOString().split("T")[0]
-          : "",
+        CreatedAt: formatDate(doc.createdAt), // ✅ FIX 2: Using helper
+        LastActiveAt: formatDate(doc.lastLoginAt), // ✅ FIX 2: Now has data
         Nickname: doc.nickname || "",
         Gender: doc.gender || "",
         Age: doc.age || "",
@@ -1609,32 +1395,42 @@ module.exports.GETGhostingUsers = async (req, res) => {
     // 1. PRODUCTION-READY GHOSTING IDENTIFICATION
     // ==========================================
     const Match = mongoose.model("Match");
-    
+
     // Instead of fetching all matches, we ONLY fetch matches where lastMessage is empty or doesn't exist.
     // This uses MongoDB indexes and prevents RAM overload.
     const ghostingMatches = await Match.find({
       $or: [
         { lastMessage: { $exists: false } },
         { lastMessage: null },
-        { lastMessage: "" }
-      ]
-    }).select("users").lean();
-    
+        { lastMessage: "" },
+      ],
+    })
+      .select("users")
+      .lean();
+
     const ghostingUserIds = new Set();
-    ghostingMatches.forEach(match => {
+    ghostingMatches.forEach((match) => {
       if (match.users && Array.isArray(match.users)) {
-        match.users.forEach(uId => ghostingUserIds.add(uId.toString()));
+        match.users.forEach((uId) => ghostingUserIds.add(uId.toString()));
       }
     });
 
-    const ghostingUsersArray = Array.from(ghostingUserIds).map(id => new mongoose.Types.ObjectId(id));
+    const ghostingUsersArray = Array.from(ghostingUserIds).map(
+      (id) => new mongoose.Types.ObjectId(id),
+    );
 
     if (ghostingUsersArray.length === 0) {
       return res.status(200).json({
         success: true,
         cached: false,
         pagination: { page, limit, total: 0, totalPages: 0 },
-        kpiStats: { totalUsers: 0, activeTotal: 0, premiumTotal: 0, bannedTotal: 0, suspendedTotal: 0 },
+        kpiStats: {
+          totalUsers: 0,
+          activeTotal: 0,
+          premiumTotal: 0,
+          bannedTotal: 0,
+          suspendedTotal: 0,
+        },
         message: "Ghosting Users fetched successfully",
         data: [],
       });
@@ -1643,11 +1439,11 @@ module.exports.GETGhostingUsers = async (req, res) => {
     // ==========================================
     // 2. FETCH USERS EXACTLY LIKE GETAllUsers
     // ==========================================
-    const baseMatch = { 
+    const baseMatch = {
       _id: { $in: ghostingUsersArray },
-      role: "USER", 
-      isFake: { $ne: true }, 
-      accountStatus: "active" 
+      role: "USER",
+      isFake: { $ne: true },
+      accountStatus: "active",
     };
 
     const pipeline = [{ $match: baseMatch }];
@@ -1685,20 +1481,17 @@ module.exports.GETGhostingUsers = async (req, res) => {
               },
             },
           },
-        }
+        },
       );
 
       if (searchTrimmed) {
         const searchRegex = new RegExp(
           searchTrimmed.replace(/[.*+?^${}()|[\\/]\\]/g, "\\$&"),
-          "i"
+          "i",
         );
         pipeline.push({
           $match: {
-            $or: [
-              { email: searchRegex },
-              { "profile.nickname": searchRegex },
-            ],
+            $or: [{ email: searchRegex }, { "profile.nickname": searchRegex }],
           },
         });
       }
@@ -1787,10 +1580,19 @@ module.exports.GETGhostingUsers = async (req, res) => {
           },
         ],
         total: [{ $count: "count" }],
-        activeCount: [{ $match: { accountStatus: "active" } }, { $count: "count" }],
+        activeCount: [
+          { $match: { accountStatus: "active" } },
+          { $count: "count" },
+        ],
         premiumCount: [{ $match: { isPremium: true } }, { $count: "count" }],
-        bannedCount: [{ $match: { accountStatus: "banned" } }, { $count: "count" }],
-        suspendedCount: [{ $match: { accountStatus: "suspended" } }, { $count: "count" }],
+        bannedCount: [
+          { $match: { accountStatus: "banned" } },
+          { $count: "count" },
+        ],
+        suspendedCount: [
+          { $match: { accountStatus: "suspended" } },
+          { $count: "count" },
+        ],
       },
     });
 
@@ -1827,6 +1629,8 @@ module.exports.GETGhostingUsers = async (req, res) => {
     });
   } catch (error) {
     console.error("GET GHOSTING USER LIST ERROR:", error);
-    res.status(500).json({ success: false, message: "Failed to fetch ghosting users" });
+    res
+      .status(500)
+      .json({ success: false, message: "Failed to fetch ghosting users" });
   }
 };

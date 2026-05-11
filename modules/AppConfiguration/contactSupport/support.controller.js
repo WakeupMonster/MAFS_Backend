@@ -536,3 +536,36 @@ module.exports.myTicket = async (req, res) => {
     });
   }
 };
+
+module.exports.deleteTicket = async (req, res) => {
+  try {
+    const { ticketId } = req.params;
+
+    if (!mongoose.Types.ObjectId.isValid(ticketId)) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid Ticket ID format",
+      });
+    }
+
+    const ticket = await SupportTicket.findByIdAndDelete(ticketId);
+
+    if (!ticket) {
+      return res.status(404).json({
+        success: false,
+        message: "Ticket not found",
+      });
+    }
+
+    return res.json({
+      success: true,
+      message: "Ticket deleted successfully",
+    });
+  } catch (err) {
+    console.error("Delete Ticket Error:", err);
+    return res.status(500).json({
+      success: false,
+      message: "Failed to delete ticket",
+    });
+  }
+};

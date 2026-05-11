@@ -13,5 +13,6 @@ router.post(
   controller.replyToTicket
 );
 router.get("/my-ticket", authMiddleware, controller.myTicket);
+router.delete("/ticket/:ticketId", authMiddleware, controller.deleteTicket);
 
 module.exports = router;

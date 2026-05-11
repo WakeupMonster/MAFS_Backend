@@ -501,6 +501,30 @@ exports.getAllCampaigns = async (req, res) => {
                   city: "$winnerProfile.location.city",
                   country: "$winnerProfile.location.country",
                 },
+                photo: {
+                  $let: {
+                    vars: {
+                      mainPhoto: {
+                        $arrayElemAt: [
+                          {
+                            $filter: {
+                              input: { $ifNull: ["$winnerProfile.photos", []] },
+                              as: "p",
+                              cond: { $eq: ["$$p.order", 0] },
+                            },
+                          },
+                          0,
+                        ],
+                      },
+                    },
+                    in: {
+                      $ifNull: [
+                        "$$mainPhoto.url",
+                        { $arrayElemAt: ["$winnerProfile.photos.url", 0] },
+                      ],
+                    },
+                  },
+                },
               },
             },
           },

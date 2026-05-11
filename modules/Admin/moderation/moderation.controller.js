@@ -7,126 +7,137 @@ const redis = require("../../../config/cache");
 const Block = require("../../profile/user.block");
 const utils = require("../../auth/auth.utils");
 const notificationService = require("../../notifications/notification.service");
-const { NOTIFICATION_TYPES } = require("../../notifications/notification.enums");
+const {
+  NOTIFICATION_TYPES,
+} = require("../../notifications/notification.enums");
 
 module.exports.verifyUserProfile = async (req, res) => {
-  const adminId = req.user.id;
-  const userId = req.params.userId;
-  const { action, reason } = req.body;
-
-  if (!["approve", "reject"].includes(action)) {
-    return res.status(400).json({
-      success: false,
-      message: "Invalid action",
-    });
-  }
-
-  if (action === "reject" && !reason) {
-    return res.status(400).json({
-      success: false,
-      message: "Rejection reason required",
-    });
-  }
-
-  const profile = await Profile.findOne({ userId });
-  if (!profile) {
-    return res.status(404).json({
-      success: false,
-      message: "Profile not found",
-    });
-  }
-
-  if (profile.verification.status !== "pending") {
-    return res.status(409).json({
-      success: false,
-      message: `Profile already ${profile.verification.status}`,
-    });
-  }
-
-  // const before = {
-  //   status: profile.verification.status
-  // };
-
-  if (action === "approve") {
-    profile.verification.status = "approved";
-    profile.verification.verifiedBy = adminId;
-    profile.verification.verifiedAt = new Date();
-    profile.verification.rejectionReason = null;
-
-    if (!profile.onboarding) profile.onboarding = {};
-    profile.onboarding.isComplete = true;
-  } else {
-    profile.verification.status = "rejected";
-    profile.verification.verifiedBy = adminId;
-    profile.verification.verifiedAt = new Date();
-    profile.verification.rejectionReason = reason;
-
-    if (!profile.onboarding) profile.onboarding = {};
-    profile.onboarding.isComplete = false;
-  }
-
-  await profile.save();
-
-  // Audit log
-  // await AuditLog.create({
-  //   actorId: adminId,
-  //   action:
-  //     action === "approve"
-  //       ? "USER_VERIFICATION_APPROVED"
-  //       : "USER_VERIFICATION_REJECTED",
-  //   entityType: "USER",
-  //   entityId: userId,
-  //   before,
-  //   after: { status: profile.verification.status },
-  //   reason
-  // });
-
-  // Invalidate KPI cache
-  if (redis) {
-    await redis.del("admin:kpi:overview");
-  }
-
-  // 🔔 Send Push Notification to User
   try {
-    if (action === "approve") {
-      await notificationService.sendAdminNotification({
-        userId,
-        title: "Identity Verified! ✅",
-        message: "Congratulations! Your account has been verified. You can now access all features.",
-        data: {
-          type: NOTIFICATION_TYPES.KYC_VERIFIED,
-          cta: { action: "NAVIGATE_HOME" }
-        }
-      });
-    } else {
-      await notificationService.sendAdminNotification({
-        userId,
-        title: "Verification Rejected ❌",
-        message: `Your identity verification was rejected. Reason: ${reason}`,
-        data: {
-          type: NOTIFICATION_TYPES.KYC_REJECTED,
-          cta: { action: "NAVIGATE_HOME" }
-        }
+    const adminId = req.user._id;
+    const userId = req.params.userId;
+    const { action, reason } = req.body;
+
+    if (!["approve", "reject"].includes(action)) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid action",
       });
     }
-  } catch (notifErr) {
-    console.error("KYC Notification error (Non-blocking):", notifErr);
-  }
 
-  return res.json({
-    success: true,
-    message:
-      action === "approve"
-        ? "User verified successfully"
-        : "User verification rejected",
-  });
+    if (action === "reject" && !reason) {
+      return res.status(400).json({
+        success: false,
+        message: "Rejection reason required",
+      });
+    }
+
+    const profile = await Profile.findOne({ userId });
+    if (!profile) {
+      return res.status(404).json({
+        success: false,
+        message: "Profile not found",
+      });
+    }
+
+    if (profile.verification.status !== "pending") {
+      return res.status(409).json({
+        success: false,
+        message: `Profile already ${profile.verification.status}`,
+      });
+    }
+
+    // const before = {
+    //   status: profile.verification.status
+    // };
+
+    if (action === "approve") {
+      profile.verification.status = "approved";
+      profile.verification.verifiedBy = adminId;
+      profile.verification.verifiedAt = new Date();
+      profile.verification.rejectionReason = null;
+
+      if (!profile.onboarding) profile.onboarding = {};
+      profile.onboarding.isComplete = true;
+    } else {
+      profile.verification.status = "rejected";
+      profile.verification.verifiedBy = adminId;
+      profile.verification.verifiedAt = new Date();
+      profile.verification.rejectionReason = reason;
+
+      if (!profile.onboarding) profile.onboarding = {};
+      profile.onboarding.isComplete = false;
+    }
+
+    await profile.save();
+
+    // Audit log
+    // await AuditLog.create({
+    //   actorId: adminId,
+    //   action:
+    //     action === "approve"
+    //       ? "USER_VERIFICATION_APPROVED"
+    //       : "USER_VERIFICATION_REJECTED",
+    //   entityType: "USER",
+    //   entityId: userId,
+    //   before,
+    //   after: { status: profile.verification.status },
+    //   reason
+    // });
+
+    // Invalidate KPI cache
+    if (redis) {
+      await redis.del("admin:kpi:overview");
+    }
+
+    // 🔔 Send Push Notification to User
+    try {
+      if (action === "approve") {
+        await notificationService.sendAdminNotification({
+          userId,
+          title: "Identity Verified! ✅",
+          message:
+            "Congratulations! Your account has been verified. You can now access all features.",
+          data: {
+            type: NOTIFICATION_TYPES.KYC_VERIFIED,
+            cta: { action: "NAVIGATE_HOME" },
+          },
+        });
+      } else {
+        await notificationService.sendAdminNotification({
+          userId,
+          title: "Verification Rejected ❌",
+          message: `Your identity verification was rejected. Reason: ${reason}`,
+          data: {
+            type: NOTIFICATION_TYPES.KYC_REJECTED,
+            cta: { action: "NAVIGATE_HOME" },
+          },
+        });
+      }
+    } catch (notifErr) {
+      console.error("KYC Notification error (Non-blocking):", notifErr);
+    }
+
+    return res.json({
+      success: true,
+      message:
+        action === "approve"
+          ? "User verified successfully"
+          : "User verification rejected",
+    });
+  } catch (err) {
+    console.error("Verify user profile error:", err);
+    return res.status(500).json({
+      success: false,
+      message: "Failed to verify user profile",
+    });
+  }
 };
 
 module.exports.banUser = async (req, res) => {
   try {
     const adminId = req.user._id;
     const userId = req.params.id;
-    const { category, reason } = req.body;
+    const { reason } = req.body;
 
     if (!reason) {
       return res.status(400).json({
@@ -135,7 +146,7 @@ module.exports.banUser = async (req, res) => {
       });
     }
 
-    if (adminId.equals(userId)) {
+    if (adminId.toString() === userId.toString()) {
       return res.status(403).json({
         success: false,
         message: "You cannot ban yourself",
@@ -233,10 +244,7 @@ module.exports.unbanUser = async (req, res) => {
 
     // Update with safety for undefined banDetails
     user.banDetails = {
-      ...user.banDetails,
       isBanned: false,
-      unbannedBy: adminId,
-      unbannedAt: new Date(),
       reason: null,
       bannedBy: null,
       bannedAt: null,
@@ -289,10 +297,10 @@ module.exports.suspendUser = async (req, res) => {
       });
     }
 
-    if (adminId.equals(userId)) {
+    if (adminId.toString() === userId.toString()) {
       return res.status(403).json({
         success: false,
-        message: "You cannot suspend yourself",
+        message: "You cannot unsuspend yourself",
       });
     }
 
@@ -372,7 +380,7 @@ module.exports.unsuspendUser = async (req, res) => {
     const adminId = req.user._id;
     const userId = req.params.id;
 
-    if (adminId.equals(userId)) {
+    if (adminId.toString() === userId.toString()) {
       return res.status(403).json({
         success: false,
         message: "You cannot suspend yourself",
@@ -522,12 +530,15 @@ module.exports.updateReportStatus = async (req, res) => {
       report.resolvedBy = adminId;
       report.resolvedAt = new Date();
 
-      if (notifyUser && report.reporterId.email) {
-        await utils.sendEmail(
-          report.reporterId.email,
-          "Your report has been resolved",
-          "Thanks for reporting. We have taken appropriate action.",
-        );
+      if (notifyUser) {
+        const reporter = await User.findById(report.reporterId).select("email");
+        if (reporter?.email) {
+          await utils.sendEmail(
+            reporter.email,
+            "Your report has been resolved",
+            "Thanks for reporting. We have taken appropriate action.",
+          );
+        }
       }
     }
 
@@ -583,168 +594,6 @@ module.exports.getBlockedUsers = async (req, res) => {
     });
   }
 };
-
-// module.exports.getPendingVerifications = async (req, res, next) => {
-//   try {
-//     const page = parseInt(req.query.page) || 1;
-//     const limit = parseInt(req.query.limit) || 10;
-//     const skip = (page - 1) * limit;
-//     const search = req.query.search || "";
-//     const sortBy = req.query.sortBy || "";
-//     const status = req.query.status || "";
-
-//     const limitNum = parseInt(limit);
-
-//     // 1. DYNAMIC SORTING
-//     // If sortBy is empty, it stays as Newest First (default)
-//     let sortQuery = { createdAt: -1 };
-//     if (sortBy === "oldest") {
-//       sortQuery = { createdAt: 1 };
-//     } else if (sortBy === "alphabetical" || sortBy === "name") {
-//       sortQuery = { nickname: 1 };
-//     }
-
-//     // 2. DYNAMIC MATCHING (FILTERING)
-//     const matchStage = {
-//       "user.role": "USER", // ✅ Always restrict to users with 'USER' role
-//     };
-
-//     // Only filter by status if a status is actually provided
-//     if (status && status !== "all") {
-//       matchStage["verification.status"] = status;
-//     }
-
-//     // Add search logic if search term exists
-//     if (search) {
-//       matchStage.$or = [
-//         { nickname: { $regex: search, $options: "i" } },
-//         { "user.email": { $regex: search, $options: "i" } },
-//         { "user.phone": { $regex: search, $options: "i" } },
-//       ];
-//     }
-
-//     const pipeline = [
-//       {
-//         $lookup: {
-//           from: "users",
-//           localField: "userId",
-//           foreignField: "_id",
-//           as: "user",
-//         },
-//       },
-//       { $unwind: "$user" },
-//       {
-//         $lookup: {
-//           from: "profiles",
-//           localField: "userId",
-//           foreignField: "userId",
-//           as: "profileDetails",
-//         },
-//       },
-//       {
-//         $unwind: { path: "$profileDetails", preserveNullAndEmptyArrays: true },
-//       },
-//       { $match: matchStage }, // ✅ Match runs AFTER lookup/unwind to see the role
-//       {
-//         $facet: {
-//           metadata: [{ $count: "total" }],
-//           data: [
-//             { $sort: sortQuery },
-//             { $skip: skip },
-//             { $limit: limitNum },
-//             {
-//               $project: {
-//                 _id: 1,
-//                 userId: 1,
-//                 verification: 1,
-//                 nickname: 1,
-//                 createdAt: 1,
-//                 user: {
-//                   email: "$user.email",
-//                   phone: "$user.phone",
-//                   nickname: "$profileDetails.nickname",
-//                   avatar: { $arrayElemAt: ["$profileDetails.photos.url", 0] },
-//                 },
-//               },
-//             },
-//           ],
-//           kpiStats: [
-//             {
-//               $group: {
-//                 _id: null,
-//                 totalRequests: [{ $count: "count" }],
-//                 approved:
-//                   // {
-//                   //   $sum: {
-//                   //     $cond: [
-//                   //       { $eq: ["$verification.status", "approved"] },
-//                   //       1,
-//                   //       0,
-//                   //     ],
-//                   //   },
-//                   // },
-//                   [
-//                     { $match: { "$verification.status": "approved" } },
-//                     { $count: "count" },
-//                   ],
-//                 pending: {
-//                   $sum: {
-//                     $cond: [{ $eq: ["$verification.status", "pending"] }, 1, 0],
-//                   },
-//                 },
-//                 rejected: {
-//                   $sum: {
-//                     $cond: [
-//                       { $eq: ["$verification.status", "rejected"] },
-//                       1,
-//                       0,
-//                     ],
-//                   },
-//                 },
-//               },
-//             },
-//           ],
-//         },
-//       },
-//     ];
-
-//     const result = await Profile.aggregate(pipeline);
-//     const total = result[0].metadata[0]?.total || 0;
-//     // const total = result[0]?.total[0]?.count || 0;
-//     const approved = result[0]?.approved[0]?.count || 0;
-//     // const pending = result[0]?.pending[0]?.count || 0;
-//     // const rejected = result[0]?.rejected[0]?.count || 0;
-
-//     const stats = result[0].kpiStats[0] || {
-//       totalRequests: 0,
-//       approved: 0,
-//       pending: 0,
-//       rejected: 0,
-//     };
-
-//     const kpiStats = {
-//       totalRequests: total,
-//       approved: approved,
-//       // pending: pending,
-//       // rejected: rejected,
-//     };
-
-//     res.status(200).json({
-//       success: true,
-//       pagination: {
-//         total,
-//         page: parseInt(page),
-//         limit: limitNum,
-//         totalPages: Math.ceil(total / limitNum),
-//       },
-//       kpiStats,
-//       data: result[0].data,
-//     });
-//   } catch (error) {
-//     console.error("KYC Fetch Error:", error);
-//     res.status(500).json({ success: false, message: "Server error" });
-//   }
-// };
 
 module.exports.getPendingVerifications = async (req, res, next) => {
   try {
