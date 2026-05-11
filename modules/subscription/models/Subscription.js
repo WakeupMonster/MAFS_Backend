@@ -145,21 +145,25 @@ SubscriptionSchema.statics.hasPremiumAccess = function (sub) {
   const now = new Date();
   const expiresAt = sub.expiresAt ? new Date(sub.expiresAt) : null;
 
+  const sixtyDaysAgo = new Date(Date.now() - 60 * 24 * 60 * 60 * 1000);
+  const isRetryValid = sub.isInBillingRetry === true && (expiresAt > sixtyDaysAgo);
+
   return (
     (["ACTIVE", "CANCELLED"].includes(sub.status) && expiresAt > now) ||
     (sub.status === "GRACE" && sub.isInGracePeriod === true) ||
-    (sub.isInBillingRetry === true)
+    isRetryValid
   );
 };
 
 
 SubscriptionSchema.statics.findActiveByUser = function (userId) {
+  const sixtyDaysAgo = new Date(Date.now() - 60 * 24 * 60 * 60 * 1000);
   return this.findOne({
     userId,
     $or: [
       { status: { $in: ["ACTIVE", "CANCELLED"] }, expiresAt: { $gt: new Date() } },
       { status: "GRACE", isInGracePeriod: true },
-      { isInBillingRetry: true }
+      { isInBillingRetry: true, expiresAt: { $gt: sixtyDaysAgo } }
     ]
   }).sort({ expiresAt: -1 }); // Get the one that expires furthest in the future
 };

@@ -8,7 +8,13 @@ const Settings = require("./settings.model");
 exports.getSettings = async (req, res) => {
   try {
     // We explicitly call the static method to ensure a settings doc exists
-    const settings = await Settings.getGlobalSettings();
+    const settings = (await Settings.getGlobalSettings()).toObject();
+
+    // Security: Mask sensitive credentials so they aren't exposed in cleartext to the browser
+    if (settings.smtp?.auth?.pass) settings.smtp.auth.pass = "********";
+    if (settings.otp?.twilio?.authToken) settings.otp.twilio.authToken = "********";
+    if (settings.otp?.fast2sms?.apiKey) settings.otp.fast2sms.apiKey = "********";
+    if (settings.otp?.msg91?.authKey) settings.otp.msg91.authKey = "********";
 
     return res.status(200).json({
       success: true,

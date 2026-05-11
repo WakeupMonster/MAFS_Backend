@@ -9,7 +9,11 @@ const {
 
 /** @section Public Auth Routes These are accessible without a token */
 router.post("/login", adminController.adminLogin);
-router.post("/register", adminController.adminRegister);
+
+// Security: Admin registration is disabled in production to prevent unauthorized account creation
+if (process.env.NODE_ENV !== "production") {
+  router.post("/register", adminController.adminRegister);
+}
 
 /*============= POST API'S FORGET PASSWORD =====================*/
 router.post("/request-otp", adminController.sendEmailOTP);

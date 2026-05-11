@@ -31714,3 +31714,7 @@
 {"level":"info","message":"🧪 [DEV] Dev tools routes registered at /api/v1/dev/*","service":"iap-service","timestamp":"2026-05-08 17:32:47"}
 {"level":"info","message":"[CRON] Subscription cron jobs initialized (v3 - Grace Period & Billing Retry Support)","service":"iap-service","timestamp":"2026-05-08 17:50:13"}
 {"level":"info","message":"🧪 [DEV] Dev tools routes registered at /api/v1/dev/*","service":"iap-service","timestamp":"2026-05-08 17:50:15"}
+{"level":"info","message":"[CRON] Subscription cron jobs initialized (v3 - Grace Period & Billing Retry Support)","service":"iap-service","timestamp":"2026-05-08 18:09:46"}
+{"level":"info","message":"🧪 [DEV] Dev tools routes registered at /api/v1/dev/*","service":"iap-service","timestamp":"2026-05-08 18:09:49"}
+{"level":"info","message":"[CRON] Subscription cron jobs initialized (v3 - Grace Period & Billing Retry Support)","service":"iap-service","timestamp":"2026-05-11 09:57:01"}
+{"level":"info","message":"🧪 [DEV] Dev tools routes registered at /api/v1/dev/*","service":"iap-service","timestamp":"2026-05-11 09:57:03"}

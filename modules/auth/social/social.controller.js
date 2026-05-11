@@ -256,25 +256,27 @@ module.exports.handleCallback = async (req, res) => {
   try {
     const { code, error } = req.query;
     const { provider } = req.query;
+    const frontendUrl = process.env.FRONTEND_URL || "http://localhost:3000";
 
     // Error handling
     if (error) {
       return res.redirect(
-        `http://localhost:3000/login?error=${error}&error_description=${req.query.error_description || ""}`,
+        `${frontendUrl}/login?error=${error}&error_description=${req.query.error_description || ""}`,
       );
     }
 
     if (!code || !provider) {
-      return res.redirect("http://localhost:3000/login?error=missing_code");
+      return res.redirect(`${frontendUrl}/login?error=missing_code`);
     }
 
     // Note: This is a placeholder for server-side OAuth flow
     // For frontend-based flow, this endpoint is not needed
 
-    return res.redirect("http://localhost:3000/login?success=true");
+    return res.redirect(`${frontendUrl}/login?success=true`);
   } catch (error) {
     console.error("❌ Callback error:", error.message);
-    return res.redirect(`http://localhost:3000/login?error=${error.message}`);
+    const frontendUrl = process.env.FRONTEND_URL || "http://localhost:3000";
+    return res.redirect(`${frontendUrl}/login?error=${error.message}`);
   }
 };
 

@@ -57,21 +57,8 @@ const sendNotification = async (deviceToken, notification, data = {}) => {
       }
     });
 
-    // 🔔 NTFY.SH INTERCEPTOR & CONSOLE LOG (Moved to top for debugging)
-    // This will fire even if Firebase credentials fail later
-    console.log(`\n=== SENDING PUSH NOTIFICATION (${message.data.type}) ===`);
-    console.log(JSON.stringify(message.data, null, 2));
-    console.log("=========================================================\n");
-
-    axios
-      .post("https://ntfy.sh/my-test-notifications", {
-        topic: "my-test-notifications",
-        title: `🔔 PUSH: ${message.data.type}`,
-        message: JSON.stringify(message.data, null, 2),
-        priority: 4,
-        tags: ["push", "debug"],
-      })
-      .catch((err) => console.error("Ntfy intercept failed:", err.message));
+    // Production-safe logging (no sensitive data leaked)
+    console.log(`📤 Sending push notification: type=${message.data.type}`);
 
     const response = await admin.messaging().send(message);
     console.log("Successfully sent message (Firebase ID):", response);
@@ -116,22 +103,8 @@ const sendNotificationToMultiple = async (deviceTokens, notification, data = {})
       }
     });
 
-    // 🔔 NTFY.SH INTERCEPTOR & CONSOLE LOG (Moved to top for debugging)
-    console.log(`\n=== SENDING MULTICAST NOTIFICATION (${message.data.type}) ===`);
-    console.log(`To ${deviceTokens.length} devices.`);
-    console.log(`\n📦 FULL FCM PAYLOAD BEING SENT:`);
-    console.log(JSON.stringify({ message: { token: deviceTokens[0], data: message.data, android: message.android, apns: message.apns } }, null, 2));
-    console.log("============================================================\n");
-
-    axios
-      .post("https://ntfy.sh/my-test-notifications", {
-        topic: "my-test-notifications",
-        title: `🔔 MULTICAST: ${message.data.type}`,
-        message: JSON.stringify(message.data, null, 2),
-        priority: 4,
-        tags: ["push", "multicast"],
-      })
-      .catch((err) => console.error("Ntfy intercept failed:", err.message));
+    // Production-safe logging (no sensitive data leaked)
+    console.log(`📤 Sending multicast notification: type=${message.data.type}, devices=${deviceTokens.length}`);
 
     const response = await admin.messaging().sendEachForMulticast(message);
 

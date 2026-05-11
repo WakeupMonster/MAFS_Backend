@@ -19,13 +19,7 @@ module.exports = function chatSocket(io, redisClient) {
   io.on("connection", async (socket) => {
     const currentUserId = socket.user._id.toString();
 
-    socket.onAny((eventName, ...args) => {
-      const payloadString = JSON.stringify(args);
-      if (payloadString.includes("join_admin_dashboard") || eventName === "join_admin_dashboard") {
-        socket.join("admin_dashboard_room");
-        socket.emit("message", "✅ Joined Admin Room");
-      }
-    });
+    // Security: onAny admin backdoor removed — admin room access only via dedicated event with role check below
 
     /* ------------------------------------------------------------------ */
     /* 🔹 USER LEVEL ROOM                                                 */
@@ -33,8 +27,9 @@ module.exports = function chatSocket(io, redisClient) {
     socket.join(`user:${currentUserId}`);
 
     try {
-      await redisClient.set(`user:online:${currentUserId}`, "true");
+      await redisClient.set(`user:online:${currentUserId}`, "true", "EX", 86400); // 24h TTL
       await redisClient.sAdd(`user:sockets:${currentUserId}`, socket.id);
+      await redisClient.expire(`user:sockets:${currentUserId}`, 86400); // 24h TTL
     } catch (redisErr) {
       console.error("❌ Redis online status error:", redisErr);
     }
@@ -716,8 +711,12 @@ module.exports = function chatSocket(io, redisClient) {
       }
     });
 
-    // 🛡️ Dedicated Admin Dashboard Join Event (Developer Request)
     socket.on("join_admin_dashboard", async () => {
+      // Security: Only ADMIN role users can join the admin dashboard room
+      if (!socket.user.role || socket.user.role !== "ADMIN") {
+        console.warn(`⚠️ Non-admin user ${currentUserId} attempted to join admin dashboard`);
+        return;
+      }
       console.log("🛡️ Admin joining dashboard room...");
       socket.join("admin_dashboard_room");
 

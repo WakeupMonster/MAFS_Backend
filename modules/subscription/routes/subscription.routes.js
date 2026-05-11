@@ -25,6 +25,7 @@ const {
   restorePurchasesSchema
 } = require("../validators/subscription.validator");
 const protect = require("../../auth/auth.middleware");
+const { allowAdmin } = require("../../../common/middlewares/allowAdmin.middleware");
 
 router.post(
   "/verify",
@@ -46,16 +47,17 @@ router.get("/catalog", apiLimiter, protect, getCatalog);
 router.get("/history", apiLimiter, protect, getHistory);
 router.get("/details", apiLimiter, protect, getSubscription);
 
-router.get("/stats", apiLimiter, protect, getStats);
-router.get("/subsciptionlist", apiLimiter, protect, getAllSubscriptions);
-router.get("/user/:userId", apiLimiter, protect, getUserSubscriptionDetail);
-router.get("/revenue", apiLimiter, protect, getRevenueAnalytics);
-router.get("/cancel", apiLimiter, protect, getCancellationAnalytics);
-router.get("/risk", apiLimiter, protect, getAtRiskUsers);
-router.get("/webhook", apiLimiter, protect, getWebhookEvents);
-router.get("/alltransection", apiLimiter, protect, getAllTransactions);
+// Admin-only routes: Protected with allowAdmin to prevent regular users from accessing sensitive data
+router.get("/stats", apiLimiter, protect, allowAdmin, getStats);
+router.get("/subsciptionlist", apiLimiter, protect, allowAdmin, getAllSubscriptions);
+router.get("/user/:userId", apiLimiter, protect, allowAdmin, getUserSubscriptionDetail);
+router.get("/revenue", apiLimiter, protect, allowAdmin, getRevenueAnalytics);
+router.get("/cancel", apiLimiter, protect, allowAdmin, getCancellationAnalytics);
+router.get("/risk", apiLimiter, protect, allowAdmin, getAtRiskUsers);
+router.get("/webhook", apiLimiter, protect, allowAdmin, getWebhookEvents);
+router.get("/alltransection", apiLimiter, protect, allowAdmin, getAllTransactions);
 
 router.post("/test-premium", protect, makeMePremiumTemp);
-router.post("/admin-expire", protect, adminExpireSubscription);
+router.post("/admin-expire", protect, allowAdmin, adminExpireSubscription);
 
 module.exports = router;

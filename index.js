@@ -42,7 +42,9 @@ require("./workers/adminPush.worker");
 
 const io = new Server(http, {
   cors: {
-    origin: "*", // Ya specific: ["http://localhost:5173", "http://localhost:3000"]
+    origin: process.env.FRONTEND_URL
+      ? process.env.FRONTEND_URL.split(",").map((s) => s.trim())
+      : "*",
     methods: ["GET", "POST"],
     credentials: true,
   },

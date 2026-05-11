@@ -62,8 +62,9 @@ async function getFeedService(userId, limit, page) {
   let seenProfiles = [];
   if (redis) {
     try {
-      const seenCached = await redis.get(SEEN_KEY);
-      if (seenCached) seenProfiles = JSON.parse(seenCached);
+      // 🚀 Performance Fix: Using Redis SETs instead of JSON arrays
+      // SMEMBERS is O(N) but highly optimized in Redis C-core
+      seenProfiles = await redis.sMembers(SEEN_KEY);
     } catch (e) {
       console.error("Redis Get Error (SeenProfiles):", e);
     }
@@ -521,18 +522,11 @@ async function getFeedService(userId, limit, page) {
   const finalResult = transformedProfiles.slice(0, limit);
 
   // 9. Update Cache and Seen List
+  // 🚀 Performance Fix: Using Redis SETs instead of JSON arrays for efficiency
   if (redis && finalResult.length) {
-    const MAX_SEEN = 500; // Cap to prevent $nin from becoming too large
-    let newSeen = [
-      ...new Set([
-        ...seenProfiles,
-        ...finalResult.map((p) => p.userId.toString()),
-      ]),
-    ];
-    if (newSeen.length > MAX_SEEN) {
-      newSeen = newSeen.slice(-MAX_SEEN); // Keep most recent
-    }
-    await redis.set(SEEN_KEY, newSeen, { EX: SEEN_TTL });
+    const profileIds = finalResult.map((p) => p.userId.toString());
+    await redis.sAdd(SEEN_KEY, profileIds);
+    await redis.expire(SEEN_KEY, SEEN_TTL);
     // Only cache page 1 results (other pages are always fresh)
     if (page === 1) {
       await redis.set(CACHE_KEY, { data: finalResult }, { EX: CACHE_TTL });
