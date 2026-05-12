@@ -25,8 +25,8 @@ const {
 router.use(auth);
 
 // ─── Chat Routes ───
-router.get("/messages/:matchId", getChatMessages);
-router.get("/list", getChatList);
+router.get("/messages/:matchId", apiLimiter("chat_messages", 30, 60), getChatMessages);
+router.get("/list", apiLimiter("chat_list", 30, 60), getChatList);
 router.post("/send", apiLimiter("chat_message", 30, 60), sendMessage);
 router.patch("/messages/:matchId/read", updateChatMsgRead);
 router.delete("/messages/:matchId/:mesId", deleteChatMessage);
@@ -34,6 +34,7 @@ router.delete("/messages/:matchId/:mesId", deleteChatMessage);
 // ─── Chat Media Upload (NEW dedicated middleware) ───
 router.post(
   "/upload-media",
+  apiLimiter("chat_media_upload", 10, 60),
   (req, res, next) => {
     uploadChatMedia(req, res, (err) => {
       if (err) {

@@ -3,58 +3,46 @@ const router = express.Router();
 const controller = require("./auth.controller");
 const validation = require("./auth.validation");
 const socialRoutes = require("./social/social.routes");
+const { apiLimiter } = require("../../common/middlewares/apiLimiter");
 
-const rateLimit = require("express-rate-limit");
+// OTP & Auth Rate Limiters (Redis Based)
+const otpSendLimiter = apiLimiter("otp_send", 3, 300); // 3 req / 5 mins
+const otpVerifyLimiter = apiLimiter("otp_verify", 5, 300); // 5 req / 5 mins
+const loginLimiter = apiLimiter("login", 10, 300); // 10 req / 5 mins
+const refreshLimiter = apiLimiter("token_refresh", 10, 60); // 10 req / 1 min
 
-// OTP Rate Limiter: 3 requests per 5 minutes per Phone/Email
-const otpLimiter = rateLimit({
-  windowMs: 5 * 60 * 1000, // 5 minutes
-  max: 3, 
-  standardHeaders: true,
-  legacyHeaders: false,
-  keyGenerator: (req) => {
-    return req.body.phone || req.body.email || req.ip;
-  },
-  validate: { keyGeneratorIpFallback: false },
-  handler: (req, res) => {
-    res.status(429).json({
-      success: false,
-      message: "Too many OTP requests. Please try again after 5 minutes.",
-    });
-  },
-});
-
-router.post("/phone", validation.validateSendPhoneOtp, otpLimiter, controller.sendOtp);
-router.post("/verify", controller.verifyOtp);
+router.post("/phone", validation.validateSendPhoneOtp, otpSendLimiter, controller.sendOtp);
+router.post("/verify", otpVerifyLimiter, controller.verifyOtp);
 
 router.post(
   "/phonetest",
   validation.validateSendPhoneOtp,
-  otpLimiter,
+  otpSendLimiter,
   controller.sendTestOtp,
 );
-router.post("/verifytestotp", controller.verifyTestOtp);
+router.post("/verifytestotp", otpVerifyLimiter, controller.verifyTestOtp);
 
 router.post(
   "/register/email",
   validation.validateRegisterEmail,
-  otpLimiter,
+  otpSendLimiter,
   controller.registerEmail,
 );
-router.post("/verify/email", controller.verifyEmail);
+router.post("/verify/email", otpVerifyLimiter, controller.verifyEmail);
 
 router.post(
   "/refresh",
   validation.validateRefreshToken,
+  refreshLimiter,
   controller.refreshToken,
 );
-router.post("/logout", validation.validateLogout, controller.logout);
+router.post("/logout", controller.logout);
 
-router.post("/resend/phone", otpLimiter, controller.sendTestOtp);
+router.post("/resend/phone", otpSendLimiter, controller.sendTestOtp);
 router.post(
   "/resend/email",
   validation.validateRegisterEmail,
-  otpLimiter,
+  otpSendLimiter,
   controller.resendEmailOtp,
 );
 
