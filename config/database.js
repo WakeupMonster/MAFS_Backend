@@ -8,7 +8,8 @@ const DEFAULT_URI = process.env.MONGODB_URI;
 const options = {
   // recommended options
   // pool & timeouts tuned for production:
-  maxPoolSize: parseInt(process.env.MONGO_POOL_SIZE, 10) || 10,
+  maxPoolSize: parseInt(process.env.MONGO_POOL_SIZE, 10) || 50,
+  minPoolSize: parseInt(process.env.MONGO_MIN_POOL, 10) || 10,
   serverSelectionTimeoutMS: 5000,
   socketTimeoutMS: 45000,
 };

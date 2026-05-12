@@ -48,6 +48,14 @@ class UsageService {
      */
     async getUsageStatus(userId) {
         const cache = require("../../../config/cache");
+
+        // Short-lived cache to prevent repeated calls within same swipe flow
+        const STATUS_CACHE_KEY = `usage:status:${userId}`;
+        try {
+            const cached = await cache.get(STATUS_CACHE_KEY);
+            if (cached) return JSON.parse(cached);
+        } catch (e) { /* ignore cache miss */ }
+
         const [config, activeSub, daily, weekly, monthly, wallet, boostTTL, user] = await Promise.all([
             SubscriptionConfig.getOrCreate(),
             Subscription.findActiveByUser(userId).lean(),
@@ -106,7 +114,7 @@ class UsageService {
         const boostsLimit = isPremium ? config.premiumLimits.boostsPerMonth : config.freeLimits.boostsPerMonth;
         const boostsUsed = monthly?.boostsUsed || 0;
 
-        return {
+        const statusResult = {
             success: true,
             message: "Status fetched",
             data: {
@@ -190,6 +198,13 @@ class UsageService {
                 } : null
             }
         };
+
+        // Cache result for 10 seconds to avoid repeated calls
+        try {
+            await cache.set(STATUS_CACHE_KEY, JSON.stringify(statusResult), { EX: 10 });
+        } catch (e) { /* ignore cache error */ }
+
+        return statusResult;
     }
 
     /**

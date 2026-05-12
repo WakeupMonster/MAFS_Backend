@@ -27,6 +27,9 @@ const SwipeSchema = new mongoose.Schema(
 // prevent duplicate swipe (same swiper -> same target)
 SwipeSchema.index({ swiperId: 1, targetId: 1 }, { unique: true });
 
+// Optimize: "who superliked me" query in feed (service.js Line 128)
+SwipeSchema.index({ targetId: 1, action: 1 });
+
 module.exports = mongoose.model("Swipe", SwipeSchema);
 
 const MatchSchema = new mongoose.Schema(

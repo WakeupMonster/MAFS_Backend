@@ -13,29 +13,8 @@ module.exports.getFeed = async (req, res) => {
     const limit = Number(req.query.limit) || 20;
     const page = Number(req.query.page) || 1;
 
-    // Fresh users (only phone verified, no profile) cannot access feed
-    const myProfile = await Profile.findOne({ userId }).select("_id verification").lean();
-    // if (!myProfile) {
-    //   return res.status(403).json({
-    //     success: false,
-    //     message: "Please complete your profile setup to explore matches!",
-    //     data: {
-    //       actionAllowed: false,
-    //       reason: "PROFILE_NOT_FOUND"
-    //     }
-    //   });
-    // }
-
-    // if (myProfile.verification?.status !== "approved") {
-    //   return res.status(403).json({
-    //     success: false,
-    //     message: "Your profile is under review. You can explore matches once verified.",
-    //     data: {
-    //       actionAllowed: false,
-    //       reason: "PROFILE_NOT_VERIFIED"
-    //     }
-    //   });
-    // }
+    // Profile validation is handled inside getFeedService (service.js Line 54)
+    // Removed duplicate Profile.findOne() that was wasting 1 DB query per request
 
     const feedResult = await service.getFeedService(userId, limit, page);
 
@@ -43,18 +22,7 @@ module.exports.getFeed = async (req, res) => {
       success: true,
       message: "Feed fetched successfully",
       count: feedResult.data.length,
-      //  cached: feedResult.cached,
-      //       data: {
-      //   count: feedResult.data.length,
-      //    pagination: {
-      //   limit,
-      //   nextCursor: null,
-      //   hasNextPage: false
-      // },
-      // list: feedResult.data
-      // },
       data: feedResult.data,
-      // userQuota: feedResult.userQuota
     });
   } catch (err) {
     console.error("GET FEED ERROR:", err);
@@ -132,7 +100,9 @@ module.exports.unmatchUser = async (req, res) => {
     let otherUserId = null;
     await session.withTransaction(async () => {
       // 1. Match dhundo aur check karo ki user us match ka part hai
-      const match = await Match.findOne({ _id: matchId, users: userId }).session(session);
+      const match = await Match.findOne({ _id: matchId, users: userId })
+        .session(session)
+        .lean();
 
       if (!match) {
         throw new Error("Match not found or already unmatched");
@@ -162,20 +132,24 @@ module.exports.unmatchUser = async (req, res) => {
       });
     });
 
+    // Complete cache invalidation — feed, exclude, AND matches
     if (redis && otherUserId) {
       await Promise.all([
         redis.del(`feed:${userId.toString()}`),
-        redis.del(`feed:${otherUserId.toString()}`)
+        redis.del(`feed:${otherUserId.toString()}`),
+        redis.del(`feed:exclude:${userId.toString()}`),
+        redis.del(`feed:exclude:${otherUserId.toString()}`),
+        redis.del(`matches:${userId}`),
+        redis.del(`matches:${otherUserId}`),
       ]);
-      console.log("⚡ [UNMATCH] Redis cache cleared for both users");
+      console.log("⚡ [UNMATCH] All caches cleared for both users");
     }
 
-    session.endSession();
     return res.json({ success: true, message: "Unmatched successfully" });
   } catch (err) {
-    // withTransaction automatically aborts the transaction on error
-    session.endSession();
     return res.status(400).json({ success: false, message: err.message });
+  } finally {
+    await session.endSession(); // Guaranteed cleanup — no session leak
   }
 };
 
@@ -183,48 +157,53 @@ module.exports.getMatches = async (req, res) => {
   try {
     const userId = req.user._id;
 
+    // Fetch all matches (no populate needed — we only use raw user IDs)
     const matches = await Match.find({ users: userId })
       .sort({ lastMessageAt: -1, matchedAt: -1 })
-      .populate({
-        path: "users",
-        select: "_id",
-      })
       .lean();
 
-    const conversations = await Promise.all(
-      matches.map(async (match) => {
-        // Partner ID
-        const partnerId = match.users.find(
-          (u) => u._id.toString() !== userId.toString()
-        )?._id;
+    // Collect all partner IDs in one pass
+    const partnerIds = matches
+      .map(match => match.users.find(u => u.toString() !== userId.toString()))
+      .filter(Boolean);
 
-        if (!partnerId) return null;
+    // Single bulk query instead of N individual queries (N+1 → 2 queries)
+    const partnerProfiles = partnerIds.length > 0
+      ? await Profile.find({ userId: { $in: partnerIds } })
+          .select("userId nickname dob photos")
+          .lean()
+      : [];
 
-        // Partner profile
-        const profile = await Profile.findOne({ userId: partnerId })
-          .select("nickname dob photos")
-          .lean();
+    // Build O(1) lookup map
+    const profileMap = new Map();
+    partnerProfiles.forEach(p => profileMap.set(p.userId.toString(), p));
 
-        if (!profile) return null;
+    // Construct results synchronously (no async needed)
+    const conversations = matches.map(match => {
+      const partnerId = match.users.find(
+        u => u.toString() !== userId.toString()
+      );
+      if (!partnerId) return null;
 
-        const age = profile.dob ? calculateAge(profile.dob) : null;
+      const profile = profileMap.get(partnerId.toString());
+      if (!profile) return null;
 
-        const mainPhotoUrl =
-          profile.photos?.sort((a, b) => a.order - b.order)[0]?.url || null;
+      const age = profile.dob ? calculateAge(profile.dob) : null;
+      const mainPhotoUrl =
+        profile.photos?.sort((a, b) => a.order - b.order)[0]?.url || null;
 
-        return {
-          matchId: match._id,
-          partnerId,
-          nickname: profile.nickname || "User",
-          age,
-          mainPhotoUrl,
-          isNew: !match.lastMessageAt,
-          lastMessage: match.lastMessage || null,
-          lastMessageTime: match.lastMessageAt || null,
-          matchedAt: match.createdAt,
-        };
-      })
-    );
+      return {
+        matchId: match._id,
+        partnerId,
+        nickname: profile.nickname || "User",
+        age,
+        mainPhotoUrl,
+        isNew: !match.lastMessageAt,
+        lastMessage: match.lastMessage || null,
+        lastMessageTime: match.lastMessageAt || null,
+        matchedAt: match.createdAt,
+      };
+    });
 
     return res.json({
       success: true,
@@ -369,73 +348,90 @@ exports.getSuperKeen = (req, res) => exports.getKeenData(req, res, "superlike");
 const UsageService = require("../../subscription/services/usage.service");
 
 exports.undo = async (req, res) => {
-  const session = await mongoose.startSession();
-
   try {
     const userId = req.user._id;
 
-    // 1️⃣ REWIND QUOTA CHECK (v3 Requirements)
+    // 1️⃣ REWIND QUOTA CHECK — BEFORE opening any session
     try {
       await UsageService.useItem(userId, 'REWIND');
     } catch (error) {
       if (error.message === 'LIMIT_REACHED') {
         return res.status(403).json({
           success: false,
-          // code: "LIMIT_REACHED",
           message: "You've reached your daily Rewind limit! Upgrade to Premium for unlimited rewinds."
         });
       }
       throw error;
     }
 
-    let undone = null;
+    // 2️⃣ Find last swipe — NO session needed for read
+    const lastSwipe = await Swipe.findOne({ swiperId: userId })
+      .sort({ createdAt: -1 })
+      .lean();
 
-    await session.withTransaction(async () => {
-      // 1️⃣ Last swipe by user
-      const lastSwipe = await Swipe.findOne({ swiperId: userId })
-        .sort({ createdAt: -1 })
-        .session(session);
-
-      if (!lastSwipe) {
-        throw new Error("No swipe found to undo");
-      }
-
-      const { targetId, action } = lastSwipe;
-      undone = { targetId, action };
-
-      // 2️⃣ Agar LIKE / SUPERLIKE tha → match check karo
-      if (action === "like" || action === "superlike") {
-        const match = await Match.findOne({
-          users: { $all: [userId, targetId] },
-        }).session(session);
-
-        if (match) {
-          // match delete
-          await Match.deleteOne({ _id: match._id }).session(session);
-
-          // dono taraf ke swipes delete (clean rollback)
-          await Swipe.deleteMany({
-            $or: [
-              { swiperId: userId, targetId },
-              { swiperId: targetId, targetId: userId },
-            ],
-          }).session(session);
-
-          return; // yahin exit
-        }
-      }
-
-      // 3️⃣ Normal case → sirf swipe delete
-      await Swipe.deleteOne({ _id: lastSwipe._id }).session(session);
-    });
-
-    session.endSession();
-
-    // 4️⃣ Feed cache clear
-    if (redis) {
-      await redis.del(`feed:${userId.toString()}`);
+    if (!lastSwipe) {
+      throw new Error("No swipe found to undo");
     }
 
+    const { targetId, action } = lastSwipe;
+    const undone = { targetId, action };
+
+    // 3️⃣ Conditional transaction — only when match might exist
+    if (action === "like" || action === "superlike") {
+      const match = await Match.findOne({
+        users: { $all: [userId, targetId] },
+      }).lean();
+
+      if (match) {
+        // Transaction needed — deleting match + swipes atomically
+        const session = await mongoose.startSession();
+        try {
+          await session.withTransaction(async () => {
+            await Match.deleteOne({ _id: match._id }).session(session);
+            await Swipe.deleteMany({
+              $or: [
+                { swiperId: userId, targetId },
+                { swiperId: targetId, targetId: userId },
+              ],
+            }).session(session);
+          });
+        } finally {
+          await session.endSession();
+        }
+
+        // Clear ALL caches for both users
+        if (redis) {
+          await Promise.all([
+            redis.del(`feed:${userId.toString()}`),
+            redis.del(`feed:${targetId.toString()}`),
+            redis.del(`feed:exclude:${userId.toString()}`),
+            redis.del(`feed:exclude:${targetId.toString()}`),
+            redis.del(`matches:${userId}`),
+            redis.del(`matches:${targetId}`),
+          ]);
+        }
+      } else {
+        // No match exists — simple delete, no transaction
+        await Swipe.deleteOne({ _id: lastSwipe._id });
+        if (redis) {
+          await Promise.all([
+            redis.del(`feed:${userId.toString()}`),
+            redis.del(`feed:exclude:${userId.toString()}`),
+          ]);
+        }
+      }
+    } else {
+      // "pass" undo — simplest case, no transaction, no match check
+      await Swipe.deleteOne({ _id: lastSwipe._id });
+      if (redis) {
+        await Promise.all([
+          redis.del(`feed:${userId.toString()}`),
+          redis.del(`feed:exclude:${userId.toString()}`),
+        ]);
+      }
+    }
+
+    // 4️⃣ Usage status (served from Redis cache via FIX 6A)
     const status = await UsageService.getUsageStatus(userId);
 
     return res.json({
@@ -451,9 +447,6 @@ exports.undo = async (req, res) => {
       }
     });
   } catch (err) {
-    // await session.abortTransaction();
-    session.endSession();
-
     return res.status(400).json({
       success: false,
       message: err.message,

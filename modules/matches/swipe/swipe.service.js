@@ -36,7 +36,7 @@ function calculateDistance(lat1, lon1, lat2, lon2) {
 async function getFeedService(userId, limit, page) {
   const CACHE_KEY = `feed:${userId.toString()}`;
   const SEEN_KEY = `feed:seen:${userId.toString()}`;
-  const CACHE_TTL = 3;
+  const CACHE_TTL = 30;
   const SEEN_TTL = 60 * 60 * 24;
   const skip = (page - 1) * limit;
 
@@ -88,72 +88,112 @@ async function getFeedService(userId, limit, page) {
     }
   }
 
-  // 4. Gather Exclusion IDs (Always Excluded)
-  // Cache nonActiveUsers globally — avoids full User table scan on every request
-  let nonActiveUserIds = [];
-  const NON_ACTIVE_KEY = "global:nonActiveUsers";
+  // 4. Gather Exclusion IDs — CACHED for 60 seconds to avoid 8 DB queries per request
+  const EXCLUDE_KEY = `feed:exclude:${userId.toString()}`;
+  const EXCLUDE_TTL = 60; // seconds
+
+  let baseExcludeSet;
+  let receivedSuperlikes = [];
+  let excludeIds = [];
+
+  // Try to load from cache first
+  let cacheHit = false;
   if (redis) {
     try {
-      const cachedNA = await redis.get(NON_ACTIVE_KEY);
-      if (cachedNA) {
-        nonActiveUserIds = JSON.parse(cachedNA);
-      } else {
+      const cachedExclude = await redis.get(EXCLUDE_KEY);
+      if (cachedExclude) {
+        const parsed = JSON.parse(cachedExclude);
+        baseExcludeSet = new Set(parsed.baseExcludeIds);
+        receivedSuperlikes = parsed.receivedSuperlikes || [];
+        cacheHit = true;
+      }
+    } catch (e) {
+      console.error("Exclude cache parse error:", e);
+    }
+  }
+
+  // Cache miss — build from DB (same logic as before, unchanged)
+  if (!cacheHit) {
+    // Cache nonActiveUsers globally — avoids full User table scan on every request
+    let nonActiveUserIds = [];
+    const NON_ACTIVE_KEY = "global:nonActiveUsers";
+    if (redis) {
+      try {
+        const cachedNA = await redis.get(NON_ACTIVE_KEY);
+        if (cachedNA) {
+          nonActiveUserIds = JSON.parse(cachedNA);
+        } else {
+          nonActiveUserIds = (
+            await User.find({ accountStatus: { $ne: "active" } }).distinct("_id")
+          ).map((id) => id.toString());
+          await redis.set(NON_ACTIVE_KEY, nonActiveUserIds, { EX: 300 });
+        }
+      } catch (e) {
+        console.error("NonActiveUsers cache error:", e);
         nonActiveUserIds = (
           await User.find({ accountStatus: { $ne: "active" } }).distinct("_id")
         ).map((id) => id.toString());
-        await redis.set(NON_ACTIVE_KEY, nonActiveUserIds, { EX: 300 });
       }
-    } catch (e) {
-      console.error("NonActiveUsers cache error:", e);
+    } else {
       nonActiveUserIds = (
         await User.find({ accountStatus: { $ne: "active" } }).distinct("_id")
       ).map((id) => id.toString());
     }
-  } else {
-    nonActiveUserIds = (
-      await User.find({ accountStatus: { $ne: "active" } }).distinct("_id")
-    ).map((id) => id.toString());
-  }
 
-  const [swipes, matches, myBlocked, blockedMe, myReports, receivedSuperlikes] =
-    await Promise.all([
-      Swipe.find({
-        swiperId: userId,
-        action: { $in: ["like", "pass", "superlike"] },
-      }).distinct("targetId"),
-      Match.find({ users: userId }).distinct("users"),
-      Block.find({ blockerId: userId }).distinct("blockedId"),
-      Block.find({ blockedId: userId }).distinct("blockerId"),
-      Report.find({ reporterId: userId }).distinct("reportedId"),
-      Swipe.find({ targetId: userId, action: "superlike" }).distinct(
-        "swiperId",
-      ),
+    const [swipes, matches, myBlocked, blockedMe, myReports, rcvdSuperlikes] =
+      await Promise.all([
+        Swipe.find({
+          swiperId: userId,
+          action: { $in: ["like", "pass", "superlike"] },
+        }).distinct("targetId"),
+        Match.find({ users: userId }).distinct("users"),
+        Block.find({ blockerId: userId }).distinct("blockedId"),
+        Block.find({ blockedId: userId }).distinct("blockerId"),
+        Report.find({ reporterId: userId }).distinct("reportedId"),
+        Swipe.find({ targetId: userId, action: "superlike" }).distinct(
+          "swiperId",
+        ),
+      ]);
+
+    receivedSuperlikes = rcvdSuperlikes;
+
+    const blockedPhoneHashes = await BlockedContact.find({ userId }).distinct(
+      "blockedPhoneHash",
+    );
+    let blockedByContactUserIds = [];
+    if (blockedPhoneHashes.length) {
+      const users = await User.find({
+        phoneHash: { $in: blockedPhoneHashes },
+      }).distinct("_id");
+      blockedByContactUserIds = users.map((id) => id.toString());
+    }
+
+    // Use Set for O(1) lookups instead of Array.includes O(n)
+    baseExcludeSet = new Set([
+      ...swipes.map((id) => id.toString()),
+      ...matches.map((id) => id.toString()),
+      ...myBlocked.map((id) => id.toString()),
+      ...blockedMe.map((id) => id.toString()),
+      ...myReports.map((id) => id.toString()),
+      ...blockedByContactUserIds,
+      ...nonActiveUserIds,
+      userId.toString(),
     ]);
 
-  const blockedPhoneHashes = await BlockedContact.find({ userId }).distinct(
-    "blockedPhoneHash",
-  );
-  let blockedByContactUserIds = [];
-  if (blockedPhoneHashes.length) {
-    const users = await User.find({
-      phoneHash: { $in: blockedPhoneHashes },
-    }).distinct("_id");
-    blockedByContactUserIds = users.map((id) => id.toString());
+    // Cache for next 60 seconds
+    if (redis) {
+      try {
+        await redis.set(EXCLUDE_KEY, JSON.stringify({
+          baseExcludeIds: [...baseExcludeSet],
+          receivedSuperlikes: receivedSuperlikes.map(id => id.toString()),
+        }), { EX: EXCLUDE_TTL });
+      } catch (e) {
+        console.error("Exclude cache set error:", e);
+      }
+    }
   }
 
-  // Use Set for O(1) lookups instead of Array.includes O(n)
-  const baseExcludeSet = new Set([
-    ...swipes.map((id) => id.toString()),
-    ...matches.map((id) => id.toString()),
-    ...myBlocked.map((id) => id.toString()),
-    ...blockedMe.map((id) => id.toString()),
-    ...myReports.map((id) => id.toString()),
-    ...blockedByContactUserIds,
-    ...nonActiveUserIds,
-    userId.toString(),
-  ]);
-
-  const excludeIds =
+  excludeIds =
     page === 1
       ? [...new Set([...baseExcludeSet, ...seenProfiles])]
       : [...baseExcludeSet];
@@ -198,8 +238,11 @@ async function getFeedService(userId, limit, page) {
   }
 
   // 6. Execute Query
+  // 🚀 Projection: Only fetch fields needed for feed cards (saves ~12KB per profile)
+  const FEED_PROJECTION = "userId nickname dob about gender photos location attributes discovery verification relationshipGoal";
+
   async function runQuery(q) {
-    let pq = Profile.find(q);
+    let pq = Profile.find(q).select(FEED_PROJECTION);
     // Prioritize superlikers at the DB level by sorting them first if not using $near
     // If using $near, we have to handle prioritization manually after fetching or use an aggregation
     if (!q.location) pq = pq.sort({ createdAt: -1 });
@@ -232,6 +275,7 @@ async function getFeedService(userId, limit, page) {
 
       const maxSuperlikers = Math.min(5, limit);
       const superlikerProfiles = await Profile.find(superlikerQuery)
+        .select(FEED_PROJECTION)
         .limit(maxSuperlikers)
         .lean();
       profiles = [...superlikerProfiles];
@@ -263,7 +307,7 @@ async function getFeedService(userId, limit, page) {
 
             // Limit to max 5 boosted profiles per page so it doesn't flood the limit
             const maxBoosted = Math.min(5, limit - profiles.length);
-            const boostedProfiles = await Profile.find(boostQuery).limit(maxBoosted).lean();
+            const boostedProfiles = await Profile.find(boostQuery).select(FEED_PROJECTION).limit(maxBoosted).lean();
             profiles = [...profiles, ...boostedProfiles];
           }
         }
@@ -563,25 +607,69 @@ async function doSwipe(swiperId, targetId, action) {
     );
   }
 
+  // ═══════════════════════════════════════════════════════════
+  // FAST PATH: "pass" action — no transaction needed
+  // Pass can NEVER create a match, so ACID guarantees are wasted
+  // ═══════════════════════════════════════════════════════════
+  if (action === "pass") {
+    // Check duplicate (unique index handles race condition atomically)
+    const existingSwipe = await Swipe.findOne({ swiperId, targetId }).lean();
+    if (existingSwipe) {
+      return { success: true, already: true, message: "Already swiped", match: false };
+    }
+
+    // Block check (lightweight, no session needed)
+    const blockExists = await Block.findOne({
+      $or: [
+        { blockerId: swiperId, blockedId: targetId },
+        { blockerId: targetId, blockedId: swiperId },
+      ],
+    }).lean();
+    if (blockExists) throw new Error("Action not allowed. User interaction is blocked.");
+
+    // Create swipe record (unique index prevents duplicates atomically)
+    try {
+      await Swipe.create({ swiperId, targetId, action, createdAt: new Date() });
+    } catch (err) {
+      if (err.code === 11000) {
+        return { success: true, already: true, message: "Already swiped", match: false };
+      }
+      throw err;
+    }
+
+    // Clear caches
+    if (redis) {
+      await redis.del(`feed:${swiperId.toString()}`);
+      await redis.del(`feed:exclude:${swiperId.toString()}`);
+    }
+
+    return { success: true, match: false, message: "Swipe processed" };
+  }
+
+  // ═══════════════════════════════════════════════════════════
+  // TRANSACTION PATH: "like" / "superlike" — match possible
+  // ═══════════════════════════════════════════════════════════
   const session = await mongoose.startSession();
 
   try {
     let result = { success: true, match: false, message: "Swipe processed" };
 
-    // Sab kuch ek hi transaction block mein
     await session.withTransaction(async () => {
       // 2. Determine Usage Type
       const usageType = action === "superlike" ? "SUPER_KEEN" : "LIKE";
 
-      // 3. Target Profile aur Block Check
+      // 3. Target Profile aur Block Check — parallel with lean + projection
       const [targetProfile, blockExists] = await Promise.all([
-        Profile.findOne({ userId: targetId }).session(session),
+        Profile.findOne({ userId: targetId })
+          .select("nickname photos")
+          .session(session)
+          .lean(),
         Block.findOne({
           $or: [
             { blockerId: swiperId, blockedId: targetId },
             { blockerId: targetId, blockedId: swiperId },
           ],
-        }).session(session),
+        }).session(session).lean(),
       ]);
 
       if (!targetProfile) throw new Error("Target profile not found");
@@ -589,9 +677,9 @@ async function doSwipe(swiperId, targetId, action) {
         throw new Error("Action not allowed. User interaction is blocked.");
 
       // 4. Avoid Duplicates
-      const existingSwipe = await Swipe.findOne({ swiperId, targetId }).session(
-        session,
-      );
+      const existingSwipe = await Swipe.findOne({ swiperId, targetId })
+        .session(session)
+        .lean();
       if (existingSwipe) {
         result = {
           success: true,
@@ -605,18 +693,15 @@ async function doSwipe(swiperId, targetId, action) {
       // 5. GATEKEEPER CHECK (v3)
       let usageResult;
       try {
-        if (action !== "pass") {
-          // Note: UsageService is not part of the transaction because it needs to persist
-          // across failed transactions and manages its own atomic operations.
-          usageResult = await UsageService.useItem(swiperId, usageType);
-        }
+        // Note: UsageService is not part of the transaction because it needs to persist
+        // across failed transactions and manages its own atomic operations.
+        usageResult = await UsageService.useItem(swiperId, usageType);
       } catch (error) {
         if (error.message === "LIMIT_REACHED") {
           // Fetch current status for rich error response
           const status = await UsageService.getUsageStatus(swiperId);
           result = {
             success: false,
-            // error: "LIMIT_REACHED",
             message:
               action === "like"
                 ? "Daily likes limit reached!"
@@ -651,116 +736,105 @@ async function doSwipe(swiperId, targetId, action) {
       );
 
       // 9. Match Logic
-      let mutualSwipe = null;
-      if (["like", "superlike"].includes(action)) {
-        mutualSwipe = await Swipe.findOne({
-          swiperId: targetId,
-          targetId: swiperId,
-          action: { $in: ["like", "superlike"] },
-        }).session(session);
+      const mutualSwipe = await Swipe.findOne({
+        swiperId: targetId,
+        targetId: swiperId,
+        action: { $in: ["like", "superlike"] },
+      }).session(session).lean();
 
-        if (mutualSwipe) {
-          const [match] = await Match.create(
-            [
-              {
-                users: [swiperId, targetId],
-                status: "matched",
-                lastMessageAt: new Date(), // 🔥 Ensure new matches appear on top
-              },
-            ],
-            { session },
-          );
+      // Fetch usage status ONCE — used in both match and no-match responses
+      const status = await UsageService.getUsageStatus(swiperId);
 
-          const myProfile = await Profile.findOne({ userId: swiperId }).session(
-            session,
-          );
-          const status = await UsageService.getUsageStatus(swiperId);
+      if (mutualSwipe) {
+        const [match] = await Match.create(
+          [
+            {
+              users: [swiperId, targetId],
+              status: "matched",
+              lastMessageAt: new Date(), // 🔥 Ensure new matches appear on top
+            },
+          ],
+          { session },
+        );
 
-          result = {
-            success: true,
-            message: "It's a match!",
-            data: {
-              isMatch: true,
-              /* 
+        // Only fetch swiper profile for match response (not for every swipe)
+        const myProfile = await Profile.findOne({ userId: swiperId })
+          .select("nickname photos")
+          .session(session)
+          .lean();
+
+        result = {
+          success: true,
+          message: "It's a match!",
+          data: {
+            isMatch: true,
+            matchDetails: {
               matchId: match._id,
-              matchedUser: {
+              chatId: match._id,
+              user: {
                 userId: targetId,
                 nickname: targetProfile.nickname,
-                photos: targetProfile.photos || [],
+                photoUrl: targetProfile.photos?.[0]?.url || null,
               },
-              isNewMatch: true,
-              */
-              matchDetails: {
-                matchId: match._id,
-                chatId: match._id,
-                user: {
-                  userId: targetId,
-                  nickname: targetProfile.nickname,
-                  photoUrl: targetProfile.photos?.[0]?.url || null,
-                },
-                myPhotoUrl: myProfile?.photos?.[0]?.url || null,
-              },
-              isPremium: status.data.isPremium,
-              showAds: status.data.showAds,
-              premiumFeatures: status.data.premiumFeatures,
-              allocations: status.data.allocations,
-              wallet: status.data.wallet,
+              myPhotoUrl: myProfile?.photos?.[0]?.url || null,
             },
-          };
+            isPremium: status.data.isPremium,
+            showAds: status.data.showAds,
+            premiumFeatures: status.data.premiumFeatures,
+            allocations: status.data.allocations,
+            wallet: status.data.wallet,
+          },
+        };
 
-          // 📢 Fire real-time activity for Admin
-          try {
-            adminEvents.emit("new_live_activity", {
-              id: match._id,
-              createdAt: new Date(),
-              description: `New Match: ${myProfile?.nickname || "User"} ❤️ ${targetProfile.nickname || "User"}`,
-              color: "#4CAF50" // Green for matches
-            });
-          } catch (err) {
-            console.error("Admin match event emit failed", err);
-          }
-          addNotificationJob(NOTIFICATION_TYPES.NEW_MATCH, {
-            userId1: swiperId,
-            userId2: targetId,
+        // 📢 Fire real-time activity for Admin
+        try {
+          adminEvents.emit("new_live_activity", {
+            id: match._id,
+            createdAt: new Date(),
+            description: `New Match: ${myProfile?.nickname || "User"} ❤️ ${targetProfile.nickname || "User"}`,
+            color: "#4CAF50" // Green for matches
           });
-        } else {
-          // 🔥 CASE 2: NO MATCH (Manager's exact request)
-          const status = await UsageService.getUsageStatus(swiperId);
-          result = {
-            success: true,
-            message: `Action ${action} successful`,
-            data: {
-              isMatch: false,
-              matchDetails: null,
-              isPremium: status.data.isPremium,
-              showAds: status.data.showAds,
-              premiumFeatures: status.data.premiumFeatures,
-              allocations: status.data.allocations,
-              wallet: status.data.wallet,
-            },
-          };
-          if (action === "like" || action === "superlike") {
-            addNotificationJob(NOTIFICATION_TYPES.NEW_LIKE, {
-              senderId: swiperId,
-              receiverId: targetId,
-            });
-          }
-          //   partnerData: {
-          //       name: targetProfile.nickname,
-          //       image: targetProfile.photos?.[0]?.url
-          //   }
-          // };
+        } catch (err) {
+          console.error("Admin match event emit failed", err);
+        }
+        addNotificationJob(NOTIFICATION_TYPES.NEW_MATCH, {
+          userId1: swiperId,
+          userId2: targetId,
+        });
+      } else {
+        // 🔥 CASE 2: NO MATCH
+        result = {
+          success: true,
+          message: `Action ${action} successful`,
+          data: {
+            isMatch: false,
+            matchDetails: null,
+            isPremium: status.data.isPremium,
+            showAds: status.data.showAds,
+            premiumFeatures: status.data.premiumFeatures,
+            allocations: status.data.allocations,
+            wallet: status.data.wallet,
+          },
+        };
+        if (action === "like" || action === "superlike") {
+          addNotificationJob(NOTIFICATION_TYPES.NEW_LIKE, {
+            senderId: swiperId,
+            receiverId: targetId,
+          });
         }
       }
 
-      // 10. Cache Clearing (Transaction ke andar ya bahar)
+      // 10. Cache Clearing
       if (redis) {
         await redis.del(`feed:${swiperId.toString()}`);
-        await redis.del(`feed:${targetId.toString()}`); // Clear recipient's cache too
+        await redis.del(`feed:${targetId.toString()}`);
+        // Invalidate exclusion cache so next feed reflects new swipe
+        await redis.del(`feed:exclude:${swiperId.toString()}`);
         if (result.data?.isMatch) {
           await Promise.all([
             redis.del(`matches:${swiperId}`),
             redis.del(`matches:${targetId}`),
+            redis.del(`feed:exclude:${targetId.toString()}`),
           ]);
         }
       }
