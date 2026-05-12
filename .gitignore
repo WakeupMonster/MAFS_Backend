@@ -2,5 +2,7 @@ node_modules
 .env
 # Firebase credentials (NEVER PUSH SECRETS)
 config/firebase-service-account.json
+# Google Play service account keys (NEVER PUSH SECRETS)
+keys/
 # Local testing scripts
 test_push_cli.js
