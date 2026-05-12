@@ -20,7 +20,7 @@ module.exports.getFeed = async (req, res) => {
 
     return res.json({
       success: true,
-      message: "Feed fetched successfully",
+      message: "Feed fetched successfully !",
       count: feedResult.data.length,
       data: feedResult.data,
     });
@@ -170,8 +170,8 @@ module.exports.getMatches = async (req, res) => {
     // Single bulk query instead of N individual queries (N+1 → 2 queries)
     const partnerProfiles = partnerIds.length > 0
       ? await Profile.find({ userId: { $in: partnerIds } })
-          .select("userId nickname dob photos")
-          .lean()
+        .select("userId nickname dob photos")
+        .lean()
       : [];
 
     // Build O(1) lookup map

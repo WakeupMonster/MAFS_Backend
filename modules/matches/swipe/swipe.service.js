@@ -648,205 +648,198 @@ async function doSwipe(swiperId, targetId, action) {
 
   // ═══════════════════════════════════════════════════════════
   // TRANSACTION PATH: "like" / "superlike" — match possible
+  // Session hold time MINIMIZED — only atomic ops inside txn
   // ═══════════════════════════════════════════════════════════
+
+  // ── PRE-TRANSACTION: All read checks (no session needed) ──
+  const usageType = action === "superlike" ? "SUPER_KEEN" : "LIKE";
+
+  // Parallel pre-checks — no session, no transaction overhead
+  const [targetProfile, blockExists, existingSwipe] = await Promise.all([
+    Profile.findOne({ userId: targetId })
+      .select("nickname photos")
+      .lean(),
+    Block.findOne({
+      $or: [
+        { blockerId: swiperId, blockedId: targetId },
+        { blockerId: targetId, blockedId: swiperId },
+      ],
+    }).lean(),
+    Swipe.findOne({ swiperId, targetId }).lean(),
+  ]);
+
+  if (!targetProfile) throw new Error("Target profile not found");
+  if (blockExists)
+    throw new Error("Action not allowed. User interaction is blocked.");
+  if (existingSwipe) {
+    return { success: true, already: true, message: "Already swiped", match: false };
+  }
+
+  // Quota check — BEFORE opening session (saves session if limit reached)
+  try {
+    await UsageService.useItem(swiperId, usageType);
+  } catch (error) {
+    if (error.message === "LIMIT_REACHED") {
+      const status = await UsageService.getUsageStatus(swiperId);
+      return {
+        success: false,
+        message:
+          action === "like"
+            ? "Daily likes limit reached!"
+            : "No Super Keens left!",
+        data: {
+          isPremium: status.data.isPremium,
+          showAds: status.data.showAds,
+          premiumFeatures: status.data.premiumFeatures,
+          allocations: status.data.allocations,
+          wallet: status.data.wallet,
+          quotaStatus:
+            status.data.allocations[
+            usageType === "LIKE" ? "likes" : "superKeens"
+            ],
+          upsell: {
+            title: "Don't stop swiping!",
+            description:
+              "Upgrade now to get unlimited likes and more super keens.",
+            action: "SHOW_PREMIUM_MODAL",
+          },
+        },
+      };
+    }
+    throw error;
+  }
+
+  // ── MINIMAL TRANSACTION: Only atomic DB writes ──
   const session = await mongoose.startSession();
+  let isMatch = false;
+  let matchDoc = null;
 
   try {
-    let result = { success: true, match: false, message: "Swipe processed" };
-
     await session.withTransaction(async () => {
-      // 2. Determine Usage Type
-      const usageType = action === "superlike" ? "SUPER_KEEN" : "LIKE";
-
-      // 3. Target Profile aur Block Check — parallel with lean + projection
-      const [targetProfile, blockExists] = await Promise.all([
-        Profile.findOne({ userId: targetId })
-          .select("nickname photos")
-          .session(session)
-          .lean(),
-        Block.findOne({
-          $or: [
-            { blockerId: swiperId, blockedId: targetId },
-            { blockerId: targetId, blockedId: swiperId },
-          ],
-        }).session(session).lean(),
-      ]);
-
-      if (!targetProfile) throw new Error("Target profile not found");
-      if (blockExists)
-        throw new Error("Action not allowed. User interaction is blocked.");
-
-      // 4. Avoid Duplicates
-      const existingSwipe = await Swipe.findOne({ swiperId, targetId })
-        .session(session)
-        .lean();
-      if (existingSwipe) {
-        result = {
-          success: true,
-          already: true,
-          message: "Already swiped",
-          match: false,
-        };
-        return;
-      }
-
-      // 5. GATEKEEPER CHECK (v3)
-      let usageResult;
-      try {
-        // Note: UsageService is not part of the transaction because it needs to persist
-        // across failed transactions and manages its own atomic operations.
-        usageResult = await UsageService.useItem(swiperId, usageType);
-      } catch (error) {
-        if (error.message === "LIMIT_REACHED") {
-          // Fetch current status for rich error response
-          const status = await UsageService.getUsageStatus(swiperId);
-          result = {
-            success: false,
-            message:
-              action === "like"
-                ? "Daily likes limit reached!"
-                : "No Super Keens left!",
-            data: {
-              isPremium: status.data.isPremium,
-              showAds: status.data.showAds,
-              premiumFeatures: status.data.premiumFeatures,
-              allocations: status.data.allocations,
-              wallet: status.data.wallet,
-              quotaStatus:
-                status.data.allocations[
-                usageType === "LIKE" ? "likes" : "superKeens"
-                ],
-              upsell: {
-                title: "Don't stop swiping!",
-                description:
-                  "Upgrade now to get unlimited likes and more super keens.",
-                action: "SHOW_PREMIUM_MODAL",
-              },
-            },
-          };
-          return; // Exit transaction block gracefully
-        }
-        throw error; // Other errors
-      }
-
-      // 8. Create Swipe Record
+      // Create swipe (unique index prevents duplicates atomically)
       await Swipe.create(
         [{ swiperId, targetId, action, createdAt: new Date() }],
         { session },
       );
 
-      // 9. Match Logic
+      // Mutual check — must be inside transaction for consistency
       const mutualSwipe = await Swipe.findOne({
         swiperId: targetId,
         targetId: swiperId,
         action: { $in: ["like", "superlike"] },
       }).session(session).lean();
 
-      // Fetch usage status ONCE — used in both match and no-match responses
-      const status = await UsageService.getUsageStatus(swiperId);
-
       if (mutualSwipe) {
-        const [match] = await Match.create(
+        [matchDoc] = await Match.create(
           [
             {
               users: [swiperId, targetId],
               status: "matched",
-              lastMessageAt: new Date(), // 🔥 Ensure new matches appear on top
+              lastMessageAt: new Date(),
             },
           ],
           { session },
         );
-
-        // Only fetch swiper profile for match response (not for every swipe)
-        const myProfile = await Profile.findOne({ userId: swiperId })
-          .select("nickname photos")
-          .session(session)
-          .lean();
-
-        result = {
-          success: true,
-          message: "It's a match!",
-          data: {
-            isMatch: true,
-            matchDetails: {
-              matchId: match._id,
-              chatId: match._id,
-              user: {
-                userId: targetId,
-                nickname: targetProfile.nickname,
-                photoUrl: targetProfile.photos?.[0]?.url || null,
-              },
-              myPhotoUrl: myProfile?.photos?.[0]?.url || null,
-            },
-            isPremium: status.data.isPremium,
-            showAds: status.data.showAds,
-            premiumFeatures: status.data.premiumFeatures,
-            allocations: status.data.allocations,
-            wallet: status.data.wallet,
-          },
-        };
-
-        // 📢 Fire real-time activity for Admin
-        try {
-          adminEvents.emit("new_live_activity", {
-            id: match._id,
-            createdAt: new Date(),
-            description: `New Match: ${myProfile?.nickname || "User"} ❤️ ${targetProfile.nickname || "User"}`,
-            color: "#4CAF50" // Green for matches
-          });
-        } catch (err) {
-          console.error("Admin match event emit failed", err);
-        }
-        addNotificationJob(NOTIFICATION_TYPES.NEW_MATCH, {
-          userId1: swiperId,
-          userId2: targetId,
-        });
-      } else {
-        // 🔥 CASE 2: NO MATCH
-        result = {
-          success: true,
-          message: `Action ${action} successful`,
-          data: {
-            isMatch: false,
-            matchDetails: null,
-            isPremium: status.data.isPremium,
-            showAds: status.data.showAds,
-            premiumFeatures: status.data.premiumFeatures,
-            allocations: status.data.allocations,
-            wallet: status.data.wallet,
-          },
-        };
-        if (action === "like" || action === "superlike") {
-          addNotificationJob(NOTIFICATION_TYPES.NEW_LIKE, {
-            senderId: swiperId,
-            receiverId: targetId,
-          });
-        }
-      }
-
-      // 10. Cache Clearing
-      if (redis) {
-        await redis.del(`feed:${swiperId.toString()}`);
-        await redis.del(`feed:${targetId.toString()}`);
-        // Invalidate exclusion cache so next feed reflects new swipe
-        await redis.del(`feed:exclude:${swiperId.toString()}`);
-        if (result.data?.isMatch) {
-          await Promise.all([
-            redis.del(`matches:${swiperId}`),
-            redis.del(`matches:${targetId}`),
-            redis.del(`feed:exclude:${targetId.toString()}`),
-          ]);
-        }
+        isMatch = true;
       }
     });
-
-    return result;
-  } catch (error) {
-    console.error("Swipe error:", error);
-    throw error;
+  } catch (err) {
+    // Handle duplicate swipe race condition via unique index
+    if (err.code === 11000) {
+      return { success: true, already: true, message: "Already swiped", match: false };
+    }
+    throw err;
   } finally {
-    await session.endSession();
+    await session.endSession(); // Session released ASAP
   }
+
+  // ── POST-TRANSACTION: Response building (session already released) ──
+  const status = await UsageService.getUsageStatus(swiperId);
+  let result;
+
+  if (isMatch && matchDoc) {
+    const myProfile = await Profile.findOne({ userId: swiperId })
+      .select("nickname photos")
+      .lean();
+
+    result = {
+      success: true,
+      message: "It's a match!",
+      data: {
+        isMatch: true,
+        matchDetails: {
+          matchId: matchDoc._id,
+          chatId: matchDoc._id,
+          user: {
+            userId: targetId,
+            nickname: targetProfile.nickname,
+            photoUrl: targetProfile.photos?.[0]?.url || null,
+          },
+          myPhotoUrl: myProfile?.photos?.[0]?.url || null,
+        },
+        isPremium: status.data.isPremium,
+        showAds: status.data.showAds,
+        premiumFeatures: status.data.premiumFeatures,
+        allocations: status.data.allocations,
+        wallet: status.data.wallet,
+      },
+    };
+
+    // Fire events after session release
+    try {
+      adminEvents.emit("new_live_activity", {
+        id: matchDoc._id,
+        createdAt: new Date(),
+        description: `New Match: ${myProfile?.nickname || "User"} ❤️ ${targetProfile.nickname || "User"}`,
+        color: "#4CAF50"
+      });
+    } catch (err) {
+      console.error("Admin match event emit failed", err);
+    }
+    addNotificationJob(NOTIFICATION_TYPES.NEW_MATCH, {
+      userId1: swiperId,
+      userId2: targetId,
+    });
+  } else {
+    result = {
+      success: true,
+      message: `Action ${action} successful`,
+      data: {
+        isMatch: false,
+        matchDetails: null,
+        isPremium: status.data.isPremium,
+        showAds: status.data.showAds,
+        premiumFeatures: status.data.premiumFeatures,
+        allocations: status.data.allocations,
+        wallet: status.data.wallet,
+      },
+    };
+    if (action === "like" || action === "superlike") {
+      addNotificationJob(NOTIFICATION_TYPES.NEW_LIKE, {
+        senderId: swiperId,
+        receiverId: targetId,
+      });
+    }
+  }
+
+  // Cache clearing — after session released, non-blocking
+  if (redis) {
+    const cacheOps = [
+      redis.del(`feed:${swiperId.toString()}`),
+      redis.del(`feed:${targetId.toString()}`),
+      redis.del(`feed:exclude:${swiperId.toString()}`),
+    ];
+    if (isMatch) {
+      cacheOps.push(
+        redis.del(`matches:${swiperId}`),
+        redis.del(`matches:${targetId}`),
+        redis.del(`feed:exclude:${targetId.toString()}`),
+      );
+    }
+    await Promise.all(cacheOps);
+  }
+
+  return result;
 }
 
 async function undoSwipe(swiperId, targetId) {
