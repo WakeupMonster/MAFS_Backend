@@ -176,17 +176,35 @@ const getProfileForReview = async (req, res) => {
     ]);
 
     // 2. Reporters ki profiles fetch karein (Nickname + Photos)
+    // 2. Reporters aur Admins ki profiles fetch karein (Nickname + Photos)
     const reporterIds = [
       ...new Set(reports.map((r) => r.reporterId.toString())),
     ];
-    const reporterProfiles = await Profile.find({
-      userId: { $in: reporterIds },
+
+    // Extract admin IDs from all reply histories and audit logs
+    const adminIds = [];
+    reports.forEach((r) => {
+      r.replyHistory?.forEach((reply) => {
+        if (reply.repliedBy) adminIds.push(reply.repliedBy.toString());
+      });
+    });
+
+    if (user.auditLogs) {
+      user.auditLogs.forEach((log) => {
+        if (log.actedBy) adminIds.push(log.actedBy.toString());
+      });
+    }
+
+    const allRelatedUserIds = [...new Set([...reporterIds, ...adminIds])];
+
+    const relatedProfiles = await Profile.find({
+      userId: { $in: allRelatedUserIds },
     })
       .select("userId nickname photos")
       .lean();
 
-    // 3. Ek map banayein jisme Reporter ki details ho
-    const reporterMap = reporterProfiles.reduce((acc, rep) => {
+    // 3. Ek map banayein jisme User (Reporter/Admin) ki details ho
+    const profileMap = relatedProfiles.reduce((acc, rep) => {
       acc[rep.userId.toString()] = {
         nickname: rep.nickname,
         avatar: rep.photos?.[0]?.url || null,
@@ -237,24 +255,41 @@ const getProfileForReview = async (req, res) => {
       },
 
       reports: reports.map((report) => {
-        const reporterData = reporterMap[report.reporterId.toString()];
+        const reporterData = profileMap[report.reporterId.toString()];
         return {
           _id: report._id,
           reason: report.reason,
           details: report.details,
           reportedBy: {
             id: report.reporterId,
-            // Safe checking here to prevent crash
             nickname: reporterData?.nickname || "Unknown User",
             avatar: reporterData?.avatar || null,
           },
           status: report.status,
           actionTaken: report.actionTaken,
-          replyHistory: report.replyHistory || [],
+          replyHistory: (report.replyHistory || []).map((reply) => ({
+            ...reply,
+            repliedBy: {
+              id: reply.repliedBy,
+              nickname:
+                profileMap[reply.repliedBy?.toString()]?.nickname || "Admin",
+            },
+          })),
           createdAt: report.createdAt,
           resolvedAt: report.resolvedAt,
         };
       }),
+
+      auditLogs: (user.auditLogs || [])
+        .map((log) => ({
+          ...log,
+          actedBy: {
+            id: log.actedBy,
+            nickname: profileMap[log.actedBy?.toString()]?.nickname || "Admin",
+            avatar: profileMap[log.actedBy?.toString()]?.avatar || null,
+          },
+        }))
+        .sort((a, b) => new Date(b.actedAt) - new Date(a.actedAt)),
 
       reportCount: reports.length,
       uniqueReporters: reporterIds.length,
@@ -300,6 +335,12 @@ const updateProfileStatus = async (req, res) => {
     }
 
     let message = "";
+    const auditEntry = {
+      action,
+      reason,
+      actedBy: adminId,
+      actedAt: new Date(),
+    };
 
     switch (action) {
       case "approve":
@@ -330,7 +371,6 @@ const updateProfileStatus = async (req, res) => {
           suspendedAt: null,
           suspendUntil: null,
         };
-        await user.save();
         message = "Profile marked as safe and reports resolved.";
         break;
 
@@ -344,7 +384,6 @@ const updateProfileStatus = async (req, res) => {
           bannedBy: adminId,
           bannedAt: new Date(),
         };
-        await user.save();
 
         // Resolve reports with the ban reason
         await Report.updateMany(
@@ -370,7 +409,7 @@ const updateProfileStatus = async (req, res) => {
           suspendedAt: new Date(),
           suspendUntil: new Date(Date.now() + suspendDuration * 60 * 60 * 1000),
         };
-        await user.save();
+        auditEntry.details = { durationHours: suspendDuration };
         message = `User suspended for ${suspendDuration} hours.`;
         break;
 
@@ -404,9 +443,23 @@ const updateProfileStatus = async (req, res) => {
           report.status = "in_progress";
         }
         await report.save();
+
+        // Also add to user audit log for visibility
+        auditEntry.details = { reportId, replyMessage };
         message = "Reply sent to the reporter.";
         break;
       }
+    }
+
+    // Push audit entry and save user
+    if (action !== "reply") {
+      // For reply, we still might want an audit log on the user level
+      user.auditLogs.push(auditEntry);
+      await user.save();
+    } else {
+      // Optional: Log reply as well in user audit logs
+      user.auditLogs.push(auditEntry);
+      await user.save();
     }
 
     res.status(200).json({
@@ -623,57 +676,15 @@ const getReportedProfiles = async (req, res) => {
     // 1. Initial Match Stage (Basic filter)
     const baseMatch = { reportedId: { $exists: true, $ne: null } };
 
-    // 2. Status & Severity Filter Logic
-    const statusMatch = {};
-    if (status === "high") {
-      statusMatch.severity = "high";
-    } else if (status && status !== "all") {
-      statusMatch.status = status;
-    } else {
-      statusMatch.status = { $in: ["new", "in_progress", "resolved"] };
-    }
-
-    // 3. Common Pipeline Stages (Jo Data aur Count dono mein use honge)
+    // 2. Common Pipeline Stages (Group first, then filter by latest status)
     const commonPipeline = [
-      { $match: { ...baseMatch, ...statusMatch } },
-      // Join User & Profile for Search
-      {
-        $lookup: {
-          from: "users",
-          localField: "reportedId",
-          foreignField: "_id",
-          as: "reportedUser",
-        },
-      },
-      { $unwind: { path: "$reportedUser", preserveNullAndEmptyArrays: true } },
-      {
-        $lookup: {
-          from: "profiles",
-          localField: "reportedId",
-          foreignField: "userId",
-          as: "profile",
-        },
-      },
-      { $unwind: { path: "$profile", preserveNullAndEmptyArrays: true } },
-      // Search Filter
-      ...(search
-        ? [
-            {
-              $match: {
-                $or: [
-                  { "profile.nickname": { $regex: search, $options: "i" } },
-                  { "reportedUser.name": { $regex: search, $options: "i" } },
-                ],
-              },
-            },
-          ]
-        : []),
+      { $match: baseMatch },
+      // Sort by newest first so that $first in $group picks the latest report
+      { $sort: { createdAt: -1 } },
       // Grouping logic to get unique reported users
       {
         $group: {
           _id: "$reportedId",
-          user: { $first: "$reportedUser" },
-          profile: { $first: "$profile" },
           reportCount: { $sum: 1 },
           reasons: { $addToSet: "$reason" },
           latestReport: { $first: "$createdAt" },
@@ -692,9 +703,47 @@ const getReportedProfiles = async (req, res) => {
           },
         },
       },
+      // Filter by the representative status of the user (based on their latest report)
+      ...(status === "high"
+        ? [{ $match: { latestSeverity: "high" } }]
+        : status && status !== "all"
+          ? [{ $match: { latestStatus: status } }]
+          : []),
+      // Join User & Profile for Search/Display (Done after grouping for efficiency)
+      {
+        $lookup: {
+          from: "users",
+          localField: "_id",
+          foreignField: "_id",
+          as: "reportedUser",
+        },
+      },
+      { $unwind: { path: "$reportedUser", preserveNullAndEmptyArrays: true } },
+      {
+        $lookup: {
+          from: "profiles",
+          localField: "_id",
+          foreignField: "userId",
+          as: "profile",
+        },
+      },
+      { $unwind: { path: "$profile", preserveNullAndEmptyArrays: true } },
+      // Search Filter
+      ...(search
+        ? [
+            {
+              $match: {
+                $or: [
+                  { "profile.nickname": { $regex: search, $options: "i" } },
+                  { "reportedUser.name": { $regex: search, $options: "i" } },
+                ],
+              },
+            },
+          ]
+        : []),
     ];
 
-    // 4. Execution using $facet
+    // 3. Execution using $facet
     const [aggResult] = await Report.aggregate([
       {
         $facet: {
@@ -709,7 +758,8 @@ const getReportedProfiles = async (req, res) => {
           metadata: [...commonPipeline, { $count: "total" }],
           // Global KPI Stats (Unique Users ke basis par)
           kpiStats: [
-            { $match: baseMatch }, // Global stats ke liye search/status filter nahi lagaya
+            { $match: baseMatch },
+            { $sort: { createdAt: -1 } },
             {
               $group: {
                 _id: "$reportedId",
@@ -740,7 +790,7 @@ const getReportedProfiles = async (req, res) => {
       },
     ]);
 
-    // 5. Data Extraction
+    // 4. Data Extraction
     const reports = aggResult.data || [];
     const totalFiltered = aggResult.metadata[0]?.total || 0;
     const stats = aggResult.kpiStats[0] || {
@@ -751,9 +801,9 @@ const getReportedProfiles = async (req, res) => {
       highPriorityCount: 0,
     };
 
-    // 6. Format Response
+    // 5. Format Response
     const formattedData = reports.map((item) => {
-      // Calculate unique reporters and most common reason for this user
+      // Calculate unique reporters
       const uniqueReporters = new Set(
         item.allReports.map((r) => r.reportedById?.toString()),
       ).size;
@@ -773,7 +823,8 @@ const getReportedProfiles = async (req, res) => {
 
       return {
         userId: item._id,
-        nickname: item.profile?.nickname || item.user?.name || "Unknown",
+        nickname:
+          item.profile?.nickname || item.reportedUser?.name || "Unknown",
         profilePhoto: item.profile?.photos?.[0]?.url || null,
         reportCount: item.reportCount,
         uniqueReporters,

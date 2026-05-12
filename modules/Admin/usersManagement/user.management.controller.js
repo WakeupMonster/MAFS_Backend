@@ -654,6 +654,15 @@ module.exports.GETSingleUserDetails = async (req, res) => {
           preserveNullAndEmptyArrays: true,
         },
       },
+      // 11. Lookup profiles for all audit logs (Admin names)
+      {
+        $lookup: {
+          from: "profiles",
+          localField: "auditLogs.actedBy",
+          foreignField: "userId",
+          as: "auditAdminProfiles",
+        },
+      },
       {
         $project: {
           _id: 1,
@@ -858,6 +867,44 @@ module.exports.GETSingleUserDetails = async (req, res) => {
           photos: "$profile.photos",
           // Verification Documents (KYC)
           verification: "$profile.verification",
+          auditLogs: {
+            $map: {
+              input: {
+                $sortArray: {
+                  input: "$auditLogs",
+                  sortBy: { actedAt: -1 },
+                },
+              },
+              as: "log",
+              in: {
+                action: "$$log.action",
+                reason: "$$log.reason",
+                timestamp: "$$log.actedAt",
+                details: "$$log.details",
+                by: {
+                  $let: {
+                    vars: {
+                      adminProf: {
+                        $arrayElemAt: [
+                          {
+                            $filter: {
+                              input: "$auditAdminProfiles",
+                              as: "ap",
+                              cond: { $eq: ["$$ap.userId", "$$log.actedBy"] },
+                            },
+                          },
+                          0,
+                        ],
+                      },
+                    },
+                    in: {
+                      $ifNull: ["$$adminProf.nickname", "System"],
+                    },
+                  },
+                },
+              },
+            },
+          },
           lastProfileUpdate: "$profile.lastProfileUpdate",
         },
       },
@@ -870,6 +917,22 @@ module.exports.GETSingleUserDetails = async (req, res) => {
         success: false,
         message: "User not found",
       });
+    }
+
+    // 3. Log the view action in Audit Logs
+    try {
+      await User.findByIdAndUpdate(userId, {
+        $push: {
+          auditLogs: {
+            action: "view_profile",
+            reason: "Admin viewed profile details",
+            actedBy: req.user?._id,
+            actedAt: new Date(),
+          },
+        },
+      });
+    } catch (auditErr) {
+      console.error("Failed to log profile view:", auditErr);
     }
 
     return res.status(200).json({
@@ -1002,6 +1065,21 @@ module.exports.UPDATESingleUserDetail = async (req, res) => {
       }
     }
 
+    // 4. Push to auditLogs for Profile Update
+    user.auditLogs.push({
+      action: "update_profile",
+      reason: "Manual profile update by admin",
+      actedBy: req.user?._id,
+      actedAt: new Date(),
+      details: {
+        updatedFields: [
+          ...Object.keys(profile || {}),
+          ...Object.keys(userUpdate),
+        ],
+      },
+    });
+    await user.save({ session });
+
     const response = {
       _id: user._id,
       role: user.role,
@@ -1084,6 +1162,15 @@ module.exports.UPDATEUserStatus = async (req, res) => {
       });
     }
 
+    // Push to auditLogs
+    user.auditLogs.push({
+      action: accountStatus === "active" ? "unban" : accountStatus,
+      reason: req.body.reason || "Status update from User Management",
+      actedBy: req.user?._id,
+      actedAt: new Date(),
+    });
+    await user.save();
+
     return res.status(200).json({
       success: true,
       message: "User status updated",
@@ -1133,6 +1220,19 @@ module.exports.DELETEPhoto = async (req, res) => {
     }));
 
     await profile.save();
+
+    // Log the photo deletion
+    const userObj = await User.findById(userId);
+    if (userObj) {
+      userObj.auditLogs.push({
+        action: "delete_photo",
+        reason: "Admin deleted inappropriate photo",
+        actedBy: req.user?._id,
+        actedAt: new Date(),
+        details: { publicId },
+      });
+      await userObj.save();
+    }
 
     res.status(200).json({
       success: true,

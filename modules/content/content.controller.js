@@ -137,10 +137,25 @@ module.exports.getTermsConditions = async (req, res) => {
 
     const terms_conditions = await TermsConditions.findOne({});
 
+    if (!terms_conditions) {
+      return res.status(404).json({
+        success: false,
+        message: "Terms & Conditions not found",
+      });
+    }
+
+    const termsResponse = {
+      _id: terms_conditions._id,
+      title: terms_conditions.title,
+      description: terms_conditions.description,
+      createdAt: terms_conditions.createdAt,
+      updatedAt: terms_conditions.updatedAt,
+    };
+
     if (terms_conditions && typeof redis !== "undefined") {
       await redis.set(
         "terms_conditions:list",
-        JSON.stringify(terms_conditions),
+        JSON.stringify(termsResponse),
         "EX",
         86400,
       ); // 24h cache
@@ -148,11 +163,15 @@ module.exports.getTermsConditions = async (req, res) => {
 
     res.status(200).json({
       success: true,
-      data: terms_conditions || { title: "Terms Conditions", description: "" },
+      title: "Terms & Conditions",
+      data: termsResponse || {
+        title: "Terms & Conditions",
+        description: "",
+      },
     });
   } catch (error) {
     res
       .status(500)
-      .json({ success: false, message: "Failed to fetch Terms Conditions" });
+      .json({ success: false, message: "Failed to fetch Terms & Conditions" });
   }
 };

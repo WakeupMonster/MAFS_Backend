@@ -20,13 +20,19 @@ const router = express.Router();
 // Middleware: ensure user is logged in (optional depending on your project)
 const auth = require("../../auth/auth.middleware");
 
-const { allowDating } = require("../../../common/middlewares/allowDating.middleware");
+const {
+  allowDating,
+} = require("../../../common/middlewares/allowDating.middleware");
 const { apiLimiter } = require("../../../common/middlewares/apiLimiter");
 
 router.use(auth);
 router.use(allowDating);
 router.get("/feed", validation.feed, controllerOld.getFeed);
-router.post("/action", apiLimiter("swipe_action", 40, 60), controllerOld.action);
+router.post(
+  "/action",
+  apiLimiter("swipe_action", 40, 60),
+  controllerOld.action,
+);
 router.post("/unmatch", controllerOld.unmatchUser);
 router.get("/matches", controllerOld.getMatches);
 router.post("/undo", validation.undo, controllerOld.undo);
@@ -47,6 +53,5 @@ router.post("/undo", validation.undo, controllerOld.undo);
 
 router.get("/keen", controllerOld.getKeen);
 router.get("/superkeen", controllerOld.getSuperKeen);
-
 
 module.exports = router;

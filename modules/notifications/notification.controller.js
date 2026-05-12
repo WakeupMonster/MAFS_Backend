@@ -103,18 +103,30 @@ const updateNotificationSettings = async (req, res) => {
       update["notificationSettings.likes"] = likes;
     }
 
-    const user = await User.findByIdAndUpdate(
-      userId,
-      { $set: update },
-      { new: true },
-    ).select("notificationSettings");
-
+    const user = await User.findById(userId);
     if (!user) {
       return res.status(404).json({
         success: false,
         message: "User not found",
       });
     }
+
+    // Apply updates
+    Object.keys(update).forEach((key) => {
+      const field = key.split(".")[1];
+      user.notificationSettings[field] = update[key];
+    });
+
+    // Push to auditLogs
+    user.auditLogs.push({
+      action: "settings_update",
+      reason: "User updated notification settings",
+      actedBy: userId, // Self-action
+      actedAt: new Date(),
+      details: { updatedSettings: update },
+    });
+
+    await user.save();
 
     return res.json({
       success: true,
