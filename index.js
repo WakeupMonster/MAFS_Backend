@@ -35,7 +35,12 @@ const {
 const chatSocket = require("./sockets/chat.socket");
 
 const PORT = process.env.PORT || 3001;
-const MONGODB_URI = process.env.MONGODB_URI;
+// Timezone check to prevent crash on slim Docker images
+try {
+  Intl.DateTimeFormat(undefined, { timeZone: 'Australia/Sydney' });
+} catch (e) {
+  console.warn("⚠️ Warning: 'Australia/Sydney' timezone not supported by this environment. Falling back to system time.");
+}
 
 require("./workers/notification.worker");
 require("./workers/adminPush.worker");
