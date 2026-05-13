@@ -183,7 +183,7 @@ const verifyPurchase = async (req, res, next) => {
 
     return res.json({
       success: true,
-      message: "Subscription verified successfully",
+      message: "Subscription verified successfully !",
       data: {
         purchaseType: "SUBSCRIPTION",
         subscription: {
