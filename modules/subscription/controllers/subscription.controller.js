@@ -202,7 +202,14 @@ const verifyPurchase = async (req, res, next) => {
     });
   } catch (err) {
     logger.error("Verify purchase error:", err.message);
-    return next(err);
+    
+    // Asli error dikhao Postman mein debugging ke liye
+    return res.status(err.status || err.statusCode || 500).json({
+      success: false,
+      code: err.code || "VERIFICATION_FAILED",
+      message: err.message || "Something went wrong during verification",
+      googleError: err.errors ? err.errors[0]?.message : undefined
+    });
   }
 };
 
@@ -299,7 +306,11 @@ const restorePurchases = async (req, res, next) => {
     });
   } catch (err) {
     logger.error("Restore purchases error:", err.message);
-    return next(err);
+    return res.status(err.status || err.statusCode || 500).json({
+      success: false,
+      code: "RESTORE_FAILED",
+      message: err.message || "Something went wrong during restoration"
+    });
   }
 };
 

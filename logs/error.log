@@ -134,3 +134,26 @@
 {"level":"error","message":"[CRON] Grace period check error:","service":"iap-service","timestamp":"2026-05-12 16:40:05"}
 {"level":"error","message":"[CRON] Cancelled expire check error:","service":"iap-service","timestamp":"2026-05-12 16:40:05"}
 {"level":"error","message":"[CRON] Expire check error:","service":"iap-service","timestamp":"2026-05-12 16:40:05"}
+{"level":"error","message":"Verify purchase error:","service":"iap-service","timestamp":"2026-05-13 10:46:11"}
+{"level":"error","message":"Verify purchase error:","service":"iap-service","timestamp":"2026-05-13 10:48:09"}
+{"level":"error","message":"Verify purchase error:","service":"iap-service","timestamp":"2026-05-13 10:48:14"}
+{"level":"error","message":"Verify purchase error:","service":"iap-service","timestamp":"2026-05-13 10:50:26"}
+{"level":"error","message":"Verify purchase error:","service":"iap-service","timestamp":"2026-05-13 10:50:31"}
+{"level":"error","message":"Verify purchase error:","service":"iap-service","timestamp":"2026-05-13 10:52:46"}
+{"level":"error","message":"Verify purchase error:","service":"iap-service","timestamp":"2026-05-13 10:54:01"}
+{"level":"error","message":"Verify purchase error:","service":"iap-service","timestamp":"2026-05-13 11:00:35"}
+{"level":"error","message":"Verify purchase error:","service":"iap-service","timestamp":"2026-05-13 11:00:59"}
+{"level":"error","message":"Verify purchase error:","service":"iap-service","timestamp":"2026-05-13 11:02:30"}
+{"level":"error","message":"Verify purchase error:","service":"iap-service","timestamp":"2026-05-13 11:02:32"}
+{"level":"error","message":"Verify purchase error:","service":"iap-service","timestamp":"2026-05-13 11:02:38"}
+{"level":"error","message":"Verify purchase error:","service":"iap-service","timestamp":"2026-05-13 11:03:27"}
+{"level":"error","message":"Verify purchase error:","service":"iap-service","timestamp":"2026-05-13 11:04:54"}
+{"level":"error","message":"[CRON] Failed events check error:","service":"iap-service","timestamp":"2026-05-13 11:10:05"}
+{"level":"error","message":"[CRON] Grace period check error:","service":"iap-service","timestamp":"2026-05-13 11:10:05"}
+{"level":"error","message":"[CRON] Expire check error:","service":"iap-service","timestamp":"2026-05-13 11:10:05"}
+{"level":"error","message":"[CRON] Cancelled expire check error:","service":"iap-service","timestamp":"2026-05-13 11:10:05"}
+{"level":"error","message":"Verify purchase error:","service":"iap-service","timestamp":"2026-05-13 11:14:01"}
+{"level":"error","message":"Verify purchase error:","service":"iap-service","timestamp":"2026-05-13 11:14:04"}
+{"level":"error","message":"Verify purchase error:","service":"iap-service","timestamp":"2026-05-13 11:25:50"}
+{"level":"error","message":"Verify purchase error:","service":"iap-service","timestamp":"2026-05-13 11:56:35"}
+{"level":"error","message":"Verify purchase error:","service":"iap-service","timestamp":"2026-05-13 11:59:04"}

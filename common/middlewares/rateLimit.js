@@ -1,16 +1,22 @@
 const redis = require("../../config/cache");
 
 async function rateLimit(key, limit, windowSeconds) {
-  const results = await redis
-    .multi()
-    .incr(key)
-    .expire(key, windowSeconds) // expire only if new key
-    .exec();
+  try {
+    const count = await redis.incr(key);
+    
+    // Pehli baar hone pe expiry set karo
+    if (count === 1) {
+      await redis.expire(key, windowSeconds);
+    }
 
-  const count = results[0][1];
-  return count > limit;
+    return count > limit;
+  } catch (err) {
+    console.error("Rate Limit Redis Error:", err.message);
+    return false; // Error pe allow kar do taaki app na ruke
+  }
 }
-module.exports = {rateLimit};
+
+module.exports = { rateLimit };
 
 // async function rateLimit(key, limit, windowSec) {
 //   const redisKey = `rate:${key}`;

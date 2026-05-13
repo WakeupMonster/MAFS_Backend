@@ -98,6 +98,11 @@ async function safeSMembers(key) {
   return redisClient.sMembers(key);
 }
 
+async function safeIncr(key) {
+  await connectRedis();
+  return redisClient.incr(key);
+}
+
 function safeMulti() {
   // Connection handling for multi is tricky because it's sync but requires open socket
   // redisClient v4's multi() works if client is connected.
@@ -119,4 +124,5 @@ module.exports = {
   expire: safeExpire,
   sMembers: safeSMembers,
   multi: safeMulti,
+  incr: safeIncr,
 };

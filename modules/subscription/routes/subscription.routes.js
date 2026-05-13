@@ -29,7 +29,7 @@ const { allowAdmin } = require("../../../common/middlewares/allowAdmin.middlewar
 
 router.post(
   "/verify",
-  apiLimiter("sub_verify", 10, 60),
+  // apiLimiter("sub_verify", 10, 60),
   protect,
   validate(verifyPurchaseSchema),
   verifyPurchase
