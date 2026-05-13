@@ -66,13 +66,25 @@ class GoogleService {
       return;
     }
 
-    const client = await this.getClient();
+    console.log("📍 Google API: Attempting Acknowledge...");
+    try {
+      const client = await this.getClient();
 
-    await client.purchases.subscriptions.acknowledge({
-      packageName: iapConfig.google.packageName,
-      subscriptionId: subscriptionId,
-      token: purchaseToken,
-    });
+      await client.purchases.subscriptions.acknowledge({
+        packageName: iapConfig.google.packageName,
+        subscriptionId: subscriptionId,
+        token: purchaseToken,
+      });
+      console.log("✅ Google API: Acknowledge Success");
+    } catch (error) {
+      console.log("⚠️ Google API Acknowledge Warning:", error.message);
+      // Agar pehle se acknowledged hai toh error ignore karo taaki verification fail na ho
+      if (error.message.includes("already owned") || error.code === 400) {
+        console.log("ℹ️ Purchase might already be acknowledged, proceeding...");
+        return;
+      }
+      throw error;
+    }
   }
 
   async verifyConsumable(productId, purchaseToken) {

@@ -146,3 +146,14 @@
 {"level":"info","message":"[CRON] Subscription cron jobs initialized (v3 - Grace Period & Billing Retry Support)","service":"iap-service","timestamp":"2026-05-13 14:29:51"}
 {"level":"info","message":"🧪 [DEV] Dev tools routes registered at /api/v1/dev/*","service":"iap-service","timestamp":"2026-05-13 14:29:53"}
 {"level":"error","message":"Verify purchase error:","service":"iap-service","timestamp":"2026-05-13 14:30:04"}
+{"level":"info","message":"[CRON] Subscription cron jobs initialized (v3 - Grace Period & Billing Retry Support)","service":"iap-service","timestamp":"2026-05-13 14:33:06"}
+{"level":"info","message":"🧪 [DEV] Dev tools routes registered at /api/v1/dev/*","service":"iap-service","timestamp":"2026-05-13 14:33:08"}
+{"level":"error","message":"Verify purchase error:","service":"iap-service","timestamp":"2026-05-13 14:33:25"}
+{"level":"info","message":"[CRON] Subscription cron jobs initialized (v3 - Grace Period & Billing Retry Support)","service":"iap-service","timestamp":"2026-05-13 14:34:53"}
+{"level":"info","message":"🧪 [DEV] Dev tools routes registered at /api/v1/dev/*","service":"iap-service","timestamp":"2026-05-13 14:34:55"}
+{"level":"error","message":"Verify purchase error:","service":"iap-service","timestamp":"2026-05-13 14:35:11"}
+{"level":"info","message":"[CRON] Subscription cron jobs initialized (v3 - Grace Period & Billing Retry Support)","service":"iap-service","timestamp":"2026-05-13 14:36:24"}
+{"level":"info","message":"🧪 [DEV] Dev tools routes registered at /api/v1/dev/*","service":"iap-service","timestamp":"2026-05-13 14:36:26"}
+{"level":"info","message":"Profile subscription synced","service":"iap-service","timestamp":"2026-05-13 14:36:46","userId":"69fd8194b934015f29e51482"}
+{"level":"info","message":"Subscription updated","service":"iap-service","subscriptionId":"6a043f28309f9559953f59e6","timestamp":"2026-05-13 14:36:46","userId":"69fd8194b934015f29e51482"}
+{"level":"info","message":"Purchase verified","platform":"android","purchaseType":"SUBSCRIPTION","service":"iap-service","timestamp":"2026-05-13 14:36:46","userId":"69fd8194b934015f29e51482"}
