@@ -135,3 +135,14 @@
 {"level":"info","message":"🧪 [DEV] Dev tools routes registered at /api/v1/dev/*","service":"iap-service","timestamp":"2026-05-13 11:55:21"}
 {"level":"error","message":"Verify purchase error:","service":"iap-service","timestamp":"2026-05-13 11:56:35"}
 {"level":"error","message":"Verify purchase error:","service":"iap-service","timestamp":"2026-05-13 11:59:04"}
+{"level":"error","message":"Verify purchase error:","service":"iap-service","timestamp":"2026-05-13 12:04:34"}
+{"level":"error","message":"Verify purchase error:","service":"iap-service","timestamp":"2026-05-13 12:04:49"}
+{"level":"error","message":"[CRON] Grace period check error:","service":"iap-service","timestamp":"2026-05-13 12:35:21"}
+{"level":"error","message":"[CRON] Cancelled expire check error:","service":"iap-service","timestamp":"2026-05-13 12:35:24"}
+{"level":"error","message":"[CRON] Expire check error:","service":"iap-service","timestamp":"2026-05-13 12:35:41"}
+{"level":"info","message":"[CRON] Subscription cron jobs initialized (v3 - Grace Period & Billing Retry Support)","service":"iap-service","timestamp":"2026-05-13 12:53:10"}
+{"level":"info","message":"🧪 [DEV] Dev tools routes registered at /api/v1/dev/*","service":"iap-service","timestamp":"2026-05-13 12:53:13"}
+{"level":"error","message":"Verify purchase error:","service":"iap-service","timestamp":"2026-05-13 12:56:01"}
+{"level":"info","message":"[CRON] Subscription cron jobs initialized (v3 - Grace Period & Billing Retry Support)","service":"iap-service","timestamp":"2026-05-13 14:29:51"}
+{"level":"info","message":"🧪 [DEV] Dev tools routes registered at /api/v1/dev/*","service":"iap-service","timestamp":"2026-05-13 14:29:53"}
+{"level":"error","message":"Verify purchase error:","service":"iap-service","timestamp":"2026-05-13 14:30:04"}

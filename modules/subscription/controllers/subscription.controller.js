@@ -134,7 +134,6 @@ const verifyPurchase = async (req, res, next) => {
         throw new Error("You are not eligible or the offer has expired.");
       }
 
-
       // Mark as claimed immediately to prevent multiple claims
       user.giveaway.claimedAt = new Date();
       user.giveaway.isEligibleForFreeTrial = false; // Cannot claim again
@@ -202,7 +201,7 @@ const verifyPurchase = async (req, res, next) => {
     });
   } catch (err) {
     logger.error("Verify purchase error:", err.message);
-    
+
     // Asli error dikhao Postman mein debugging ke liye
     return res.status(err.status || err.statusCode || 500).json({
       success: false,

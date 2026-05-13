@@ -36,15 +36,28 @@ class GoogleService {
       return this.getMockSubscriptionData(subscriptionId);
     }
 
-    const client = await this.getClient();
+    console.log("=== GOOGLE SUBSCRIPTION VERIFY ===");
+    console.log("Package Name:", iapConfig.google.packageName);
+    console.log("Subscription ID:", subscriptionId);
+    console.log("Token:", purchaseToken ? purchaseToken.substring(0, 15) + "..." : "null");
 
-    const result = await client.purchases.subscriptions.get({
-      packageName: iapConfig.google.packageName,
-      subscriptionId: subscriptionId,
-      token: purchaseToken,
-    });
+    try {
+      const client = await this.getClient();
 
-    return result.data;
+      const result = await client.purchases.subscriptions.get({
+        packageName: iapConfig.google.packageName,
+        subscriptionId: subscriptionId,
+        token: purchaseToken,
+      });
+
+      console.log("✅ Google API Success:", result.data.orderId || "OK");
+      return result.data;
+    } catch (error) {
+      console.log("❌ Google API Error:", error.message);
+      console.log("Error Code:", error.code);
+      console.log("Status:", error.status);
+      throw error;
+    }
   }
 
   async acknowledgePurchase(subscriptionId, purchaseToken) {
@@ -68,15 +81,28 @@ class GoogleService {
       return this.getMockConsumableData(productId);
     }
 
-    const client = await this.getClient();
+    console.log("=== GOOGLE CONSUMABLE VERIFY ===");
+    console.log("Package Name:", iapConfig.google.packageName);
+    console.log("Product ID:", productId);
+    console.log("Token:", purchaseToken ? purchaseToken.substring(0, 15) + "..." : "null");
 
-    const result = await client.purchases.products.get({
-      packageName: iapConfig.google.packageName,
-      productId: productId,
-      token: purchaseToken,
-    });
+    try {
+      const client = await this.getClient();
 
-    return result.data;
+      const result = await client.purchases.products.get({
+        packageName: iapConfig.google.packageName,
+        productId: productId,
+        token: purchaseToken,
+      });
+
+      console.log("✅ Google API Success:", result.data.orderId || "OK");
+      return result.data;
+    } catch (error) {
+      console.log("❌ Google API Error:", error.message);
+      console.log("Error Code:", error.code);
+      console.log("Status:", error.status);
+      throw error;
+    }
   }
 
   async acknowledgeConsumable(productId, purchaseToken) {
