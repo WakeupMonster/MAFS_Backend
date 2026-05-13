@@ -185,3 +185,5 @@
 {"key":"android_PURCHASE_lgoiiiikgggbigfjjhlbadkl.AO-J1OwXnDTER2Mcn7L2m3sO2VZMLd-5bmpHq_rWwYqZV7N2wws-LsJh0enMOPZA-E8VnOv8HbdnZRH2wOicK13W8I_zYFO-WxDUrQzdheGEmRIMeli8IVk","level":"warn","message":"Duplicate transaction, skipping","service":"iap-service","timestamp":"2026-05-13 16:05:18"}
 {"level":"info","message":"Subscription updated","service":"iap-service","subscriptionId":"6a043f28309f9559953f59e6","timestamp":"2026-05-13 16:05:18","userId":"69fd8194b934015f29e51482"}
 {"level":"info","message":"Purchase verified","platform":"android","purchaseType":"SUBSCRIPTION","service":"iap-service","timestamp":"2026-05-13 16:05:18","userId":"69fd8194b934015f29e51482"}
+{"level":"info","message":"[CRON] Subscription cron jobs initialized (v3 - Grace Period & Billing Retry Support)","service":"iap-service","timestamp":"2026-05-13 16:16:52"}
+{"level":"info","message":"🧪 [DEV] Dev tools routes registered at /api/v1/dev/*","service":"iap-service","timestamp":"2026-05-13 16:16:53"}
