@@ -37,7 +37,12 @@ router.patch(
 );
 
 router.patch("/", controllerDis.updatePreference);
-router.post("/photos", apiLimiter("photo_upload", 10, 3600), uploadMiddleware.uploadPhotos, controller.uploadPhotos);
+router.post(
+  "/photos",
+  apiLimiter("photo_upload", 10, 3600),
+  uploadMiddleware.uploadPhotos,
+  controller.uploadPhotos,
+);
 
 // router.post(
 //   "/photos",

@@ -39,7 +39,11 @@ module.exports.verifyUserProfile = async (req, res) => {
       });
     }
 
-    if (profile.verification.status !== "pending") {
+    // Allow approval if status is pending OR if it was previously rejected (Re-approve)
+    const isReApprove =
+      action === "approve" && profile.verification.status === "rejected";
+
+    if (profile.verification.status !== "pending" && !isReApprove) {
       return res.status(409).json({
         success: false,
         message: `Profile already ${profile.verification.status}`,
@@ -74,11 +78,24 @@ module.exports.verifyUserProfile = async (req, res) => {
     const user = await User.findById(userId);
     if (user) {
       user.auditLogs.push({
-        action: action === "approve" ? "approve" : "reject",
-        reason: action === "reject" ? reason : "Identity verified",
+        action:
+          action === "approve"
+            ? isReApprove
+              ? "re-approve"
+              : "approve"
+            : "reject",
+        reason:
+          action === "reject"
+            ? reason
+            : isReApprove
+              ? reason
+              : "Identity verified",
         actedBy: adminId,
         actedAt: new Date(),
-        details: { type: "identity_verification" },
+        details: {
+          type: "identity_verification",
+          isReApprove: isReApprove,
+        },
       });
       await user.save();
     }

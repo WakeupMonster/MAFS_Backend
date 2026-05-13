@@ -159,8 +159,13 @@ exports.updateProfile = async (req, res) => {
     if (updateData.discovery) {
       const disc = updateData.discovery;
       profile.discovery = profile.discovery || {};
-      if (disc.distanceRange)
-        profile.discovery.distanceRange = disc.distanceRange;
+      if (disc.distanceRange) {
+        if (typeof disc.distanceRange === "object") {
+          profile.discovery.distanceRange = disc.distanceRange.max || 50;
+        } else {
+          profile.discovery.distanceRange = disc.distanceRange;
+        }
+      }
       if (disc.relationshipGoal)
         profile.discovery.relationshipGoal = disc.relationshipGoal;
       if (disc.globalVisibility)
@@ -1194,6 +1199,7 @@ exports.resetDiscoveryFilters = async (req, res) => {
     profile.discovery.filterRelationshipGoal = null;
     // profile.discovery.showMeGender = "";
     profile.discovery.ageRange = { min: 18, max: 60 };
+    profile.discovery.distanceRange = 50;
     profile.discovery.advancedFilters = {
       zodiac: null,
       education: null,
@@ -1247,8 +1253,14 @@ exports.updateDiscoveryFilters = async (req, res) => {
           discoveryFilters.relationshipGoal;
       if (discoveryFilters.ageRange)
         profile.discovery.ageRange = discoveryFilters.ageRange;
-      if (discoveryFilters.distanceRange)
-        profile.discovery.distanceRange = discoveryFilters.distanceRange;
+      if (discoveryFilters.distanceRange) {
+        if (typeof discoveryFilters.distanceRange === "object") {
+          profile.discovery.distanceRange =
+            discoveryFilters.distanceRange.max || 50;
+        } else {
+          profile.discovery.distanceRange = discoveryFilters.distanceRange;
+        }
+      }
       if (discoveryFilters.advanced) {
         profile.discovery.advancedFilters = {
           ...profile.discovery.advancedFilters,

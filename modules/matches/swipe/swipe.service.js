@@ -191,7 +191,7 @@ async function getFeedService(userId, limit, page) {
           type: "Point",
           coordinates: myProfile.location.coordinates,
         },
-        $maxDistance: (discovery.distanceRange || 50) * 1000,
+        $maxDistance: (discovery.distanceRange?.max || discovery.distanceRange || 50) * 1000,
       },
     };
   }

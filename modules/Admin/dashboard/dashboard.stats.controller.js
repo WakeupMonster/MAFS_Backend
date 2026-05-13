@@ -59,7 +59,11 @@ exports.getKpiOverview = async (req, res) => {
       },
     };
 
-    return res.json({ success: true, data: response });
+    return res.status(200).json({
+      success: true,
+      message: "Admin KPI overview loaded successfully",
+      data: response,
+    });
   } catch (error) {
     console.error("Admin KPI error:", error);
     return res.status(500).json({

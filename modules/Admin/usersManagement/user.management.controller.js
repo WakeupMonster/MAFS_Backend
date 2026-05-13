@@ -1422,6 +1422,7 @@ module.exports.streamUsersExport = async (req, res) => {
 
     const cursor = User.aggregate([
       { $match: userMatch },
+      { $sort: { createdAt: -1 } }, // ✅ Sort by recently joined first
       {
         $lookup: {
           from: "profiles",
@@ -1457,7 +1458,7 @@ module.exports.streamUsersExport = async (req, res) => {
       csvStream.write({
         UserId: doc._id.toString(),
         Email: doc.email || "",
-        Phone: doc.phone || "", // ✅ FIX 1: Plain string, no Excel trick
+        Phone: doc.phone ? `\t${doc.phone}` : "", // ✅ Prevent scientific notation in Excel
         AccountStatus: doc.accountStatus || "",
         IsPremium: doc.isPremium ? "Yes" : "No",
         AuthMethod: doc.authMethod || "phone",
@@ -1484,42 +1485,148 @@ module.exports.streamUsersExport = async (req, res) => {
 
 module.exports.GETGhostingUsers = async (req, res) => {
   try {
-    const { page: reqPage, limit: reqLimit, search } = req.query;
+    const {
+      page: reqPage,
+      limit: reqLimit,
+      search,
+      from,
+      to,
+      preset,
+      view = "ghosted",
+    } = req.query;
 
     const page = Math.max(parseInt(reqPage) || 1, 1);
     const limit = Math.min(parseInt(reqLimit) || 10, 100);
     const skip = (page - 1) * limit;
     const searchTrimmed = search?.trim();
 
+    // 1. Resolve Date Range (Matches Dashboard Logic)
+    let startDate, endDate;
+    if (from && to) {
+      startDate = new Date(from);
+      startDate.setHours(0, 0, 0, 0);
+      endDate = new Date(to);
+      endDate.setHours(23, 59, 59, 999);
+    } else if (preset === "today") {
+      startDate = new Date();
+      startDate.setHours(0, 0, 0, 0);
+      endDate = new Date();
+      endDate.setHours(23, 59, 59, 999);
+    }
+
     // ==========================================
-    // 1. PRODUCTION-READY GHOSTING IDENTIFICATION
+    // 2. PRODUCTION-READY ENGAGEMENT IDENTIFICATION
     // ==========================================
     const Match = mongoose.model("Match");
+    const Block = mongoose.model("Block");
 
-    // Instead of fetching all matches, we ONLY fetch matches where lastMessage is empty or doesn't exist.
-    // This uses MongoDB indexes and prevents RAM overload.
-    const ghostingMatches = await Match.find({
-      $or: [
-        { lastMessage: { $exists: false } },
-        { lastMessage: null },
-        { lastMessage: "" },
-      ],
-    })
-      .select("users")
-      .lean();
+    // Range filter for engagement metrics
+    const rangeFilter = {};
+    if (startDate && endDate) {
+      rangeFilter.createdAt = { $gte: startDate, $lte: endDate };
+    }
 
-    const ghostingUserIds = new Set();
-    ghostingMatches.forEach((match) => {
-      if (match.users && Array.isArray(match.users)) {
-        match.users.forEach((uId) => ghostingUserIds.add(uId.toString()));
-      }
-    });
+    // Parallel calculations for extra engagement understanding
+    const [engagementStats, totalBlocks] = await Promise.all([
+      Match.aggregate([
+        { $match: rangeFilter },
+        {
+          $group: {
+            _id: null,
+            totalMatches: { $sum: 1 },
+            ghostedMatches: {
+              $sum: { $cond: [{ $eq: ["$lastMessageBy", null] }, 1, 0] },
+            },
+            activeMatches: {
+              $sum: { $cond: [{ $ne: ["$lastMessageBy", null] }, 1, 0] },
+            },
+          },
+        },
+      ]).then(
+        (r) => r[0] || { totalMatches: 0, ghostedMatches: 0, activeMatches: 0 },
+      ),
+      Block.aggregate([
+        { $match: rangeFilter },
+        {
+          $lookup: {
+            from: "matches",
+            let: { b1: "$blockerId", b2: "$blockedId" },
+            pipeline: [
+              {
+                $match: {
+                  $expr: {
+                    $and: [
+                      { $in: ["$$b1", "$users"] },
+                      { $in: ["$$b2", "$users"] },
+                      { $ne: ["$lastMessageBy", null] },
+                    ],
+                  },
+                },
+              },
+            ],
+            as: "match",
+          },
+        },
+        { $match: { "match.0": { $exists: true } } },
+        { $count: "n" },
+      ]).then((r) => r[0]?.n || 0),
+    ]);
 
-    const ghostingUsersArray = Array.from(ghostingUserIds).map(
-      (id) => new mongoose.Types.ObjectId(id),
-    );
+    // 3. IDENTIFY USERS FOR THE CURRENT VIEW
+    let targetUserIdsResult = [];
 
-    if (ghostingUsersArray.length === 0) {
+    if (view === "active") {
+      // Users who started chatting
+      targetUserIdsResult = await Match.aggregate([
+        { $match: { lastMessageBy: { $ne: null }, ...rangeFilter } },
+        { $unwind: "$users" },
+        { $group: { _id: "$users" } },
+      ]);
+    } else if (view === "blocked") {
+      // Users involved in chat-based blocks (both blocker and blocked)
+      targetUserIdsResult = await Block.aggregate([
+        { $match: rangeFilter },
+        {
+          $lookup: {
+            from: "matches",
+            let: { b1: "$blockerId", b2: "$blockedId" },
+            pipeline: [
+              {
+                $match: {
+                  $expr: {
+                    $and: [
+                      { $in: ["$$b1", "$users"] },
+                      { $in: ["$$b2", "$users"] },
+                      { $ne: ["$lastMessageBy", null] },
+                    ],
+                  },
+                },
+              },
+            ],
+            as: "match",
+          },
+        },
+        { $match: { "match.0": { $exists: true } } },
+        {
+          $project: {
+            users: ["$blockerId", "$blockedId"],
+          },
+        },
+        { $unwind: "$users" },
+        { $group: { _id: "$users" } },
+      ]);
+    } else {
+      // Default: Ghosted Users
+      targetUserIdsResult = await Match.aggregate([
+        { $match: { lastMessageBy: null, ...rangeFilter } },
+        { $unwind: "$users" },
+        { $group: { _id: "$users" } },
+      ]);
+    }
+
+    const targetUserIdsArray = targetUserIdsResult.map((u) => u._id);
+
+    if (targetUserIdsArray.length === 0) {
       return res.status(200).json({
         success: true,
         cached: false,
@@ -1530,17 +1637,19 @@ module.exports.GETGhostingUsers = async (req, res) => {
           premiumTotal: 0,
           bannedTotal: 0,
           suspendedTotal: 0,
+          ...engagementStats,
+          totalBlocks,
         },
-        message: "Ghosting Users fetched successfully",
+        message: `No ${view} users found for this period`,
         data: [],
       });
     }
 
     // ==========================================
-    // 2. FETCH USERS EXACTLY LIKE GETAllUsers
+    // 4. FETCH USERS EXACTLY LIKE GETAllUsers
     // ==========================================
     const baseMatch = {
-      _id: { $in: ghostingUsersArray },
+      _id: { $in: targetUserIdsArray },
       role: "USER",
       isFake: { $ne: true },
       accountStatus: "active",
@@ -1717,6 +1826,8 @@ module.exports.GETGhostingUsers = async (req, res) => {
         premiumTotal,
         bannedTotal,
         suspendedTotal,
+        ...engagementStats,
+        totalBlocks,
       },
       message: "Ghosting Users fetched successfully",
       data: users,

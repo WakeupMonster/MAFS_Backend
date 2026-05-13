@@ -54,7 +54,15 @@ const genderEnum = [
 ];
 
 const discoverySchema = Joi.object({
-  distanceRange: Joi.number().min(1).max(500).label("Distance Range"),
+  distanceRange: Joi.alternatives()
+    .try(
+      Joi.number().min(1).max(500),
+      Joi.object({
+        min: Joi.number().min(0).max(500),
+        max: Joi.number().min(1).max(500),
+      }),
+    )
+    .label("Distance Range"),
 
   ageRange: Joi.object({
     min: Joi.number().min(18).max(99).label("Minimum Age"),
@@ -115,7 +123,7 @@ module.exports.profileUpdateSchema = Joi.object({
         "trans-man",
         "trans-woman",
         "genderqueer",
-        "everyone"
+        "everyone",
       )
       .label("Gender"),
     height: Joi.number().min(100).max(250).label("Height"),

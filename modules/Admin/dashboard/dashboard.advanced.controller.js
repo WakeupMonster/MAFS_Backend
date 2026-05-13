@@ -884,6 +884,7 @@ const ChatMessage = require("../../matches/chat/chat.message.model");
 const Transaction = require("../../subscription/models/SubscriptionTransaction");
 const Product = require("../../subscription/models_v3/Product");
 const SupportTicket = require("../../AppConfiguration/contactSupport/supportTicket.model");
+const Block = require("../../profile/user.block");
 
 // ================================================================
 // ADVANCED DASHBOARD API — "Command Center" for Admin
@@ -1350,6 +1351,8 @@ exports.getAdvancedDashboardMetrics = async (req, res) => {
       normalMatches,
       // --- Reports ---
       highReportedRange,
+      // --- Social Health ---
+      blockCountRange,
     ] = await Promise.all([
       // 1. All user status counts in one $facet
       User.aggregate([
@@ -1455,7 +1458,7 @@ exports.getAdvancedDashboardMetrics = async (req, res) => {
         { $count: "deepTotal" },
       ]).then((r) => r[0]?.deepTotal || 0),
 
-      // 8. Ghosting rate for current range
+      // 8. Ghosting rate for current range (Matches with NO messages)
       Match.aggregate([
         { $match: { createdAt: { $gte: startDate, $lte: endDate } } },
         {
@@ -1463,7 +1466,7 @@ exports.getAdvancedDashboardMetrics = async (req, res) => {
             _id: null,
             total: { $sum: 1 },
             ghosted: {
-              $sum: { $cond: [{ $eq: ["$lastMessageAt", null] }, 1, 0] },
+              $sum: { $cond: [{ $eq: ["$lastMessageBy", null] }, 1, 0] },
             },
           },
         },
@@ -1749,6 +1752,33 @@ exports.getAdvancedDashboardMetrics = async (req, res) => {
         { $group: { _id: "$reportedId", count: { $sum: 1 } } },
         { $match: { count: { $gte: 5 } } },
       ]),
+
+      // 26. Social Health: blocks in range (Post-match / From Chat)
+      Block.aggregate([
+        { $match: { createdAt: { $gte: startDate, $lte: endDate } } },
+        {
+          $lookup: {
+            from: "matches",
+            let: { b1: "$blockerId", b2: "$blockedId" },
+            pipeline: [
+              {
+                $match: {
+                  $expr: {
+                    $and: [
+                      { $in: ["$$b1", "$users"] },
+                      { $in: ["$$b2", "$users"] },
+                      { $ne: ["$lastMessageBy", null] }
+                    ]
+                  }
+                }
+              }
+            ],
+            as: "match"
+          }
+        },
+        { $match: { "match.0": { $exists: true } } },
+        { $count: "n" }
+      ]).then(r => r[0]?.n || 0),
     ]);
 
     // --- Unpack $facet results ---
@@ -2003,8 +2033,14 @@ exports.getAdvancedDashboardMetrics = async (req, res) => {
             {
               id: "ghosting",
               label: "Ghosting Rate",
-              value: `${((ghostingRangeAgg.ghosted / (ghostingRangeAgg.total || 1)) * 100).toFixed(0)}% ghosted`,
-              sub: "Monitor engagement trends",
+              value:
+                ghostingRangeAgg.total > 0
+                  ? `${((ghostingRangeAgg.ghosted / ghostingRangeAgg.total) * 100).toFixed(0)}% matches with no response (${ghostingRangeAgg.ghosted}/${ghostingRangeAgg.total})`
+                  : "No matches in this period",
+              sub:
+                ghostingRangeAgg.total > 0
+                  ? `${ghostingRangeAgg.total - ghostingRangeAgg.ghosted} users active in 1-to-1 chats. ${blockCountRange} blocks reported.`
+                  : "Monitor engagement trends",
               badge: "Info",
               badgeColor: "blue",
               icon: "Activity",
@@ -2272,6 +2308,7 @@ exports.getAdvancedDashboardMetrics = async (req, res) => {
               const label = dayNamesShort[d.getDay()];
               return {
                 day: label,
+                fullDate: date,
                 male:
                   signups7dDaily.find(
                     (s) => s._id.date === date && s._id.gender === "men",
