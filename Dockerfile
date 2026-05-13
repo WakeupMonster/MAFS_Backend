@@ -19,6 +19,9 @@ RUN npm ci --omit=dev --legacy-peer-deps
 # Step 3: Final Build Stage
 FROM node:20-slim AS runner
 
+# Install timezone data (tzdata) to prevent crash
+RUN apt-get update && apt-get install -y tzdata && rm -rf /var/lib/apt/lists/*
+
 WORKDIR /app
 
 # Copy production dependencies from base stage
