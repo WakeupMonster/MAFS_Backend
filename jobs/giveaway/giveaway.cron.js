@@ -24,7 +24,13 @@
 const cron = require("node-cron");
 const runGiveawayJob = require("./giveaway.worker");
 
-const CURRENT_TZ = process.env.GIVEAWAY_TIMEZONE || "Australia/Sydney";
+// Safe Timezone check
+let CURRENT_TZ = "Australia/Sydney";
+try {
+  Intl.DateTimeFormat(undefined, { timeZone: CURRENT_TZ });
+} catch (e) {
+  CURRENT_TZ = "UTC";
+}
 
 /*
   Friday ('5') at 18:00 (6 PM) in the calculated Timezone.

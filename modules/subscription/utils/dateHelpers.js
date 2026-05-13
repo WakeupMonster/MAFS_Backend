@@ -9,7 +9,8 @@ const dateHelpers = {
      * Get current time in Australia/Sydney
      */
     getAESTNow: () => {
-        return DateTime.now().setZone('Australia/Sydney');
+        const tz = process.env.APP_TIMEZONE || 'Australia/Sydney';
+        return DateTime.now().setZone(tz);
     },
 
     /**

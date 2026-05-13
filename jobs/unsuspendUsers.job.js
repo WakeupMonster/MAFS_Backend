@@ -46,6 +46,14 @@ const User = require("../modules/auth/auth.model");
 const runUnsuspendUsersJob = () => {
   console.log("[UNSUSPEND JOB] ✅ Cron job registered, waiting for 11:30 PM IST...");
 
+// Safe Timezone check
+  let TZ = "Asia/Kolkata";
+  try {
+    Intl.DateTimeFormat(undefined, { timeZone: TZ });
+  } catch (e) {
+    TZ = "UTC";
+  }
+
   cron.schedule("55 16 * * *", async () => {
     console.log("[UNSUSPEND JOB] 🚀 Job STARTED at:", new Date().toISOString());
     try {
@@ -73,7 +81,7 @@ const runUnsuspendUsersJob = () => {
       console.error("[UNSUSPEND JOB ERROR] ❌", error);
     }
   }, {
-    timezone: "Asia/Kolkata"  // ✅ IST timezone
+    timezone: TZ  // ✅ IST timezone or UTC fallback
   });
 };
 
