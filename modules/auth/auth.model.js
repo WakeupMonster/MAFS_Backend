@@ -200,6 +200,7 @@ const userSchema = new mongoose.Schema(
             "reactivate",
             "delete",
             "delete_photo",
+            "reply",
           ],
           required: true,
         },

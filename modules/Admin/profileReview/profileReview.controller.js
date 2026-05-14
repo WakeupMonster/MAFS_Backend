@@ -5,6 +5,7 @@ const {
   formatProfileResponse,
 } = require("../../../modules/profile/profile.formatter");
 const Report = require("../../../modules/profile/user.report");
+const notificationService = require("../../../modules/notifications/notification.service");
 
 // const getProfileForReview = async (req, res) => {
 //   try {
@@ -444,6 +445,34 @@ const updateProfileStatus = async (req, res) => {
         }
         await report.save();
 
+        // Send push notification to the reporter
+        try {
+          await notificationService.sendAdminNotification({
+            userId: report.reporterId,
+            title: "Support Update",
+            message: replyMessage,
+            data: {
+              type: "SUPPORT_REPLY",
+              reportId: reportId.toString(),
+            },
+          });
+        } catch (pushErr) {
+          console.error("Failed to send push notification to reporter:", pushErr);
+        }
+
+        // Send to ntfy.sh for testing
+        try {
+          await fetch("https://ntfy.sh/my-test-notifications", {
+            method: "POST",
+            body: replyMessage,
+            headers: {
+              "Title": "Support Update"
+            }
+          });
+        } catch (ntfyErr) {
+          console.error("Failed to send to ntfy:", ntfyErr);
+        }
+
         // Also add to user audit log for visibility
         auditEntry.details = { reportId, replyMessage };
         message = "Reply sent to the reporter.";
@@ -731,15 +760,15 @@ const getReportedProfiles = async (req, res) => {
       // Search Filter
       ...(search
         ? [
-            {
-              $match: {
-                $or: [
-                  { "profile.nickname": { $regex: search, $options: "i" } },
-                  { "reportedUser.name": { $regex: search, $options: "i" } },
-                ],
-              },
+          {
+            $match: {
+              $or: [
+                { "profile.nickname": { $regex: search, $options: "i" } },
+                { "reportedUser.name": { $regex: search, $options: "i" } },
+              ],
             },
-          ]
+          },
+        ]
         : []),
     ];
 

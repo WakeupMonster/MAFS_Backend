@@ -55,6 +55,7 @@ async function clearProfileCache(userId) {
     await Promise.all([
       cache.del(`profile:${userId}`),
       cache.del(`profile:status:${userId}`),
+      cache.del(`profile:static:${userId}`),
     ]);
   } catch (err) {
     console.log("Cache clear warning:", err.message);
@@ -653,18 +654,66 @@ exports.getUserProfile = async (req, res) => {
     const { userId } = req.params;
     const myId = req.user._id;
 
-    const [targetProfile, myProfile, masterMap] = await Promise.all([
-      Profile.findOne({ userId }).lean(),
-      Profile.findOne({ userId: myId }).lean(),
-      getMasterDataMap()
-    ]);
+    if (userId === myId.toString()) {
+      return exports.getMyProfile(req, res);
+    }
 
-    if (!targetProfile) return res.status(404).json({ success: false, message: "User not found" });
+    const staticCacheKey = `profile:static:${userId}`;
+    let staticProfile = await cache.get(staticCacheKey);
 
-    const formatted = formatPublictargetProfile(myProfile, targetProfile, null, null, false, null, masterMap);
+    // 1. Get/Cache Static Profile Data
+    if (!staticProfile) {
+      const [targetProfile, masterMap] = await Promise.all([
+        Profile.findOne({ userId }).lean(),
+        getMasterDataMap()
+      ]);
 
-    res.json({ success: true, data: formatted });
+      if (!targetProfile) return res.status(404).json({ success: false, message: "User not found" });
+
+      staticProfile = formatPublictargetProfile(null, targetProfile, null, null, false, null, masterMap);
+      
+      // Store coordinates in static profile for live distance calculation
+      staticProfile.location = staticProfile.location || {};
+      staticProfile.location.coordinates = targetProfile.location?.coordinates;
+
+      await cache.set(staticCacheKey, staticProfile, { EX: 300 }); // 5 min cache
+    } else {
+      staticProfile = typeof staticProfile === "string" ? JSON.parse(staticProfile) : staticProfile;
+    }
+
+    // 2. Get Viewer Data (Live)
+    const myProfile = await Profile.findOne({ userId: myId }).select("location").lean();
+
+    // 3. Dynamic Overlay (Distance)
+    const finalProfile = { ...staticProfile };
+    
+    if (myProfile?.location?.coordinates && staticProfile.location?.coordinates) {
+      const calculateDistance = (lat1, lon1, lat2, lon2) => {
+        const R = 6371;
+        const dLat = (lat2 - lat1) * (Math.PI / 180);
+        const dLon = (lon2 - lon1) * (Math.PI / 180);
+        const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+          Math.cos(lat1 * (Math.PI / 180)) * Math.cos(lat2 * (Math.PI / 180)) *
+          Math.sin(dLon / 2) * Math.sin(dLon / 2);
+        const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+        return Math.round(R * c);
+      };
+
+      const dist = calculateDistance(
+        myProfile.location.coordinates[1],
+        myProfile.location.coordinates[0],
+        staticProfile.location.coordinates[1],
+        staticProfile.location.coordinates[0],
+      );
+      finalProfile.location.distance = dist <= 1 ? "Nearby" : `${Math.round(dist)} km away`;
+    }
+
+    // Remove internal coordinates from response
+    delete finalProfile.location.coordinates;
+
+    res.json({ success: true, data: finalProfile });
   } catch (err) {
+    console.error("getUserProfile Error:", err);
     res.status(500).json({ success: false, message: "Failed to fetch user profile" });
   }
 };

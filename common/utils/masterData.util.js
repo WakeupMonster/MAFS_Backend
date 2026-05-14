@@ -6,17 +6,32 @@ const redis = require("../../config/cache");
  * Format: { categoryName: { itemValue: { id, label, subtitle, link } } }
  */
 
+let localMasterDataMap = null;
+let lastFetchTime = 0;
+const MEMORY_CACHE_TTL = 5 * 60 * 1000; // 5 minutes in ms
+
 const getMasterDataMap = async () => {
   try {
+    const now = Date.now();
+    // 1. Check Local Memory Cache (0ms latency)
+    if (localMasterDataMap && (now - lastFetchTime < MEMORY_CACHE_TTL)) {
+      return localMasterDataMap;
+    }
+
     const cacheKey = "master_data_map_v1";
+
+    // 2. Check Redis (Network latency)
     let cached = await redis.get(cacheKey);
 
     if (cached) {
-      // safeGet already handles JSON.parse if it was a string, 
-      // but let's be extra safe based on config/cache.js implementation
-      return typeof cached === "string" ? JSON.parse(cached) : cached;
+      const parsed = typeof cached === "string" ? JSON.parse(cached) : cached;
+      // Update local cache
+      localMasterDataMap = parsed;
+      lastFetchTime = now;
+      return parsed;
     }
 
+    // 3. Fallback to DB
     const allItems = await MasterData.find().lean();
     const map = {};
 
@@ -32,11 +47,16 @@ const getMasterDataMap = async () => {
       };
     });
 
-    await redis.set(cacheKey, map, { EX: 3600 }); // 1 hour
+    // Update both caches
+    await redis.set(cacheKey, map, { EX: 3600 }); // 1 hour in Redis
+    localMasterDataMap = map;
+    lastFetchTime = now;
+
     return map;
   } catch (error) {
     console.error("Error in getMasterDataMap:", error);
-    return {};
+    // If cache fails, return the last known good local map instead of empty object
+    return localMasterDataMap || {};
   }
 };
 
