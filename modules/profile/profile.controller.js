@@ -489,3 +489,211 @@ exports.reorderPhotos = async (req, res) => {
     });
   }
 };
+
+exports.resetDiscoveryFilters = async (req, res) => {
+  try {
+    const userId = req.user._id;
+    const profile = await Profile.findOne({ userId });
+    if (!profile) return res.status(404).json({ success: false, message: "Profile not found" });
+
+    profile.discovery = {
+      distanceRange: 50,
+      ageRange: { min: 18, max: 60 },
+      showMeGender: [],
+      relationshipGoal: null,
+      globalVisibility: "everyone",
+      preferredInterests: [],
+      advancedFilters: {}
+    };
+
+    await profile.save();
+    await clearProfileCache(userId);
+
+    const data = await getFullUserData(userId, profile);
+    res.json({
+      success: true,
+      message: "Discovery filters reset successfully",
+      data: { user: await formatProfileResponse(data.user, profile, data.blockedContacts, data.blockedUser, data.subData, req) }
+    });
+  } catch (err) {
+    res.status(500).json({ success: false, message: "Failed to reset filters" });
+  }
+};
+
+exports.updateDiscoveryFilters = async (req, res) => {
+  try {
+    const userId = req.user._id;
+    const { discoveryFilters } = req.body;
+    const profile = await Profile.findOne({ userId });
+
+    if (!profile) return res.status(404).json({ success: false, message: "Profile not found" });
+
+    if (discoveryFilters.relationshipGoal) profile.discovery.relationshipGoal = discoveryFilters.relationshipGoal;
+    if (discoveryFilters.interests) profile.discovery.preferredInterests = discoveryFilters.interests;
+    
+    if (discoveryFilters.advanced) {
+      profile.discovery.advancedFilters = {
+        ...profile.discovery.advancedFilters,
+        ...discoveryFilters.advanced
+      };
+    }
+
+    await profile.save();
+    await clearProfileCache(userId);
+
+    const data = await getFullUserData(userId, profile);
+    res.json({
+      success: true,
+      message: "Discovery filters updated",
+      data: { user: await formatProfileResponse(data.user, profile, data.blockedContacts, data.blockedUser, data.subData, req) }
+    });
+  } catch (err) {
+    res.status(500).json({ success: false, message: "Failed to update filters" });
+  }
+};
+
+exports.uploadSelfie = async (req, res) => {
+  try {
+    const userId = req.user._id;
+    if (!req.file) return res.status(400).json({ success: false, message: "No selfie file uploaded" });
+
+    const result = await uploadStream(req.file.buffer, {
+      folder: `mafs/users/${userId}/kyc`,
+      transformation: [{ width: 600, height: 600, crop: "fill" }]
+    });
+
+    const profile = await getOrCreateProfile(userId);
+    profile.verification.selfieUrl = result.secure_url;
+    profile.verification.status = "pending";
+    await profile.save();
+
+    res.json({ success: true, message: "Selfie uploaded successfully", url: result.secure_url });
+  } catch (err) {
+    res.status(500).json({ success: false, message: "Selfie upload failed" });
+  }
+};
+
+exports.uploadIDDocument = async (req, res) => {
+  try {
+    const userId = req.user._id;
+    const files = req.files;
+    if (!files || !files.front) return res.status(400).json({ success: false, message: "Front side of ID is required" });
+
+    const frontResult = await uploadStream(files.front[0].buffer, {
+      folder: `mafs/users/${userId}/kyc`
+    });
+
+    const profile = await getOrCreateProfile(userId);
+    profile.verification.docUrl = frontResult.secure_url;
+    profile.verification.status = "pending";
+    profile.verification.submittedAt = new Date();
+    await profile.save();
+
+    res.json({ success: true, message: "ID document uploaded successfully" });
+  } catch (err) {
+    res.status(500).json({ success: false, message: "ID upload failed" });
+  }
+};
+
+exports.getVerificationStatus = async (req, res) => {
+  try {
+    const profile = await Profile.findOne({ userId: req.user._id });
+    res.json({
+      success: true,
+      data: profile?.verification || { status: "not_started" }
+    });
+  } catch (err) {
+    res.status(500).json({ success: false, message: "Failed to fetch status" });
+  }
+};
+
+exports.updateLocation = async (req, res) => {
+  try {
+    const { latitude, longitude, city, state, country, full_address } = req.body;
+    const profile = await getOrCreateProfile(req.user._id);
+
+    profile.location = {
+      type: "Point",
+      coordinates: [longitude, latitude],
+      city,
+      state,
+      country,
+      full_address
+    };
+
+    await profile.save();
+    await clearProfileCache(req.user._id);
+
+    res.json({ success: true, message: "Location updated", location: profile.location });
+  } catch (err) {
+    res.status(500).json({ success: false, message: "Location update failed" });
+  }
+};
+
+exports.getStatus = async (req, res) => {
+  try {
+    const profile = await Profile.findOne({ userId: req.user._id });
+    if (!profile) return res.status(404).json({ success: false, message: "Profile not found" });
+
+    res.json({
+      success: true,
+      data: {
+        isMandatoryComplete: profile.isMandatoryComplete,
+        totalCompletion: profile.onboardingProgress?.totalCompletion || 0,
+        status: profile.verification?.status || "not_started"
+      }
+    });
+  } catch (err) {
+    res.status(500).json({ success: false, message: "Failed to fetch status" });
+  }
+};
+
+exports.getUserProfile = async (req, res) => {
+  try {
+    const { userId } = req.params;
+    const myId = req.user._id;
+
+    const [targetProfile, myProfile, masterMap] = await Promise.all([
+      Profile.findOne({ userId }).lean(),
+      Profile.findOne({ userId: myId }).lean(),
+      getMasterDataMap()
+    ]);
+
+    if (!targetProfile) return res.status(404).json({ success: false, message: "User not found" });
+
+    const formatted = formatPublictargetProfile(myProfile, targetProfile, null, null, false, null, masterMap);
+
+    res.json({ success: true, data: formatted });
+  } catch (err) {
+    res.status(500).json({ success: false, message: "Failed to fetch user profile" });
+  }
+};
+
+exports.updateVisibility = async (req, res) => {
+  try {
+    const { visibility } = req.body; // everyone, matches_only, nobody
+    const profile = await Profile.findOneAndUpdate(
+      { userId: req.user._id },
+      { "discovery.globalVisibility": visibility },
+      { new: true }
+    );
+    res.json({ success: true, message: "Visibility updated", visibility: profile.discovery?.globalVisibility || visibility });
+  } catch (err) {
+    res.status(500).json({ success: false, message: "Update failed" });
+  }
+};
+
+exports.resetTestData = async (req, res) => {
+  try {
+    // Only allow in development
+    if (process.env.NODE_ENV === "production") return res.status(403).json({ message: "Forbidden" });
+
+    const userId = req.user._id;
+    await Profile.deleteOne({ userId });
+    await clearProfileCache(userId);
+
+    res.json({ success: true, message: "Test data reset" });
+  } catch (err) {
+    res.status(500).json({ success: false, message: "Reset failed" });
+  }
+};
