@@ -531,7 +531,10 @@ exports.updateDiscoveryFilters = async (req, res) => {
 
     if (discoveryFilters.relationshipGoal) profile.discovery.relationshipGoal = discoveryFilters.relationshipGoal;
     if (discoveryFilters.interests) profile.discovery.preferredInterests = discoveryFilters.interests;
-    
+    if (discoveryFilters.showMeGender) profile.discovery.showMeGender = discoveryFilters.showMeGender;
+    if (discoveryFilters.ageRange) profile.discovery.ageRange = discoveryFilters.ageRange;
+    if (discoveryFilters.distanceRange) profile.discovery.distanceRange = discoveryFilters.distanceRange;
+
     if (discoveryFilters.advanced) {
       profile.discovery.advancedFilters = {
         ...profile.discovery.advancedFilters,
@@ -671,7 +674,7 @@ exports.getUserProfile = async (req, res) => {
       if (!targetProfile) return res.status(404).json({ success: false, message: "User not found" });
 
       staticProfile = formatPublictargetProfile(null, targetProfile, null, null, false, null, masterMap);
-      
+
       // Store coordinates in static profile for live distance calculation
       staticProfile.location = staticProfile.location || {};
       staticProfile.location.coordinates = targetProfile.location?.coordinates;
@@ -686,7 +689,7 @@ exports.getUserProfile = async (req, res) => {
 
     // 3. Dynamic Overlay (Distance)
     const finalProfile = { ...staticProfile };
-    
+
     if (myProfile?.location?.coordinates && staticProfile.location?.coordinates) {
       const calculateDistance = (lat1, lon1, lat2, lon2) => {
         const R = 6371;
@@ -745,4 +748,4 @@ exports.resetTestData = async (req, res) => {
   } catch (err) {
     res.status(500).json({ success: false, message: "Reset failed" });
   }
-};
+};
