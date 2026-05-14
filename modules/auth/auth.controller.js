@@ -188,22 +188,24 @@ module.exports.verifyEmail = async (req, res) => {
 
     const result = await authService.verifyEmailOtp(token, otp, req);
 
-    // await profileModel.findOneAndUpdate(
-    //   { userId: result.user._id },
-    //   {
-    //     $set: {
-    //       "onboardingProgress.emailVerified": true,
-    //     },
-    //   },
-    //   { upsert: true }
-    // );
+    // Audit log for email verification
+    const userDoc = await User.findById(result.user._id || result.user.id);
+    if (userDoc) {
+      userDoc.auditLogs.push({
+        action: "email_verified",
+        reason: "Email verified",
+        actedBy: userDoc._id,
+        actedAt: new Date(),
+        details: { email: userDoc.email },
+      });
+      await userDoc.save();
+    }
 
     return res.json({
       success: true,
       message: "Email verified successfully",
       data: {
-        // accessToken: result.accessToken,
-        user: result.user, // Manager wala format yahan aa gaya
+        user: result.user,
       },
     });
   } catch (err) {

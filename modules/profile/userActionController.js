@@ -38,7 +38,6 @@ module.exports.blockUser = async (req, res) => {
 
 // 2. Report User(URL Param se ID + Body se Reason)
 
-
 module.exports.reportUser = async (req, res) => {
   const reporterId = req.user._id;
 
@@ -48,12 +47,16 @@ module.exports.reportUser = async (req, res) => {
 
     const reporterProfile = await Profile.findOne({ userId: reporterId });
     if (!reporterProfile) {
-      return res.status(404).json({ success: false, message: "Reporter profile not found" });
+      return res
+        .status(404)
+        .json({ success: false, message: "Reporter profile not found" });
     }
 
     const reportedUser = await User.findById(req.params.id);
     if (!reportedUser) {
-      return res.status(404).json({ success: false, message: "Reported user not found" });
+      return res
+        .status(404)
+        .json({ success: false, message: "Reported user not found" });
     }
 
     let severity = "low";
@@ -80,9 +83,9 @@ module.exports.reportUser = async (req, res) => {
         id: newReport._id,
         createdAt: new Date(),
         description: `New report by ${reporterProfile.nickname || "User"}`,
-        color: "#F75555"
+        color: "#F75555",
       });
-    } catch(err) {
+    } catch (err) {
       console.error("Admin event emit failed", err);
     }
 

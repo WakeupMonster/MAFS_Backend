@@ -9,25 +9,31 @@ const Block = require("../profile/user.block");
 const { formatProfileResponse } = require("./profile.formatter");
 const UserSubscription = require("../auth/UserSubscription.model");
 const { formatPublictargetProfile } = require("./profile.userFormatter");
+const {
+  buildOnboardingResponse,
+} = require("../../common/utils/onBoardingSteps");
 const getFormattedUser = require("../../common/utils/getFormattedUser");
 const { getMasterDataMap } = require("../../common/utils/masterData.util");
 const mongoose = require('mongoose');
 
 async function getFullUserData(userId, existingProfile = null) {
-  const [user, profile, blockedContacts, blockedUser, subData] = await Promise.all([
-    User.findById(userId).lean(),
-    existingProfile ? Promise.resolve(existingProfile) : Profile.findOne({ userId }),
-    BlockedContact.find({ userId }).lean(),
-    Block.find({ blockerId: userId }).lean(),
-    UserSubscription.findOne({ userId })
-  ]);
+  const [user, profile, blockedContacts, blockedUser, subData] =
+    await Promise.all([
+      User.findById(userId).lean(),
+      existingProfile
+        ? Promise.resolve(existingProfile)
+        : Profile.findOne({ userId }),
+      BlockedContact.find({ userId }).lean(),
+      Block.find({ blockerId: userId }).lean(),
+      UserSubscription.findOne({ userId }),
+    ]);
 
   let finalSub = subData;
   if (!finalSub) {
     finalSub = await UserSubscription.create({ userId });
   } else {
     // Agar lean use karte hain to methods work nahi karte, isliye instance logic check
-    if (typeof finalSub.resetIfNeeded === 'function') finalSub.resetIfNeeded();
+    if (typeof finalSub.resetIfNeeded === "function") finalSub.resetIfNeeded();
   }
 
   return { user, profile, blockedContacts, blockedUser, subData: finalSub };
@@ -38,7 +44,7 @@ async function getOrCreateProfile(userId) {
   if (!profile) {
     profile = await Profile.create({
       userId,
-      onboardingStartedAt: new Date()
+      onboardingStartedAt: new Date(),
     });
   }
   return profile;
@@ -48,7 +54,7 @@ async function clearProfileCache(userId) {
   try {
     await Promise.all([
       cache.del(`profile:${userId}`),
-      cache.del(`profile:status:${userId}`)
+      cache.del(`profile:status:${userId}`),
     ]);
   } catch (err) {
     console.log("Cache clear warning:", err.message);
@@ -61,7 +67,10 @@ exports.updateProfile = async (req, res) => {
     const updateData = req.body;
     let profile = await Profile.findOne({ userId });
 
-    if (!profile) return res.status(404).json({ success: false, message: "Profile not found" });
+    if (!profile)
+      return res
+        .status(404)
+        .json({ success: false, message: "Profile not found" });
 
     if (updateData.profile) {
       const p = updateData.profile;
@@ -78,12 +87,28 @@ exports.updateProfile = async (req, res) => {
             });
           }
         } else {
-          return res.status(400).json({ success: false, message: "Invalid Date of Birth format." });
+          return res
+            .status(400)
+            .json({ success: false, message: "Invalid Date of Birth format." });
         }
       }
 
-      const basicFields = ['nickname', 'dob', 'gender', 'height', 'about', 'jobTitle', 'company', 'school', 'pronouns', 'weight', 'livingIn'];
-      basicFields.forEach(field => { if (p[field] !== undefined) profile[field] = p[field]; });
+      const basicFields = [
+        "nickname",
+        "dob",
+        "gender",
+        "height",
+        "about",
+        "jobTitle",
+        "company",
+        "school",
+        "pronouns",
+        "weight",
+        "livingIn",
+      ];
+      basicFields.forEach((field) => {
+        if (p[field] !== undefined) profile[field] = p[field];
+      });
 
       // if (p.nickname) {
       //   const existing = await Profile.findOne({ nickname: p.nickname, userId: { $ne: userId } }).lean();
@@ -94,53 +119,121 @@ exports.updateProfile = async (req, res) => {
     if (updateData.attributes) {
       const attr = updateData.attributes;
       profile.attributes = profile.attributes || {};
-      const traitFields = ['zodiac', 'education', 'familyPlans', 'personalityType', 'communicationStyle', 'loveStyle', 'bloodType', 'covidVaccine', 'religion', 'pets', 'drinking', 'smoking', 'workout', 'dietary', 'sleeping', 'socialMedia'];
-      traitFields.forEach(field => { if (attr[field] !== undefined) profile.attributes[field] = attr[field]; });
+      const traitFields = [
+        "zodiac",
+        "education",
+        "familyPlans",
+        "personalityType",
+        "communicationStyle",
+        "loveStyle",
+        "bloodType",
+        "covidVaccine",
+        "religion",
+        "pets",
+        "drinking",
+        "smoking",
+        "workout",
+        "dietary",
+        "sleeping",
+        "socialMedia",
+      ];
+      traitFields.forEach((field) => {
+        if (attr[field] !== undefined) profile.attributes[field] = attr[field];
+      });
 
-      const arrayTraits = ['languages', 'interests', 'music', 'movies', 'books', 'travel'];
-      arrayTraits.forEach(field => {
-        if (attr[field] !== undefined) profile.attributes[field] = Array.isArray(attr[field]) ? attr[field] : [attr[field]];
+      const arrayTraits = [
+        "languages",
+        "interests",
+        "music",
+        "movies",
+        "books",
+        "travel",
+      ];
+      arrayTraits.forEach((field) => {
+        if (attr[field] !== undefined)
+          profile.attributes[field] = Array.isArray(attr[field])
+            ? attr[field]
+            : [attr[field]];
       });
     }
 
     if (updateData.discovery) {
       const disc = updateData.discovery;
       profile.discovery = profile.discovery || {};
-      if (disc.distanceRange) profile.discovery.distanceRange = disc.distanceRange;
-      if (disc.relationshipGoal) profile.discovery.relationshipGoal = disc.relationshipGoal;
-      if (disc.globalVisibility) profile.discovery.globalVisibility = disc.globalVisibility;
+      if (disc.distanceRange) {
+        if (typeof disc.distanceRange === "object") {
+          profile.discovery.distanceRange = disc.distanceRange.max || 50;
+        } else {
+          profile.discovery.distanceRange = disc.distanceRange;
+        }
+      }
+      if (disc.relationshipGoal)
+        profile.discovery.relationshipGoal = disc.relationshipGoal;
+      if (disc.globalVisibility)
+        profile.discovery.globalVisibility = disc.globalVisibility;
       if (disc.ageRange) {
         profile.discovery.ageRange = {
           min: disc.ageRange.min || profile.discovery.ageRange.min,
-          max: disc.ageRange.max || profile.discovery.ageRange.max
+          max: disc.ageRange.max || profile.discovery.ageRange.max,
         };
       }
-      if (disc.showMeGender) profile.discovery.showMeGender = Array.isArray(disc.showMeGender) ? disc.showMeGender : [disc.showMeGender];
+      if (disc.showMeGender)
+        profile.discovery.showMeGender = Array.isArray(disc.showMeGender)
+          ? disc.showMeGender
+          : [disc.showMeGender];
     }
 
     profile.lastProfileUpdate = new Date();
     await profile.save();
+
+    // Push to auditLogs for User-side Profile Update
+    try {
+      const userDoc = await User.findById(userId);
+      if (userDoc) {
+        userDoc.auditLogs.push({
+          action: "update_profile",
+          reason: "User updated their own profile",
+          actedBy: userId,
+          actedAt: new Date(),
+          details: {
+            updatedFields: Object.keys(updateData.profile || {}).concat(
+              Object.keys(updateData.attributes || {}),
+            ),
+          },
+        });
+        await userDoc.save();
+      }
+    } catch (auditErr) {
+      console.error("Audit log failed for user profile update:", auditErr);
+    }
 
     const data = await getFullUserData(userId, profile);
     res.json({
       success: true,
       message: "Profile updated successfully",
       data: {
-        user: await formatProfileResponse(data.user, profile, data.blockedContacts, data.blockedUser, data.subData, req),
+        user: await formatProfileResponse(
+          data.user,
+          profile,
+          data.blockedContacts,
+          data.blockedUser,
+          data.subData,
+          req,
+        ),
 
         // onboarding: buildOnboardingResponse(req)
-      }
+      },
     });
 
   } catch (err) {
     console.error("Update Error:", err);
-    if (err.name === 'ValidationError') {
+    if (err.name === "ValidationError") {
       // Mongoose saare errors ka object deta hai, humein pehla message chahiye
-      const message = Object.values(err.errors).map(val => val.message)[0];
+      const message = Object.values(err.errors).map((val) => val.message)[0];
 
       return res.status(400).json({
         success: false,
-        message: message // Ye bhejega: "Woman is not a valid gender option"
+        message: message, // Ye bhejega: "Woman is not a valid gender option"
       });
     }
 
@@ -151,7 +244,10 @@ exports.updateProfile = async (req, res) => {
 exports.getMyProfile = async (req, res) => {
   try {
     const data = await getFullUserData(req.user._id);
-    if (!data.profile) return res.status(404).json({ success: false, message: "Profile not found" });
+    if (!data.profile)
+      return res
+        .status(404)
+        .json({ success: false, message: "Profile not found" });
 
     res.json({
       success: true,
@@ -159,7 +255,9 @@ exports.getMyProfile = async (req, res) => {
       data: { user: await formatProfileResponse(data.user, data.profile, data.blockedContacts, data.blockedUser, data.subData, req) }
     });
   } catch (err) {
-    res.status(500).json({ success: false, message: "Failed to fetch profile" });
+    res
+      .status(500)
+      .json({ success: false, message: "Failed to fetch profile" });
   }
 };
 
@@ -167,17 +265,26 @@ exports.uploadPhotos = async (req, res) => {
   try {
     const userId = req.user._id;
     const files = req.files;
-    if (!files || files.length === 0) return res.status(400).json({ success: false, message: "No files uploaded" });
+    if (!files || files.length === 0)
+      return res
+        .status(400)
+        .json({ success: false, message: "No files uploaded" });
 
     let profile = await getOrCreateProfile(userId);
     if (profile.photos.length + files.length > 6) {
-      return res.status(400).json({ success: false, message: `Maximum 6 photos allowed.` });
+      return res
+        .status(400)
+        .json({ success: false, message: `Maximum 6 photos allowed.` });
     }
 
-    const uploadPromises = files.map(file => uploadStream(file.buffer, {
-      folder: `mafs/users/${userId}/photos`,
-      transformation: [{ width: 1080, height: 1350, crop: "fill", quality: "auto:good" }]
-    }));
+    const uploadPromises = files.map((file) =>
+      uploadStream(file.buffer, {
+        folder: `mafs/users/${userId}/photos`,
+        transformation: [
+          { width: 1080, height: 1350, crop: "fill", quality: "auto:good" },
+        ],
+      }),
+    );
 
     const newPhotosResults = await Promise.all(uploadPromises);
 
@@ -191,7 +298,7 @@ exports.uploadPhotos = async (req, res) => {
         bytes: result.bytes,
         uploadedAt: new Date(),
         order: profile.photos.length + 1,
-        isPrimary: profile.photos.length === 0 && index === 0
+        isPrimary: profile.photos.length === 0 && index === 0,
       });
     });
 
@@ -202,21 +309,33 @@ exports.uploadPhotos = async (req, res) => {
     //   profile.onboarding.updatedAt = new Date();
     // }
 
-
     await profile.save();
-    const [data, masterMap] = await Promise.all([getFullUserData(userId, profile), clearProfileCache(userId), getMasterDataMap()]);
+    const [data, masterMap] = await Promise.all([
+      getFullUserData(userId, profile),
+      clearProfileCache(userId),
+      getMasterDataMap(),
+    ]);
 
     res.json({
       success: true,
       message: `${newPhotosResults.length} photo uploaded successfully`,
       data: {
-        user: await formatProfileResponse(data.user, profile, data.blockedContacts, data.blockedUser, data.subData, req, masterMap),
+        user: await formatProfileResponse(
+          data.user,
+          profile,
+          data.blockedContacts,
+          data.blockedUser,
+          data.subData,
+          req,
+          masterMap,
+        ),
         // onboarding: buildOnboardingResponse(req)
-
-      }
+      },
     });
   } catch (err) {
-    res.status(500).json({ success: false, message: "Failed to upload photos" });
+    res
+      .status(500)
+      .json({ success: false, message: "Failed to upload photos" });
   }
 };
 
@@ -226,8 +345,13 @@ exports.deletePhoto = async (req, res) => {
     const { publicId } = req.body;
     const profile = await Profile.findOne({ userId });
 
-    const photoIndex = profile?.photos.findIndex(p => p.publicId === publicId);
-    if (photoIndex === -1 || !profile) return res.status(404).json({ success: false, message: "Photo not found" });
+    const photoIndex = profile?.photos.findIndex(
+      (p) => p.publicId === publicId,
+    );
+    if (photoIndex === -1 || !profile)
+      return res
+        .status(404)
+        .json({ success: false, message: "Photo not found" });
 
     await destroy(publicId);
     profile.photos.splice(photoIndex, 1);
@@ -243,7 +367,16 @@ exports.deletePhoto = async (req, res) => {
     res.json({
       success: true,
       message: "photo deleted successfully",
-      data: { user: await formatProfileResponse(data.user, profile, data.blockedContacts, data.blockedUser, data.subData, req) }
+      data: {
+        user: await formatProfileResponse(
+          data.user,
+          profile,
+          data.blockedContacts,
+          data.blockedUser,
+          data.subData,
+          req,
+        ),
+      },
     });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
@@ -293,7 +426,7 @@ exports.reorderPhotos = async (req, res) => {
 
     // ✅ 5. Photo find karo — current index nikalo
     const currentIndex = profile.photos.findIndex(
-      (p) => p.publicId.toString() === cleanedPhotoId
+      (p) => p.publicId.toString() === cleanedPhotoId,
     );
 
     if (currentIndex === -1) {
@@ -316,7 +449,7 @@ exports.reorderPhotos = async (req, res) => {
     // ✅ 7. INSERT LOGIC — NIKALO aur DAALO
     const photosArray = [...profile.photos];
     const [movedPhoto] = photosArray.splice(currentIndex, 1); // NIKALO
-    photosArray.splice(newIndex, 0, movedPhoto);               // DAALO
+    photosArray.splice(newIndex, 0, movedPhoto); // DAALO
 
     // ✅ 8. Order aur isPrimary update karo
     const updatedPhotos = photosArray.map((photo, index) => ({
@@ -331,7 +464,7 @@ exports.reorderPhotos = async (req, res) => {
     // ✅ 9. Response
     const [data] = await Promise.all([
       getFullUserData(userId, profile),
-      clearProfileCache(userId)
+      clearProfileCache(userId),
     ]);
 
     return res.json({
@@ -344,7 +477,7 @@ exports.reorderPhotos = async (req, res) => {
           data.blockedContacts,
           data.blockedUser,
           data.subData,
-          req
+          req,
         ),
       },
     });
@@ -353,491 +486,6 @@ exports.reorderPhotos = async (req, res) => {
     return res.status(500).json({
       success: false,
       message: "Something went wrong",
-    });
-  }
-};
-
-module.exports.uploadSelfie = async (req, res) => {
-  try {
-    const userId = req.user._id;
-    if (!req.file) return res.status(400).json({ success: false, message: "No file" });
-
-    const data = await getFullUserData(userId);
-
-    res.json({
-      success: true,
-      message: "Selfie upload started...",
-      data: {
-        user: await formatProfileResponse(data.user, data.profile, data.blockedContacts, data.blockedUser, data.subData, req),
-      }
-    });
-
-    uploadStream(req.file.buffer, {
-      folder: `mafs/users/${userId}/kyc`,
-      transformation: [{ width: 800, height: 800, crop: "fill", quality: "auto:best" }]
-    }).then(async (result) => {
-      await Profile.updateOne(
-        { userId },
-        {
-          $set: {
-            "verification.selfieUrl": result.secure_url,
-            "verification.status": "pending"
-          }
-        }
-      );
-      await cache.del(`profile:status:${userId}`);
-      console.log(`Selfie processed for ${userId}`);
-    }).catch(err => console.error("Background Upload Error:", err));
-
-  } catch (err) {
-    if (!res.headersSent) res.status(500).json({ success: false, message: "Server Error" });
-  }
-};
-
-module.exports.uploadSelfie = async (req, res) => {
-  try {
-    const userId = req.user._id;
-    if (!req.file) {
-      return res.status(400).json({ success: false, message: "Selfie image is required" });
-    }
-
-    const profile = await Profile.findOne({ userId });
-    if (!profile) return res.status(404).json({ success: false, message: "Profile not found" });
-
-    // Parallel processing for speed: Upload image and fetch full user data simultaneously
-    const [uploadResult, data] = await Promise.all([
-      uploadStream(req.file.buffer, {
-        folder: `mafs/users/${userId}/kyc`,
-        transformation: [{ width: 800, height: 800, crop: "fill", quality: "auto:best" }]
-      }),
-      getFullUserData(userId, profile)
-    ]);
-
-    // DB Update
-    if (!profile.verification) profile.verification = {};
-    profile.verification.selfieUrl = uploadResult.secure_url;
-    // Agar donuments dono hain, tabhi 'pending' mark karo (ya fir logic ke according adjust karo)
-    profile.verification.status = profile.verification.docUrl ? "pending" : "not_started";
-
-    await profile.save();
-    await clearProfileCache(userId);
-
-    // Format new user object before sending response
-    const formattedUser = await formatProfileResponse(
-      data.user,
-      profile,
-      data.blockedContacts,
-      data.blockedUser,
-      data.subData,
-      req
-    );
-
-    res.json({
-      success: true,
-      message: "Selfie uploaded successfully",
-      data: {
-        user: formattedUser
-      }
-    });
-
-  } catch (err) {
-    console.error("Selfie Upload Controller Error:", err);
-    res.status(500).json({ success: false, message: "Failed to upload selfie" });
-  }
-};
-
-
-exports.uploadIDDocument = async (req, res) => {
-  try {
-    const userId = req.user._id;
-    const frontFile = req.files?.front?.[0];
-    if (!frontFile) return res.status(400).json({ success: false, message: "Document front image is required" });
-
-    const profile = await Profile.findOne({ userId });
-    if (!profile) return res.status(404).json({ success: false, message: "Profile not found" });
-
-    const [uploadResult, data] = await Promise.all([
-      uploadStream(frontFile.buffer, {
-        folder: `mafs/users/${userId}/kyc`,
-        transformation: [{ width: 1200, height: 800, crop: "limit", quality: "auto:best" }]
-      }),
-      getFullUserData(userId, profile)
-    ]);
-
-    if (!profile.verification) profile.verification = {};
-    profile.verification.docUrl = uploadResult.secure_url;
-    profile.verification.status = profile.verification.selfieUrl ? "pending" : "not_started";
-
-    await profile.save();
-    await clearProfileCache(userId);
-
-    const formattedUser = await formatProfileResponse(
-      data.user,
-      profile,
-      data.blockedContacts,
-      data.blockedUser,
-      data.subData,
-      req
-    );
-
-    res.json({
-      success: true,
-      message: "ID document uploaded successfully.",
-      data: {
-        user: formattedUser
-      }
-    }
-    );
-  } catch (err) {
-    res.status(500).json({ success: false, message: "Failed to upload ID document" });
-  }
-};
-
-exports.getVerificationStatus = async (req, res) => {
-  try {
-    const profile = await Profile.findOne({ userId: req.user._id }).select("verification").lean();
-    if (!profile?.verification) {
-      return res.json({ success: true, data: { status: "not_started", selfieUploaded: false, documentUploaded: false, message: "Verification not started" } });
-    }
-
-    const { status, selfieUrl, docUrl, rejectionReason } = profile.verification;
-    let message = status === "pending" ? "Your verification is under review" :
-      status === "approved" ? "Your profile has been verified" :
-        status === "rejected" ? "Your verification was rejected" : "Verification not started";
-
-    res.json({
-      success: true,
-      data: { status, selfieUploaded: !!selfieUrl, documentUploaded: !!docUrl, rejectionReason: status === "rejected" ? rejectionReason || "Failed" : null, message }
-    });
-  } catch (err) {
-    res.status(500).json({ success: false, message: "Failed to fetch status" });
-  }
-};
-
-exports.updateLocation = async (req, res) => {
-  try {
-    const userId = req.user._id;
-    const { latitude, longitude, city, state, country, full_address } = req.body;
-
-    // Extra safety check (validation already handles this, but just in case)
-    if (latitude === undefined || longitude === undefined) {
-      return res.status(400).json({
-        success: false,
-        message: "Valid coordinates required (latitude and longitude)"
-      });
-    }
-
-    // Sanity check — catch swapped coordinates
-    if (Math.abs(latitude) > 90) {
-      return res.status(400).json({
-        success: false,
-        message: `Invalid latitude: ${latitude}. Latitude must be between -90 and 90. Did you swap latitude and longitude?`
-      });
-    }
-
-    if (Math.abs(longitude) > 180) {
-      return res.status(400).json({
-        success: false,
-        message: `Invalid longitude: ${longitude}. Longitude must be between -180 and 180.`
-      });
-    }
-
-    let profile = await getOrCreateProfile(userId);
-
-    // MongoDB GeoJSON format: [longitude, latitude]
-    profile.location = {
-      type: "Point",
-      coordinates: [Number(longitude), Number(latitude)],
-      city: city || "",
-      state: state || "",
-      country: country || "",
-      full_address: full_address || ""
-    };
-
-    await profile.save();
-
-    const [data] = await Promise.all([
-      getFullUserData(userId, profile),
-      clearProfileCache(userId)
-    ]);
-
-    res.json({
-      success: true,
-      message: "Location updated successfully",
-      data: {
-        user: await formatProfileResponse(
-          data.user,
-          profile,
-          data.blockedContacts,
-          data.blockedUser,
-          data.subData,
-          req
-        )
-      }
-    });
-  } catch (err) {
-    console.error("Location Update Error:", err);
-
-    // Parse MongoDB geo errors into readable messages
-    let message = "Failed to update location. Please try again.";
-
-    if (err.message && err.message.includes("geo keys")) {
-      message =
-        "Invalid coordinates detected. Latitude must be between -90 and 90, " +
-        "and Longitude must be between -180 and 180. " +
-        "Please make sure you haven't swapped latitude and longitude.";
-    } else if (err.name === "ValidationError") {
-      // Mongoose validation error
-      const firstError = Object.values(err.errors)[0];
-      message = firstError?.message || "Invalid profile data provided.";
-    } else if (err.code === 16755) {
-      // MongoDB GeoJSON validation error code
-      message =
-        "Invalid geographic coordinates. Please check your latitude and longitude values.";
-    }
-
-    res.status(400).json({
-      success: false,
-      message
-    });
-  }
-};
-
-exports.getStatus = async (req, res) => {
-  try {
-    const userId = req.user._id;
-    const cacheKey = `profile:status:${userId}`;
-
-    const cached = await cache.get(cacheKey);
-    if (cached) return res.json({ success: true, data: JSON.parse(cached), cached: true });
-
-    const [data, masterMap] = await Promise.all([getFullUserData(userId), getMasterDataMap()]);
-    const formatted = await formatProfileResponse(data.user, data.profile, data.blockedContacts, data.blockedUser, data.subData, req, masterMap);
-
-    await cache.set(cacheKey, JSON.stringify(formatted), { EX: 30 });
-    res.json({ success: true, data: formatted, cached: false });
-  } catch (err) {
-    res.status(500).json({ success: false, message: err.message });
-  }
-};
-
-const Swipe = require("../matches/swipe/swipe.model");
-const { Match } = require("../matches/swipe/swipe.model");
-
-exports.getUserProfile = async (req, res) => {
-  try {
-    const { userId: targetUserId } = req.params;
-    const viewerId = req.user;
-
-    // 1️⃣ Parallel Fetching: Sabse fast tareeka
-    const [
-      viewerProfile,   // Viewer ke coordinates ke liye
-      targetProfile,   // Target ka pura data
-      swipeAction,     // Kya maine ise like/superlike kiya?
-      blockStatus,     // Blocked toh nahi hai?
-      matchRecord,     // Kya hum match hain?
-      isBoosted,        // Kya target boosted hai (Redis)
-      masterMap        // Master data map for labels
-    ] = await Promise.all([
-      Profile.findOne({ userId: viewerId }).select("location").lean(),
-      Profile.findOne({ userId: targetUserId }).lean(),
-      Swipe.findOne({ swiperId: viewerId, targetId: targetUserId }).lean(),
-      Block.findOne({
-        $or: [
-          { blockerId: viewerId, blockedId: targetUserId },
-          { blockerId: targetUserId, blockedId: viewerId }
-        ]
-      }).lean(),
-      Match.findOne({ users: { $all: [viewerId, targetUserId] } }).lean(),
-      redis.get(`boost:${targetUserId}`),
-      getMasterDataMap()
-    ]);
-
-    // 2️⃣ Edge Case Handlers
-    if (!targetProfile) return res.status(404).json({ success: false, message: "Profile not found" });
-    // if (blockStatus) return res.status(403).json({ success: false, message: "Profile unavailable" });
-
-
-    const formattedData = formatPublictargetProfile(
-      viewerProfile,
-      targetProfile,
-      swipeAction,
-      matchRecord,
-      isBoosted,
-      blockStatus,
-      masterMap
-    );
-
-    res.json({ success: true, message: "Profile Loaded Successfully", data: formattedData });
-  } catch (err) {
-    console.error("Profile Fetch Error:", err);
-    res.status(500).json({ success: false, message: "Failed to load profile details" });
-  }
-};
-
-exports.resetDiscoveryFilters = async (req, res) => {
-  try {
-    const userId = req.user._id;
-
-    const profile = await Profile.findOne({ userId });
-
-    if (!profile) {
-      return res.status(404).json({
-        success: false,
-        message: "Profile not found."
-      });
-    }
-
-    profile.discovery.preferredInterests = [];
-    profile.discovery.filterRelationshipGoal = null;
-    // profile.discovery.showMeGender = "";
-    profile.discovery.ageRange = { min: 18, max: 60 };
-    profile.discovery.advancedFilters = {
-      zodiac: null,
-      education: null,
-      familyPlans: null,
-      personalityType: null,
-      communicationStyle: null,
-      loveStyle: null,
-      pets: null,
-      drinking: null,
-      smoking: null,
-      workout: null,
-      dietary: null,
-      socialMedia: null,
-      sleeping: null
-    };
-
-    await profile.save();
-
-    if (redis) {
-      await redis.del(`feed:${userId.toString()}`);
-      await redis.del(`feed:seen:${userId.toString()}`);
-    }
-
-    const formattedUser = await getFormattedUser(userId, req);
-
-    return res.json({
-      success: true,
-      message: "All discovery filters have been reset to defaults.",
-      data: { user: formattedUser }
-    });
-  } catch (err) {
-    console.log("RESET ERROR:", err.message); // ← ye add karo terminal mein dekhne ke liye
-    return res.status(500).json({
-      success: false,
-      message: "Something went wrong while resetting filters."
-    });
-  }
-};
-
-exports.updateDiscoveryFilters = async (req, res) => {
-  try {
-    const userId = req.user._id;
-    const { discoveryFilters } = req.body;
-    let profile = await Profile.findOne({ userId });
-    console.log(discoveryFilters.distanceRange, "dis")
-    if (discoveryFilters) {
-      if (discoveryFilters.interests) profile.discovery.preferredInterests = discoveryFilters.interests;
-      if (discoveryFilters.relationshipGoal) profile.discovery.filterRelationshipGoal = discoveryFilters.relationshipGoal;
-      if (discoveryFilters.ageRange) profile.discovery.ageRange = discoveryFilters.ageRange;
-      if (discoveryFilters.distanceRange) profile.discovery.distanceRange = discoveryFilters.distanceRange
-      if (discoveryFilters.advanced) {
-        profile.discovery.advancedFilters = { ...profile.discovery.advancedFilters, ...discoveryFilters.advanced };
-      };
-      if (discoveryFilters.showMeGender) profile.discovery.showMeGender = discoveryFilters.showMeGender
-    }
-
-    await profile.save();
-
-    if (redis) {
-      await redis.del(`feed:${userId.toString()}`);
-      await redis.del(`feed:seen:${userId.toString()}`);
-    }
-
-    const formattedUser = await getFormattedUser(userId, req);
-
-    return res.json({
-      success: true, message: "Filters applied! Feed is refreshing.", data: {
-        user: formattedUser
-      }
-    });
-
-  } catch (err) {
-    res.status(500).json({ success: false, message: err.message });
-  }
-};
-
-exports.getDiscoveryPreference = async (req, res) => {
-  try {
-    const profile = await Profile.findOne({ userId: req.user._id }).select('preferences discoveryFilters').lean();
-    if (!profile) return res.status(404).json({ success: false, message: "Profile not found" });
-    res.json({ success: true, data: { preferences: profile.preferences, discoveryFilters: profile.discoveryFilters } });
-  } catch (err) {
-    res.status(400).json({ success: false, message: err.message });
-  }
-};
-
-exports.updateVisibility = async (req, res) => {
-  try {
-    const userId = req.user._id;
-    const { globalVisibility } = req.body;
-    const allowed = ["everyone", "matches_only", "nobody"];
-    if (!allowed.includes(globalVisibility)) return res.status(400).json({ success: false, message: "Invalid value" });
-
-    const isDisc = globalVisibility !== "nobody";
-    const profile = await Profile.findOneAndUpdate(
-      { userId },
-      { $set: { "discovery.globalVisibility": globalVisibility, isDiscoverable: isDisc, canAccessSwipe: isDisc, lastProfileUpdate: new Date() } },
-      { new: true }
-    ).lean();
-
-    if (redis) await redis.del(`feed:${userId.toString()}`);
-
-    res.json({
-      success: true,
-      message: "Visibility updated successfully",
-      data: { globalVisibility: profile.discovery.globalVisibility, isDiscoverable: profile.isDiscoverable, canAccessSwipe: profile.canAccessSwipe }
-    });
-  } catch (err) {
-    res.status(500).json({ success: false, message: err.message });
-  }
-};
-exports.resetTestData = async (req, res) => {
-  try {
-    const adminId = req.user._id;
-    const userObjectId = mongoose.Types.ObjectId.isValid(adminId)
-      ? new mongoose.Types.ObjectId(adminId)
-      : adminId;
-
-    // ✅ DELETE MATCHES WHERE ADMIN IS PART OF MATCH
-    const matchResult = await Match.deleteMany({
-      users: userObjectId // array contains adminId
-    });
-
-    // ✅ DELETE SWIPES WHERE ADMIN IS INVOLVED
-    const swipeResult = await Swipe.deleteMany({
-      $or: [
-        { swiperId: adminId },
-        { targetId: adminId }
-      ]
-    });
-
-    res.json({
-      success: true,
-      message: "Test data reset successfully",
-      data: {
-        matchesDeleted: matchResult.deletedCount,
-        swipesDeleted: swipeResult.deletedCount
-      }
-    });
-
-  } catch (error) {
-    console.error("Error resetting test data:", error);
-    res.status(500).json({
-      success: false,
-      message: "Failed to reset test data",
-      error: error.message
     });
   }
 };

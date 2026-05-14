@@ -884,6 +884,7 @@ const ChatMessage = require("../../matches/chat/chat.message.model");
 const Transaction = require("../../subscription/models/SubscriptionTransaction");
 const Product = require("../../subscription/models_v3/Product");
 const SupportTicket = require("../../AppConfiguration/contactSupport/supportTicket.model");
+const Block = require("../../profile/user.block");
 
 // ================================================================
 // ADVANCED DASHBOARD API — "Command Center" for Admin
@@ -1261,6 +1262,8 @@ exports.getAdvancedDashboardMetrics = async (req, res) => {
     const prevEndDate = startDate;
 
     // Baselines
+    const startOfYear = new Date(now.getFullYear(), 0, 1); // Jan 1st
+    const endOfYear = new Date(now.getFullYear(), 11, 31, 23, 59, 59); // Dec 31st
     const last30d = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
 
     // Meta Labels & Context
@@ -1348,6 +1351,8 @@ exports.getAdvancedDashboardMetrics = async (req, res) => {
       normalMatches,
       // --- Reports ---
       highReportedRange,
+      // --- Social Health ---
+      blockCountRange,
     ] = await Promise.all([
       // 1. All user status counts in one $facet
       User.aggregate([
@@ -1453,7 +1458,7 @@ exports.getAdvancedDashboardMetrics = async (req, res) => {
         { $count: "deepTotal" },
       ]).then((r) => r[0]?.deepTotal || 0),
 
-      // 8. Ghosting rate for current range
+      // 8. Ghosting rate for current range (Matches with NO messages)
       Match.aggregate([
         { $match: { createdAt: { $gte: startDate, $lte: endDate } } },
         {
@@ -1461,7 +1466,7 @@ exports.getAdvancedDashboardMetrics = async (req, res) => {
             _id: null,
             total: { $sum: 1 },
             ghosted: {
-              $sum: { $cond: [{ $eq: ["$lastMessageAt", null] }, 1, 0] },
+              $sum: { $cond: [{ $eq: ["$lastMessageBy", null] }, 1, 0] },
             },
           },
         },
@@ -1541,18 +1546,75 @@ exports.getAdvancedDashboardMetrics = async (req, res) => {
         { $sort: { _id: 1 } },
       ]).catch(() => []),
 
-      // 13. Activity heatmap (30d rolling, not date-range-specific)
+      // 13. Activity heatmap (Hourly slot counts for current calendar year)
       Swipe.aggregate([
-        { $match: { createdAt: { $gte: last30d } } },
+        { $match: { createdAt: { $gte: startOfYear } } },
+        {
+          $addFields: {
+            _hour: { $hour: "$createdAt" },
+          },
+        },
+        {
+          $addFields: {
+            _slot: {
+              $switch: {
+                branches: [
+                  {
+                    case: {
+                      $and: [{ $gte: ["$_hour", 3] }, { $lt: ["$_hour", 6] }],
+                    },
+                    then: 0,
+                  },
+                  {
+                    case: {
+                      $and: [{ $gte: ["$_hour", 6] }, { $lt: ["$_hour", 9] }],
+                    },
+                    then: 1,
+                  },
+                  {
+                    case: {
+                      $and: [{ $gte: ["$_hour", 9] }, { $lt: ["$_hour", 12] }],
+                    },
+                    then: 2,
+                  },
+                  {
+                    case: {
+                      $and: [{ $gte: ["$_hour", 12] }, { $lt: ["$_hour", 15] }],
+                    },
+                    then: 3,
+                  },
+                  {
+                    case: {
+                      $and: [{ $gte: ["$_hour", 15] }, { $lt: ["$_hour", 18] }],
+                    },
+                    then: 4,
+                  },
+                  {
+                    case: {
+                      $and: [{ $gte: ["$_hour", 18] }, { $lt: ["$_hour", 21] }],
+                    },
+                    then: 5,
+                  },
+                  { case: { $gte: ["$_hour", 21] }, then: 6 },
+                ],
+                default: -1,
+              },
+            },
+          },
+        },
+        { $match: { _slot: { $gte: 0 } } },
         {
           $group: {
             _id: {
-              day: { $dayOfWeek: "$createdAt" },
-              hour: { $hour: "$createdAt" },
+              date: {
+                $dateToString: { format: "%Y-%m-%d", date: "$createdAt" },
+              },
+              slot: "$_slot",
             },
             count: { $sum: 1 },
           },
         },
+        { $sort: { "_id.date": 1, "_id.slot": 1 } },
       ]).catch(() => []),
 
       // 14. Revenue: current + prev + daily merged via $facet
@@ -1690,6 +1752,33 @@ exports.getAdvancedDashboardMetrics = async (req, res) => {
         { $group: { _id: "$reportedId", count: { $sum: 1 } } },
         { $match: { count: { $gte: 5 } } },
       ]),
+
+      // 26. Social Health: blocks in range (Post-match / From Chat)
+      Block.aggregate([
+        { $match: { createdAt: { $gte: startDate, $lte: endDate } } },
+        {
+          $lookup: {
+            from: "matches",
+            let: { b1: "$blockerId", b2: "$blockedId" },
+            pipeline: [
+              {
+                $match: {
+                  $expr: {
+                    $and: [
+                      { $in: ["$$b1", "$users"] },
+                      { $in: ["$$b2", "$users"] },
+                      { $ne: ["$lastMessageBy", null] }
+                    ]
+                  }
+                }
+              }
+            ],
+            as: "match"
+          }
+        },
+        { $match: { "match.0": { $exists: true } } },
+        { $count: "n" }
+      ]).then(r => r[0]?.n || 0),
     ]);
 
     // --- Unpack $facet results ---
@@ -1829,18 +1918,13 @@ exports.getAdvancedDashboardMetrics = async (req, res) => {
       return parseFloat(((m / s) * 100).toFixed(1));
     });
 
-    const heatmapD = [];
-    const mongoDayOrder = [2, 3, 4, 5, 6, 7, 1]; // Mon-Sun
-    mongoDayOrder.forEach((d) => {
-      const row = [];
-      [3, 6, 9, 12, 15, 18, 21, 0].forEach((h) => {
-        const c =
-          heatmapAgg.find((x) => x._id.day === d && x._id.hour === h)?.count ||
-          0;
-        row.push(c > 100 ? 3 : c > 50 ? 2 : c > 10 ? 1 : 0);
-      });
-      heatmapD.push(row);
-    });
+    const heatmapD = heatmapAgg.map((item) => ({
+      date: item._id.date,
+      slot: item._id.slot,
+      count: item.count,
+      intensity:
+        item.count > 100 ? 3 : item.count > 50 ? 2 : item.count > 10 ? 1 : 0,
+    }));
 
     const fmtAmount = (val) => {
       if (val >= 100000) return `$${(val / 100000).toFixed(1)}L`;
@@ -1949,8 +2033,14 @@ exports.getAdvancedDashboardMetrics = async (req, res) => {
             {
               id: "ghosting",
               label: "Ghosting Rate",
-              value: `${((ghostingRangeAgg.ghosted / (ghostingRangeAgg.total || 1)) * 100).toFixed(0)}% ghosted`,
-              sub: "Monitor engagement trends",
+              value:
+                ghostingRangeAgg.total > 0
+                  ? `${((ghostingRangeAgg.ghosted / ghostingRangeAgg.total) * 100).toFixed(0)}% matches with no response (${ghostingRangeAgg.ghosted}/${ghostingRangeAgg.total})`
+                  : "No matches in this period",
+              sub:
+                ghostingRangeAgg.total > 0
+                  ? `${ghostingRangeAgg.total - ghostingRangeAgg.ghosted} users active in 1-to-1 chats. ${blockCountRange} blocks reported.`
+                  : "Monitor engagement trends",
               badge: "Info",
               badgeColor: "blue",
               icon: "Activity",
@@ -1997,11 +2087,11 @@ exports.getAdvancedDashboardMetrics = async (req, res) => {
               color: "hsl(182 59% 75%)",
             },
             {
-              label: "Profile Boost",
+              label: "Super Charge",
               value: revR.boost,
               displayValue: fmtAmount(revR.boost),
               percentage:
-                revR.total > 0  
+                revR.total > 0
                   ? Math.round((revR.boost / revR.total) * 100)
                   : 0,
               color: "hsl(182 59% 54%)",
@@ -2039,7 +2129,13 @@ exports.getAdvancedDashboardMetrics = async (req, res) => {
               value: funnelAgg[1],
               dropOff:
                 totalUsers > 0
-                  ? -Math.round((1 - funnelAgg[1] / totalUsers) * 100)
+                  ? Math.max(
+                      -100,
+                      Math.min(
+                        100,
+                        -Math.round((1 - funnelAgg[1] / totalUsers) * 100),
+                      ),
+                    )
                   : 0,
               color: "hsl(182 70% 68%)",
             },
@@ -2048,7 +2144,13 @@ exports.getAdvancedDashboardMetrics = async (req, res) => {
               value: funnelAgg[3],
               dropOff:
                 funnelAgg[1] > 0
-                  ? -Math.round((1 - funnelAgg[3] / funnelAgg[1]) * 100)
+                  ? Math.max(
+                      -100,
+                      Math.min(
+                        100,
+                        -Math.round((1 - funnelAgg[3] / funnelAgg[1]) * 100),
+                      ),
+                    )
                   : 0,
               color: "hsl(182 60% 54%)",
             },
@@ -2057,7 +2159,13 @@ exports.getAdvancedDashboardMetrics = async (req, res) => {
               value: funnelAgg[5],
               dropOff:
                 funnelAgg[3] > 0
-                  ? -Math.round((1 - funnelAgg[5] / funnelAgg[3]) * 100)
+                  ? Math.max(
+                      -100,
+                      Math.min(
+                        100,
+                        -Math.round((1 - funnelAgg[5] / funnelAgg[3]) * 100),
+                      ),
+                    )
                   : 0,
               color: "hsl(182 60% 45%)",
             },
@@ -2128,10 +2236,23 @@ exports.getAdvancedDashboardMetrics = async (req, res) => {
           ],
         },
         activityHeatmap: {
-          subtitle: "When your users are most active",
-          insight: `Peak activity around ${peakHourText} based on last 30d baseline`,
+          subtitle: "Yearly User Activity",
+          insight: `Activity trends for ${now.getFullYear()} calendar year`,
           days: ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"],
-          times: ["3am", "6am", "9am", "12pm", "3pm", "6pm", "9pm", "12am"],
+          times: [
+            "Jan",
+            "Feb",
+            "Mar",
+            "Apr",
+            "May",
+            "Jun",
+            "Jul",
+            "Aug",
+            "Sep",
+            "Oct",
+            "Nov",
+            "Dec",
+          ],
           data: heatmapD,
         },
         genderGrowth: (() => {
@@ -2181,19 +2302,20 @@ exports.getAdvancedDashboardMetrics = async (req, res) => {
             }
             data = weeks;
           } else {
-            // For others, show daily data but limit to last 7 days for a cleaner view
-            data = chartDates.slice(-7).map((date) => {
+            // For others, show daily data for the full range (capped at 30/90 days in chartDates)
+            data = chartDates.map((date) => {
               const d = new Date(date);
               const label = dayNamesShort[d.getDay()];
               return {
                 day: label,
+                fullDate: date,
                 male:
                   signups7dDaily.find(
-                    (s) => s._id.date === date && s._id.gender === "male",
+                    (s) => s._id.date === date && s._id.gender === "men",
                   )?.count || 0,
                 female:
                   signups7dDaily.find(
-                    (s) => s._id.date === date && s._id.gender === "female",
+                    (s) => s._id.date === date && s._id.gender === "women",
                   )?.count || 0,
               };
             });

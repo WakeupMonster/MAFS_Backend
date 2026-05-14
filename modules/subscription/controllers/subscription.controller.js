@@ -175,7 +175,24 @@ const verifyPurchase = async (req, res, next) => {
     // Re-fetching status directly from source of truth
     const fullStatus = await UsageService.getUsageStatus(sub.userId);
 
-    // if (sub.status === 'ACTIVE' && fullStatus.data)
+    // Audit log for subscription purchase
+    const User = require("../../auth/auth.model");
+    const userDoc = await User.findById(userId);
+    if (userDoc) {
+      userDoc.auditLogs.push({
+        action: "purchase",
+        reason: result.type === "CONSUMABLE" ? `Purchased ${result.quantity} ${result.consumableType}` : `Subscribed to ${sub.planType}`,
+        actedBy: userId,
+        actedAt: new Date(),
+        details: { 
+          purchaseType: result.type,
+          productId: result.productId || sub.productId,
+          transactionId: result.transactionId || result.orderId
+        },
+      });
+      await userDoc.save();
+    }
+
     if (sub.status === 'ACTIVE' && sub.expiresAt > new Date() && fullStatus.data) {
       fullStatus.data.isPremium = true;
       fullStatus.data.status = 'ACTIVE';

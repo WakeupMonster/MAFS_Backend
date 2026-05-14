@@ -39,7 +39,11 @@ module.exports.verifyUserProfile = async (req, res) => {
       });
     }
 
-    if (profile.verification.status !== "pending") {
+    // Allow approval if status is pending OR if it was previously rejected (Re-approve)
+    const isReApprove =
+      action === "approve" && profile.verification.status === "rejected";
+
+    if (profile.verification.status !== "pending" && !isReApprove) {
       return res.status(409).json({
         success: false,
         message: `Profile already ${profile.verification.status}`,
@@ -69,6 +73,32 @@ module.exports.verifyUserProfile = async (req, res) => {
     }
 
     await profile.save();
+
+    // Audit log (Push to User model)
+    const user = await User.findById(userId);
+    if (user) {
+      user.auditLogs.push({
+        action:
+          action === "approve"
+            ? isReApprove
+              ? "re-approve"
+              : "approve"
+            : "reject",
+        reason:
+          action === "reject"
+            ? reason
+            : isReApprove
+              ? reason
+              : "Identity verified",
+        actedBy: adminId,
+        actedAt: new Date(),
+        details: {
+          type: "identity_verification",
+          isReApprove: isReApprove,
+        },
+      });
+      await user.save();
+    }
 
     // Audit log
     // await AuditLog.create({
@@ -180,17 +210,14 @@ module.exports.banUser = async (req, res) => {
     user.accountStatus = "banned";
     await user.save();
 
-    // Audit log
-    // await AuditLog.create({
-    //   actorId: adminId,
-    //   actorRole: "ADMIN",
-    //   action: "USER_BAN",
-    //   entityType: "USER",
-    //   entityId: userId,
-    //   before,
-    //   after: { isBanned: true },
-    //   reason
-    // });
+    // Push to auditLogs
+    user.auditLogs.push({
+      action: "ban",
+      reason,
+      actedBy: adminId,
+      actedAt: new Date(),
+    });
+    await user.save();
 
     // Invalidate caches
     if (redis) {
@@ -253,17 +280,13 @@ module.exports.unbanUser = async (req, res) => {
     user.accountStatus = "active";
     await user.save();
 
-    // Audit log
-    // await AuditLog.create({
-    //   actorId: adminId,
-    //   actorRole: "ADMIN",
-    //   action: "USER_UNBAN",
-    //   entityType: "USER",
-    //   entityId: userId,
-    //   before,
-    //   after: { isBanned: false },
-    //   reason
-    // });
+    // Push to auditLogs
+    user.auditLogs.push({
+      action: "unban",
+      actedBy: adminId,
+      actedAt: new Date(),
+    });
+    await user.save();
 
     // Invalidate caches
     if (redis) {
@@ -341,20 +364,15 @@ module.exports.suspendUser = async (req, res) => {
     user.accountStatus = "suspended";
     await user.save();
 
-    // // Audit log
-    // await AuditLog.create({
-    //   actorId: adminId,
-    //   actorRole: "ADMIN",
-    //   action: "USER_SUSPEND",
-    //   entityType: "USER",
-    //   entityId: userId,
-    //   before,
-    //   after: {
-    //     isSuspended: true,
-    //     suspendUntil
-    //   },
-    //   reason
-    // });
+    // Push to auditLogs
+    user.auditLogs.push({
+      action: "suspend",
+      reason,
+      actedBy: adminId,
+      actedAt: new Date(),
+      details: { durationHours, suspendUntil },
+    });
+    await user.save();
 
     // Cache invalidation
     if (redis) {
@@ -414,6 +432,13 @@ module.exports.unsuspendUser = async (req, res) => {
     };
 
     user.accountStatus = "active";
+
+    // Push to auditLogs
+    user.auditLogs.push({
+      action: "unsuspend",
+      actedBy: adminId,
+      actedAt: new Date(),
+    });
     await user.save(); // Cache invalidation
 
     if (redis) {

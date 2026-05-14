@@ -86,12 +86,14 @@ const userSchema = new mongoose.Schema(
     },
 
     // ============ TOKENS & SESSIONS ============
-    fcmTokens: [{
-      token: String,
-      deviceId: String,
-      platform: { type: String, enum: ["ios", "android"] },
-      createdAt: { type: Date, default: Date.now }
-    }],
+    fcmTokens: [
+      {
+        token: String,
+        deviceId: String,
+        platform: { type: String, enum: ["ios", "android"] },
+        createdAt: { type: Date, default: Date.now },
+      },
+    ],
     refreshTokens: [refreshTokenSchema],
 
     // ============ NOTIFICATION SETTINGS ============
@@ -100,7 +102,7 @@ const userSchema = new mongoose.Schema(
       email: { type: Boolean, default: false },
       likes: { type: Boolean, default: true },
       messages: { type: Boolean, default: true },
-      matches: { type: Boolean, default: true }
+      matches: { type: Boolean, default: true },
     },
 
     // ============ STATUS FLAGS ============
@@ -174,6 +176,39 @@ const userSchema = new mongoose.Schema(
       suspendedAt: { type: Date, default: null },
       suspendUntil: { type: Date, default: null, index: true },
     },
+
+    auditLogs: [
+      {
+        action: {
+          type: String,
+          enum: [
+            "ban",
+            "suspend",
+            "warn",
+            "resolve",
+            "approve",
+            "re-approve",
+            "reject",
+            "unban",
+            "unsuspend",
+            "note",
+            "update_profile",
+            "view_profile",
+            "verification_submit",
+            "purchase",
+            "deactivate",
+            "reactivate",
+            "delete",
+            "delete_photo",
+          ],
+          required: true,
+        },
+        reason: { type: String },
+        actedBy: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
+        actedAt: { type: Date, default: Date.now },
+        details: { type: mongoose.Schema.Types.Mixed },
+      },
+    ],
 
     onboarding: {
       isComplete: { type: Boolean, default: false },
