@@ -79,9 +79,8 @@ const SubscriptionSchema = new mongoose.Schema(
     source: {
       type: String,
       enum: ["STORE", "ADMIN", "GIVEAWAY", "MILESTONE", "FREE_TRIAL"],
-      default: "STORE"
+      default: "STORE",
     },
-
 
     environment: {
       type: String,
@@ -99,13 +98,16 @@ const SubscriptionSchema = new mongoose.Schema(
     ],
     // ➕ NAYA: Dynamic naming and tracking for Giveaways/Milestones
     customDisplayName: { type: String, default: null },
-    prizeId: { type: mongoose.Schema.Types.ObjectId, ref: "GiveawayPrize", default: null },
+    prizeId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "GiveawayPrize",
+      default: null,
+    },
 
     // ➕ Initiative 1 & 2: Billing Retry and Grace Period
     isInBillingRetry: { type: Boolean, default: false },
     isInGracePeriod: { type: Boolean, default: false },
     gracePeriodEndsAt: { type: Date, default: null },
-
   },
   {
     timestamps: true,
@@ -148,19 +150,21 @@ SubscriptionSchema.statics.hasPremiumAccess = function (sub) {
   return (
     (["ACTIVE", "CANCELLED"].includes(sub.status) && expiresAt > now) ||
     (sub.status === "GRACE" && sub.isInGracePeriod === true) ||
-    (sub.isInBillingRetry === true)
+    sub.isInBillingRetry === true
   );
 };
-
 
 SubscriptionSchema.statics.findActiveByUser = function (userId) {
   return this.findOne({
     userId,
     $or: [
-      { status: { $in: ["ACTIVE", "CANCELLED"] }, expiresAt: { $gt: new Date() } },
+      {
+        status: { $in: ["ACTIVE", "CANCELLED"] },
+        expiresAt: { $gt: new Date() },
+      },
       { status: "GRACE", isInGracePeriod: true },
-      { isInBillingRetry: true }
-    ]
+      { isInBillingRetry: true },
+    ],
   }).sort({ expiresAt: -1 }); // Get the one that expires furthest in the future
 };
 

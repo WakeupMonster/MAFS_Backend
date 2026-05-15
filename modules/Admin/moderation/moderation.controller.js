@@ -167,7 +167,7 @@ module.exports.banUser = async (req, res) => {
   try {
     const adminId = req.user._id;
     const userId = req.params.id;
-    const { reason } = req.body;
+    const { reason, category } = req.body;
 
     if (!reason) {
       return res.status(400).json({
@@ -216,6 +216,7 @@ module.exports.banUser = async (req, res) => {
       reason,
       actedBy: adminId,
       actedAt: new Date(),
+      details: { category: category || "General" },
     });
     await user.save();
 
@@ -242,7 +243,7 @@ module.exports.unbanUser = async (req, res) => {
   try {
     const adminId = req.user._id;
     const userId = req.params.id;
-    // const { reason } = req.body;
+    const { reason, category } = req.body;
 
     if (!adminId)
       return res.status(401).json({ success: false, message: "Unauthorized" });
@@ -280,11 +281,12 @@ module.exports.unbanUser = async (req, res) => {
     user.accountStatus = "active";
     await user.save();
 
-    // Push to auditLogs
     user.auditLogs.push({
       action: "unban",
+      reason: reason || "Unbanned by admin",
       actedBy: adminId,
       actedAt: new Date(),
+      details: { category: category || "Administrative" },
     });
     await user.save();
 
@@ -323,7 +325,7 @@ module.exports.suspendUser = async (req, res) => {
     if (adminId.toString() === userId.toString()) {
       return res.status(403).json({
         success: false,
-        message: "You cannot unsuspend yourself",
+        message: "You cannot suspend yourself",
       });
     }
 
@@ -397,11 +399,12 @@ module.exports.unsuspendUser = async (req, res) => {
   try {
     const adminId = req.user._id;
     const userId = req.params.id;
+    const { reason, category } = req.body;
 
     if (adminId.toString() === userId.toString()) {
       return res.status(403).json({
         success: false,
-        message: "You cannot suspend yourself",
+        message: "You cannot unsuspend yourself",
       });
     }
 
@@ -436,8 +439,10 @@ module.exports.unsuspendUser = async (req, res) => {
     // Push to auditLogs
     user.auditLogs.push({
       action: "unsuspend",
+      reason: reason || "Suspension lifted by admin",
       actedBy: adminId,
       actedAt: new Date(),
+      details: { category: category || "Administrative" },
     });
     await user.save(); // Cache invalidation
 
