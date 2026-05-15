@@ -27,7 +27,7 @@ module.exports = function chatSocket(io, redisClient) {
     socket.join(`user:${currentUserId}`);
 
     try {
-      await redisClient.set(`user:online:${currentUserId}`, "true", "EX", 86400); // 24h TTL
+      await redisClient.set(`user:online:${currentUserId}`, "true", { EX: 86400 }); // 24h TTL
       await redisClient.sAdd(`user:sockets:${currentUserId}`, socket.id);
       await redisClient.expire(`user:sockets:${currentUserId}`, 86400); // 24h TTL
     } catch (redisErr) {
@@ -203,7 +203,7 @@ module.exports = function chatSocket(io, redisClient) {
           } else {
             blockedStatus = await isBlocked(currentUserId, receiverId);
             // Cache for 5 minutes (300s)
-            await redisClient.setex(blockCacheKey, 300, JSON.stringify(blockedStatus));
+            await redisClient.set(blockCacheKey, JSON.stringify(blockedStatus), { EX: 300 });
           }
 
           if (blockedStatus.isBlocked) {
@@ -452,7 +452,7 @@ module.exports = function chatSocket(io, redisClient) {
         } else {
             blockedStatus = await isBlocked(currentUserId, otherUserId);
             // Cache for 5 minutes (300s)
-            await redisClient.setex(blockCacheKey, 300, JSON.stringify(blockedStatus));
+            await redisClient.set(blockCacheKey, JSON.stringify(blockedStatus), { EX: 300 });
         }
 
         if (blockedStatus.isBlocked && !blockedStatus.blockedByMe) {
