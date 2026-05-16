@@ -177,7 +177,6 @@ const getProfileForReview = async (req, res) => {
     ]);
 
     // 2. Reporters ki profiles fetch karein (Nickname + Photos)
-    // 2. Reporters aur Admins ki profiles fetch karein (Nickname + Photos)
     const reporterIds = [
       ...new Set(reports.map((r) => r.reporterId.toString())),
     ];
@@ -260,6 +259,7 @@ const getProfileForReview = async (req, res) => {
         return {
           _id: report._id,
           reason: report.reason,
+          description: report.description,
           details: report.details,
           reportedBy: {
             id: report.reporterId,

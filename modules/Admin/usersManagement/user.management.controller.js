@@ -35,6 +35,7 @@ module.exports.GETAllUsers = async (req, res) => {
       gender,
       isDeactivated,
       isScheduledForDeletion,
+      isGhosting,
     } = req.query;
 
     const page = Math.max(parseInt(reqPage) || 1, 1);
@@ -43,6 +44,27 @@ module.exports.GETAllUsers = async (req, res) => {
     const searchTrimmed = search?.trim();
 
     const baseMatch = { role: "USER", isFake: { $ne: true } };
+
+    // --- GHOSTING FILTER LOGIC ---
+    if (isGhosting === "true") {
+      const oneMonthAgo = new Date();
+      oneMonthAgo.setMonth(oneMonthAgo.getMonth() - 1);
+
+      const Match = mongoose.model("Match");
+      const ghostingUserIds = await Match.aggregate([
+        {
+          $match: {
+            lastMessageBy: null,
+            createdAt: { $gte: oneMonthAgo },
+          },
+        },
+        { $unwind: "$users" },
+        { $group: { _id: "$users" } },
+      ]).then((results) => results.map((r) => r._id));
+
+      baseMatch._id = { $in: ghostingUserIds };
+    }
+
     if (accountStatus) baseMatch.accountStatus = accountStatus;
     if (isPremium) baseMatch.isPremium = isPremium === "true";
     if (isBanned !== undefined)
@@ -507,10 +529,20 @@ module.exports.GETSingleUserDetails = async (req, res) => {
           currentSubscription: {
             $arrayElemAt: [
               {
-                $filter: {
-                  input: "$subscriptionInfo",
-                  as: "sub",
-                  cond: { $eq: ["$$sub.status", "ACTIVE"] }, // Prioritize active ones
+                $sortArray: {
+                  input: {
+                    $filter: {
+                      input: "$subscriptionInfo",
+                      as: "sub",
+                      cond: {
+                        $in: [
+                          "$$sub.status",
+                          ["ACTIVE", "CANCELLED", "GRACE", "PENDING"],
+                        ],
+                      },
+                    },
+                  },
+                  sortBy: { expiresAt: -1 },
                 },
               },
               0,
@@ -799,14 +831,31 @@ module.exports.GETSingleUserDetails = async (req, res) => {
               $ifNull: ["$consumableBalances.boostsBalance", 0],
             },
             isCurrentlyActive: {
-              $and: [
+              $or: [
                 {
-                  $eq: [
-                    { $ifNull: ["$currentSubscription.status", ""] },
-                    "ACTIVE",
+                  $and: [
+                    {
+                      $in: [
+                        "$currentSubscription.status",
+                        ["ACTIVE", "CANCELLED"],
+                      ],
+                    },
+                    { $gt: ["$currentSubscription.expiresAt", "$$NOW"] },
                   ],
                 },
-                { $gt: ["$currentSubscription.expiresAt", new Date()] },
+                {
+                  $and: [
+                    { $eq: ["$currentSubscription.status", "GRACE"] },
+                    { $eq: ["$currentSubscription.isInGracePeriod", true] },
+                  ],
+                },
+                { $eq: ["$currentSubscription.isInBillingRetry", true] },
+              ],
+            },
+            autoRenew: {
+              $ifNull: [
+                "$currentSubscription.autoRenew",
+                { $ifNull: ["$latestSubscription.autoRenew", false] },
               ],
             },
           },
@@ -1368,13 +1417,85 @@ module.exports.DELETEPhoto = async (req, res) => {
 module.exports.streamUsersExport = async (req, res) => {
   try {
     const filters = req.query || {};
+    const searchTrimmed = filters.search?.trim();
 
-    const userMatch = { role: "USER" };
+    const userMatch = { role: "USER", isFake: { $ne: true } };
+
+    // --- GHOSTING FILTER LOGIC ---
+    if (filters.isGhosting === "true") {
+      const oneMonthAgo = new Date();
+      oneMonthAgo.setMonth(oneMonthAgo.getMonth() - 1);
+
+      const Match = mongoose.model("Match");
+      const ghostingUserIds = await Match.aggregate([
+        {
+          $match: {
+            lastMessageBy: null,
+            createdAt: { $gte: oneMonthAgo },
+          },
+        },
+        { $unwind: "$users" },
+        { $group: { _id: "$users" } },
+      ]).then((results) => results.map((r) => r._id));
+
+      userMatch._id = { $in: ghostingUserIds };
+    }
+
     if (filters.accountStatus) userMatch.accountStatus = filters.accountStatus;
     if (filters.isPremium) userMatch.isPremium = filters.isPremium === "true";
+    if (filters.isBanned !== undefined)
+      userMatch["banDetails.isBanned"] = filters.isBanned === "true";
+    if (filters.isDeactivated !== undefined)
+      userMatch["deactivationDetails.isDeactivated"] =
+        filters.isDeactivated === "true";
+    if (filters.isScheduledForDeletion !== undefined) {
+      userMatch["deletionDetails.isScheduledForDeletion"] =
+        filters.isScheduledForDeletion === "true";
+    }
+    if (filters.last24Hours === "true") {
+      const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
+      userMatch.createdAt = { $gte: twentyFourHoursAgo };
+    }
 
-    const profileMatch = {};
-    if (filters.gender) profileMatch["profile.gender"] = filters.gender;
+    const pipeline = [{ $match: userMatch }];
+
+    // Handle profile-based filters (gender, search)
+    const needsEarlyProfileLookup = !!(filters.gender || searchTrimmed);
+
+    if (needsEarlyProfileLookup) {
+      pipeline.push(
+        {
+          $lookup: {
+            from: "profiles",
+            localField: "_id",
+            foreignField: "userId",
+            as: "profile",
+          },
+        },
+        { $unwind: { path: "$profile", preserveNullAndEmptyArrays: true } },
+      );
+
+      if (filters.gender) {
+        pipeline.push({ $match: { "profile.gender": filters.gender } });
+      }
+
+      if (searchTrimmed) {
+        const searchRegex = new RegExp(
+          searchTrimmed.replace(/[.*+?^${}()|[\\/]\\]/g, "\\$&"),
+          "i",
+        );
+        pipeline.push({
+          $match: {
+            $or: [
+              { email: searchRegex },
+              { phone: searchRegex },
+              { "profile.nickname": searchRegex },
+              { "profile.location.city": searchRegex },
+            ],
+          },
+        });
+      }
+    }
 
     res.setHeader(
       "Content-Disposition",
@@ -1420,39 +1541,45 @@ module.exports.streamUsersExport = async (req, res) => {
       });
     };
 
-    const cursor = User.aggregate([
-      { $match: userMatch },
-      { $sort: { createdAt: -1 } }, // ✅ Sort by recently joined first
-      {
-        $lookup: {
-          from: "profiles",
-          localField: "_id",
-          foreignField: "userId",
-          as: "profile",
+    // 4. Final Aggregation Pipeline
+    pipeline.push({ $sort: { createdAt: -1 } });
+
+    // If we didn't lookup profiles early, do it now
+    if (!needsEarlyProfileLookup) {
+      pipeline.push(
+        {
+          $lookup: {
+            from: "profiles",
+            localField: "_id",
+            foreignField: "userId",
+            as: "profile",
+          },
         },
+        { $unwind: { path: "$profile", preserveNullAndEmptyArrays: true } },
+      );
+    }
+
+    pipeline.push({
+      $project: {
+        _id: 1,
+        email: 1,
+        phone: 1,
+        accountStatus: 1,
+        isPremium: 1,
+        authMethod: 1,
+        createdAt: 1,
+        lastLoginAt: 1,
+        nickname: "$profile.nickname",
+        gender: "$profile.gender",
+        age: "$profile.age",
+        jobTitle: "$profile.jobTitle",
+        city: "$profile.location.city",
+        profileCompletion: "$profile.onboardingProgress.totalCompletion",
+        kycStatus: "$profile.verification.status",
       },
-      { $unwind: { path: "$profile", preserveNullAndEmptyArrays: true } },
-      ...(Object.keys(profileMatch).length ? [{ $match: profileMatch }] : []),
-      {
-        $project: {
-          _id: 1,
-          email: 1,
-          phone: 1,
-          accountStatus: 1,
-          isPremium: 1,
-          authMethod: 1,
-          createdAt: 1,
-          lastLoginAt: 1, // ✅ FIX 2: Was missing, causing LastActiveAt to be empty
-          nickname: "$profile.nickname",
-          gender: "$profile.gender",
-          age: "$profile.age",
-          jobTitle: "$profile.jobTitle",
-          city: "$profile.location.city",
-          profileCompletion: "$profile.onboardingProgress.totalCompletion",
-          kycStatus: "$profile.verification.status",
-        },
-      },
-    ]).cursor({ batchSize: 1000 });
+    });
+
+    const cursor = User.aggregate(pipeline).cursor({ batchSize: 1000 });
 
     for await (const doc of cursor) {
       csvStream.write({
