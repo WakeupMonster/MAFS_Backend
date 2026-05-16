@@ -111,11 +111,16 @@ exports.getTransactions = async (req, res, next) => {
             SubscriptionTransaction.countDocuments(filter),
         ]);
 
-        // Enrich transactions with Net Revenue
+        // Enrich transactions with Net Revenue and Metadata
         const enrichedTransactions = transactions.map(txn => {
-            const grossAmount = txn.amount || 0;
+            // Use stored amounts if available (new records), else calculate on the fly (legacy records)
+            const grossAmount = txn.grossAmount || txn.amount || 0;
             const commissionRate = COMMISSION_RATES[txn.platform] || 0.30;
-            const netAmount = parseFloat((grossAmount * (1 - commissionRate)).toFixed(2));
+            const calculatedCommission = parseFloat((grossAmount * commissionRate).toFixed(2));
+            const calculatedNet = parseFloat((grossAmount - calculatedCommission).toFixed(2));
+
+            const commission = txn.commission !== undefined ? txn.commission : calculatedCommission;
+            const netAmount = txn.netAmount !== undefined ? txn.netAmount : calculatedNet;
 
             return {
                 _id: txn._id,
@@ -125,10 +130,16 @@ exports.getTransactions = async (req, res, next) => {
                 eventType: txn.eventType,
                 grossAmount: grossAmount,
                 netAmount: netAmount,
-                commission: parseFloat((grossAmount * commissionRate).toFixed(2)),
+                commission: commission,
                 currency: txn.currency || "AUD",
                 platform: txn.platform,
-                transactionId: txn.transactionId || txn.orderId || null,
+                // Fallback chain for IDs to ensure legacy records show something useful
+                transactionId: txn.transactionId || txn.gatewayTransactionId || txn.orderId || txn.purchaseToken || null,
+                gatewayTransactionId: txn.gatewayTransactionId || txn.transactionId || txn.orderId || txn.purchaseToken || null,
+                originalTransactionId: txn.originalTransactionId || txn.transactionId || txn.gatewayTransactionId || txn.orderId || txn.purchaseToken || null,
+                environment: txn.environment || "production",
+                isSandbox: txn.isSandbox || txn.environment === "sandbox" || false,
+                isAutoRenewal: txn.isAutoRenewal || false,
                 refundReason: txn.refundReason || null,
                 refundAmount: txn.refundAmount || null,
                 createdAt: txn.createdAt,

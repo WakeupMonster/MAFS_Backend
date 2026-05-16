@@ -273,18 +273,25 @@ exports.manualGrant = async (req, res, next) => {
             environment: "production"
         });
 
+        // Generate internal ID for manual grant
+        const internalId = `INT-MG-${Date.now()}`;
+
         // Log the admin grant as a transaction
-        await SubscriptionTransaction.create({
+        await subscriptionService._logTransaction({
             userId,
             subscriptionId: subscription._id,
             platform: "ADMIN",
             eventType: "ADMIN_GRANT",
             productId: `manual_${planType.toLowerCase()}`,
-            amount: 0,
+            amount: 0, // Admin grants are free
             currency: "AUD",
             reason: reason || "Admin manual grant",
+            transactionId: internalId,
+            gatewayTransactionId: internalId,
+            environment: "production",
+            isSandbox: false,
+            isAutoRenewal: false,
             occurredAt: new Date(),
-            idempotencyKey: `admin_GRANT_${subscription._id}_${Date.now()}`
         });
 
         // Sync flags
@@ -313,8 +320,11 @@ exports.grantConsumables = async (req, res, next) => {
             { upsert: true, new: true }
         );
 
+        // Generate internal ID for consumable grant
+        const internalId = `INT-CG-${Date.now()}`;
+
         // Log the consumable grant as a transaction for audit trail
-        await SubscriptionTransaction.create({
+        await subscriptionService._logTransaction({
             userId,
             platform: "ADMIN",
             eventType: "ADMIN_CONSUMABLE_GRANT",
@@ -322,8 +332,11 @@ exports.grantConsumables = async (req, res, next) => {
             amount: 0,
             currency: "AUD",
             reason: reason || "Admin consumable grant",
+            transactionId: internalId,
+            gatewayTransactionId: internalId,
+            environment: "production",
+            isSandbox: false,
             occurredAt: new Date(),
-            idempotencyKey: `admin_CONSUMABLE_${userId}_${type}_${Date.now()}`
         });
 
         return res.json({ success: true, message: "Consumables granted", wallet });
@@ -413,8 +426,11 @@ exports.extendSubscription = async (req, res, next) => {
         subscription.expiresAt = newExpiresAt;
         await subscription.save();
 
+        // Generate internal ID for extension
+        const internalId = `INT-EXT-${Date.now()}`;
+
         // Log the extension as a transaction
-        await SubscriptionTransaction.create({
+        await subscriptionService._logTransaction({
             userId,
             subscriptionId: subscription._id,
             platform: "ADMIN",
@@ -423,8 +439,11 @@ exports.extendSubscription = async (req, res, next) => {
             amount: 0,
             currency: "AUD",
             reason: reason,
+            transactionId: internalId,
+            gatewayTransactionId: internalId,
+            environment: "production",
+            isSandbox: false,
             occurredAt: new Date(),
-            idempotencyKey: `admin_EXTENSION_${subscription._id}_${Date.now()}`
         });
 
         // Sync profile with updated expiry

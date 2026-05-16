@@ -63,6 +63,10 @@ async function _processAppleWebhook(decoded, event) {
       purchaseDate: txn.purchaseDate,
       expiresDate: txn.expiresDate,
       platform: "ios",
+      environment: (decoded.environment || "production").toLowerCase(),
+      isSandbox: decoded.environment === "Sandbox",
+      isAutoRenewal: txn.autoRenewStatus === 1,
+      rawResponse: decoded,
     };
 
     switch (decoded.notificationType) {
@@ -234,6 +238,11 @@ async function _processGoogleWebhook(notification, eventName, event, isConsumabl
         expiresDate: null,
         orderId: detail.orderId,
         platform: "android",
+        transactionId: detail.orderId,
+        gatewayTransactionId: detail.orderId,
+        environment: "production",
+        isSandbox: false,
+        rawResponse: detail,
       };
 
       if (eventName === "CONSUMABLE_PURCHASED") {
@@ -260,6 +269,12 @@ async function _processGoogleWebhook(notification, eventName, event, isConsumabl
         expiresDate: parseInt(detail.expiryTimeMillis),
         orderId: detail.orderId,
         platform: "android",
+        transactionId: detail.orderId, // Use orderId as transactionId for Google
+        gatewayTransactionId: detail.orderId,
+        environment: "production", // Google webhooks are usually production, but detail might have more info
+        isSandbox: false, // detail.purchaseType === 0 ? true : false (test purchase)
+        isAutoRenewal: detail.autoRenewing,
+        rawResponse: detail,
       };
 
       switch (eventName) {
@@ -332,4 +347,104 @@ async function _processGoogleWebhook(notification, eventName, event, isConsumabl
   }
 }
 
-module.exports = { appleWebhook, googleWebhook };
+// ─── REVENUECAT WEBHOOK ───
+const revenuecatWebhook = async (req, res) => {
+  try {
+    const rcEvent = req.body.event;
+    if (!rcEvent) {
+      return res.status(400).send("No event data");
+    }
+
+    const hash = generatePayloadHash(req.body);
+
+    let event;
+    try {
+      event = await SubscriptionEvent.create({
+        platform: rcEvent.store === "app_store" ? "ios" : "android",
+        source: "REVENUECAT",
+        eventType: rcEvent.type,
+        externalEventId: rcEvent.id,
+        payloadHash: hash,
+        rawPayload: req.body,
+        processed: false,
+        receivedAt: new Date(),
+      });
+    } catch (err) {
+      if (err.code === 11000) {
+        return res.status(200).send("Duplicate");
+      }
+      throw err;
+    }
+
+    res.status(200).send("OK");
+
+    _processRevenueCatWebhook(rcEvent, event).catch((err) => {
+      logger.error("RevenueCat webhook processing failed:", err.message);
+    });
+  } catch (err) {
+    logger.error("RevenueCat webhook error:", err.message);
+    return res.status(500).send("Error");
+  }
+};
+
+async function _processRevenueCatWebhook(rcEvent, event) {
+  try {
+    const data = {
+      userId: rcEvent.app_user_id,
+      originalTransactionId: rcEvent.original_transaction_id,
+      transactionId: rcEvent.transaction_id,
+      gatewayTransactionId: rcEvent.transaction_id,
+      productId: rcEvent.product_id,
+      purchaseDate: rcEvent.purchased_at_ms,
+      expiresDate: rcEvent.expiration_at_ms,
+      platform: rcEvent.store === "app_store" ? "ios" : "android",
+      environment: (rcEvent.environment || "production").toLowerCase(),
+      isSandbox: rcEvent.environment === "SANDBOX",
+      isAutoRenewal: true, // RC events for renewals usually imply auto-renew is on
+      rawResponse: rcEvent,
+    };
+
+    switch (rcEvent.type) {
+      case "INITIAL_PURCHASE":
+        await subscriptionService.handlePurchase(data);
+        break;
+      case "RENEWAL":
+        await subscriptionService.handleRenew(data);
+        break;
+      case "CANCELLATION":
+        data.cancellationReason = rcEvent.cancel_reason || "USER_CANCELLED";
+        await subscriptionService.handleCancel(data);
+        break;
+      case "EXPIRATION":
+        await subscriptionService.handleExpire(data);
+        break;
+      case "BILLING_ISSUE":
+        await subscriptionService.handleBillingRetryStart(data);
+        break;
+      case "REFUND":
+        await subscriptionService.handleRefund(data);
+        break;
+      default:
+        logger.info("Unhandled RevenueCat event:", rcEvent.type);
+    }
+
+    event.processed = true;
+    event.processedAt = new Date();
+    await event.save();
+
+    logger.info("RevenueCat webhook processed", {
+      eventType: rcEvent.type,
+      eventId: event._id,
+    });
+  } catch (err) {
+    event.error = {
+      message: err.message,
+      stack: err.stack,
+      retryCount: (event.error ? event.error.retryCount : 0) + 1,
+    };
+    await event.save();
+    logger.error("RevenueCat webhook process error:", err.message);
+  }
+}
+
+module.exports = { appleWebhook, googleWebhook, revenuecatWebhook };

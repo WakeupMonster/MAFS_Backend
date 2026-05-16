@@ -24,6 +24,11 @@ const SubscriptionTransactionSchema = new mongoose.Schema(
       index: true,
       sparse: true,
     },
+    gatewayTransactionId: {
+      type: String,
+      index: true,
+      sparse: true,
+    },
     purchaseToken: {
       type: String,
       sparse: true,
@@ -54,8 +59,25 @@ const SubscriptionTransactionSchema = new mongoose.Schema(
       ],
       required: true,
     },
-    amount: Number,
+    amount: Number, // Legacy field, kept for compatibility
+    grossAmount: Number,
+    commission: Number,
+    netAmount: Number,
     currency: String,
+    environment: {
+      type: String,
+      enum: ["sandbox", "production"],
+      default: "production",
+    },
+    isSandbox: {
+      type: Boolean,
+      default: false,
+    },
+    isAutoRenewal: {
+      type: Boolean,
+      default: false,
+    },
+    originalTransactionId: String,
     reason: String, // For admin operations (grant reason, extension reason, etc.)
     refundReason: String,
     refundAmount: Number,

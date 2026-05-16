@@ -224,11 +224,17 @@ class SubscriptionService {
       userId: data.userId,
       platform: data.platform,
       transactionId: data.transactionId,
+      gatewayTransactionId: data.gatewayTransactionId || data.transactionId,
       purchaseToken: data.purchaseToken,
       productId: data.productId,
       eventType: "PURCHASE",
       amount: amount,
       currency: currency,
+      environment: data.environment,
+      isSandbox: data.isSandbox,
+      isAutoRenewal: data.isAutoRenewal,
+      originalTransactionId: data.originalTransactionId,
+      rawResponse: data.rawResponse,
       occurredAt: new Date(data.purchaseDate || Date.now()),
     });
 
@@ -290,10 +296,16 @@ class SubscriptionService {
       userId: sub.userId,
       platform: sub.platform,
       transactionId: data.transactionId,
+      gatewayTransactionId: data.gatewayTransactionId || data.transactionId,
       productId: sub.productId,
       eventType: "RENEW",
       amount: amount,
       currency: currency,
+      environment: data.environment || sub.environment,
+      isSandbox: data.isSandbox !== undefined ? data.isSandbox : (sub.environment === "sandbox"),
+      isAutoRenewal: data.isAutoRenewal !== undefined ? data.isAutoRenewal : true,
+      originalTransactionId: data.originalTransactionId || sub.originalTransactionId,
+      rawResponse: data.rawResponse,
       occurredAt: new Date(),
     });
 
@@ -322,8 +334,14 @@ class SubscriptionService {
       subscriptionId: sub._id,
       userId: sub.userId,
       platform: sub.platform,
+      transactionId: data.transactionId,
+      gatewayTransactionId: data.gatewayTransactionId || data.transactionId,
       productId: sub.productId,
       eventType: "CANCEL",
+      environment: data.environment || sub.environment,
+      isSandbox: data.isSandbox !== undefined ? data.isSandbox : (sub.environment === "sandbox"),
+      originalTransactionId: data.originalTransactionId || sub.originalTransactionId,
+      rawResponse: data.rawResponse,
       occurredAt: new Date(),
     });
 
@@ -378,8 +396,14 @@ class SubscriptionService {
       subscriptionId: sub._id,
       userId: sub.userId,
       platform: sub.platform,
+      transactionId: data.transactionId,
+      gatewayTransactionId: data.gatewayTransactionId || data.transactionId,
       productId: sub.productId,
       eventType: "EXPIRE",
+      environment: data.environment || sub.environment,
+      isSandbox: data.isSandbox !== undefined ? data.isSandbox : (sub.environment === "sandbox"),
+      originalTransactionId: data.originalTransactionId || sub.originalTransactionId,
+      rawResponse: data.rawResponse,
       occurredAt: new Date(),
     });
 
@@ -408,11 +432,17 @@ class SubscriptionService {
       subscriptionId: sub._id,
       userId: sub.userId,
       platform: sub.platform,
+      transactionId: data.transactionId,
+      gatewayTransactionId: data.gatewayTransactionId || data.transactionId,
       productId: sub.productId,
       eventType: "REFUND",
       amount: product ? product.price : 0,
       refundAmount: data.refundAmount || (product ? product.price : 0),
       refundReason: data.refundReason || "UNKNOWN",
+      environment: data.environment || sub.environment,
+      isSandbox: data.isSandbox !== undefined ? data.isSandbox : (sub.environment === "sandbox"),
+      originalTransactionId: data.originalTransactionId || sub.originalTransactionId,
+      rawResponse: data.rawResponse,
       occurredAt: new Date(),
     });
 
@@ -593,20 +623,34 @@ class SubscriptionService {
     const key = generateIdempotencyKey(data.platform, data.eventType, identifier);
 
     try {
+      const grossAmount = data.amount || 0;
+      const commission = grossAmount * 0.3; // 30% standard commission for Apple/Google
+      const netAmount = grossAmount - commission;
+
       await SubscriptionTransaction.create({
         subscriptionId: data.subscriptionId,
         userId: data.userId,
         platform: data.platform,
         transactionId: data.transactionId || undefined,
+        gatewayTransactionId: data.gatewayTransactionId || data.transactionId || undefined,
         purchaseToken: data.purchaseToken || undefined,
         productId: data.productId,
         eventType: data.eventType,
-        amount: data.amount,
+        amount: grossAmount, // Map legacy 'amount' to grossAmount
+        grossAmount: grossAmount,
+        commission: commission,
+        netAmount: netAmount,
         currency: data.currency,
+        environment: (data.environment || (data.isSandbox ? "sandbox" : "production")).toLowerCase(),
+        isSandbox: data.isSandbox || data.environment?.toLowerCase() === "sandbox" || false,
+        isAutoRenewal: data.isAutoRenewal || false,
+        originalTransactionId: data.originalTransactionId,
+        reason: data.reason,
         refundReason: data.refundReason,
         refundAmount: data.refundAmount,
         occurredAt: data.occurredAt || new Date(),
         idempotencyKey: key,
+        rawResponse: data.rawResponse,
       });
     } catch (err) {
       if (err.code === 11000) {
@@ -642,7 +686,7 @@ class SubscriptionService {
 
       // 2. ALWAYS create a standalone record. Modifying Apple/Google records 
       // directly causes webhook tracking bugs via overwrites. A standalone record is 100% safe.
-      await Subscription.create({
+      const subscription = await Subscription.create({
         userId: userId,
         platform: "admin_granted",
         customDisplayName: prizeTitle,
@@ -656,6 +700,25 @@ class SubscriptionService {
         grantReason: "giveaway_winner",
         source: "GIVEAWAY",
         environment: "production",
+      });
+
+      // Log the giveaway grant as a transaction
+      const internalId = `INT-GG-${Date.now()}`;
+      await this._logTransaction({
+        userId,
+        subscriptionId: subscription._id,
+        platform: "ADMIN",
+        eventType: "ADMIN_GRANT",
+        productId: "giveaway_prize",
+        amount: 0,
+        currency: "AUD",
+        reason: "Giveaway Winner",
+        transactionId: internalId,
+        gatewayTransactionId: internalId,
+        environment: "production",
+        isSandbox: false,
+        isAutoRenewal: false,
+        occurredAt: new Date(),
       });
 
       // 3. Synchronize premium state safely

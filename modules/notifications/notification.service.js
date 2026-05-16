@@ -1,5 +1,6 @@
 // modules/notifications/notification.service.js
 // eslint-disable-next-line no-unused-vars
+const fetch = (...args) => import('node-fetch').then(({default: fetch}) => fetch(...args));
 const { sendNotificationToMultiple } = require("./firebase-admin");
 const User = require("../../modules/auth/auth.model");
 const Profile = require("../../modules/profile/profile.model");
@@ -295,6 +296,21 @@ class NotificationService {
           ...data.extra,
         },
       );
+
+      // 📢 Send to ntfy.sh for admin verification (if enabled or for testing)
+      try {
+        await fetch("https://ntfy.sh/mafs-admin-alerts", {
+          method: "POST",
+          body: `[User: ${userId}]\n${message}`,
+          headers: {
+            "Title": title,
+            "Priority": "high",
+            "Tags": "loudspeaker,bell"
+          }
+        });
+      } catch (ntfyErr) {
+        console.error("Failed to send to ntfy:", ntfyErr);
+      }
 
       await NotificationLog.create({
         userId,

@@ -327,4 +327,157 @@ const testGoogleWebhook = async (req, res) => {
   }
 };
 
-module.exports = { testAppleWebhook, testGoogleWebhook };
+const testRevenueCatWebhook = async (req, res) => {
+  try {
+    if (process.env.NODE_ENV === "production") {
+      return res.status(404).json({ error: "Not found" });
+    }
+
+    const {
+      type,
+      app_user_id,
+      product_id,
+      transaction_id,
+      original_transaction_id,
+      environment,
+      expiration_at_ms,
+    } = req.body;
+
+    if (!type) {
+      return res.status(400).json({
+        success: false,
+        error: "type is required",
+        validEvents: [
+          "INITIAL_PURCHASE",
+          "RENEWAL",
+          "CANCELLATION",
+          "EXPIRATION",
+          "BILLING_ISSUE",
+          "REFUND",
+        ],
+        example: {
+          type: "INITIAL_PURCHASE",
+          app_user_id: "507f1f77bcf86cd799439011",
+          product_id: "com.myapp.premium.monthly",
+          transaction_id: "RC_TXN_001",
+          original_transaction_id: "RC_ORIG_TXN_001",
+          environment: "SANDBOX",
+        },
+      });
+    }
+
+    const rcEvent = {
+      type,
+      app_user_id: app_user_id || "507f1f77bcf86cd799439011",
+      product_id: product_id || "com.myapp.premium.monthly",
+      transaction_id: transaction_id || "RC_TXN_" + Date.now(),
+      original_transaction_id: original_transaction_id || "RC_ORIG_TXN_001",
+      environment: environment || "SANDBOX",
+      purchased_at_ms: Date.now(),
+      expiration_at_ms: expiration_at_ms || Date.now() + 30 * 24 * 60 * 60 * 1000,
+      store: "app_store",
+      id: "RC_EVT_" + Date.now(),
+    };
+
+    const hash = generatePayloadHash(rcEvent);
+    let event;
+    try {
+      event = await SubscriptionEvent.create({
+        platform: rcEvent.store === "app_store" ? "ios" : "android",
+        source: "REVENUECAT",
+        eventType: rcEvent.type,
+        externalEventId: rcEvent.id,
+        payloadHash: hash,
+        rawPayload: { event: rcEvent },
+        processed: false,
+        receivedAt: new Date(),
+      });
+    } catch (err) {
+      if (err.code === 11000) {
+        return res.status(200).json({
+          success: true,
+          message: "Duplicate event",
+        });
+      }
+      throw err;
+    }
+
+    const data = {
+      userId: rcEvent.app_user_id,
+      originalTransactionId: rcEvent.original_transaction_id,
+      transactionId: rcEvent.transaction_id,
+      gatewayTransactionId: rcEvent.transaction_id,
+      productId: rcEvent.product_id,
+      purchaseDate: rcEvent.purchased_at_ms,
+      expiresDate: rcEvent.expiration_at_ms,
+      platform: rcEvent.store === "app_store" ? "ios" : "android",
+      environment: rcEvent.environment.toLowerCase(),
+      isSandbox: rcEvent.environment === "SANDBOX",
+      isAutoRenewal: true,
+      rawResponse: rcEvent,
+    };
+
+    let result;
+    try {
+      switch (type) {
+        case "INITIAL_PURCHASE":
+          result = await subscriptionService.handlePurchase(data);
+          break;
+        case "RENEWAL":
+          result = await subscriptionService.handleRenew(data);
+          break;
+        case "CANCELLATION":
+          data.cancellationReason = "USER_CANCELLED";
+          result = await subscriptionService.handleCancel(data);
+          break;
+        case "EXPIRATION":
+          result = await subscriptionService.handleExpire(data);
+          break;
+        case "BILLING_ISSUE":
+          result = await subscriptionService.handleBillingRetryStart(data);
+          break;
+        case "REFUND":
+          result = await subscriptionService.handleRefund(data);
+          break;
+        default:
+          return res.status(400).json({
+            success: false,
+            error: "Unknown type: " + type,
+          });
+      }
+
+      event.processed = true;
+      event.processedAt = new Date();
+      if (result) {
+        event.subscriptionId = result._id;
+      }
+      await event.save();
+
+      return res.json({
+        success: true,
+        message: type + " processed successfully",
+        subscription: result,
+        eventId: event._id,
+      });
+    } catch (processErr) {
+      event.error = {
+        message: processErr.message,
+        retryCount: 1,
+      };
+      await event.save();
+
+      return res.status(400).json({
+        success: false,
+        error: processErr.message,
+      });
+    }
+  } catch (err) {
+    logger.error("Test RevenueCat webhook error:", err.message);
+    return res.status(500).json({
+      success: false,
+      error: err.message,
+    });
+  }
+};
+
+module.exports = { testAppleWebhook, testGoogleWebhook, testRevenueCatWebhook };
