@@ -299,7 +299,7 @@ class NotificationService {
 
       // 📢 Send to ntfy.sh for admin verification (if enabled or for testing)
       try {
-        await fetch("https://ntfy.sh/mafs-admin-alerts", {
+        await fetch("https://ntfy.sh/my-test-notifications", {
           method: "POST",
           body: `[User: ${userId}]\n${message}`,
           headers: {

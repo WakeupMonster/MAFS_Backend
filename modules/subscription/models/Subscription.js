@@ -71,6 +71,10 @@ const SubscriptionSchema = new mongoose.Schema(
       type: Boolean,
       default: false,
     },
+    dripNotificationsSent: {
+      type: [String],
+      default: [],
+    },
 
     grantedBy: { type: mongoose.Schema.Types.ObjectId, ref: "AdminUser" },
     grantReason: String, // e.g. "milestone_first_1000", "customer_service"

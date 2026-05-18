@@ -31,7 +31,13 @@ const AdminNotificationSchema = new mongoose.Schema(
       index: true,
     },
 
-    expiryRule: { daysBeforeExpiry: Number },
+    expiryRule: { 
+      daysBeforeExpiry: Number,
+      dripStages: [{
+        days: Number,
+        customMessage: String
+      }]
+    },
 
     scheduleAt: { type: Date, default: null }, // null = send now
 

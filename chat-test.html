@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>MAFS Socket.io Chat Tester</title>
+  <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+  <style>
+    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; padding: 20px; background-color: #f9f9f9; }
+    .container { display: flex; gap: 20px; justify-content: space-between; }
+    .client { border: 1px solid #ddd; padding: 20px; width: 48%; border-radius: 12px; background: white; box-shadow: 0 4px 6px rgba(0,0,0,0.05); }
+    .log { height: 350px; overflow-y: auto; background: #1e1e1e; color: #00ff00; padding: 15px; margin-top: 15px; font-family: 'Courier New', Courier, monospace; font-size: 13px; border-radius: 6px; }
+    input { margin: 5px 0 15px; width: 100%; padding: 10px; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box; }
+    button { width: 100%; padding: 10px; background: #007bff; color: white; border: none; border-radius: 4px; cursor: pointer; font-weight: bold; }
+    button:hover { background: #0056b3; }
+    .bubble { padding: 8px 0; border-bottom: 1px solid #333; }
+    .event-log { color: #aaa; }
+    .received { color: #fff; }
+    .sent { color: #4fc3f7; }
+    .error { color: #ff5252; }
+    h1 { text-align: center; color: #333; }
+    .instruction { text-align: center; color: #666; margin-bottom: 30px; }
+  </style>
+</head>
+<body>
+  <h1>MAFS Socket.io Chat Tester</h1>
+  <p class="instruction">Test real-time chat functionality between two users. No frontend needed.</p>
+  
+  <div class="container">
+    <!-- Client 1 -->
+    <div class="client" id="client1">
+      <h3 style="margin-top: 0;">User 1</h3>
+      <label>JWT Token</label>
+      <input type="text" id="token1" placeholder="Enter JWT Token for User 1">
+      <button onclick="connectSocket(1)">1. Connect Socket</button>
+      
+      <hr style="margin: 20px 0; border: 0; border-top: 1px solid #eee;">
+      <label>Match ID</label>
+      <input type="text" id="matchId1" placeholder="Enter Match ID">
+      <button onclick="joinChat(1)" style="background: #28a745;">2. Join Chat Room</button>
+      
+      <hr style="margin: 20px 0; border: 0; border-top: 1px solid #eee;">
+      <label>Message</label>
+      <input type="text" id="msgText1" placeholder="Type a message...">
+      <button onclick="sendMessage(1)" style="background: #ff9800;">3. Send Message</button>
+      
+      <div class="log" id="log1"></div>
+    </div>
+
+    <!-- Client 2 -->
+    <div class="client" id="client2">
+      <h3 style="margin-top: 0;">User 2</h3>
+      <label>JWT Token</label>
+      <input type="text" id="token2" placeholder="Enter JWT Token for User 2">
+      <button onclick="connectSocket(2)">1. Connect Socket</button>
+      
+      <hr style="margin: 20px 0; border: 0; border-top: 1px solid #eee;">
+      <label>Match ID</label>
+      <input type="text" id="matchId2" placeholder="Enter Match ID (Same as User 1)">
+      <button onclick="joinChat(2)" style="background: #28a745;">2. Join Chat Room</button>
+      
+      <hr style="margin: 20px 0; border: 0; border-top: 1px solid #eee;">
+      <label>Message</label>
+      <input type="text" id="msgText2" placeholder="Type a message...">
+      <button onclick="sendMessage(2)" style="background: #ff9800;">3. Send Message</button>
+      
+      <div class="log" id="log2"></div>
+    </div>
+  </div>
+
+  <script>
+    let sockets = { 1: null, 2: null };
+
+    function log(clientId, msg, type = 'event') {
+      const logDiv = document.getElementById(`log${clientId}`);
+      const p = document.createElement('div');
+      
+      let className = 'bubble ';
+      if(type === 'event') className += 'event-log';
+      if(type === 'received') className += 'received';
+      if(type === 'sent') className += 'sent';
+      if(type === 'error') className += 'error';
+      
+      p.className = className;
+      p.innerHTML = msg;
+      logDiv.appendChild(p);
+      logDiv.scrollTop = logDiv.scrollHeight;
+    }
+
+    function connectSocket(clientId) {
+      const token = document.getElementById(`token${clientId}`).value;
+      if (!token) return alert('Please enter token for User ' + clientId);
+
+      if (sockets[clientId]) {
+        sockets[clientId].disconnect();
+      }
+
+      // Explicitly forcing transports for stability
+      const socket = io('http://localhost:3001', {
+        auth: { token: token },
+        transports: ["websocket", "polling"]
+      });
+
+      socket.on('connect', () => log(clientId, '🟢 CONNECTED (ID: ' + socket.id + ')', 'event'));
+      socket.on('connect_error', (err) => log(clientId, '🔴 ERROR: ' + err.message, 'error'));
+      socket.on('disconnect', () => log(clientId, '⚪ DISCONNECTED', 'event'));
+
+      // ─── CHAT EVENTS ───
+      socket.on('new_message', (msg) => {
+         log(clientId, `📥 <b>RCVD:</b> ${msg.text} <br> <span style="color:#888;font-size:11px;">[Msg ID: ${msg._id}]</span>`, 'received');
+      });
+      
+      socket.on('chat_error', (err) => log(clientId, '⚠️ <b>CHAT ERROR:</b> ' + JSON.stringify(err), 'error'));
+      socket.on('message_delivered', (data) => log(clientId, '✓✓ <b>DELIVERED:</b> ' + data.messageId, 'event'));
+      socket.on('chat_list_update', (data) => log(clientId, '📋 <b>LIST UPDATE:</b> ' + data.lastMessage, 'event'));
+
+      sockets[clientId] = socket;
+    }
+
+    function joinChat(clientId) {
+      const matchId = document.getElementById(`matchId${clientId}`).value;
+      const socket = sockets[clientId];
+      if (!socket || !socket.connected) return alert('Connect Socket first!');
+      if (!matchId) return alert('Enter Match ID');
+
+      socket.emit('join_chat', { matchId: matchId });
+      log(clientId, `🚪 Emitted join_chat: ${matchId}`, 'event');
+    }
+
+    function sendMessage(clientId) {
+      const matchId = document.getElementById(`matchId${clientId}`).value;
+      const text = document.getElementById(`msgText${clientId}`).value;
+      const socket = sockets[clientId];
+      
+      if (!socket || !socket.connected) return alert('Connect Socket first!');
+      if (!matchId || !text) return alert('Enter Match ID and Message');
+
+      const payload = {
+        matchId: matchId,
+        text: text,
+        type: 'text'
+      };
+
+      socket.emit('send_message', payload, (ack) => {
+        if (ack.success) {
+          log(clientId, `📤 <b>SENT:</b> ${text} <br> <span style="color:#888;font-size:11px;">[Ack: Success]</span>`, 'sent');
+        } else {
+          log(clientId, `❌ <b>SEND FAILED:</b> ${ack.error}`, 'error');
+        }
+      });
+      
+      document.getElementById(`msgText${clientId}`).value = '';
+    }
+  </script>
+</body>
+</html>

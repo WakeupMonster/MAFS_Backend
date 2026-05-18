@@ -9,7 +9,7 @@ try {
   TZ = "UTC";
 }
 
-cron.schedule("36 18 * * *", async () => {
+cron.schedule("6 15 * * *", async () => {
   console.log("🎯 premium expiry cron started");
   await runPremiumExpiryReminderJob();
 },
