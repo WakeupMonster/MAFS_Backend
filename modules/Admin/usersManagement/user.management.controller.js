@@ -1439,6 +1439,8 @@ module.exports.GETGhostingUsers = async (req, res) => {
       to,
       preset,
       view = "ghosted",
+      isPremium,
+      gender,
     } = req.query;
 
     const page = Math.max(parseInt(reqPage) || 1, 1);
@@ -1460,6 +1462,9 @@ module.exports.GETGhostingUsers = async (req, res) => {
       endDate.setHours(23, 59, 59, 999);
     }
 
+    const oneMonthAgo = new Date();
+    oneMonthAgo.setMonth(oneMonthAgo.getMonth() - 1);
+
     // ==========================================
     // 2. PRODUCTION-READY ENGAGEMENT IDENTIFICATION
     // ==========================================
@@ -1472,25 +1477,87 @@ module.exports.GETGhostingUsers = async (req, res) => {
       rangeFilter.createdAt = { $gte: startDate, $lte: endDate };
     }
 
-    // Parallel calculations for extra engagement understanding
-    const [engagementStats, totalBlocks] = await Promise.all([
+    // Parallel calculations for unique user counts in each category
+    const [
+      totalMatchesUsers,
+      ghostedMatchesUsers,
+      activeMatchesUsers,
+      totalBlockedUsers,
+      totalGhostedUsers,
+    ] = await Promise.all([
+      // 1. Unique users in any matches in range
       Match.aggregate([
         { $match: rangeFilter },
+        { $unwind: "$users" },
+        { $group: { _id: "$users" } },
         {
-          $group: {
-            _id: null,
-            totalMatches: { $sum: 1 },
-            ghostedMatches: {
-              $sum: { $cond: [{ $eq: ["$lastMessageBy", null] }, 1, 0] },
-            },
-            activeMatches: {
-              $sum: { $cond: [{ $ne: ["$lastMessageBy", null] }, 1, 0] },
-            },
+          $lookup: {
+            from: "users",
+            localField: "_id",
+            foreignField: "_id",
+            as: "matchedUser",
           },
         },
-      ]).then(
-        (r) => r[0] || { totalMatches: 0, ghostedMatches: 0, activeMatches: 0 },
-      ),
+        { $unwind: "$matchedUser" },
+        {
+          $match: {
+            "matchedUser.role": "USER",
+            "matchedUser.isFake": { $ne: true },
+            "matchedUser.accountStatus": "active",
+          },
+        },
+        { $count: "count" },
+      ]).then((r) => r[0]?.count || 0),
+
+      // 2. Unique users in ghosted matches in range
+      Match.aggregate([
+        { $match: { lastMessageBy: null, ...rangeFilter } },
+        { $unwind: "$users" },
+        { $group: { _id: "$users" } },
+        {
+          $lookup: {
+            from: "users",
+            localField: "_id",
+            foreignField: "_id",
+            as: "matchedUser",
+          },
+        },
+        { $unwind: "$matchedUser" },
+        {
+          $match: {
+            "matchedUser.role": "USER",
+            "matchedUser.isFake": { $ne: true },
+            "matchedUser.accountStatus": "active",
+          },
+        },
+        { $count: "count" },
+      ]).then((r) => r[0]?.count || 0),
+
+      // 3. Unique users in active matches in range
+      Match.aggregate([
+        { $match: { lastMessageBy: { $ne: null }, ...rangeFilter } },
+        { $unwind: "$users" },
+        { $group: { _id: "$users" } },
+        {
+          $lookup: {
+            from: "users",
+            localField: "_id",
+            foreignField: "_id",
+            as: "matchedUser",
+          },
+        },
+        { $unwind: "$matchedUser" },
+        {
+          $match: {
+            "matchedUser.role": "USER",
+            "matchedUser.isFake": { $ne: true },
+            "matchedUser.accountStatus": "active",
+          },
+        },
+        { $count: "count" },
+      ]).then((r) => r[0]?.count || 0),
+
+      // 4. Unique users involved in blocks after chatting in range
       Block.aggregate([
         { $match: rangeFilter },
         {
@@ -1514,8 +1581,39 @@ module.exports.GETGhostingUsers = async (req, res) => {
           },
         },
         { $match: { "match.0": { $exists: true } } },
-        { $count: "n" },
-      ]).then((r) => r[0]?.n || 0),
+        {
+          $project: {
+            users: ["$blockerId", "$blockedId"],
+          },
+        },
+        { $unwind: "$users" },
+        { $group: { _id: "$users" } },
+        {
+          $lookup: {
+            from: "users",
+            localField: "_id",
+            foreignField: "_id",
+            as: "matchedUser",
+          },
+        },
+        { $unwind: "$matchedUser" },
+        {
+          $match: {
+            "matchedUser.role": "USER",
+            "matchedUser.isFake": { $ne: true },
+            "matchedUser.accountStatus": "active",
+          },
+        },
+        { $count: "count" },
+      ]).then((r) => r[0]?.count || 0),
+
+      // 5. Unique users inactive for 1+ months (Ghosted Users card)
+      User.countDocuments({
+        role: "USER",
+        isFake: { $ne: true },
+        accountStatus: "active",
+        lastLoginAt: { $lt: oneMonthAgo },
+      }),
     ]);
 
     // 3. IDENTIFY USERS FOR THE CURRENT VIEW
@@ -1561,12 +1659,32 @@ module.exports.GETGhostingUsers = async (req, res) => {
         { $unwind: "$users" },
         { $group: { _id: "$users" } },
       ]);
-    } else {
-      // Default: Ghosted Users
+    } else if (view === "matches") {
+      // Users who have matches in this period
+      targetUserIdsResult = await Match.aggregate([
+        { $match: rangeFilter },
+        { $unwind: "$users" },
+        { $group: { _id: "$users" } },
+      ]);
+    } else if (view === "ghosted_matches") {
+      // Users involved in matches with 0 messages
       targetUserIdsResult = await Match.aggregate([
         { $match: { lastMessageBy: null, ...rangeFilter } },
         { $unwind: "$users" },
         { $group: { _id: "$users" } },
+      ]);
+    } else {
+      // Default: Ghosted Users (view === "ghosted") - users inactive for 1+ months
+      targetUserIdsResult = await User.aggregate([
+        {
+          $match: {
+            role: "USER",
+            isFake: { $ne: true },
+            accountStatus: "active",
+            lastLoginAt: { $lt: oneMonthAgo },
+          },
+        },
+        { $project: { _id: 1 } },
       ]);
     }
 
@@ -1578,13 +1696,15 @@ module.exports.GETGhostingUsers = async (req, res) => {
         cached: false,
         pagination: { page, limit, total: 0, totalPages: 0 },
         kpiStats: {
-          totalUsers: 0,
+          totalUsers: totalGhostedUsers,
           activeTotal: 0,
           premiumTotal: 0,
           bannedTotal: 0,
           suspendedTotal: 0,
-          ...engagementStats,
-          totalBlocks,
+          totalMatches: totalMatchesUsers,
+          ghostedMatches: ghostedMatchesUsers,
+          activeMatches: activeMatchesUsers,
+          totalBlocks: totalBlockedUsers,
         },
         message: `No ${view} users found for this period`,
         data: [],
@@ -1601,8 +1721,12 @@ module.exports.GETGhostingUsers = async (req, res) => {
       accountStatus: "active",
     };
 
+    if (isPremium !== undefined && isPremium !== "") {
+      baseMatch.isPremium = isPremium === "true" || isPremium === true;
+    }
+
     const pipeline = [{ $match: baseMatch }];
-    const needsEarlyProfileLookup = !!searchTrimmed;
+    const needsEarlyProfileLookup = !!(gender || searchTrimmed);
 
     if (needsEarlyProfileLookup) {
       pipeline.push(
@@ -1638,6 +1762,10 @@ module.exports.GETGhostingUsers = async (req, res) => {
           },
         },
       );
+
+      if (gender) {
+        pipeline.push({ $match: { "profile.gender": gender } });
+      }
 
       if (searchTrimmed) {
         const searchRegex = new RegExp(
@@ -1767,13 +1895,15 @@ module.exports.GETGhostingUsers = async (req, res) => {
         totalPages: Math.ceil(total / limit),
       },
       kpiStats: {
-        totalUsers: total,
+        totalUsers: totalGhostedUsers,
         activeTotal,
         premiumTotal,
         bannedTotal,
         suspendedTotal,
-        ...engagementStats,
-        totalBlocks,
+        totalMatches: totalMatchesUsers,
+        ghostedMatches: ghostedMatchesUsers,
+        activeMatches: activeMatchesUsers,
+        totalBlocks: totalBlockedUsers,
       },
       message: "Ghosting Users fetched successfully",
       data: users,
@@ -1786,8 +1916,9 @@ module.exports.GETGhostingUsers = async (req, res) => {
     });
   } catch (error) {
     console.error("GET GHOSTING USER LIST ERROR:", error);
-    res
-      .status(500)
-      .json({ success: false, message: "Failed to fetch ghosting users" });
+    res.status(500).json({
+      success: false,
+      message: "Failed to fetch ghosting users",
+    });
   }
 };
