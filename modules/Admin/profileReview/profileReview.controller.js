@@ -346,7 +346,7 @@ const updateProfileStatus = async (req, res) => {
     switch (action) {
       case "approve":
       case "resolve":
-        // Mark all 'new' or 'in_progress' reports as resolved
+        // Mark all 'new' or 'in_progress' reports as resolved and save notes in actionTaken + replyHistory
         await Report.updateMany(
           { reportedId: userId, status: { $in: ["new", "in_progress"] } },
           {
@@ -354,6 +354,14 @@ const updateProfileStatus = async (req, res) => {
               status: "resolved",
               resolvedAt: new Date(),
               resolvedBy: adminId,
+              actionTaken: reason || "Dismissed by Admin",
+            },
+            $push: {
+              replyHistory: {
+                message: reason || "Dismissed by Admin",
+                repliedBy: adminId,
+                repliedAt: new Date(),
+              },
             },
           },
         );
@@ -394,6 +402,7 @@ const updateProfileStatus = async (req, res) => {
               status: "resolved",
               resolvedAt: new Date(),
               resolvedBy: adminId,
+              actionTaken: `Banned: ${reason || "Permanent Ban"}`,
             },
           },
         );

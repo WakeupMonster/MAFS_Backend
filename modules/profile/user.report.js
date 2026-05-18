@@ -88,6 +88,8 @@ const ReportSchema = new mongoose.Schema(
 
     resolvedAt: { type: Date, default: null },
 
+    actionTaken: { type: String, default: null },
+
     actionAudit: [
       {
         action: {
