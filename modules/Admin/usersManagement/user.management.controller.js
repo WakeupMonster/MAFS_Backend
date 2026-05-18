@@ -4,6 +4,7 @@ const Profile = require("../../profile/profile.model");
 const { updateUserSchema } = require("./user.management.validation");
 const { stringify } = require("csv-stringify");
 const { destroy } = require("../../upload/cloudinary.service");
+const { calculateAge } = require("../../../common/utils/calculate.age");
 
 /*
 For Data Table & Search or filters:- 
@@ -20,8 +21,7 @@ For Bluk exports to get all Users Data:-
 API 4: POST api/v1/admin/user-management/export
 */
 
-/* =============== SAMPLE GET ALL USERS – ADMIN ================== */
-/* ======== GET ALL USERS – ADMIN DATATABLE (REDIS) & Search or filters:API 1: GET api/v1/admin/user-management/user-list ====== */
+/* ========: GET ALL USERS – ADMIN DATATABLE (REDIS) & Search or filters:API 1: GET api/v1/admin/user-management/user-list ====== */
 module.exports.GETAllUsers = async (req, res) => {
   try {
     const {
@@ -45,24 +45,13 @@ module.exports.GETAllUsers = async (req, res) => {
 
     const baseMatch = { role: "USER", isFake: { $ne: true } };
 
-    // --- GHOSTING FILTER LOGIC ---
+    // --- GHOSTING FILTER LOGIC (Inactive for > 1 Month) ---
     if (isGhosting === "true") {
       const oneMonthAgo = new Date();
       oneMonthAgo.setMonth(oneMonthAgo.getMonth() - 1);
 
-      const Match = mongoose.model("Match");
-      const ghostingUserIds = await Match.aggregate([
-        {
-          $match: {
-            lastMessageBy: null,
-            createdAt: { $gte: oneMonthAgo },
-          },
-        },
-        { $unwind: "$users" },
-        { $group: { _id: "$users" } },
-      ]).then((results) => results.map((r) => r._id));
-
-      baseMatch._id = { $in: ghostingUserIds };
+      // Filter users who haven't been active in the last 1 month
+      baseMatch.lastLoginAt = { $lt: oneMonthAgo };
     }
 
     if (accountStatus) baseMatch.accountStatus = accountStatus;
@@ -1185,7 +1174,7 @@ module.exports.UPDATESingleUserDetail = async (req, res) => {
   }
 };
 
-/*===== PATCH api/v1/admin/user-management/:userId/status======*/
+/*=====: PATCH api/v1/admin/user-management/:userId/status======*/
 module.exports.UPDATEUserStatus = async (req, res) => {
   try {
     const { userId } = req.params;
@@ -1296,206 +1285,11 @@ module.exports.DELETEPhoto = async (req, res) => {
 };
 
 /* ======: For Bluk exports in csv file to get all Users Data: API 4: GET api/v1/admin/user-management/export =========== */
-// module.exports.streamUsersExport = async (req, res) => {
-//   try {
-//     const filters = req.query || {};
-
-//     // 1. Build Filter Logic
-//     const userMatch = { role: "USER" };
-//     if (filters.accountStatus) userMatch.accountStatus = filters.accountStatus;
-//     if (filters.isPremium) userMatch.isPremium = filters.isPremium === "true";
-
-//     const profileMatch = {};
-//     if (filters.gender) profileMatch["profile.gender"] = filters.gender;
-
-//     // 2. HTTP Headers for Direct Download
-//     // Removed progress markers because they corrupt the CSV file structure
-//     res.setHeader(
-//       "Content-Disposition",
-//       `attachment; filename=KeenMustard_Users_${Date.now()}.csv`,
-//     );
-//     res.setHeader("Content-Type", "text/csv");
-//     res.setHeader("X-Content-Type-Options", "nosniff");
-
-//     const csvStream = stringify({
-//       header: true,
-//       columns: [
-//         "UserId",
-//         "Nickname",
-//         "Email",
-//         "Phone",
-//         "Gender",
-//         "Age",
-//         "JobTitle",
-//         "City",
-//         "KYCStatus",
-//         "LastActiveAt",
-//         "LastSeenAt",
-//         "ProfileCompletion",
-//         "AccountStatus",
-//         "IsPremium",
-//         "AuthMethod",
-//         "CreatedAt",
-//       ],
-//     });
-
-//     // Pipe the stringifier directly to the response
-//     //
-//     csvStream.pipe(res);
-
-//     // 3. The Aggregation Cursor
-//     const cursor = User.aggregate([
-//       { $match: userMatch },
-//       {
-//         $lookup: {
-//           from: "profiles",
-//           localField: "_id",
-//           foreignField: "userId",
-//           as: "profile",
-//         },
-//       },
-//       { $unwind: { path: "$profile", preserveNullAndEmptyArrays: true } },
-//       ...(Object.keys(profileMatch).length ? [{ $match: profileMatch }] : []),
-//       {
-//         $project: {
-//           _id: 1,
-//           email: 1,
-//           phone: 1,
-//           accountStatus: 1,
-//           isPremium: 1,
-//           authMethod: 1,
-//           createdAt: 1,
-//           nickname: "$profile.nickname",
-//           gender: "$profile.gender",
-//           age: "$profile.age",
-//           jobTitle: "$profile.jobTitle",
-//           city: "$profile.location.city",
-//           profileCompletion: "$profile.onboardingProgress.totalCompletion",
-//           kycStatus: "$profile.verification.status",
-//         },
-//       },
-//     ]).cursor({ batchSize: 1000 }); // Smaller batch size to prevent ETIMEDOUT
-
-//     for await (const doc of cursor) {
-//       csvStream.write({
-//         UserId: doc._id.toString(),
-//         Email: doc.email || "",
-//         Phone: doc.phone ? `="${doc.phone}"` : "",
-//         AccountStatus: doc.accountStatus,
-//         IsPremium: doc.isPremium ? "Yes" : "No",
-//         AuthMethod: doc.authMethod || "phone",
-//         CreatedAt: doc.createdAt
-//           ? new Date(doc.createdAt).toLocaleString("en-IN", {
-//               timeZone: "Asia/Kolkata",
-//               day: "2-digit",
-//               month: "short",
-//               year: "numeric",
-//               hour: "2-digit",
-//               minute: "2-digit",
-//               hour12: true,
-//             })
-//           : "",
-//         Nickname: doc.nickname || "",
-//         Gender: doc.gender || "",
-//         Age: doc.age || "",
-//         JobTitle: doc.jobTitle || "",
-//         City: doc.city || "",
-//         ProfileCompletion: `${doc.profileCompletion || 0}%`,
-//         KYCStatus: doc.kycStatus || "not_started",
-//       });
-//     }
-
-//     csvStream.end();
-//   } catch (error) {
-//     console.error("STREAM EXPORT ERROR:", error);
-//     if (!res.headersSent)
-//       res.status(500).json({ success: false, message: "Export failed" });
-//     else res.end();
-//   }
-// };
-
 module.exports.streamUsersExport = async (req, res) => {
   try {
-    const filters = req.query || {};
-    const searchTrimmed = filters.search?.trim();
-
-    const userMatch = { role: "USER", isFake: { $ne: true } };
-
-    // --- GHOSTING FILTER LOGIC ---
-    if (filters.isGhosting === "true") {
-      const oneMonthAgo = new Date();
-      oneMonthAgo.setMonth(oneMonthAgo.getMonth() - 1);
-
-      const Match = mongoose.model("Match");
-      const ghostingUserIds = await Match.aggregate([
-        {
-          $match: {
-            lastMessageBy: null,
-            createdAt: { $gte: oneMonthAgo },
-          },
-        },
-        { $unwind: "$users" },
-        { $group: { _id: "$users" } },
-      ]).then((results) => results.map((r) => r._id));
-
-      userMatch._id = { $in: ghostingUserIds };
-    }
-
-    if (filters.accountStatus) userMatch.accountStatus = filters.accountStatus;
-    if (filters.isPremium) userMatch.isPremium = filters.isPremium === "true";
-    if (filters.isBanned !== undefined)
-      userMatch["banDetails.isBanned"] = filters.isBanned === "true";
-    if (filters.isDeactivated !== undefined)
-      userMatch["deactivationDetails.isDeactivated"] =
-        filters.isDeactivated === "true";
-    if (filters.isScheduledForDeletion !== undefined) {
-      userMatch["deletionDetails.isScheduledForDeletion"] =
-        filters.isScheduledForDeletion === "true";
-    }
-    if (filters.last24Hours === "true") {
-      const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
-      userMatch.createdAt = { $gte: twentyFourHoursAgo };
-    }
-
+    // 1. Core Match: Export all users (Ignore filters)
+    const userMatch = { role: "USER" };
     const pipeline = [{ $match: userMatch }];
-
-    // Handle profile-based filters (gender, search)
-    const needsEarlyProfileLookup = !!(filters.gender || searchTrimmed);
-
-    if (needsEarlyProfileLookup) {
-      pipeline.push(
-        {
-          $lookup: {
-            from: "profiles",
-            localField: "_id",
-            foreignField: "userId",
-            as: "profile",
-          },
-        },
-        { $unwind: { path: "$profile", preserveNullAndEmptyArrays: true } },
-      );
-
-      if (filters.gender) {
-        pipeline.push({ $match: { "profile.gender": filters.gender } });
-      }
-
-      if (searchTrimmed) {
-        const searchRegex = new RegExp(
-          searchTrimmed.replace(/[.*+?^${}()|[\\/]\\]/g, "\\$&"),
-          "i",
-        );
-        pipeline.push({
-          $match: {
-            $or: [
-              { email: searchRegex },
-              { phone: searchRegex },
-              { "profile.nickname": searchRegex },
-              { "profile.location.city": searchRegex },
-            ],
-          },
-        });
-      }
-    }
 
     res.setHeader(
       "Content-Disposition",
@@ -1510,18 +1304,19 @@ module.exports.streamUsersExport = async (req, res) => {
         "UserId",
         "Nickname",
         "Email",
-        "Phone", // ✅ Plain phone number
+        "Phone",
         "Gender",
         "Age",
+        "ProfileType", // ✅ Added "Fake" or "Real"
         "JobTitle",
         "City",
         "KYCStatus",
-        "LastActiveAt", // ✅ lastLoginAt from User
+        "LastActiveAt",
         "ProfileCompletion",
         "AccountStatus",
         "IsPremium",
         "AuthMethod",
-        "CreatedAt", // ✅ Fixed formatting
+        "CreatedAt",
       ],
     });
 
@@ -1544,20 +1339,18 @@ module.exports.streamUsersExport = async (req, res) => {
     // 4. Final Aggregation Pipeline
     pipeline.push({ $sort: { createdAt: -1 } });
 
-    // If we didn't lookup profiles early, do it now
-    if (!needsEarlyProfileLookup) {
-      pipeline.push(
-        {
-          $lookup: {
-            from: "profiles",
-            localField: "_id",
-            foreignField: "userId",
-            as: "profile",
-          },
+    // 3. Lookup profiles for CSV data (nickname, gender, etc.)
+    pipeline.push(
+      {
+        $lookup: {
+          from: "profiles",
+          localField: "_id",
+          foreignField: "userId",
+          as: "profile",
         },
-        { $unwind: { path: "$profile", preserveNullAndEmptyArrays: true } },
-      );
-    }
+      },
+      { $unwind: { path: "$profile", preserveNullAndEmptyArrays: true } },
+    );
 
     pipeline.push({
       $project: {
@@ -1569,9 +1362,11 @@ module.exports.streamUsersExport = async (req, res) => {
         authMethod: 1,
         createdAt: 1,
         lastLoginAt: 1,
+        isFake: 1, // ✅ Include isFake flag
         nickname: "$profile.nickname",
         gender: "$profile.gender",
         age: "$profile.age",
+        dob: "$profile.dob",
         jobTitle: "$profile.jobTitle",
         city: "$profile.location.city",
         profileCompletion: "$profile.onboardingProgress.totalCompletion",
@@ -1579,25 +1374,49 @@ module.exports.streamUsersExport = async (req, res) => {
       },
     });
 
-    const cursor = User.aggregate(pipeline).cursor({ batchSize: 1000 });
+    const totalUsers = await User.countDocuments(userMatch);
+    const cursor = User.aggregate(pipeline).cursor({ batchSize: 10000 });
+    let processedCount = 0;
+    let lastSentProgress = -1;
 
     for await (const doc of cursor) {
+      processedCount++;
+      const currentProgress = Math.floor((processedCount / totalUsers) * 100);
+      if (currentProgress > lastSentProgress) {
+        lastSentProgress = currentProgress;
+        // Sending progress marker via direct response write
+        res.write(`---PROG:${currentProgress}---`);
+      }
+
+      // ✅ Robust Age Calculation
+      let finalAge = "";
+      if (doc.dob) {
+        const calculated = calculateAge(doc.dob);
+        finalAge =
+          calculated !== null && !isNaN(calculated)
+            ? calculated
+            : doc.age || "";
+      } else {
+        finalAge = doc.age || "";
+      }
+
       csvStream.write({
         UserId: doc._id.toString(),
+        Nickname: doc.nickname || "",
         Email: doc.email || "",
-        Phone: doc.phone ? `\t${doc.phone}` : "", // ✅ Prevent scientific notation in Excel
+        Phone: doc.phone ? `\t${doc.phone}` : "",
+        Gender: doc.gender || "",
+        Age: finalAge,
+        ProfileType: doc.isFake ? "Fake" : "Real", // ✅ Explicitly show if it's a fake profile
+        JobTitle: doc.jobTitle || "",
+        City: doc.city || "",
+        KYCStatus: doc.kycStatus || "not_started",
+        LastActiveAt: formatDate(doc.lastLoginAt),
+        ProfileCompletion: `${doc.profileCompletion || 0}%`,
         AccountStatus: doc.accountStatus || "",
         IsPremium: doc.isPremium ? "Yes" : "No",
         AuthMethod: doc.authMethod || "phone",
-        CreatedAt: formatDate(doc.createdAt), // ✅ FIX 2: Using helper
-        LastActiveAt: formatDate(doc.lastLoginAt), // ✅ FIX 2: Now has data
-        Nickname: doc.nickname || "",
-        Gender: doc.gender || "",
-        Age: doc.age || "",
-        JobTitle: doc.jobTitle || "",
-        City: doc.city || "",
-        ProfileCompletion: `${doc.profileCompletion || 0}%`,
-        KYCStatus: doc.kycStatus || "not_started",
+        CreatedAt: formatDate(doc.createdAt),
       });
     }
 
