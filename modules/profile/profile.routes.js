@@ -8,8 +8,7 @@ const controllerDis = require("../discovery/discovery.controller");
 const userAction = require("./userActionController");
 // const ENUMS = require("../../config/enums");
 const masterController = require("./master.controller");
-const { apiLimiter: realApiLimiter } = require("../../common/middlewares/apiLimiter");
-const apiLimiter = () => (req, res, next) => next(); // Mocked for load testing
+const { apiLimiter } = require("../../common/middlewares/apiLimiter");
 
 const { validateDiscoveryFilters } = require("../../common/utils/validators");
 
@@ -19,7 +18,7 @@ router.use(auth);
 
 router.patch(
   "/update",
-  // apiLimiter("profile_update", 40, 3600), // Max 30 profile updates per hour
+  apiLimiter("profile_update", 40, 3600), // Max 30 profile updates per hour
   // validation.validateProfileUpdate,
   controller.updateProfile,
 );
@@ -27,14 +26,14 @@ router.patch(
 router.patch(
   "/discovery-preference/reset",
   auth,
-  // apiLimiter("discovery_reset", 10, 60),
+  apiLimiter("discovery_reset", 10, 60),
   controller.resetDiscoveryFilters,
 );
 
 router.patch(
   "/discovery-preference",
   auth,
-  // apiLimiter("discovery_update", 10, 60),
+  apiLimiter("discovery_update", 10, 60),
   validateDiscoveryFilters,
   controller.updateDiscoveryFilters,
 );
