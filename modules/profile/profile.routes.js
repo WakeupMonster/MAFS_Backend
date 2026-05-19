@@ -18,7 +18,8 @@ router.use(auth);
 
 router.patch(
   "/update",
-  apiLimiter("profile_update", 40, 3600), // Max 30 profile updates per hour
+  // TEMPORARILY DISABLED FOR LOAD TESTING
+  // apiLimiter("profile_update", 40, 3600), // Max 30 profile updates per hour
   // validation.validateProfileUpdate,
   controller.updateProfile,
 );
@@ -84,7 +85,8 @@ router.get("/verification-status", apiLimiter("verification_status", 20, 60), co
 
 router.post(
   "/location",
-  apiLimiter("location_update", 20, 60),
+  // TEMPORARILY DISABLED FOR LOAD TESTING
+  // apiLimiter("location_update", 20, 60),
   validation.validateLocation,
   controller.updateLocation,
 );
@@ -99,7 +101,8 @@ router.get("/config", apiLimiter("app_config", 20, 60), masterController.getAppC
 
 router.get(
   "/:userId",
-  apiLimiter("profile_view", 60, 60), // Max 60 profile views per minute (Prevents Scraping)
+  // TEMPORARILY DISABLED FOR LOAD TESTING
+  // apiLimiter("profile_view", 60, 60), // Max 60 profile views per minute (Prevents Scraping)
   validation.validateUserIdParam,
   controller.getUserProfile,
 );
