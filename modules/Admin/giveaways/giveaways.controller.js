@@ -99,7 +99,7 @@ module.exports.createPrize = async (req, res) => {
     if (!supportiveItems || supportiveItems.length < 2) {
       return res.status(400).json({
         success: false,
-        message: "At least 2 supportive items are required",
+        message: "At least 5 supportive items are required",
       });
     }
 
