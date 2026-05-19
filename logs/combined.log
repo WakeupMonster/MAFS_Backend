@@ -276,3 +276,5 @@
 {"level":"error","message":"[CRON] Grace period check error:","service":"iap-service","timestamp":"2026-05-18 12:15:19"}
 {"level":"info","message":"[CRON] Subscription cron jobs initialized (v3 - Grace Period & Billing Retry Support)","service":"iap-service","timestamp":"2026-05-18 18:54:04"}
 {"level":"info","message":"🧪 [DEV] Dev tools routes registered at /api/v1/dev/*","service":"iap-service","timestamp":"2026-05-18 18:54:06"}
+{"level":"info","message":"[CRON] Subscription cron jobs initialized (v3 - Grace Period & Billing Retry Support)","service":"iap-service","timestamp":"2026-05-19 09:55:38"}
+{"level":"info","message":"🧪 [DEV] Dev tools routes registered at /api/v1/dev/*","service":"iap-service","timestamp":"2026-05-19 09:55:39"}
