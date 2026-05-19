@@ -1,15 +1,3 @@
-// const User = require("../../auth/auth.model");
-// const Profile = require("../../profile/profile.model");
-// const Report = require("../../profile/user.report");
-// const Swipe = require("../../matches/swipe/swipe.model");
-// const Match = Swipe.Match;
-// const ChatMessage = require("../../matches/chat/chat.message.model");
-// const Transaction = require("../../subscription/models/SubscriptionTransaction");
-// const Product = require("../../subscription/models_v3/Product");
-// const GiveawayCampaign = require("../giveaways/giveawayCampaign.model");
-// const GiveawayWinHistory = require("../giveaways/giveawayWinHistory.model");
-// const SupportTicket = require("../../AppConfiguration/contactSupport/supportTicket.model");
-
 // // ================================================================
 // // ADVANCED DASHBOARD API — "Command Center" for Admin
 // // All data is 100% dynamic, calculated from real DB aggregations.
@@ -886,11 +874,6 @@ const Product = require("../../subscription/models_v3/Product");
 const SupportTicket = require("../../AppConfiguration/contactSupport/supportTicket.model");
 const Block = require("../../profile/user.block");
 
-// ================================================================
-// ADVANCED DASHBOARD API — "Command Center" for Admin
-// All data is 100% dynamic, calculated from real DB aggregations.
-// ================================================================
-
 // exports.getAdvancedDashboardMetrics = async (req, res) => {
 //   try {
 //     const now = new Date();
@@ -1221,6 +1204,10 @@ const Block = require("../../profile/user.block");
 //   }
 // };
 
+// ================================================================
+// ADVANCED DASHBOARD API — "Command Center" for Admin
+// All data is 100% dynamic, calculated from real DB aggregations.
+// ================================================================
 exports.getAdvancedDashboardMetrics = async (req, res) => {
   try {
     const now = new Date();
@@ -1767,18 +1754,18 @@ exports.getAdvancedDashboardMetrics = async (req, res) => {
                     $and: [
                       { $in: ["$$b1", "$users"] },
                       { $in: ["$$b2", "$users"] },
-                      { $ne: ["$lastMessageBy", null] }
-                    ]
-                  }
-                }
-              }
+                      { $ne: ["$lastMessageBy", null] },
+                    ],
+                  },
+                },
+              },
             ],
-            as: "match"
-          }
+            as: "match",
+          },
         },
         { $match: { "match.0": { $exists: true } } },
-        { $count: "n" }
-      ]).then(r => r[0]?.n || 0),
+        { $count: "n" },
+      ]).then((r) => r[0]?.n || 0),
     ]);
 
     // --- Unpack $facet results ---
@@ -2013,7 +2000,7 @@ exports.getAdvancedDashboardMetrics = async (req, res) => {
             {
               id: "kyc",
               label: "KYC Verification",
-              value: `${pendingKYC} profiles waiting for approval`,
+              value: `${pendingKYC} ${pendingKYC === 1 ? "profile waiting" : "profiles waiting"} for approval`,
               sub: "Review to activate new users",
               badge: pendingKYC > 10 ? "High" : "Low",
               badgeColor: "red",
@@ -2023,7 +2010,7 @@ exports.getAdvancedDashboardMetrics = async (req, res) => {
             {
               id: "reported",
               label: "High Reported Users",
-              value: `${highReportedRange.length} users reported 5+ times ${periodLabel.toLowerCase()}`,
+              value: `${highReportedRange.length} ${highReportedRange.length === 1 ? "user with 5+ reports" : "users with 5+ reports"} ${preset === "today" ? "today" : preset === "yesterday" ? "yesterday" : "in this period"}`,
               sub: "Investigate and take action",
               badge: highReportedRange.length > 5 ? "Critical" : "Medium",
               badgeColor: "orange",
