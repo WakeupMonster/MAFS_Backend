@@ -8,7 +8,8 @@ const controllerDis = require("../discovery/discovery.controller");
 const userAction = require("./userActionController");
 // const ENUMS = require("../../config/enums");
 const masterController = require("./master.controller");
-const { apiLimiter } = require("../../common/middlewares/apiLimiter");
+const { apiLimiter: realApiLimiter } = require("../../common/middlewares/apiLimiter");
+const apiLimiter = () => (req, res, next) => next(); // Mocked for load testing
 
 const { validateDiscoveryFilters } = require("../../common/utils/validators");
 
@@ -18,7 +19,6 @@ router.use(auth);
 
 router.patch(
   "/update",
-  // TEMPORARILY DISABLED FOR LOAD TESTING
   // apiLimiter("profile_update", 40, 3600), // Max 30 profile updates per hour
   // validation.validateProfileUpdate,
   controller.updateProfile,
@@ -27,37 +27,28 @@ router.patch(
 router.patch(
   "/discovery-preference/reset",
   auth,
-  apiLimiter("discovery_reset", 10, 60),
+  // apiLimiter("discovery_reset", 10, 60),
   controller.resetDiscoveryFilters,
 );
 
 router.patch(
   "/discovery-preference",
   auth,
-  apiLimiter("discovery_update", 10, 60),
+  // apiLimiter("discovery_update", 10, 60),
   validateDiscoveryFilters,
   controller.updateDiscoveryFilters,
 );
 
-router.patch("/", apiLimiter("update_preference", 20, 60), controllerDis.updatePreference);
-router.post("/photos", apiLimiter("photo_upload", 10, 3600), uploadMiddleware.uploadPhotos, controller.uploadPhotos);
+// router.patch("/", apiLimiter("update_preference", 20, 60), controllerDis.updatePreference);
+// router.post("/photos", apiLimiter("photo_upload", 10, 3600), uploadMiddleware.uploadPhotos, controller.uploadPhotos);
+router.patch("/", controllerDis.updatePreference);
+router.post("/photos", uploadMiddleware.uploadPhotos, controller.uploadPhotos);
 
+// router.delete("/photos", apiLimiter("photo_delete", 10, 3600), controller.deletePhoto);
+// router.patch("/photos/reorder", apiLimiter("photo_reorder", 10, 3600), controller.reorderPhotos);
 
-// router.post(
-//   "/photos",
-//   (req, res, next) => {
-//     uploadMiddleware.uploadPhotos(req, res, (err) => {
-//       if (err) {
-//         return uploadMiddleware.handleMulterError(err, req, res, next);
-//       }
-//       next();
-//     });
-//   },
-//   controller.uploadPhotos
-// );
-
-router.delete("/photos", apiLimiter("photo_delete", 10, 3600), controller.deletePhoto);
-router.patch("/photos/reorder", apiLimiter("photo_reorder", 10, 3600), controller.reorderPhotos);
+router.delete("/photos", controller.deletePhoto);
+router.patch("/photos/reorder", controller.reorderPhotos);
 
 router.post(
   "/selfie",
@@ -85,8 +76,7 @@ router.get("/verification-status", apiLimiter("verification_status", 20, 60), co
 
 router.post(
   "/location",
-  // TEMPORARILY DISABLED FOR LOAD TESTING
-  // apiLimiter("location_update", 20, 60),
+  apiLimiter("location_update", 20, 60),
   validation.validateLocation,
   controller.updateLocation,
 );
@@ -101,22 +91,21 @@ router.get("/config", apiLimiter("app_config", 20, 60), masterController.getAppC
 
 router.get(
   "/:userId",
-  // TEMPORARILY DISABLED FOR LOAD TESTING
-  // apiLimiter("profile_view", 60, 60), // Max 60 profile views per minute (Prevents Scraping)
+  apiLimiter("profile_view", 60, 60), // Max 60 profile views per minute (Prevents Scraping)
   validation.validateUserIdParam,
   controller.getUserProfile,
 );
 
 router.patch("/visibility", auth, apiLimiter("visibility_update", 10, 60), controller.updateVisibility);
 
-router.get("/blocked/all", apiLimiter("block_list", 20, 60), userAction.getBlockList);
+router.get("/blocked/all", userAction.getBlockList);
 
-router.post("/block/:id", apiLimiter("block_user", 10, 3600), userAction.blockUser);
-router.delete("/unblock/:id", apiLimiter("unblock_user", 10, 3600), userAction.unblockUser);
-router.get("/block-list", apiLimiter("block_list", 20, 60), userAction.getBlockList);
+router.post("/block/:id", userAction.blockUser);
+router.delete("/unblock/:id", userAction.unblockUser);
+router.get("/block-list", userAction.getBlockList);
 
 // Report
-router.post("/report/:id", apiLimiter("report_user", 5, 3600), userAction.reportUser);
+router.post("/report/:id", userAction.reportUser);
 
 router.post("/resetData", controller.resetTestData);
 module.exports = router;

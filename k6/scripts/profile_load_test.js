@@ -1,5 +1,6 @@
 import http from 'k6/http';
 import { check, sleep } from 'k6';
+import { SharedArray } from 'k6/data';
 
 export const options = {
   stages: [
@@ -13,33 +14,50 @@ export const options = {
   },
 };
 
-const BASE_URL = __ENV.API_URL || 'http://localhost:3001/api/v1';
+const BASE_URL = __ENV.API_URL || 'https://api.matchatfirstswipe.com.au/api/v1';
 
-// IDs for testing (Random user IDs from your DB for profile viewing)
-const TARGET_USER_IDS = [
-  '661907d7f7227d8f95c1065c',
-  '661907d7f7227d8f95c1065d',
-  '661907d7f7227d8f95c1065e',
-  '661907d7f7227d8f95c1065f',
-  '661907d7f7227d8f95c10660'
-];
+// 1. Load 2000 Real Auth Tokens
+const authTokens = new SharedArray('auth_tokens', function () {
+  return JSON.parse(open('../data/load_test_tokens.json'));
+});
+
+// 2. Load 25 Real Valid Target IDs from DB
+const targetIds = new SharedArray('target_ids', function () {
+  return JSON.parse(open('../data/profile_ids.json'));
+});
 
 export default function () {
-  // 1. Setup Auth (Using a hardcoded test token or generating one)
-  // For the sake of this test, we assume we have a valid token
+  // Distribute 2000 tokens among the VUs based on their VU ID
+  const tokenIndex = (__VU - 1) % authTokens.length;
+  const token = authTokens[tokenIndex];
+
   const params = {
     headers: {
       'Content-Type': 'application/json',
-      'Authorization': `Bearer ${__ENV.AUTH_TOKEN}`,
+      'Authorization': `Bearer ${token}`,
     },
   };
 
   // --- ACTION 1: View Random Profiles (90% of traffic) ---
-  const targetId = TARGET_USER_IDS[Math.floor(Math.random() * TARGET_USER_IDS.length)];
+  const targetId = targetIds[Math.floor(Math.random() * targetIds.length)];
   const viewRes = http.get(`${BASE_URL}/profile/${targetId}`, params);
+  
   check(viewRes, {
     'view profile status is 200': (r) => r.status === 200,
-    'view profile has data': (r) => r.json().data !== undefined,
+    'view profile has success=true': (r) => {
+      try {
+        return r.json().success === true;
+      } catch (e) {
+        return false;
+      }
+    },
+    'view profile has data object': (r) => {
+      try {
+        return r.json().data !== undefined;
+      } catch (e) {
+        return false;
+      }
+    }
   });
 
   sleep(1);
@@ -48,12 +66,20 @@ export default function () {
   if (Math.random() < 0.05) {
     const updatePayload = JSON.stringify({
       profile: {
-        about: `Test bio updated at ${new Date().toISOString()}`,
+        about: `Bio updated for load test at ${new Date().toISOString()}`,
       },
     });
     const updateRes = http.patch(`${BASE_URL}/profile/update`, updatePayload, params);
+    
     check(updateRes, {
       'update profile status is 200': (r) => r.status === 200,
+      'update profile has success message': (r) => {
+        try {
+          return r.json().success === true;
+        } catch (e) {
+          return false;
+        }
+      }
     });
   }
 
@@ -67,8 +93,16 @@ export default function () {
       country: "Australia"
     });
     const locRes = http.post(`${BASE_URL}/profile/location`, locationPayload, params);
+    
     check(locRes, {
       'location update status is 200': (r) => r.status === 200,
+      'location update success=true': (r) => {
+        try {
+          return r.json().success === true;
+        } catch(e) {
+          return false;
+        }
+      }
     });
   }
 
