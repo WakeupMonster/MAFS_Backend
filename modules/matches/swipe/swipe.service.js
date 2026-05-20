@@ -142,10 +142,7 @@ async function getFeedService(userId, limit, page) {
 
     const [swipes, matches, myBlocked, blockedMe, myReports, rcvdSuperlikes] =
       await Promise.all([
-        Swipe.find({
-          swiperId: userId,
-          action: { $in: ["like", "pass", "superlike"] },
-        }).distinct("targetId"),
+        Swipe.find({ swiperId: userId }).distinct("targetId"),
         Match.find({ users: userId }).distinct("users"),
         Block.find({ blockerId: userId }).distinct("blockedId"),
         Block.find({ blockedId: userId }).distinct("blockerId"),

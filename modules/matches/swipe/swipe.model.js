@@ -80,7 +80,7 @@ const MatchSchema = new mongoose.Schema(
 // 🔥 UNIQUE MATCH PAIR (ORDER-INDEPENDENT)
 MatchSchema.index({ "users.0": 1, "users.1": 1 }, { unique: true });
 
-// 🔥 FAST CHAT LIST FETCH
-MatchSchema.index({ users: 1, lastMessageAt: -1 });
+// 🔥 FAST CHAT LIST FETCH (Updated to support secondary sort)
+MatchSchema.index({ users: 1, lastMessageAt: -1, matchedAt: -1 });
 
 module.exports.Match = mongoose.model("Match", MatchSchema);

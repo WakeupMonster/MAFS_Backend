@@ -157,9 +157,10 @@ module.exports.getMatches = async (req, res) => {
   try {
     const userId = req.user._id;
 
-    // Fetch all matches (no populate needed — we only use raw user IDs)
+    // Fetch recent matches using the exact index { users: 1, lastMessageAt: -1, matchedAt: -1 }
     const matches = await Match.find({ users: userId })
       .sort({ lastMessageAt: -1, matchedAt: -1 })
+      .limit(100)
       .lean();
 
     // Collect all partner IDs in one pass

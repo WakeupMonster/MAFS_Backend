@@ -14,7 +14,7 @@ module.exports = async function authMiddleware(req, res, next) {
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
 
     // Attach user to request
-    const redis = require("../../../config/cache");
+    const redis = require("../../config/cache");
     let user = null;
     const authCacheKey = `auth:user:${decoded.userId}`;
     

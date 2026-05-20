@@ -6,6 +6,7 @@ const ReportSchema = new mongoose.Schema(
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",
       required: true,
+      index: true,
     },
     reporterProfile: {
       type: mongoose.Schema.Types.ObjectId,
