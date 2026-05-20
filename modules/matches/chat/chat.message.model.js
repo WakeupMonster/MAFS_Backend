@@ -84,6 +84,7 @@ const ChatMessageSchema = new Schema(
 ChatMessageSchema.index({ matchId: 1, createdAt: -1 }); // chat history
 ChatMessageSchema.index({ receiver: 1, status: 1 });   // pending messages
 ChatMessageSchema.index({ sender: 1 });
+ChatMessageSchema.index({ matchId: 1, receiver: 1, readAt: 1 }); // Optimize chat list unread aggregation
 // ChatMessageSchema.index(
 //   { sender: 1, clientMessageId: 1 },
 //   { unique: true, sparse: true }

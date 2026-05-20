@@ -6,13 +6,15 @@ const { DateTime } = require("luxon");
 
 // 1. SEND MESSAGE (Sabse important jo missing tha)
 module.exports.sendMessage = async (req, res) => {
+  const start = Date.now();
+  const userId = req.user._id;
+  const { matchId, text, media } = req.body;
+  console.log(`[SEND MESSAGE START] Sender: ${userId} -> Match: ${matchId}`);
   try {
-    const userId = req.user._id;
-    const { matchId, text, media } = req.body;
-
     // 1. Ensure match exists and user is part of it
     const match = await Match.findById(matchId);
     if (!match || !match.users.some((u) => u.toString() === userId.toString())) {
+      console.log(`[SEND MESSAGE FAILED] Sender: ${userId} -> Match: ${matchId} | Reason: Invalid Match`);
       return res.status(403).json({ success: false, message: "Invalid Match" });
     }
 
@@ -23,6 +25,7 @@ module.exports.sendMessage = async (req, res) => {
     // 2. Block Check
     const blockStatus = await isBlocked(userId, receiverId);
     if (blockStatus.isBlocked) {
+      console.log(`[SEND MESSAGE FAILED] Sender: ${userId} -> Receiver: ${receiverId} | Reason: Blocked`);
       return res.status(403).json({
         success: false,
         message: "You cannot send messages to this user",
@@ -61,9 +64,10 @@ module.exports.sendMessage = async (req, res) => {
         .toFormat("hh:mm a"),
     };
 
+    console.log(`[SEND MESSAGE OK] Sender: ${userId} -> Receiver: ${receiverId} | Match: ${matchId} | Time: ${Date.now() - start}ms`);
     return res.status(201).json({ success: true, data: formattedMessage });
   } catch (err) {
-    console.error("❌ sendMessage error:", err);
+    console.error(`[SEND MESSAGE ERROR] Sender: ${userId} -> Match: ${matchId} | Error: ${err.message}`, err);
     res.status(500).json({ success: false, message: "Chat failed" });
   }
 };
@@ -261,17 +265,21 @@ const redis = require("../../../config/cache");
 const Profile = require("../../../modules/profile/profile.model");
 
 module.exports.getChatList = async (req, res) => {
+  const startTime = Date.now();
+  const userId = req.user._id;
+  console.log(`[CHAT LIST START] User: ${userId} requesting chat list`);
   try {
-    const userId = req.user._id;
-
     // 1️⃣ Fetch matches sorted by priority: Last Message OR New Match (TOP REORDER BASE)
+    const matchesTimeStart = Date.now();
     const matches = await Match.find({
       users: userId,
     })
       .sort({ lastMessageAt: -1, matchedAt: -1 })
       .lean();
+    const matchesTimeTaken = Date.now() - matchesTimeStart;
 
     if (!matches || matches.length === 0) {
+      console.log(`[CHAT LIST END] User: ${userId} has 0 matches. Total Time: ${Date.now() - startTime}ms`);
       return res.json({ success: true, data: [] });
     }
 
@@ -288,9 +296,11 @@ module.exports.getChatList = async (req, res) => {
     });
 
     // 2️⃣ BATCH: Fetch all related profiles in one query
+    const profilesTimeStart = Date.now();
     const profiles = await Profile.find({ userId: { $in: otherUserIds } })
       .select("userId nickname photos")
       .lean();
+    const profilesTimeTaken = Date.now() - profilesTimeStart;
 
     // Map profiles for O(1) lookup
     const profileMap = {};
@@ -299,6 +309,7 @@ module.exports.getChatList = async (req, res) => {
     });
 
     // 3️⃣ BATCH: Aggregate unread message counts for all matches in one query
+    const unreadTimeStart = Date.now();
     const unreadCountsAggr = await ChatMessage.aggregate([
       {
         $match: {
@@ -315,6 +326,7 @@ module.exports.getChatList = async (req, res) => {
         },
       },
     ]);
+    const unreadTimeTaken = Date.now() - unreadTimeStart;
 
     // Map unread counts for O(1) lookup
     const unreadMap = {};
@@ -323,11 +335,13 @@ module.exports.getChatList = async (req, res) => {
     });
 
     // 4️⃣ BATCH: Fetch all online statuses from Redis in one atomic mGet call
+    const redisTimeStart = Date.now();
     let onlineStatuses = [];
     if (otherUserIds.length > 0) {
       const redisKeys = otherUserIds.map((id) => `user:online:${id.toString()}`);
       onlineStatuses = await redis.redisClient.mGet(redisKeys);
     }
+    const redisTimeTaken = Date.now() - redisTimeStart;
 
     // Map online status for O(1) lookup
     const onlineMap = {};
@@ -370,12 +384,17 @@ module.exports.getChatList = async (req, res) => {
       };
     });
 
+    const totalTime = Date.now() - startTime;
+    console.log(
+      `[CHAT LIST END] User: ${userId} | Matches: ${matches.length} | Time: ${totalTime}ms (MatchFind: ${matchesTimeTaken}ms, ProfileFind: ${profilesTimeTaken}ms, UnreadAggr: ${unreadTimeTaken}ms, RedisOnline: ${redisTimeTaken}ms)`
+    );
+
     return res.json({
       success: true,
       data: chatList,
     });
   } catch (err) {
-    console.error("Chat list error:", err);
+    console.error(`[CHAT LIST ERROR] User: ${userId} | Error: ${err.message}`, err);
     return res.status(500).json({
       success: false,
       message: "Server error",
