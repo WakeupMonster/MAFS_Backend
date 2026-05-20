@@ -19,6 +19,47 @@ const UsageService = require("../../subscription/services/usage.service");
 const Subscription = require("../../subscription/models/Subscription");
 const adminEvents = require("../../../events/admin.events");
 
+let localNonActiveUsers = null;
+let lastFetchedNonActive = 0;
+
+async function getNonActiveUserIds() {
+  const now = Date.now();
+  if (localNonActiveUsers && (now - lastFetchedNonActive < 300000)) { // 5 minutes cache
+    return localNonActiveUsers;
+  }
+
+  const NON_ACTIVE_KEY = "global:nonActiveUsers";
+  if (redis) {
+    try {
+      const cachedNA = await redis.get(NON_ACTIVE_KEY);
+      if (cachedNA) {
+        localNonActiveUsers = JSON.parse(cachedNA);
+        lastFetchedNonActive = now;
+        return localNonActiveUsers;
+      }
+    } catch (e) {
+      console.error("NonActiveUsers Redis get error:", e);
+    }
+  }
+
+  try {
+    const ids = (
+      await User.find({ accountStatus: { $ne: "active" } }).distinct("_id")
+    ).map((id) => id.toString());
+
+    localNonActiveUsers = ids;
+    lastFetchedNonActive = now;
+
+    if (redis) {
+      await redis.set(NON_ACTIVE_KEY, JSON.stringify(ids), { EX: 300 });
+    }
+    return ids;
+  } catch (err) {
+    console.error("NonActiveUsers DB fetch error:", err);
+    return localNonActiveUsers || [];
+  }
+}
+
 function calculateDistance(lat1, lon1, lat2, lon2) {
   const R = 6371;
   const dLat = (lat2 - lat1) * (Math.PI / 180);
@@ -124,31 +165,8 @@ async function getFeedService(userId, limit, page) {
 
   // Cache miss — build from DB (same logic as before, unchanged)
   if (!cacheHit) {
-    // Cache nonActiveUsers globally — avoids full User table scan on every request
-    let nonActiveUserIds = [];
-    const NON_ACTIVE_KEY = "global:nonActiveUsers";
-    if (redis) {
-      try {
-        const cachedNA = await redis.get(NON_ACTIVE_KEY);
-        if (cachedNA) {
-          nonActiveUserIds = JSON.parse(cachedNA);
-        } else {
-          nonActiveUserIds = (
-            await User.find({ accountStatus: { $ne: "active" } }).distinct("_id")
-          ).map((id) => id.toString());
-          await redis.set(NON_ACTIVE_KEY, nonActiveUserIds, { EX: 300 });
-        }
-      } catch (e) {
-        console.error("NonActiveUsers cache error:", e);
-        nonActiveUserIds = (
-          await User.find({ accountStatus: { $ne: "active" } }).distinct("_id")
-        ).map((id) => id.toString());
-      }
-    } else {
-      nonActiveUserIds = (
-        await User.find({ accountStatus: { $ne: "active" } }).distinct("_id")
-      ).map((id) => id.toString());
-    }
+    // Cache nonActiveUsers globally and locally in-memory — avoids full User table scan
+    const nonActiveUserIds = await getNonActiveUserIds();
 
     const [swipes, matches, myBlocked, blockedMe, myReports, rcvdSuperlikes] =
       await Promise.all([
@@ -665,7 +683,6 @@ async function doSwipe(swiperId, targetId, action) {
     // Clear caches
     if (redis) {
       await redis.del(`feed:${swiperId.toString()}`);
-      await redis.del(`feed:exclude:${swiperId.toString()}`);
     }
 
     console.log(`[SWIPE PASS END] Swiper: ${swiperId} -> Target: ${targetId} | Time: ${Date.now() - swipeStart}ms`);
@@ -867,13 +884,13 @@ async function doSwipe(swiperId, targetId, action) {
     const cacheOps = [
       redis.del(`feed:${swiperId.toString()}`),
       redis.del(`feed:${targetId.toString()}`),
-      redis.del(`feed:exclude:${swiperId.toString()}`),
     ];
     if (isMatch) {
       cacheOps.push(
         redis.del(`matches:${swiperId}`),
         redis.del(`matches:${targetId}`),
-        redis.del(`feed:exclude:${targetId.toString()}`),
+        redis.del(`chat:list:${swiperId.toString()}`),
+        redis.del(`chat:list:${targetId.toString()}`),
       );
     }
     await Promise.all(cacheOps);

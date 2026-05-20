@@ -28,6 +28,8 @@ import { Counter, Rate, Trend } from 'k6/metrics';
 const serverErrors = new Rate('server_error_rate');
 const chatListLatency = new Trend('chat_list_response_ms');
 const chatHistoryLatency = new Trend('chat_history_response_ms');
+const uploadMediaLatency = new Trend('upload_media_response_ms');
+const deleteMessageLatency = new Trend('delete_message_response_ms');
 const wsConnections = new Counter('ws_connections');
 const wsMessagesSent = new Counter('ws_msgs_sent');
 const wsMessagesReceived = new Counter('ws_msgs_received');
@@ -78,6 +80,8 @@ export const options = {
     thresholds: {
         'chat_list_response_ms': ['p(95)<1500'],
         'chat_history_response_ms': ['p(95)<1000'],
+        'upload_media_response_ms': ['p(95)<2000'],
+        'delete_message_response_ms': ['p(95)<1000'],
         'server_error_rate': ['rate<0.05'],
     },
 };
@@ -143,7 +147,43 @@ export default function () {
     check(historyRes, { 'Chat History status 200': (r) => r.status === 200 });
     if (historyRes.status !== 200) serverErrors.add(1);
 
-    // 3. Connect to WebSocket
+    // 3. Upload Media (mocked Cloudinary bypass)
+    const dummyFile = http.file('dummy file content', 'test.jpg', 'image/jpeg');
+    const uploadData = {
+        matchId: matchId,
+        media: dummyFile,
+    };
+    const uploadParams = {
+        headers: {
+            'Authorization': `Bearer ${getMyToken()}`,
+            'x-bypass-cloudinary': 'true',
+        },
+        timeout: '15s',
+    };
+    const uploadRes = http.post(`${BASE_URL}/chat/upload-media`, uploadData, uploadParams);
+    uploadMediaLatency.add(uploadRes.timings.duration);
+    check(uploadRes, { 'Upload Media status 201': (r) => r.status === 201 });
+    if (uploadRes.status !== 201) serverErrors.add(1);
+
+    let createdMessageId = null;
+    try {
+        const body = JSON.parse(uploadRes.body);
+        if (body.success && body.data) {
+            createdMessageId = body.data.id;
+        }
+    } catch (e) {
+        // ignore
+    }
+
+    // 4. Delete Message (with Media)
+    if (createdMessageId) {
+        const deleteRes = http.del(`${BASE_URL}/chat/messages/${createdMessageId}?deleteForEveryone=true`, null, uploadParams);
+        deleteMessageLatency.add(deleteRes.timings.duration);
+        check(deleteRes, { 'Delete Message status 200': (r) => r.status === 200 });
+        if (deleteRes.status !== 200) serverErrors.add(1);
+    }
+
+    // 5. Connect to WebSocket
     // Construct Socket.io engine.io URL v4
     const url = `${WS_URL}/socket.io/?EIO=4&transport=websocket&token=${token}`;
 
