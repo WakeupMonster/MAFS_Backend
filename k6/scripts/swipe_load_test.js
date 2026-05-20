@@ -91,6 +91,8 @@ function getHeaders() {
         headers: {
             'Authorization': `Bearer ${getMyToken()}`,
             'Content-Type': 'application/json',
+            'x-bypass-cloudinary': 'true',
+            'x-bypass-rate-limit': 'true',
         },
         timeout: '15s',
     };

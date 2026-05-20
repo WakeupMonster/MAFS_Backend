@@ -4,6 +4,11 @@ const { rateLimit } = require("./rateLimit");
 const apiLimiter = (actionName, limit, windowSeconds) => {
     return async (req, res, next) => {
         try {
+            // Bypass rate limits for load testing
+            if (process.env.NODE_ENV === "test" || req.headers["x-bypass-cloudinary"] === "true" || req.headers["x-bypass-rate-limit"] === "true") {
+                return next();
+            }
+
             // User ki ID se track karenge (agar login nahi hai toh IP Address se)
             const identifier = req.user ? req.user._id.toString() : (req.ip || "unknown");
             const key = `${actionName}:${identifier}`;
