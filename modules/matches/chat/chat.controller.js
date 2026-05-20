@@ -271,57 +271,104 @@ module.exports.getChatList = async (req, res) => {
       .sort({ lastMessageAt: -1, matchedAt: -1 })
       .lean();
 
-    const chatList = [];
+    if (!matches || matches.length === 0) {
+      return res.json({ success: true, data: [] });
+    }
 
-    for (const match of matches) {
-      // 2️⃣ Find other user
+    // Prepare arrays for batch queries
+    const matchIds = [];
+    const otherUserIds = [];
+
+    matches.forEach((match) => {
+      matchIds.push(match._id);
       const otherUserId = match.users.find(
-        (u) => u.toString() !== userId.toString(),
+        (u) => u.toString() !== userId.toString()
       );
+      if (otherUserId) otherUserIds.push(otherUserId);
+    });
 
-      const profile = await Profile.findOne({ userId: otherUserId })
-        .select("nickname photos")
-        .lean();
+    // 2️⃣ BATCH: Fetch all related profiles in one query
+    const profiles = await Profile.find({ userId: { $in: otherUserIds } })
+      .select("userId nickname photos")
+      .lean();
 
-      // 3️⃣ Unread count
-      const unreadCount = await ChatMessage.countDocuments({
-        matchId: match._id,
-        receiver: userId,
-        readAt: null,
-        deletedFor: { $ne: userId },
-      });
+    // Map profiles for O(1) lookup
+    const profileMap = {};
+    profiles.forEach((p) => {
+      profileMap[p.userId.toString()] = p;
+    });
 
-      // 4️⃣ Online status (Redis)
-      const isOnline = await redis.redisClient.get(
-        `user:online:${otherUserId}`,
+    // 3️⃣ BATCH: Aggregate unread message counts for all matches in one query
+    const unreadCountsAggr = await ChatMessage.aggregate([
+      {
+        $match: {
+          matchId: { $in: matchIds },
+          receiver: userId,
+          readAt: null,
+          deletedFor: { $ne: userId },
+        },
+      },
+      {
+        $group: {
+          _id: "$matchId",
+          count: { $sum: 1 },
+        },
+      },
+    ]);
+
+    // Map unread counts for O(1) lookup
+    const unreadMap = {};
+    unreadCountsAggr.forEach((item) => {
+      unreadMap[item._id.toString()] = item.count;
+    });
+
+    // 4️⃣ BATCH: Fetch all online statuses from Redis in one atomic mGet call
+    let onlineStatuses = [];
+    if (otherUserIds.length > 0) {
+      const redisKeys = otherUserIds.map((id) => `user:online:${id.toString()}`);
+      onlineStatuses = await redis.redisClient.mGet(redisKeys);
+    }
+
+    // Map online status for O(1) lookup
+    const onlineMap = {};
+    otherUserIds.forEach((id, index) => {
+      onlineMap[id.toString()] = Boolean(onlineStatuses[index]);
+    });
+
+    // 5️⃣ Construct final response efficiently from memory maps
+    const chatList = matches.map((match) => {
+      const otherUserId = match.users.find(
+        (u) => u.toString() !== userId.toString()
       );
+      const otherUserIdStr = otherUserId ? otherUserId.toString() : "";
 
-      chatList.push({
+      const profile = profileMap[otherUserIdStr];
+      const unreadCount = unreadMap[match._id.toString()] || 0;
+      const isOnline = onlineMap[otherUserIdStr] || false;
+
+      return {
         matchId: match._id,
-
         user: {
           id: otherUserId,
           name: profile?.nickname || "User",
           avatarUrl: profile?.photos?.[0]?.url || null,
-          isOnline: Boolean(isOnline),
+          isOnline: isOnline,
         },
-
         lastMessage: match.lastMessage
           ? {
-            text: match.lastMessage,
-            time: match.lastMessageAt,
-            formattedTime: match.lastMessageAt
-              ? DateTime.fromJSDate(new Date(match.lastMessageAt))
-                .setZone("Asia/Kolkata")
-                .toFormat("hh:mm a")
-              : null,
-          }
+              text: match.lastMessage,
+              time: match.lastMessageAt,
+              formattedTime: match.lastMessageAt
+                ? DateTime.fromJSDate(new Date(match.lastMessageAt))
+                    .setZone("Asia/Kolkata")
+                    .toFormat("hh:mm a")
+                : null,
+            }
           : null,
         matchedAt: match.lastMessageAt,
-
         unreadCount,
-      });
-    }
+      };
+    });
 
     return res.json({
       success: true,

@@ -17,17 +17,22 @@ const featureService = require("./feature.service");
 
 
 class UsageService {
+    constructor() {
+        this.configCache = null;
+        this.configCacheExpires = 0;
+    }
 
     async useItem(userId, type) {
-        const config = await SubscriptionConfig.getOrCreate();
+        if (!this.configCache || Date.now() > this.configCacheExpires) {
+            this.configCache = await SubscriptionConfig.getOrCreate();
+            this.configCacheExpires = Date.now() + (5 * 60 * 1000); // 5 min TTL
+        }
+        const config = this.configCache;
 
         // Determine Subscription State (Source of Truth)
         const activeSub = await Subscription.findActiveByUser(userId).lean();
 
         const isPremium = !!activeSub;
-
-        // Proactive Sync: Keep User/Profile flags updated
-        this._syncPremiumState(userId, isPremium).catch(err => console.error('Sync Error:', err));
 
         switch (type) {
             case 'LIKE':
@@ -56,8 +61,13 @@ class UsageService {
             if (cached) return JSON.parse(cached);
         } catch (e) { /* ignore cache miss */ }
 
+        if (!this.configCache || Date.now() > this.configCacheExpires) {
+            this.configCache = await SubscriptionConfig.getOrCreate();
+            this.configCacheExpires = Date.now() + (5 * 60 * 1000); // 5 min TTL
+        }
+
         const [config, activeSub, daily, weekly, monthly, wallet, boostTTL, user] = await Promise.all([
-            SubscriptionConfig.getOrCreate(),
+            Promise.resolve(this.configCache),
             Subscription.findActiveByUser(userId).lean(),
             UserDailyUsage.findOne({ userId, dateKey: dateHelpers.getDateKey() }).lean(),
             UserWeeklyUsage.findOne({ userId, weekKey: dateHelpers.getWeekKey() }).lean(),
@@ -68,7 +78,6 @@ class UsageService {
         ]);
 
         const isPremium = !!activeSub;
-        this._syncPremiumState(userId, isPremium).catch(err => console.error('Sync Error:', err));
 
         // Fetch product details for displayName, subtitle, badge
         let productInfo = null;
@@ -250,26 +259,32 @@ class UsageService {
      * Helper to atomically increment a quota bucket up to a maximum limit without conditional upsert errors (E11000).
      */
     async _incrementQuotaBucket(Model, query, field, limit) {
-        // 1. Ensure the document exists without updating its value if it already does.
-        try {
-            await Model.findOneAndUpdate(
-                query,
-                { $setOnInsert: { [field]: 0 } },
-                { upsert: true, setDefaultsOnInsert: true }
-            );
-        } catch (error) {
-            // Ignore duplicate key error on initialization race condition
-            if (error.code !== 11000) throw error;
-        }
-
-        // 2. Safely increment only if under limit
+        // 1. Fast Path: Safely increment only if under limit (Works 99% of the time)
         const result = await Model.findOneAndUpdate(
             { ...query, [field]: { $lt: limit } },
             { $inc: { [field]: 1 } },
             { new: true }
         );
+        if (result) return result;
 
-        return result; // Returns the updated document or null if limit reached
+        // 2. Slow Path: The document either does NOT exist, or the LIMIT IS REACHED.
+        const existingDoc = await Model.findOne(query).lean();
+        if (existingDoc) {
+            // Document exists, but Step 1 failed -> This strictly means Limit is Reached.
+            return null;
+        }
+
+        // 3. Document does not exist (1st swipe of the day). Safely create it.
+        try {
+            return await Model.findOneAndUpdate(
+                query,
+                { $setOnInsert: { [field]: 1 } },
+                { upsert: true, new: true, setDefaultsOnInsert: true }
+            );
+        } catch (error) {
+            if (error.code === 11000) return null; // Race condition
+            throw error;
+        }
     }
 
     // --- Handlers ---
@@ -303,6 +318,8 @@ class UsageService {
         const weekKey = dateHelpers.getWeekKey();
         const quotaLimit = isPremium ? config.premiumLimits.superKeensPerDay : config.freeLimits.superKeensPerWeek;
 
+        if (quotaLimit === -1) return { success: true, source: 'QUOTA', remaining: -1 };
+
         // Bucket 1: Quota
         const quotaQuery = isPremium ? { userId, dateKey } : { userId, weekKey };
         const UsageModel = isPremium ? UserDailyUsage : UserWeeklyUsage;
@@ -325,6 +342,8 @@ class UsageService {
     async _handleBoostUsage(userId, isPremium, config) {
         const monthKey = dateHelpers.getMonthKey();
         const quotaLimit = isPremium ? config.premiumLimits.boostsPerMonth : config.freeLimits.boostsPerMonth;
+
+        if (quotaLimit === -1) return { success: true, source: 'QUOTA', remaining: -1 };
 
         // Bucket 1: Quota
         if (quotaLimit > 0) {
