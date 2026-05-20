@@ -14,7 +14,7 @@ const AdminNotificationSchema = new mongoose.Schema(
 
     target: {
       type: String,
-      enum: ["all", "free", "premium", "premium_expiry"],
+      enum: ["all", "free", "premium", "premium_expiry", "ghosted"],
       required: true,
     },
 

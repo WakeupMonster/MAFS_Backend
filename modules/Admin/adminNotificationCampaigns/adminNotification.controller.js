@@ -237,7 +237,7 @@ module.exports.broadcastNotification = async (req, res) => {
       });
     }
 
-    if (!["all", "free", "premium"].includes(target)) {
+    if (!["all", "free", "premium", "ghosted"].includes(target)) {
       return res.status(400).json({
         success: false,
         message: "Invalid target audience",
@@ -267,6 +267,11 @@ module.exports.broadcastNotification = async (req, res) => {
 
     if (target === "free") {
       userQuery.isPremium = false;
+    }
+
+    if (target === "ghosted") {
+      const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+      userQuery.lastLoginAt = { $lt: thirtyDaysAgo };
     }
 
     const totalTargeted = await User.countDocuments(userQuery);

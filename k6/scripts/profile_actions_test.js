@@ -116,7 +116,7 @@ export default function () {
     });
 
     // 3. Unblock Target
-    const unblockRes = http.delete(`${BASE_URL}/profile/unblock/${targetId}`, null, params);
+    const unblockRes = http.request('DELETE', `${BASE_URL}/profile/unblock/${targetId}`, null, params);
     check(unblockRes, {
       'unblock user is 200': (r) => r.status === 200,
     });

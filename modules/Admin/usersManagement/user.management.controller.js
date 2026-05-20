@@ -1502,8 +1502,6 @@ module.exports.GETGhostingUsers = async (req, res) => {
         {
           $match: {
             "matchedUser.role": "USER",
-            "matchedUser.isFake": { $ne: true },
-            "matchedUser.accountStatus": "active",
           },
         },
         { $count: "count" },
@@ -1526,8 +1524,6 @@ module.exports.GETGhostingUsers = async (req, res) => {
         {
           $match: {
             "matchedUser.role": "USER",
-            "matchedUser.isFake": { $ne: true },
-            "matchedUser.accountStatus": "active",
           },
         },
         { $count: "count" },
@@ -1550,8 +1546,6 @@ module.exports.GETGhostingUsers = async (req, res) => {
         {
           $match: {
             "matchedUser.role": "USER",
-            "matchedUser.isFake": { $ne: true },
-            "matchedUser.accountStatus": "active",
           },
         },
         { $count: "count" },
@@ -1600,8 +1594,6 @@ module.exports.GETGhostingUsers = async (req, res) => {
         {
           $match: {
             "matchedUser.role": "USER",
-            "matchedUser.isFake": { $ne: true },
-            "matchedUser.accountStatus": "active",
           },
         },
         { $count: "count" },
@@ -1610,8 +1602,6 @@ module.exports.GETGhostingUsers = async (req, res) => {
       // 5. Unique users inactive for 1+ months (Ghosted Users card)
       User.countDocuments({
         role: "USER",
-        isFake: { $ne: true },
-        accountStatus: "active",
         lastLoginAt: { $lt: oneMonthAgo },
       }),
     ]);
@@ -1679,8 +1669,6 @@ module.exports.GETGhostingUsers = async (req, res) => {
         {
           $match: {
             role: "USER",
-            isFake: { $ne: true },
-            accountStatus: "active",
             lastLoginAt: { $lt: oneMonthAgo },
           },
         },
@@ -1717,8 +1705,6 @@ module.exports.GETGhostingUsers = async (req, res) => {
     const baseMatch = {
       _id: { $in: targetUserIdsArray },
       role: "USER",
-      isFake: { $ne: true },
-      accountStatus: "active",
     };
 
     if (isPremium !== undefined && isPremium !== "") {

@@ -7,7 +7,7 @@ const AdminEmailCampaignSchema = new mongoose.Schema(
     body: { type: String, required: true }, // HTML / text
     target: {
       type: String,
-      enum: ["all", "free", "premium", "premium_expiry"],
+      enum: ["all", "free", "premium", "premium_expiry", "ghosted"],
       required: true
     },
     status: {

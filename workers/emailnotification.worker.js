@@ -97,6 +97,10 @@ const worker = new Worker(
     const filter = { accountStatus: "active", email: { $exists: true, $ne: "" }, $and: [{ email: { $ne: null } }] };
     if (campaign.target === "premium") filter.isPremium = true;
     if (campaign.target === "free") filter.isPremium = false;
+    if (campaign.target === "ghosted") {
+      const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+      filter.lastLoginAt = { $lt: thirtyDaysAgo };
+    }
 
     const totalUsers = await User.countDocuments(filter);
     campaign.totalUsers = totalUsers;

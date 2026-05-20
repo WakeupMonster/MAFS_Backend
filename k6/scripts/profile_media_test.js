@@ -104,9 +104,6 @@ export default function () {
       const deletePayload = JSON.stringify({
         publicId: uploadedPublicId,
       });
-      const deleteRes = http.patch(`${BASE_URL}/profile/photos`, deletePayload, jsonParams); // Wait, delete routes maps to controller.deletePhoto but is it DELETE or PATCH? Let's check routes.
-      // In profile.routes.js: router.delete("/photos", controller.deletePhoto);
-      // Wait! Is it DELETE or PATCH? Let's send a DELETE request.
       const deleteRes2 = http.request('DELETE', `${BASE_URL}/profile/photos`, deletePayload, jsonParams);
       check(deleteRes2, {
         'photo delete is 200': (r) => r.status === 200,

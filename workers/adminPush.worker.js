@@ -31,6 +31,9 @@ const worker = new Worker(
       query.isPremium = true;
     } else if (campaign.target === "free") {
       query.isPremium = false;
+    } else if (campaign.target === "ghosted") {
+      const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+      query.lastLoginAt = { $lt: thirtyDaysAgo };
     }
 
     let isPremiumExpiry = campaign.target === "premium_expiry";
