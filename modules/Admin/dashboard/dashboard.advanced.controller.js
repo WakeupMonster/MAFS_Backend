@@ -1307,7 +1307,7 @@ exports.getAdvancedDashboardMetrics = async (req, res) => {
       profileCountsFacet,
       // --- Core Engagement ---
       totalMatchesCount,
-      reportCountNew,
+      reportsFacet,
       supportOpen,
       totalMessagesRange,
       deepConvoAggCount,
@@ -1426,8 +1426,39 @@ exports.getAdvancedDashboardMetrics = async (req, res) => {
       // 3. Total matches (all time)
       Match.countDocuments({}),
 
-      // 4. Active reports
-      Report.countDocuments({ status: { $in: ["new", "in_progress"] } }),
+      // 4. Reports in range (Unique users flagged with 'new' status)
+      Report.aggregate([
+        {
+          $facet: {
+            current: [
+              { $match: { createdAt: { $gte: startDate, $lte: endDate } } },
+              { $sort: { createdAt: -1 } },
+              {
+                $group: {
+                  _id: "$reportedId",
+                  status: { $first: "$status" },
+                },
+              },
+              { $match: { status: "new" } },
+              { $count: "n" },
+            ],
+            prev: [
+              {
+                $match: { createdAt: { $gte: prevStartDate, $lt: startDate } },
+              },
+              { $sort: { createdAt: -1 } },
+              {
+                $group: {
+                  _id: "$reportedId",
+                  status: { $first: "$status" },
+                },
+              },
+              { $match: { status: "new" } },
+              { $count: "n" },
+            ],
+          },
+        },
+      ]).then((r) => r[0]),
 
       // 5. Open support tickets
       SupportTicket.countDocuments({ status: "open" }).catch(() => 0),
@@ -1783,6 +1814,17 @@ exports.getAdvancedDashboardMetrics = async (req, res) => {
       good: 0,
     };
 
+    const reportCountNew = reportsFacet?.current?.[0]?.n || 0;
+    const reportCountPrev = reportsFacet?.prev?.[0]?.n || 0;
+    const reportTrendNum =
+      reportCountPrev > 0
+        ? ((reportCountNew - reportCountPrev) / reportCountPrev) * 100
+        : null;
+    const reportTrendDisplay =
+      reportTrendNum !== null
+        ? `${reportTrendNum >= 0 ? "+" : ""}${reportTrendNum.toFixed(1)}%`
+        : "0.0%";
+
     const likesRange = swipesFacet?.currentLikes?.[0]?.n || 0;
     const superlikesRange = swipesFacet?.currentSuperlikes?.[0]?.n || 0;
     const swipesPrev = swipesFacet?.prev?.[0]?.n || 0;
@@ -1986,8 +2028,8 @@ exports.getAdvancedDashboardMetrics = async (req, res) => {
               label: "Users flagged",
               value: `${reportCountNew}`,
               sub: "Review now →",
-              trend: "12.5%",
-              isPositive: false,
+              trend: reportTrendDisplay,
+              isPositive: (reportTrendNum || 0) <= 0,
               icon: "Flag",
               color: "sky",
               isActionable: true,

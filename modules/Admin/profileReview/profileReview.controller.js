@@ -728,6 +728,20 @@ const getReportedProfiles = async (req, res) => {
           latestReport: { $first: "$createdAt" },
           latestStatus: { $first: "$status" },
           latestSeverity: { $first: "$severity" },
+          hasHighPriority: {
+            $max: {
+              $cond: [
+                {
+                  $and: [
+                    { $eq: ["$severity", "high"] },
+                    { $ne: ["$status", "resolved"] },
+                  ],
+                },
+                1,
+                0,
+              ],
+            },
+          },
           allReports: {
             $push: {
               _id: "$_id",
@@ -741,9 +755,39 @@ const getReportedProfiles = async (req, res) => {
           },
         },
       },
+      {
+        $addFields: {
+          hasHighPriority: {
+            $cond: [
+              {
+                $or: [
+                  { $eq: ["$hasHighPriority", 1] },
+                  {
+                    $and: [
+                      { $gte: ["$reportCount", 5] },
+                      { $ne: ["$latestStatus", "resolved"] },
+                    ],
+                  },
+                ],
+              },
+              1,
+              0,
+            ],
+          },
+          latestSeverity: {
+            $switch: {
+              branches: [
+                { case: { $eq: ["$latestStatus", "resolved"] }, then: "low" },
+                { case: { $gte: ["$reportCount", 5] }, then: "high" },
+              ],
+              default: "$latestSeverity",
+            },
+          },
+        },
+      },
       // Filter by the representative status of the user (based on their latest report)
       ...(status === "high"
-        ? [{ $match: { latestSeverity: "high" } }]
+        ? [{ $match: { hasHighPriority: 1 } }]
         : status && status !== "all"
           ? [{ $match: { latestStatus: status } }]
           : []),
@@ -801,8 +845,43 @@ const getReportedProfiles = async (req, res) => {
             {
               $group: {
                 _id: "$reportedId",
+                reportCount: { $sum: 1 },
                 status: { $first: "$status" },
-                severity: { $first: "$severity" },
+                hasHighPriority: {
+                  $max: {
+                    $cond: [
+                      {
+                        $and: [
+                          { $eq: ["$severity", "high"] },
+                          { $ne: ["$status", "resolved"] },
+                        ],
+                      },
+                      1,
+                      0,
+                    ],
+                  },
+                },
+              },
+            },
+            {
+              $addFields: {
+                hasHighPriority: {
+                  $cond: [
+                    {
+                      $or: [
+                        { $eq: ["$hasHighPriority", 1] },
+                        {
+                          $and: [
+                            { $gte: ["$reportCount", 5] },
+                            { $ne: ["$status", "resolved"] },
+                          ],
+                        },
+                      ],
+                    },
+                    1,
+                    0,
+                  ],
+                },
               },
             },
             {
@@ -819,7 +898,7 @@ const getReportedProfiles = async (req, res) => {
                   $sum: { $cond: [{ $eq: ["$status", "resolved"] }, 1, 0] },
                 },
                 highPriorityCount: {
-                  $sum: { $cond: [{ $eq: ["$severity", "high"] }, 1, 0] },
+                  $sum: "$hasHighPriority",
                 },
               },
             },

@@ -252,7 +252,7 @@ exports.getMyProfile = async (req, res) => {
 
     res.json({
       success: true,
-      message: "Profile fetched successfully!!",
+      message: "Profile fetched successfully",
       data: { user: await formatProfileResponse(data.user, data.profile, data.blockedContacts, data.blockedUser, data.subData, req) }
     });
   } catch (err) {

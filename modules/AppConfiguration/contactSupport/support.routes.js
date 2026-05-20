@@ -16,5 +16,4 @@ router.post(
 );
 router.get("/my-ticket", authMiddleware, apiLimiter("support_my_tickets", 20, 60), controller.myTicket);
 router.delete("/ticket/:ticketId", authMiddleware, apiLimiter("support_delete", 5, 3600), controller.deleteTicket);
-
 module.exports = router;
