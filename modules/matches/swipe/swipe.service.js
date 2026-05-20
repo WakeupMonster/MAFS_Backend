@@ -312,12 +312,17 @@ async function getFeedService(userId, limit, page) {
   // // Fetch Boosted Profiles to ensure they are at the top alongside superlikes
   if (limit - profiles.length > 0) {
     try {
-      if (redis && redis.redisClient && typeof redis.redisClient.keys === 'function') {
-        const keys = await redis.redisClient.keys('boost:*');
-        if (keys && keys.length > 0) {
+      if (redis) {
+        const now = Date.now();
+        // Prune expired boosts
+        await redis.zRemRangeByScore("boosted:users", "-inf", now);
+        // Fetch active boosted users
+        const boostedUserIdsRaw = await redis.zRangeByScore("boosted:users", now, "+inf");
+        
+        if (boostedUserIdsRaw && boostedUserIdsRaw.length > 0) {
           // Exclude already seen superlikes and base exclusions
           const currentExcludeSet = new Set([...baseExcludeSet, ...profiles.map(p => p.userId.toString())]);
-          const boostedUserIds = keys.map(k => k.split(':')[1]).filter(id => !currentExcludeSet.has(id.toString()));
+          const boostedUserIds = boostedUserIdsRaw.filter(id => !currentExcludeSet.has(id.toString()));
 
           if (boostedUserIds.length > 0) {
             const boostQuery = {

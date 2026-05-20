@@ -109,6 +109,26 @@ function safeMulti() {
   return redisClient.multi();
 }
 
+async function safeZAdd(key, score, value) {
+  await connectRedis();
+  return redisClient.zAdd(key, { score, value });
+}
+
+async function safeZRem(key, value) {
+  await connectRedis();
+  return redisClient.zRem(key, value);
+}
+
+async function safeZRemRangeByScore(key, min, max) {
+  await connectRedis();
+  return redisClient.zRemRangeByScore(key, min, max);
+}
+
+async function safeZRangeByScore(key, min, max) {
+  await connectRedis();
+  return redisClient.zRangeByScore(key, min, max);
+}
+
 module.exports = {
   redisClient,
   connectRedis,
@@ -125,4 +145,8 @@ module.exports = {
   sMembers: safeSMembers,
   multi: safeMulti,
   incr: safeIncr,
+  zAdd: safeZAdd,
+  zRem: safeZRem,
+  zRemRangeByScore: safeZRemRangeByScore,
+  zRangeByScore: safeZRangeByScore,
 };
