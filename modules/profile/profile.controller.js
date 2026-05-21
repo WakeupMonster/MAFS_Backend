@@ -569,9 +569,15 @@ exports.uploadSelfie = async (req, res) => {
     const profile = await getOrCreateProfile(userId);
     profile.verification.selfieUrl = result.secure_url;
     profile.verification.status = "pending";
+    profile.verification.submittedAt = new Date();
+    profile.markModified("verification");
     await profile.save();
 
-    res.json({ success: true, message: "Selfie uploaded successfully", url: result.secure_url });
+    res.status(200).json({
+      success: true, message: "Selfie uploaded successfully",
+      submittedAt: profile.verification.submittedAt,
+      url: result.secure_url
+    });
   } catch (err) {
     res.status(500).json({ success: false, message: "Selfie upload failed" });
   }
@@ -591,9 +597,14 @@ exports.uploadIDDocument = async (req, res) => {
     profile.verification.docUrl = frontResult.secure_url;
     profile.verification.status = "pending";
     profile.verification.submittedAt = new Date();
+    profile.markModified("verification");
     await profile.save();
 
-    res.json({ success: true, message: "ID document uploaded successfully" });
+    res.status(200).json({
+      success: true,
+      submittedAt: profile.verification.submittedAt,
+      message: "ID document uploaded successfully"
+    });
   } catch (err) {
     res.status(500).json({ success: false, message: "ID upload failed" });
   }

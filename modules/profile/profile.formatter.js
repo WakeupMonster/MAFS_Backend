@@ -181,6 +181,8 @@ const formatProfileResponse = async (
       selfieUrl: p.verification?.selfieUrl || null,
       docUrl: p.verification?.docUrl || null,
       rejectionReason: p.verification?.rejectionReason || null,
+      submittedAt: p.verification?.submittedAt || null,
+      verifiedAt: p.verification?.verifiedAt || null,
     },
 
     // 8. VERIFICATION
