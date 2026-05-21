@@ -20,7 +20,7 @@ module.exports.getFeed = async (req, res) => {
 
     return res.json({
       success: true,
-      message: "Feed fetched successfully!!",
+      message: "Feed fetched successfully !",
       count: feedResult.data.length,
       data: feedResult.data,
     });
