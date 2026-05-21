@@ -18,7 +18,7 @@ router.use(auth);
 
 router.patch(
   "/update",
-  apiLimiter("profile_update", 40, 3600), // Max 30 profile updates per hour
+  // apiLimiter("profile_update", 40, 3600), // Max 30 profile updates per hour
   // validation.validateProfileUpdate,
   controller.updateProfile,
 );
@@ -26,14 +26,14 @@ router.patch(
 router.patch(
   "/discovery-preference/reset",
   auth,
-  apiLimiter("discovery_reset", 10, 60),
+  // apiLimiter("discovery_reset", 10, 60),
   controller.resetDiscoveryFilters,
 );
 
 router.patch(
   "/discovery-preference",
   auth,
-  apiLimiter("discovery_update", 10, 60),
+  // apiLimiter("discovery_update", 10, 60),
   validateDiscoveryFilters,
   controller.updateDiscoveryFilters,
 );
@@ -51,7 +51,7 @@ router.patch("/photos/reorder", controller.reorderPhotos);
 
 router.post(
   "/selfie",
-  apiLimiter("selfie_upload", 5, 3600),
+  // apiLimiter("selfie_upload", 5, 3600),
   (req, res, next) => {
     uploadMiddleware.uploadSingle("selfie")(req, res, (err) => {
       if (err) {
@@ -65,17 +65,19 @@ router.post(
 
 router.post(
   "/id-document",
-  apiLimiter("id_upload", 3, 3600),
+  // apiLimiter("id_upload", 3, 3600),
   uploadMiddleware.uploadFields,
   // validation.validateIDUpload,
   controller.uploadIDDocument,
 );
 
-router.get("/verification-status", apiLimiter("verification_status", 20, 60), controller.getVerificationStatus);
+router.get("/verification-status",
+  //  apiLimiter("verification_status", 20, 60), 
+  controller.getVerificationStatus);
 
 router.post(
   "/location",
-  apiLimiter("location_update", 20, 60),
+  // apiLimiter("location_update", 20, 60),
   validation.validateLocation,
   controller.updateLocation,
 );
@@ -90,12 +92,15 @@ router.get("/config", apiLimiter("app_config", 20, 60), masterController.getAppC
 
 router.get(
   "/:userId",
-  apiLimiter("profile_view", 60, 60), // Max 60 profile views per minute (Prevents Scraping)
+  // apiLimiter("profile_view", 60, 60), // Max 60 profile views per minute (Prevents Scraping)
   validation.validateUserIdParam,
   controller.getUserProfile,
 );
 
-router.patch("/visibility", auth, apiLimiter("visibility_update", 10, 60), controller.updateVisibility);
+router.patch("/visibility", auth,
+  // apiLimiter("visibility_update", 10, 60), 
+  controller.updateVisibility);
+
 
 router.get("/blocked/all", userAction.getBlockList);
 
@@ -104,7 +109,10 @@ router.delete("/unblock/:id", userAction.unblockUser);
 router.get("/block-list", userAction.getBlockList);
 
 // Report
-router.post("/report/:id", userAction.reportUser);
+router.post("/report/:id",
+  // apiLimiter("visibility_update", 10, 60),
+  userAction.reportUser);
+
 
 router.post("/resetData", controller.resetTestData);
 module.exports = router;

@@ -1,3 +1,4 @@
+/* eslint-disable no-unused-vars */
 // // ================================================================
 // // ADVANCED DASHBOARD API — "Command Center" for Admin
 // // All data is 100% dynamic, calculated from real DB aggregations.
