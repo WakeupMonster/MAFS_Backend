@@ -711,8 +711,53 @@ const getReportedProfiles = async (req, res) => {
     const search = req.query.search?.trim() || "";
     const status = req.query.status || "";
 
-    // 1. Initial Match Stage (Basic filter)
+    // 1. Resolve Date Range (Matches Dashboard & Ghosting Logic)
+    const presetParam = req.query.preset;
+    const fromQuery = req.query.from || req.query.startDate;
+    const toQuery = req.query.to || req.query.endDate;
+
+    let startDate, endDate;
+    const now = new Date();
+
+    if (presetParam === "today") {
+      startDate = new Date(now);
+      startDate.setHours(0, 0, 0, 0);
+      endDate = new Date(now);
+      endDate.setHours(23, 59, 59, 999);
+    } else if (presetParam === "yesterday") {
+      startDate = new Date(now);
+      startDate.setDate(startDate.getDate() - 1);
+      startDate.setHours(0, 0, 0, 0);
+      endDate = new Date(startDate);
+      endDate.setHours(23, 59, 59, 999);
+    } else if (presetParam === "last7") {
+      startDate = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+      endDate = new Date(now);
+    } else if (presetParam === "last30") {
+      startDate = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+      endDate = new Date(now);
+    } else if (fromQuery || toQuery) {
+      if (fromQuery) {
+        startDate = new Date(fromQuery);
+        startDate.setHours(0, 0, 0, 0);
+      }
+      if (toQuery) {
+        endDate = new Date(toQuery);
+        endDate.setHours(23, 59, 59, 999);
+      }
+    }
+
+    // 2. Initial Match Stage (Basic filter)
     const baseMatch = { reportedId: { $exists: true, $ne: null } };
+    if (startDate || endDate) {
+      baseMatch.createdAt = {};
+      if (startDate) {
+        baseMatch.createdAt.$gte = startDate;
+      }
+      if (endDate) {
+        baseMatch.createdAt.$lte = endDate;
+      }
+    }
 
     // 2. Common Pipeline Stages (Group first, then filter by latest status)
     const commonPipeline = [

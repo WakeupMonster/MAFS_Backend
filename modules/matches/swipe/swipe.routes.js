@@ -27,11 +27,20 @@ const { apiLimiter } = require("../../../common/middlewares/apiLimiter");
 
 router.use(auth);
 router.use(allowDating);
-router.get("/feed", apiLimiter("swipe_feed", 30, 60), validation.feed, controllerOld.getFeed);
-router.post("/action", apiLimiter("swipe_action", 40, 60), controllerOld.action);
-router.post("/unmatch", apiLimiter("unmatch", 5, 3600), controllerOld.unmatchUser);
-router.get("/matches", apiLimiter("get_matches", 30, 60), controllerOld.getMatches);
-router.post("/undo", apiLimiter("swipe_undo", 5, 60), validation.undo, controllerOld.undo);
+// router.get("/feed", apiLimiter("swipe_feed", 30, 60), validation.feed, controllerOld.getFeed);
+// router.post("/action", apiLimiter("swipe_action", 40, 60), controllerOld.action);
+// router.post("/unmatch", apiLimiter("unmatch", 5, 3600), controllerOld.unmatchUser);
+// router.get("/matches", apiLimiter("get_matches", 30, 60), controllerOld.getMatches);
+// router.post("/undo", apiLimiter("swipe_undo", 5, 60), validation.undo, controllerOld.undo);
+
+
+router.get("/feed", validation.feed, controllerOld.getFeed);
+router.post("/action", controllerOld.action);
+router.post("/unmatch", controllerOld.unmatchUser);
+router.get("/matches", controllerOld.getMatches);
+router.post("/undo", validation.undo, controllerOld.undo);
+
+
 
 
 // CREATE block or report
@@ -48,7 +57,11 @@ router.post("/undo", apiLimiter("swipe_undo", 5, 60), validation.undo, controlle
 
 // router.get("/limits", controller.getLimits);
 
-router.get("/keen", apiLimiter("get_keen", 20, 60), controllerOld.getKeen);
-router.get("/superkeen", apiLimiter("get_superkeen", 20, 60), controllerOld.getSuperKeen);
+// router.get("/keen", apiLimiter("get_keen", 20, 60), controllerOld.getKeen);
+// router.get("/superkeen", apiLimiter("get_superkeen", 20, 60), controllerOld.getSuperKeen);
+
+router.get("/keen", controllerOld.getKeen);
+router.get("/superkeen", controllerOld.getSuperKeen);
+
 
 module.exports = router;

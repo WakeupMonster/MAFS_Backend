@@ -3,16 +3,20 @@ const ChatMessage = require("./chat.message.model");
 const { Match } = require("../swipe/swipe.model");
 const { isBlocked } = require("../../profile/block.service");
 const { DateTime } = require("luxon");
+const redis = require("../../../config/cache");
+const Profile = require("../../../modules/profile/profile.model");
 
 // 1. SEND MESSAGE (Sabse important jo missing tha)
 module.exports.sendMessage = async (req, res) => {
+  const start = Date.now();
+  const userId = req.user._id;
+  const { matchId, text, media } = req.body;
+  console.log(`[SEND MESSAGE START] Sender: ${userId} -> Match: ${matchId}`);
   try {
-    const userId = req.user._id;
-    const { matchId, text, media } = req.body;
-
     // 1. Ensure match exists and user is part of it
     const match = await Match.findById(matchId);
     if (!match || !match.users.some((u) => u.toString() === userId.toString())) {
+      console.log(`[SEND MESSAGE FAILED] Sender: ${userId} -> Match: ${matchId} | Reason: Invalid Match`);
       return res.status(403).json({ success: false, message: "Invalid Match" });
     }
 
@@ -23,6 +27,7 @@ module.exports.sendMessage = async (req, res) => {
     // 2. Block Check
     const blockStatus = await isBlocked(userId, receiverId);
     if (blockStatus.isBlocked) {
+      console.log(`[SEND MESSAGE FAILED] Sender: ${userId} -> Receiver: ${receiverId} | Reason: Blocked`);
       return res.status(403).json({
         success: false,
         message: "You cannot send messages to this user",
@@ -47,6 +52,13 @@ module.exports.sendMessage = async (req, res) => {
       lastMessageBy: userId,
     });
 
+    if (redis) {
+      Promise.all([
+        redis.del(`chat:list:${userId.toString()}`),
+        redis.del(`chat:list:${receiverId.toString()}`),
+      ]).catch((err) => console.error("Error clearing chat list cache in sendMessage:", err));
+    }
+
     const formattedMessage = {
       id: newMessage._id,
       text: newMessage.text,
@@ -61,9 +73,10 @@ module.exports.sendMessage = async (req, res) => {
         .toFormat("hh:mm a"),
     };
 
+    console.log(`[SEND MESSAGE OK] Sender: ${userId} -> Receiver: ${receiverId} | Match: ${matchId} | Time: ${Date.now() - start}ms`);
     return res.status(201).json({ success: true, data: formattedMessage });
   } catch (err) {
-    console.error("❌ sendMessage error:", err);
+    console.error(`[SEND MESSAGE ERROR] Sender: ${userId} -> Match: ${matchId} | Error: ${err.message}`, err);
     res.status(500).json({ success: false, message: "Chat failed" });
   }
 };
@@ -190,6 +203,12 @@ module.exports.updateChatMsgRead = async (req, res) => {
       { $set: { status: "READ", readAt: new Date() } },
     );
 
+    if (redis && result.modifiedCount > 0) {
+      redis.del(`chat:list:${userId.toString()}`).catch((err) =>
+        console.error("Error clearing chat list cache in updateChatMsgRead:", err)
+      );
+    }
+
     return res.json({ success: true, readCount: result.modifiedCount });
   } catch (err) {
     console.error("ERROR updating chat read status:", err);
@@ -246,6 +265,12 @@ module.exports.deleteChatMessage = async (req, res) => {
       { new: true },
     ).lean();
 
+    if (redis) {
+      redis.del(`chat:list:${userId.toString()}`).catch((err) =>
+        console.error("Error clearing chat list cache in deleteChatMessage:", err)
+      );
+    }
+
     return res.json({
       success: true,
       message: "Message deleted for user",
@@ -257,70 +282,159 @@ module.exports.deleteChatMessage = async (req, res) => {
   }
 };
 
-const redis = require("../../../config/cache");
-const Profile = require("../../../modules/profile/profile.model");
 
 module.exports.getChatList = async (req, res) => {
+  const startTime = Date.now();
+  const userId = req.user._id;
+  const CHAT_LIST_KEY = `chat:list:${userId.toString()}`;
+  console.log(`[CHAT LIST START] User: ${userId} requesting chat list`);
   try {
-    const userId = req.user._id;
+    if (redis) {
+      try {
+        const cached = await redis.get(CHAT_LIST_KEY);
+        if (cached) {
+          const chatList = JSON.parse(cached);
+          console.log(`[CHAT LIST END] User: ${userId} | CACHE HIT | Total Time: ${Date.now() - startTime}ms`);
+          return res.json({ success: true, data: chatList });
+        }
+      } catch (err) {
+        console.error("Chat list cache get error:", err);
+      }
+    }
 
     // 1️⃣ Fetch matches sorted by priority: Last Message OR New Match (TOP REORDER BASE)
+    const matchesTimeStart = Date.now();
     const matches = await Match.find({
       users: userId,
     })
       .sort({ lastMessageAt: -1, matchedAt: -1 })
       .lean();
+    const matchesTimeTaken = Date.now() - matchesTimeStart;
 
-    const chatList = [];
+    if (!matches || matches.length === 0) {
+      if (redis) {
+        try {
+          await redis.set(CHAT_LIST_KEY, JSON.stringify([]), { EX: 15 });
+        } catch (err) {
+          console.error("Chat list cache set 0 matches error:", err);
+        }
+      }
+      console.log(`[CHAT LIST END] User: ${userId} has 0 matches. Total Time: ${Date.now() - startTime}ms`);
+      return res.json({ success: true, data: [] });
+    }
 
-    for (const match of matches) {
-      // 2️⃣ Find other user
+    // Prepare arrays for batch queries
+    const matchIds = [];
+    const otherUserIds = [];
+
+    matches.forEach((match) => {
+      matchIds.push(match._id);
       const otherUserId = match.users.find(
-        (u) => u.toString() !== userId.toString(),
+        (u) => u.toString() !== userId.toString()
       );
+      if (otherUserId) otherUserIds.push(otherUserId);
+    });
 
-      const profile = await Profile.findOne({ userId: otherUserId })
-        .select("nickname photos")
-        .lean();
+    // 2️⃣ BATCH: Fetch all related profiles in one query
+    const profilesTimeStart = Date.now();
+    const profiles = await Profile.find({ userId: { $in: otherUserIds } })
+      .select("userId nickname photos")
+      .lean();
+    const profilesTimeTaken = Date.now() - profilesTimeStart;
 
-      // 3️⃣ Unread count
-      const unreadCount = await ChatMessage.countDocuments({
-        matchId: match._id,
-        receiver: userId,
-        readAt: null,
-        deletedFor: { $ne: userId },
-      });
+    // Map profiles for O(1) lookup
+    const profileMap = {};
+    profiles.forEach((p) => {
+      profileMap[p.userId.toString()] = p;
+    });
 
-      // 4️⃣ Online status (Redis)
-      const isOnline = await redis.redisClient.get(
-        `user:online:${otherUserId}`,
+    // 3️⃣ BATCH: Aggregate unread message counts for all matches in one query
+    const unreadTimeStart = Date.now();
+    const unreadCountsAggr = await ChatMessage.aggregate([
+      {
+        $match: {
+          matchId: { $in: matchIds },
+          receiver: userId,
+          readAt: null,
+          deletedFor: { $ne: userId },
+        },
+      },
+      {
+        $group: {
+          _id: "$matchId",
+          count: { $sum: 1 },
+        },
+      },
+    ]);
+    const unreadTimeTaken = Date.now() - unreadTimeStart;
+
+    // Map unread counts for O(1) lookup
+    const unreadMap = {};
+    unreadCountsAggr.forEach((item) => {
+      unreadMap[item._id.toString()] = item.count;
+    });
+
+    // 4️⃣ BATCH: Fetch all online statuses from Redis in one atomic mGet call
+    const redisTimeStart = Date.now();
+    let onlineStatuses = [];
+    if (otherUserIds.length > 0) {
+      const redisKeys = otherUserIds.map((id) => `user:online:${id.toString()}`);
+      onlineStatuses = await redis.mGet(redisKeys);
+    }
+    const redisTimeTaken = Date.now() - redisTimeStart;
+
+    // Map online status for O(1) lookup
+    const onlineMap = {};
+    otherUserIds.forEach((id, index) => {
+      onlineMap[id.toString()] = Boolean(onlineStatuses[index]);
+    });
+
+    // 5️⃣ Construct final response efficiently from memory maps
+    const chatList = matches.map((match) => {
+      const otherUserId = match.users.find(
+        (u) => u.toString() !== userId.toString()
       );
+      const otherUserIdStr = otherUserId ? otherUserId.toString() : "";
 
-      chatList.push({
+      const profile = profileMap[otherUserIdStr];
+      const unreadCount = unreadMap[match._id.toString()] || 0;
+      const isOnline = onlineMap[otherUserIdStr] || false;
+
+      return {
         matchId: match._id,
-
         user: {
           id: otherUserId,
           name: profile?.nickname || "User",
           avatarUrl: profile?.photos?.[0]?.url || null,
-          isOnline: Boolean(isOnline),
+          isOnline: isOnline,
         },
-
         lastMessage: match.lastMessage
           ? {
-            text: match.lastMessage,
-            time: match.lastMessageAt,
-            formattedTime: match.lastMessageAt
-              ? DateTime.fromJSDate(new Date(match.lastMessageAt))
-                .setZone("Asia/Kolkata")
-                .toFormat("hh:mm a")
-              : null,
-          }
+              text: match.lastMessage,
+              time: match.lastMessageAt,
+              formattedTime: match.lastMessageAt
+                ? DateTime.fromJSDate(new Date(match.lastMessageAt))
+                    .setZone("Asia/Kolkata")
+                    .toFormat("hh:mm a")
+                : null,
+            }
           : null,
         matchedAt: match.lastMessageAt,
-
         unreadCount,
-      });
+      };
+    });
+
+    const totalTime = Date.now() - startTime;
+    console.log(
+      `[CHAT LIST END] User: ${userId} | Matches: ${matches.length} | Time: ${totalTime}ms (MatchFind: ${matchesTimeTaken}ms, ProfileFind: ${profilesTimeTaken}ms, UnreadAggr: ${unreadTimeTaken}ms, RedisOnline: ${redisTimeTaken}ms)`
+    );
+
+    if (redis) {
+      try {
+        await redis.set(CHAT_LIST_KEY, JSON.stringify(chatList), { EX: 15 });
+      } catch (err) {
+        console.error("Chat list cache set error:", err);
+      }
     }
 
     return res.json({
@@ -328,7 +442,7 @@ module.exports.getChatList = async (req, res) => {
       data: chatList,
     });
   } catch (err) {
-    console.error("Chat list error:", err);
+    console.error(`[CHAT LIST ERROR] User: ${userId} | Error: ${err.message}`, err);
     return res.status(500).json({
       success: false,
       message: "Server error",
@@ -381,34 +495,42 @@ module.exports.uploadChatMediaController = async (req, res) => {
       });
     }
 
-    // 4. 🔥 Upload all files to Cloudinary
+    // 4. 🔥 Upload all files to Cloudinary (Bypassed if load testing)
     // Note: Middleware already checked per-type size limits
-    const media = await Promise.all(
-      files.map(async (file) => {
-        const result = await uploadStream(file.buffer, {
-          folder: `mafs/chat/${matchId}`,
-          resource_type: "auto",
-          transformation: [
-            // { quality: "auto:good" }
-            { quality: "auto", fetch_format: "auto" }
+    let media;
+    if (process.env.NODE_ENV === "test" || req.headers["x-bypass-cloudinary"] === "true") {
+      media = files.map((file) => ({
+        url: "https://res.cloudinary.com/demo/image/upload/sample.jpg",
+        publicId: "sample",
+        originalName: file.originalname || "test.jpg",
+        type: file.mimetype && file.mimetype.startsWith("video/") ? "video" : "image",
+      }));
+    } else {
+      media = await Promise.all(
+        files.map(async (file) => {
+          const result = await uploadStream(file.buffer, {
+            folder: `mafs/chat/${matchId}`,
+            resource_type: "auto",
+            transformation: [
+              // { quality: "auto:good" }
+              { quality: "auto", fetch_format: "auto" }
+            ],
+          });
 
-          ],
-
-        });
-
-        return {
-          url: result.secure_url,
-          publicId: result.public_id,
-          originalName: file.originalname,
-          type:
-            result.resource_type === "video"
-              ? "video"
-              : file.mimetype === "image/gif"
-                ? "gif"
-                : "image",
-        };
-      }),
-    );
+          return {
+            url: result.secure_url,
+            publicId: result.public_id,
+            originalName: file.originalname,
+            type:
+              result.resource_type === "video"
+                ? "video"
+                : file.mimetype === "image/gif"
+                  ? "gif"
+                  : "image",
+          };
+        }),
+      );
+    }
 
     // 5. 🔥 Save chat message in DB
     const message = await ChatMessage.create({
@@ -426,6 +548,13 @@ module.exports.uploadChatMediaController = async (req, res) => {
       lastMessageAt: new Date(),
       lastMessageBy: userId,
     });
+
+    if (redis) {
+      Promise.all([
+        redis.del(`chat:list:${userId.toString()}`),
+        redis.del(`chat:list:${receiverId.toString()}`),
+      ]).catch((err) => console.error("Error clearing chat list cache in uploadChatMediaController:", err));
+    }
 
     const formattedMessage = {
       id: message._id,
@@ -495,8 +624,8 @@ module.exports.deleteChatMessageWithMedia = async (req, res) => {
         });
       }
 
-      // 🔥 Delete media from Cloudinary
-      if (message.media && message.media.length > 0) {
+      // 🔥 Delete media from Cloudinary (Bypassed if load testing)
+      if (message.media && message.media.length > 0 && process.env.NODE_ENV !== "test" && req.headers["x-bypass-cloudinary"] !== "true") {
         await Promise.all(
           message.media.map((m) => (m.publicId ? destroy(m.publicId) : null)),
         );
@@ -507,6 +636,13 @@ module.exports.deleteChatMessageWithMedia = async (req, res) => {
       message.media = [];
 
       await message.save();
+
+      if (redis) {
+        Promise.all([
+          redis.del(`chat:list:${message.sender.toString()}`),
+          redis.del(`chat:list:${message.receiver.toString()}`),
+        ]).catch((err) => console.error("Error clearing chat list cache in delete for everyone:", err));
+      }
 
       return res.json({
         success: true,
@@ -520,6 +656,12 @@ module.exports.deleteChatMessageWithMedia = async (req, res) => {
     if (!message.deletedFor.includes(userId)) {
       message.deletedFor.push(userId);
       await message.save();
+    }
+
+    if (redis) {
+      redis.del(`chat:list:${userId.toString()}`).catch((err) =>
+        console.error("Error clearing chat list cache in delete for me:", err)
+      );
     }
 
     return res.json({

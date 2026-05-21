@@ -132,7 +132,7 @@ module.exports.unmatchUser = async (req, res) => {
       });
     });
 
-    // Complete cache invalidation — feed, exclude, AND matches
+    // Complete cache invalidation — feed, exclude, matches, AND chat list
     if (redis && otherUserId) {
       await Promise.all([
         redis.del(`feed:${userId.toString()}`),
@@ -141,6 +141,8 @@ module.exports.unmatchUser = async (req, res) => {
         redis.del(`feed:exclude:${otherUserId.toString()}`),
         redis.del(`matches:${userId}`),
         redis.del(`matches:${otherUserId}`),
+        redis.del(`chat:list:${userId.toString()}`),
+        redis.del(`chat:list:${otherUserId.toString()}`),
       ]);
       console.log("⚡ [UNMATCH] All caches cleared for both users");
     }
@@ -157,9 +159,10 @@ module.exports.getMatches = async (req, res) => {
   try {
     const userId = req.user._id;
 
-    // Fetch all matches (no populate needed — we only use raw user IDs)
+    // Fetch recent matches using the exact index { users: 1, lastMessageAt: -1, matchedAt: -1 }
     const matches = await Match.find({ users: userId })
       .sort({ lastMessageAt: -1, matchedAt: -1 })
+      .limit(100)
       .lean();
 
     // Collect all partner IDs in one pass

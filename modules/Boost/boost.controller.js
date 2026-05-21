@@ -40,6 +40,7 @@ exports.activateBoost = async (req, res) => {
 
     // 4️⃣ Activate boost
     await redis.set(`boost:${userId}`, "1", { EX: BOOST_TTL_SECONDS });
+    await redis.zAdd("boosted:users", Date.now() + (BOOST_TTL_SECONDS * 1000), userId);
     // console.log(`boost:${userId}`, "bosted user")
 
     // 5️⃣ Clear feed cache (VERY IMPORTANT)
@@ -71,6 +72,7 @@ module.exports.unboostUser = async (req, res) => {
     // 1️⃣ Redis se boost key delete karo
     const boostKey = `boost:${userId}`;
     const result = await redis.del(boostKey);
+    await redis.zRem("boosted:users", userId);
 
     // 2️⃣ Feed cache delete karo taaki changes turant dikhein
     await redis.del(`feed:${userId}`);

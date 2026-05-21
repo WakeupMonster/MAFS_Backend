@@ -8,4 +8,6 @@ const BlockSchema = new mongoose.Schema({
 
 // Index taaki duplicate block na ho
 BlockSchema.index({ blockerId: 1, blockedId: 1 }, { unique: true });
+// Index for fast feed exclusion queries
+BlockSchema.index({ blockedId: 1 });
 module.exports = mongoose.model("Block", BlockSchema);

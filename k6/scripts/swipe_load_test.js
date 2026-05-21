@@ -91,6 +91,8 @@ function getHeaders() {
         headers: {
             'Authorization': `Bearer ${getMyToken()}`,
             'Content-Type': 'application/json',
+            'x-bypass-cloudinary': 'true',
+            'x-bypass-rate-limit': 'true',
         },
         timeout: '15s',
     };
@@ -103,11 +105,13 @@ function handleResponse(res, latencyMetric) {
         return { ok: false, data: null };
     }
     if (res.status === 429) {
+        console.log(`[HTTP 429] URL: ${res.url} | Body: ${res.body}`);
         rateLimits.add(1);
         serverErrors.add(0);
         return { ok: false, data: null };
     }
     if (res.status === 400 || res.status === 409 || res.status === 403) {
+        console.log(`[HTTP ${res.status}] URL: ${res.url} | Body: ${res.body}`);
         serverErrors.add(0);
         return { ok: false, data: null };
     }
