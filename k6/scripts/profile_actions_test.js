@@ -36,6 +36,8 @@ export default function () {
     headers: {
       'Content-Type': 'application/json',
       'Authorization': `Bearer ${token}`,
+      'x-bypass-rate-limit': 'true',
+      'x-bypass-cloudinary': 'true',
     },
   };
 

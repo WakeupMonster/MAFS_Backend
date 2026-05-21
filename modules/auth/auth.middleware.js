@@ -14,24 +14,11 @@ module.exports = async function authMiddleware(req, res, next) {
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
 
     // Attach user to request
-    const redis = require("../../../config/cache");
-    let user = null;
-    const authCacheKey = `auth:user:${decoded.userId}`;
+    //  const user = await User.findById(userId).select(
+    //   "accountStatus banDetails deactivationDetails deletionDetails"
+    // );
 
-    if (redis) {
-      const cachedUser = await redis.get(authCacheKey);
-      if (cachedUser) {
-        const parsedUser = JSON.parse(cachedUser);
-        user = User.hydrate(parsedUser); // Safely Hydrate to Mongoose Document
-      }
-    }
-
-    if (!user) {
-      user = await User.findById(decoded.userId).lean();
-      if (user && redis) {
-        await redis.set(authCacheKey, JSON.stringify(user), { EX: 300 }); // 5 min TTL
-      }
-    }
+    const user = await User.findById(decoded.userId);
     if (!user) {
       return res.status(401).json({ message: "Invalid token user not found" });
     }
