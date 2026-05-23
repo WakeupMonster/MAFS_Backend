@@ -319,6 +319,7 @@ const updateProfileStatus = async (req, res) => {
       "suspend",
       "resolve",
       "reply",
+      "bulk-reply",
     ];
 
     if (!allowedActions.includes(action)) {
@@ -487,10 +488,93 @@ const updateProfileStatus = async (req, res) => {
         message = "Reply sent to the reporter.";
         break;
       }
+
+      case "bulk-reply": {
+        // Bulk reply to multiple reports at once (single API call instead of N)
+        const { reportIds, replyMessage: bulkMessage } = req.body;
+
+        if (!reportIds || !Array.isArray(reportIds) || reportIds.length === 0) {
+          return res.status(400).json({
+            success: false,
+            message: "reportIds (array) and replyMessage are required for bulk-reply",
+          });
+        }
+        if (!bulkMessage) {
+          return res.status(400).json({
+            success: false,
+            message: "replyMessage is required for bulk-reply",
+          });
+        }
+
+        // Fetch all target reports in a single query
+        const reports = await Report.find({
+          _id: { $in: reportIds },
+          reportedId: userId,
+        });
+
+        if (reports.length === 0) {
+          return res.status(404).json({
+            success: false,
+            message: "No matching reports found",
+          });
+        }
+
+        // Build bulkWrite operations for all reports at once
+        const bulkOps = reports.map((report) => ({
+          updateOne: {
+            filter: { _id: report._id },
+            update: {
+              $push: {
+                replyHistory: {
+                  message: bulkMessage,
+                  repliedBy: adminId,
+                  repliedAt: new Date(),
+                },
+              },
+              $set: {
+                handledBy: adminId,
+                ...(report.status === "new" ? { status: "in_progress" } : {}),
+              },
+            },
+          },
+        }));
+
+        await Report.bulkWrite(bulkOps);
+
+        // Send push notifications concurrently (fire-and-forget, don't block response)
+        const notificationPromises = reports.map((report) =>
+          notificationService
+            .sendAdminNotification({
+              userId: report.reporterId,
+              title: "Support Update",
+              message: bulkMessage,
+              data: {
+                type: "SUPPORT_REPLY",
+                reportId: report._id.toString(),
+              },
+            })
+            .catch((err) =>
+              console.error(`Push notification failed for report ${report._id}:`, err)
+            )
+        );
+
+        // Don't await all notifications - let them complete in background
+        Promise.allSettled(notificationPromises).catch(() => {});
+
+        // Save as 'reply' in audit log to pass User model enum validation
+        auditEntry.action = "reply";
+        auditEntry.details = {
+          reportIds,
+          replyMessage: bulkMessage,
+          count: reports.length,
+        };
+        message = `Bulk reply sent to ${reports.length} reporters.`;
+        break;
+      }
     }
 
     // Push audit entry and save user
-    if (action !== "reply") {
+    if (action !== "reply" && action !== "bulk-reply") {
       // For reply, we still might want an audit log on the user level
       user.auditLogs.push(auditEntry);
       await user.save();
