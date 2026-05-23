@@ -4,6 +4,7 @@ const SupportTicket = require("./supportTicket.model");
 const { sendEmail } = require("../../auth/auth.utils");
 const { default: mongoose } = require("mongoose");
 const { uploadStream } = require("../../upload/cloudinary.service");
+const { supportTicketReplyEmailTemplate } = require("../../../common/utils/supportTicketReplyEmailTemplate");
 
 module.exports.contactSupport = async (req, res) => {
   try {
@@ -476,21 +477,11 @@ module.exports.replyToTicket = async (req, res) => {
         `;
       }
 
-      const emailHtml = `
-        <div style="font-family: Arial, sans-serif; padding: 20px; color: #333; line-height: 1.6;">
-          <h2 style="color: #00adef;">Support Ticket Update</h2>
-          <p>Hello,</p>
-          <p>Your support ticket has been updated to: <strong style="text-transform: capitalize;">${status.replace(/_/g, " ")}</strong></p>
-          <p><strong>Admin Reply:</strong></p>
-          <blockquote style="background: #f9f9f9; padding: 15px; border-left: 4px solid #00adef; margin: 10px 0;">
-            ${reply}
-          </blockquote>
-          ${attachmentsHtml}
-          <br/>
-          <p>Thank you for reaching out to us.</p>
-          <p>Best regards,<br/><strong>MAFS Support Team</strong></p>
-        </div>
-      `;
+      const emailHtml = supportTicketReplyEmailTemplate({
+        status,
+        reply,
+        attachmentsHtml,
+      });
       try {
         await sendEmail(ticket.userId.email, emailSubject, emailHtml);
       } catch (emailErr) {

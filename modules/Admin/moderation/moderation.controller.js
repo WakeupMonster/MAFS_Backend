@@ -10,6 +10,8 @@ const notificationService = require("../../notifications/notification.service");
 const {
   NOTIFICATION_TYPES,
 } = require("../../notifications/notification.enums");
+const { reportReviewEmailTemplate } = require("../../../common/utils/reportReviewEmailTemplate");
+const { reportResolutionEmailTemplate } = require("../../../common/utils/reportResolutionEmailTemplate");
 
 module.exports.verifyUserProfile = async (req, res) => {
   try {
@@ -512,7 +514,7 @@ module.exports.replyToReport = async (req, res) => {
       await utils.sendEmail(
         reporter.email,
         "We are reviewing your report",
-        `<p>${message}</p><p>— Support Team</p>`,
+        reportReviewEmailTemplate(message),
       );
     } else {
       console.log(
@@ -566,7 +568,7 @@ module.exports.updateReportStatus = async (req, res) => {
           await utils.sendEmail(
             reporter.email,
             "Your report has been resolved",
-            "Thanks for reporting. We have taken appropriate action.",
+            reportResolutionEmailTemplate("Thanks for reporting. We have taken appropriate action."),
           );
         }
       }

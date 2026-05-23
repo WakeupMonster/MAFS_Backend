@@ -1,6 +1,7 @@
 const Settings = require("./settings.model");
 const AdsConfiguration = require("../../AppConfiguration/adsConfig.model");
 const cache = require("../../../config/cache");
+const { smtpTestEmailTemplate } = require("../../../common/utils/smtpTestEmailTemplate");
 
 const REDIS_KEY = "ads_config_data";
 
@@ -164,7 +165,7 @@ exports.testSmtpConnection = async (req, res) => {
         from: `"${fromName} (Test)" <${fromEmail}>`,
         to: testToEmail,
         subject: "Test SMTP Email - WakeupMonster",
-        text: "If you received this email, your database SMTP configuration is working perfectly!",
+        html: smtpTestEmailTemplate(),
       });
     }
 

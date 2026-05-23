@@ -3,6 +3,8 @@ const crypto = require("crypto");
 const bcrypt = require("bcrypt");
 const jwt = require("jsonwebtoken");
 const { getTransporter } = require("../../common/notification/transporter");
+const { prizeDeliveredEmailTemplate } = require("../../common/utils/prizeDeliveredEmailTemplate");
+const { reporterReplyEmailTemplate } = require("../../common/utils/reporterReplyEmailTemplate");
 let twilioClient = null;
 
 // Optional: init Twilio lazily
@@ -142,11 +144,7 @@ module.exports.sendPrizeDeliveredEmail = async (toEmail, prizeTitle) => {
     from: `"${fromName} - Giveaway Team" <${fromEmail}>`,
     to: toEmail,
     subject: "🎉 Your Giveaway Prize is Delivered!",
-    html: `
-      <h2>Congratulations 🎉</h2>
-      <p>Your prize <b>${prizeTitle}</b> has been successfully delivered.</p>
-      <p>Thank you for participating!</p>
-    `,
+    html: prizeDeliveredEmailTemplate(prizeTitle),
   });
 };
 
@@ -163,22 +161,14 @@ module.exports.sendReplyToReporterEmail = async ({
 
     const subject = "Update on your reported profile";
 
-    const html = `
-      <p>Hi ${reporterName},</p>
-
-      <p>Thank you for reporting the profile <b>${reportedUserName}</b>.</p>
-
-      <p><b>Report Reason:</b> ${reportReason}</p>
-      <p><b>Report Date:</b> ${new Date(reportDate).toDateString()}</p>
-
-      <hr />
-
-      <p><b>Admin Reply:</b></p>
-      <p>${adminReply}</p>
-
-      <br />
-      <p>Regards,<br/>${fromName}</p>
-    `;
+    const html = reporterReplyEmailTemplate({
+      reporterName,
+      reportedUserName,
+      reportReason,
+      adminReply,
+      reportDate,
+      fromName,
+    });
 
     const mailOptions = {
       from: `"${fromName}" <${fromEmail}>`,

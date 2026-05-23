@@ -1,6 +1,7 @@
 // modules/notifications/notification.controller.js
 const User = require("../auth/auth.model");
-const Profile = require("../profile/profile.model");
+// const Profile = require("../profile/profile.model");
+
 const registerDeviceToken = async (req, res) => {
   try {
     // const { userId } = req.user;
@@ -44,7 +45,8 @@ const registerDeviceToken = async (req, res) => {
 
 const unregisterDeviceToken = async (req, res) => {
   try {
-    const { userId } = req.user;
+    // const { userId } = req.user;
+    const userId = req.user._id;
     const { deviceId } = req.body;
 
     if (!deviceId) {
@@ -74,7 +76,6 @@ const unregisterDeviceToken = async (req, res) => {
     });
   }
 };
-
 
 const updateNotificationSettings = async (req, res) => {
   try {
@@ -140,7 +141,6 @@ const updateNotificationSettings = async (req, res) => {
     });
   }
 };
-
 
 // const updateNotificationSettings = async (req, res) => {
 //   try {

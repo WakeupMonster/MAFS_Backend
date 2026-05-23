@@ -5,6 +5,8 @@ const notificationService = require("../../../modules/notifications/notification
 const NotificationLog = require("./notificationLog.model");
 const { addAdminPushJob } = require("../../../queues/adminPush.queue");
 const mongoose = require("mongoose");
+const sendEmail = require("../../../common/notification/email.service");
+const EmailLog = require("./emailLog.model");
 
 module.exports.sendNotificationToPremiumUsers = async (req, res) => {
   try {
@@ -458,6 +460,145 @@ module.exports.updateNotificationSettings = async (req, res) => {
     return res.status(500).json({
       success: false,
       message: err.message,
+    });
+  }
+};
+
+module.exports.sendSingleUserNotification = async (req, res) => {
+  try {
+    const { userId, channel, subject, message } = req.body;
+
+    if (!userId || !channel || !subject || !message) {
+      return res.status(400).json({
+        success: false,
+        message: "userId, channel, subject, and message are required",
+      });
+    }
+
+    if (!["email", "push", "both"].includes(channel)) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid channel. Must be 'email', 'push', or 'both'",
+      });
+    }
+
+    const user = await User.findById(userId);
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: "User not found",
+      });
+    }
+
+    let emailSent = false;
+    let pushSent = false;
+    let emailError = null;
+    let pushError = null;
+
+    // Send Email
+    if (channel === "email" || channel === "both") {
+      if (!user.email) {
+        emailError = "User has no email address";
+      } else {
+        try {
+          await sendEmail({
+            to: user.email,
+            subject: subject,
+            html: message,
+          });
+          emailSent = true;
+          await EmailLog.create({
+            userId: user._id,
+            email: user.email,
+            campaignId: null,
+            status: "sent",
+          });
+        } catch (err) {
+          emailError = err.message;
+          await EmailLog.create({
+            userId: user._id,
+            email: user.email,
+            campaignId: null,
+            status: "failed",
+            error: err.message,
+          });
+        }
+      }
+    }
+
+    // Send Push Notification
+    if (channel === "push" || channel === "both") {
+      if (!user.fcmTokens || user.fcmTokens.length === 0) {
+        pushError = "User has no push tokens (FCM tokens)";
+      } else {
+        try {
+          await notificationService.sendAdminNotification({
+            userId: user._id,
+            title: subject,
+            message: message,
+            data: { type: "ADMIN_NOTIFICATION" },
+            respectUserSettings: false, // Bypass settings for admin-direct notifications
+          });
+          pushSent = true;
+        } catch (err) {
+          pushError = err.message;
+        }
+      }
+    }
+
+    // Return responsive message
+    if (channel === "both") {
+      if (emailSent && pushSent) {
+        return res.json({
+          success: true,
+          message: "Email and Push Notification sent successfully",
+        });
+      } else if (emailSent) {
+        return res.json({
+          success: true,
+          message: `Email sent successfully. Push failed: ${pushError}`,
+        });
+      } else if (pushSent) {
+        return res.json({
+          success: true,
+          message: `Push sent successfully. Email failed: ${emailError}`,
+        });
+      } else {
+        return res.status(500).json({
+          success: false,
+          message: `Both notifications failed. Email error: ${emailError}. Push error: ${pushError}`,
+        });
+      }
+    } else if (channel === "email") {
+      if (emailSent) {
+        return res.json({
+          success: true,
+          message: "Email sent successfully",
+        });
+      } else {
+        return res.status(400).json({
+          success: false,
+          message: `Email failed to send: ${emailError}`,
+        });
+      }
+    } else {
+      if (pushSent) {
+        return res.json({
+          success: true,
+          message: "Push Notification sent successfully",
+        });
+      } else {
+        return res.status(400).json({
+          success: false,
+          message: `Push Notification failed to send: ${pushError}`,
+        });
+      }
+    }
+  } catch (err) {
+    console.error("❌ sendSingleUserNotification error:", err);
+    return res.status(500).json({
+      success: false,
+      message: err.message || "Failed to send notification to single user",
     });
   }
 };

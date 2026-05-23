@@ -1,5 +1,6 @@
 const { smsQueue } = require("../../common/queues");
 const redis = require("../../config/cache");
+const { emailOtpEmailTemplate } = require("../../common/utils/emailOtpEmailTemplate");
 const profileModel = require("../profile/profile.model");
 const User = require("./auth.model");
 const utils = require("./auth.utils");
@@ -83,9 +84,9 @@ async function verifyPhoneOtpUnified(phone, otp, req) {
   const isPlayStoreExpiry = normalizedPhone === "+61800000000";
   const expiresAt = new Date(
     Date.now() +
-      (isPlayStoreExpiry
-        ? 10 * 365 * 24 * 60 * 60 * 1000
-        : utils.REFRESH_TOKEN_TTL),
+    (isPlayStoreExpiry
+      ? 10 * 365 * 24 * 60 * 60 * 1000
+      : utils.REFRESH_TOKEN_TTL),
   );
 
   const userBefore = await User.findOne({ phoneHash }).lean();
@@ -93,6 +94,13 @@ async function verifyPhoneOtpUnified(phone, otp, req) {
   const isFirstVerification = !userBefore || !userBefore.isPhoneVerified;
 
   // Ban/Suspension check BEFORE doing the expensive update
+  // ✅ Account Status checks BEFORE doing the expensive DB update
+  // if (userBefore?.accountStatus === "deleted") {
+  //   throw new Error("This account has been permanently deleted.");
+  // }
+  // if (userBefore?.deactivationDetails?.isDeactivated) {
+  //   throw new Error("Your account is deactivated. Please reactivate it first.");
+  // }
   if (userBefore?.banDetails?.isBanned) {
     throw new Error("Your account has been banned. Please contact support.");
   }
@@ -367,6 +375,28 @@ async function verifyPhoneTestOtpUnified(phone, otp, req) {
   let user = await User.findOne({ phone: normalizedPhone });
   const isFirstVerification = !user || !user.isPhoneVerified;
 
+  // ✅ Account Status checks — apply to existing users only (new users won't have these flags)
+  // if (user) {
+  //   if (user.accountStatus === "deleted") {
+  //     throw new Error("This account has been permanently deleted.");
+  //   }
+  //   if (user.deactivationDetails?.isDeactivated) {
+  //     throw new Error("Your account is deactivated. Please reactivate it first.");
+  //   }
+  //   if (user.banDetails?.isBanned) {
+  //     throw new Error("Your account has been banned. Please contact support.");
+  //   }
+  //   if (
+  //     user.suspensionDetails?.isSuspended &&
+  //     user.suspensionDetails.suspendUntil &&
+  //     new Date(user.suspensionDetails.suspendUntil) > new Date()
+  //   ) {
+  //     throw new Error(
+  //       `Your account is suspended until ${new Date(user.suspensionDetails.suspendUntil).toISOString()}`,
+  //     );
+  //   }
+  // }
+
   if (!user) {
     user = await User.create({
       phone: normalizedPhone,
@@ -382,9 +412,9 @@ async function verifyPhoneTestOtpUnified(phone, otp, req) {
   const isPlayStoreExpiry = normalizedPhone === "+61800000000";
   const expiresAt = new Date(
     Date.now() +
-      (isPlayStoreExpiry
-        ? 10 * 365 * 24 * 60 * 60 * 1000
-        : 30 * 24 * 60 * 60 * 1000),
+    (isPlayStoreExpiry
+      ? 10 * 365 * 24 * 60 * 60 * 1000
+      : 30 * 24 * 60 * 60 * 1000),
   );
 
   // 5️⃣ SESSION & HISTORY LOGIC
@@ -667,8 +697,8 @@ async function sendEmailOtp(token, email) {
 
   // Send email with OTP
   const subject = "Your verification code";
-  const text = `Your email verification code is ${otp}`;
-  await utils.sendEmail(email, subject, text);
+  const html = emailOtpEmailTemplate(otp);
+  await utils.sendEmail(email, subject, html);
 
   return { ok: true };
 }
