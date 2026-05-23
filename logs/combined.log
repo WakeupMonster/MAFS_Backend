@@ -1015,3 +1015,9 @@
 {"level":"debug","message":"GET /api/v1/admin/users/6a0e8e92d7c619d3384bb860","service":"iap-service","timestamp":"2026-05-21 16:20:48"}
 {"level":"debug","message":"GET /api/v1/admin/moderation/pending-verifications?limit=1","service":"iap-service","timestamp":"2026-05-21 16:20:49"}
 >>>>>>> origin/feature/raj
+{"level":"info","message":"[CRON] Subscription cron jobs initialized (v3 - Grace Period & Billing Retry Support)","service":"iap-service","timestamp":"2026-05-23 10:37:53"}
+{"level":"info","message":"🧪 [DEV] Dev tools routes registered at /api/v1/dev/*","service":"iap-service","timestamp":"2026-05-23 10:37:56"}
+{"level":"info","message":"[CRON] Subscription cron jobs initialized (v3 - Grace Period & Billing Retry Support)","service":"iap-service","timestamp":"2026-05-23 11:05:22"}
+{"level":"info","message":"🧪 [DEV] Dev tools routes registered at /api/v1/dev/*","service":"iap-service","timestamp":"2026-05-23 11:05:27"}
+{"level":"info","message":"[CRON] Subscription cron jobs initialized (v3 - Grace Period & Billing Retry Support)","service":"iap-service","timestamp":"2026-05-23 11:27:22"}
+{"level":"info","message":"🧪 [DEV] Dev tools routes registered at /api/v1/dev/*","service":"iap-service","timestamp":"2026-05-23 11:27:25"}

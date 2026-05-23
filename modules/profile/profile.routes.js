@@ -98,7 +98,7 @@ router.get(
 );
 
 router.patch("/visibility", auth,
-  // apiLimiter("visibility_update", 10, 60), 
+  apiLimiter("visibility_update", 10, 60),
   controller.updateVisibility);
 
 
@@ -108,9 +108,9 @@ router.post("/block/:id", userAction.blockUser);
 router.delete("/unblock/:id", userAction.unblockUser);
 router.get("/block-list", userAction.getBlockList);
 
-// Report
+// Reportt
 router.post("/report/:id",
-  // apiLimiter("visibility_update", 10, 60),
+  apiLimiter("visibility_update", 10, 60),
   userAction.reportUser);
 
 

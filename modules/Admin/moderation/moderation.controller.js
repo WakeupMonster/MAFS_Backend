@@ -10,6 +10,7 @@ const notificationService = require("../../notifications/notification.service");
 const {
   NOTIFICATION_TYPES,
 } = require("../../notifications/notification.enums");
+const mongoose = require("mongoose");
 
 module.exports.verifyUserProfile = async (req, res) => {
   try {
