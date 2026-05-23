@@ -253,7 +253,7 @@ exports.getMyProfile = async (req, res) => {
 
     res.json({
       success: true,
-      message: "Profile fetched successfully !!",
+      message: "Profile fetched successfull.",
       data: { user: await formatProfileResponse(data.user, data.profile, data.blockedContacts, data.blockedUser, data.subData, req) }
     });
   } catch (err) {
@@ -588,7 +588,11 @@ exports.uploadSelfie = async (req, res) => {
     );
     await clearProfileCache(userId);
 
-    res.json({ success: true, message: "Selfie uploaded successfully", url: result.secure_url });
+    res.status(200).json({
+      success: true, message: "Selfie uploaded successfully",
+      submittedAt: profile.verification.submittedAt,
+      url: result.secure_url
+    });
   } catch (err) {
     res.status(500).json({ success: false, message: "Selfie upload failed" });
   }
@@ -617,7 +621,12 @@ exports.uploadIDDocument = async (req, res) => {
     );
     await clearProfileCache(userId);
 
-    res.json({ success: true, message: "ID document uploaded successfully" });
+
+    res.status(200).json({
+      success: true,
+      submittedAt: profile.verification.submittedAt,
+      message: "ID document uploaded successfully"
+    });
   } catch (err) {
     res.status(500).json({ success: false, message: "ID upload failed" });
   }
