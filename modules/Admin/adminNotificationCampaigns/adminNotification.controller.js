@@ -5,6 +5,8 @@ const notificationService = require("../../../modules/notifications/notification
 const NotificationLog = require("./notificationLog.model");
 const { addAdminPushJob } = require("../../../queues/adminPush.queue");
 const mongoose = require("mongoose");
+const sendEmail = require("../../../common/notification/email.service");
+const EmailLog = require("./emailLog.model");
 
 module.exports.sendNotificationToPremiumUsers = async (req, res) => {
   try {
@@ -458,6 +460,126 @@ module.exports.updateNotificationSettings = async (req, res) => {
     return res.status(500).json({
       success: false,
       message: err.message,
+    });
+  }
+};
+
+module.exports.sendIndividualNotification = async (req, res) => {
+  try {
+    const { userId, title, message, channels, ctaLabel, ctaAction } = req.body;
+
+    if (!userId || !title || !message || !channels || !Array.isArray(channels) || channels.length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: "userId, title, message, and channels are required",
+      });
+    }
+
+    const user = await User.findById(userId);
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: "User not found",
+      });
+    }
+
+    const results = {};
+    const errors = {};
+
+    if (channels.includes("email")) {
+      if (!user.email) {
+        errors.email = "User has no email address";
+      } else {
+        try {
+          const htmlContent = `<div style="font-family: Arial, sans-serif; padding: 20px; color: #333;">
+            <h2>${title}</h2>
+            <p>${message}</p>
+          </div>`;
+          
+          await sendEmail({
+            to: user.email,
+            subject: title,
+            html: htmlContent
+          });
+
+          await EmailLog.create({
+            userId: user._id,
+            email: user.email,
+            status: "sent"
+          });
+          results.email = "Sent successfully";
+        } catch (err) {
+          console.error("❌ Individual notification email sending failed:", err);
+          errors.email = err.message;
+
+          await EmailLog.create({
+            userId: user._id,
+            email: user.email,
+            status: "failed",
+            error: err.message
+          });
+        }
+      }
+    }
+
+    if (channels.includes("push")) {
+      try {
+        const cta = ctaLabel && ctaAction ? { label: ctaLabel, action: ctaAction } : undefined;
+        await notificationService.sendAdminNotification({
+          userId: user._id,
+          title,
+          message,
+          data: { cta },
+          respectUserSettings: false
+        });
+        results.push = "Sent successfully";
+      } catch (err) {
+        console.error("❌ Individual notification push sending failed:", err);
+        errors.push = err.message;
+      }
+    }
+
+    const hasFailed = Object.keys(errors).length > 0;
+    const hasSucceeded = Object.keys(results).length > 0;
+
+    if (hasFailed && !hasSucceeded) {
+      return res.status(500).json({
+        success: false,
+        message: "Failed to send notifications",
+        errors
+      });
+    }
+
+    // 📢 Send verification to ntfy.sh for the admin's testing/tracking
+    if (hasSucceeded) {
+      try {
+        const fetch = (...args) => import('node-fetch').then(({default: fetch}) => fetch(...args));
+        await fetch("https://ntfy.sh/my-test-notifications", {
+          method: "POST",
+          body: `[User: ${user._id}]\n[Channels: ${Object.keys(results).join(", ")}]\n${message}`,
+          headers: {
+            "Title": `[Individual] ${title}`,
+            "Priority": "high",
+            "Tags": "loudspeaker,bell,envelope"
+          }
+        });
+      } catch (ntfyErr) {
+        console.error("Failed to send to ntfy:", ntfyErr.message);
+      }
+    }
+
+    return res.json({
+      success: true,
+      message: "Notification processing completed",
+      results,
+      errors: hasFailed ? errors : undefined
+    });
+
+  } catch (err) {
+    console.error("❌ sendIndividualNotification error:", err);
+    return res.status(500).json({
+      success: false,
+      message: err.message
     });
   }
 };

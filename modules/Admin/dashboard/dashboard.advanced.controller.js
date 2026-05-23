@@ -1204,7 +1204,6 @@ const Block = require("../../profile/user.block");
 //     return res.status(500).json({ success: false, message: "Internal server error", error: err.message });
 //   }
 // };
-
 // ================================================================
 // ADVANCED DASHBOARD API — "Command Center" for Admin
 // All data is 100% dynamic, calculated from real DB aggregations.
@@ -1477,7 +1476,6 @@ exports.getAdvancedDashboardMetrics = async (req, res) => {
         { $count: "deepTotal" },
       ]).then((r) => r[0]?.deepTotal || 0),
 
-      // 8. Ghosting rate for current range (Matches with NO messages)
       Match.aggregate([
         { $match: { createdAt: { $gte: startDate, $lte: endDate } } },
         {
@@ -2069,7 +2067,7 @@ exports.getAdvancedDashboardMetrics = async (req, res) => {
                   : "No matches in this period",
               sub:
                 ghostingRangeAgg.total > 0
-                  ? `${ghostingRangeAgg.total - ghostingRangeAgg.ghosted} users active in 1-to-1 chats. ${blockCountRange} blocks reported.`
+                  ? `${ghostingRangeAgg.total - ghostingRangeAgg.ghosted} active matches in 1-to-1 chats. ${blockCountRange} blocks reported.`
                   : "Monitor engagement trends",
               badge: "Info",
               badgeColor: "blue",
@@ -2160,12 +2158,12 @@ exports.getAdvancedDashboardMetrics = async (req, res) => {
               dropOff:
                 totalUsers > 0
                   ? Math.max(
-                      -100,
-                      Math.min(
-                        100,
-                        -Math.round((1 - funnelAgg[1] / totalUsers) * 100),
-                      ),
-                    )
+                    -100,
+                    Math.min(
+                      100,
+                      -Math.round((1 - funnelAgg[1] / totalUsers) * 100),
+                    ),
+                  )
                   : 0,
               color: "hsl(182 70% 68%)",
             },
@@ -2175,12 +2173,12 @@ exports.getAdvancedDashboardMetrics = async (req, res) => {
               dropOff:
                 funnelAgg[1] > 0
                   ? Math.max(
-                      -100,
-                      Math.min(
-                        100,
-                        -Math.round((1 - funnelAgg[3] / funnelAgg[1]) * 100),
-                      ),
-                    )
+                    -100,
+                    Math.min(
+                      100,
+                      -Math.round((1 - funnelAgg[3] / funnelAgg[1]) * 100),
+                    ),
+                  )
                   : 0,
               color: "hsl(182 60% 54%)",
             },
@@ -2190,12 +2188,12 @@ exports.getAdvancedDashboardMetrics = async (req, res) => {
               dropOff:
                 funnelAgg[3] > 0
                   ? Math.max(
-                      -100,
-                      Math.min(
-                        100,
-                        -Math.round((1 - funnelAgg[5] / funnelAgg[3]) * 100),
-                      ),
-                    )
+                    -100,
+                    Math.min(
+                      100,
+                      -Math.round((1 - funnelAgg[5] / funnelAgg[3]) * 100),
+                    ),
+                  )
                   : 0,
               color: "hsl(182 60% 45%)",
             },
@@ -2223,9 +2221,9 @@ exports.getAdvancedDashboardMetrics = async (req, res) => {
               percentage:
                 superkeenSuccessStats[0] > 0
                   ? Math.round(
-                      (superkeenSuccessStats[1] / superkeenSuccessStats[0]) *
-                        100,
-                    )
+                    (superkeenSuccessStats[1] / superkeenSuccessStats[0]) *
+                    100,
+                  )
                   : 0,
               color: "hsl(182 59% 65%)",
             },
@@ -2238,9 +2236,9 @@ exports.getAdvancedDashboardMetrics = async (req, res) => {
               percentage:
                 superkeenSuccessStats[2] > 0
                   ? Math.round(
-                      (superkeenSuccessStats[3] / superkeenSuccessStats[2]) *
-                        100,
-                    )
+                    (superkeenSuccessStats[3] / superkeenSuccessStats[2]) *
+                    100,
+                  )
                   : 0,
               color: "hsl(215 20% 65%)",
             },
@@ -2250,8 +2248,8 @@ exports.getAdvancedDashboardMetrics = async (req, res) => {
               percentage:
                 photoImpactAgg.total > 0
                   ? Math.round(
-                      (photoImpactAgg.good / photoImpactAgg.total) * 100,
-                    )
+                    (photoImpactAgg.good / photoImpactAgg.total) * 100,
+                  )
                   : 0,
               color: "hsl(182 59% 54%)",
             },
