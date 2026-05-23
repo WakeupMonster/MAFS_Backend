@@ -36,17 +36,13 @@ function calculateDistance(lat1, lon1, lat2, lon2) {
 async function getFeedService(userId, limit, page) {
   const CACHE_KEY = `feed:${userId.toString()}`;
   const SEEN_KEY = `feed:seen:${userId.toString()}`;
-  const CACHE_TTL = 30;
+  const CACHE_TTL = 60;
   const SEEN_TTL = 60 * 60 * 24;
   const skip = (page - 1) * limit;
 
   // 1. Setup Subscription and Profile
   let [sub, myProfile] = await Promise.all([
-    Subscription.findOne({
-      userId,
-      status: "ACTIVE",
-      expiresAt: { $gt: new Date() },
-    }).lean(),
+    Subscription.findActiveByUser(userId).lean(),
     Profile.findOne({ userId }).lean(),
   ]);
 
@@ -90,7 +86,7 @@ async function getFeedService(userId, limit, page) {
 
   // 4. Gather Exclusion IDs — CACHED for 60 seconds to avoid 8 DB queries per request
   const EXCLUDE_KEY = `feed:exclude:${userId.toString()}`;
-  const EXCLUDE_TTL = 60; // seconds
+  const EXCLUDE_TTL = 300; // 5 minutes — exclusion list doesn't change frequently
 
   let baseExcludeSet;
   let receivedSuperlikes = [];
@@ -193,10 +189,13 @@ async function getFeedService(userId, limit, page) {
     }
   }
 
-  excludeIds =
+  // Cap exclusion list to prevent $nin degradation on large arrays
+  const MAX_EXCLUDE = 500;
+  const rawExclude =
     page === 1
       ? [...new Set([...baseExcludeSet, ...seenProfiles])]
       : [...baseExcludeSet];
+  excludeIds = rawExclude.slice(0, MAX_EXCLUDE);
 
   // 5. Build Final Query Filters
   const queryFilters = {
@@ -285,16 +284,22 @@ async function getFeedService(userId, limit, page) {
   // // Fetch Boosted Profiles to ensure they are at the top alongside superlikes
   if (limit - profiles.length > 0) {
     try {
-      if (redis && redis.redisClient && typeof redis.redisClient.keys === 'function') {
-        const keys = await redis.redisClient.keys('boost:*');
-        if (keys && keys.length > 0) {
+      if (redis) {
+        const now = Date.now();
+        // Asynchronously prune expired boosts to keep memory clean
+        redis.zRemRangeByScore('boosted:users', '-inf', now.toString()).catch(err => console.error("ZREM boost clean error:", err));
+
+        // Fetch active boosted user IDs (score is expiry timestamp, so score > now is active)
+        const boostedUserIds = await redis.zRangeByScore('boosted:users', now.toString(), '+inf');
+
+        if (boostedUserIds && boostedUserIds.length > 0) {
           // Exclude already seen superlikes and base exclusions
           const currentExcludeSet = new Set([...baseExcludeSet, ...profiles.map(p => p.userId.toString())]);
-          const boostedUserIds = keys.map(k => k.split(':')[1]).filter(id => !currentExcludeSet.has(id.toString()));
+          const filteredBoostedIds = boostedUserIds.filter(id => !currentExcludeSet.has(id.toString()));
 
-          if (boostedUserIds.length > 0) {
+          if (filteredBoostedIds.length > 0) {
             const boostQuery = {
-              userId: { $in: boostedUserIds },
+              userId: { $in: filteredBoostedIds },
               isMandatoryComplete: true,
               "discovery.globalVisibility": "everyone"
             };
@@ -573,7 +578,8 @@ async function getFeedService(userId, limit, page) {
     await redis.expire(SEEN_KEY, SEEN_TTL);
     // Only cache page 1 results (other pages are always fresh)
     if (page === 1) {
-      await redis.set(CACHE_KEY, { data: finalResult }, { EX: CACHE_TTL });
+      // ✅ FIX: Stringify data properly for Redis
+      await redis.set(CACHE_KEY, JSON.stringify({ data: finalResult }), { EX: CACHE_TTL });
     }
   }
 
@@ -590,6 +596,55 @@ function calculateAge(dob) {
   if (!dob) return 0;
   const diff = Date.now() - new Date(dob).getTime();
   return Math.floor(diff / 31557600000); // Years in ms
+}
+
+async function removeUserFromFeedCache(userId, targetIdToRemove) {
+  if (!redis) return;
+
+  const CACHE_KEY = `feed:${userId.toString()}`;
+
+  try {
+    // ✅ Get current TTL PEHLE
+    const ttl = await redis.ttl(CACHE_KEY);
+    if (ttl <= 0) return; // Cache nahi hai ya expire ho gayi
+
+    const cached = await redis.get(CACHE_KEY);
+    if (!cached) return;
+
+    let parsed;
+    try {
+      parsed = typeof cached === 'string' ? JSON.parse(cached) : cached;
+    } catch (e) {
+      // Invalid cache — delete karo
+      await redis.del(CACHE_KEY);
+      return;
+    }
+
+    if (!parsed?.data || !Array.isArray(parsed.data)) return;
+
+    const targetStr = targetIdToRemove.toString();
+    const updatedData = parsed.data.filter(
+      (profile) => profile.userId?.toString() !== targetStr
+    );
+
+    if (updatedData.length === parsed.data.length) return; // Nothing changed
+
+    // ✅ Redis 6.0 compatible — KEEPTTL nahi, manual TTL use karo
+    await redis.set(
+      CACHE_KEY,
+      JSON.stringify({ data: updatedData }),
+      { EX: Math.max(ttl, 1) }  // Original TTL preserve karo manually
+    );
+
+    console.log(
+      `[FEED CACHE] Removed ${targetStr} from ${userId} feed. ` +
+      `Remaining: ${updatedData.length}, TTL: ${ttl}s`
+    );
+  } catch (err) {
+    console.error("removeUserFromFeedCache error:", err);
+    // Fallback: delete karo taaki stale data na rahe
+    try { await redis.del(CACHE_KEY); } catch (e) { /* ignore */ }
+  }
 }
 
 async function doSwipe(swiperId, targetId, action) {
@@ -639,7 +694,7 @@ async function doSwipe(swiperId, targetId, action) {
 
     // Clear caches
     if (redis) {
-      await redis.del(`feed:${swiperId.toString()}`);
+      await removeUserFromFeedCache(swiperId, targetId);
       await redis.del(`feed:exclude:${swiperId.toString()}`);
     }
 
@@ -730,10 +785,14 @@ async function doSwipe(swiperId, targetId, action) {
       }).session(session).lean();
 
       if (mutualSwipe) {
+        // Sort lexicographically to prevent order-dependent duplicate matches in the unique positional index
+        const sortedUsers = [swiperId.toString(), targetId.toString()].sort();
+        const userIds = sortedUsers.map(id => new mongoose.Types.ObjectId(id));
+
         [matchDoc] = await Match.create(
           [
             {
-              users: [swiperId, targetId],
+              users: userIds,
               status: "matched",
               lastMessageAt: new Date(),
             },
@@ -825,7 +884,7 @@ async function doSwipe(swiperId, targetId, action) {
   // Cache clearing — after session released, non-blocking
   if (redis) {
     const cacheOps = [
-      redis.del(`feed:${swiperId.toString()}`),
+      removeUserFromFeedCache(swiperId, targetId),
       redis.del(`feed:${targetId.toString()}`),
       redis.del(`feed:exclude:${swiperId.toString()}`),
     ];
@@ -842,49 +901,7 @@ async function doSwipe(swiperId, targetId, action) {
   return result;
 }
 
-async function undoSwipe(swiperId, targetId) {
-  // 1. Quota Check (v3)
-  try {
-    await UsageService.useItem(swiperId, "REWIND");
-  } catch (error) {
-    if (error.message === "LIMIT_REACHED") {
-      throw new Error("No Rewinds left for today!");
-    }
-    throw error;
-  }
-
-  const lastSwipe = await Swipe.findOne({ swiperId, targetId }).sort({
-    createdAt: -1,
-  });
-
-  if (!lastSwipe) throw new Error("No swipe to undo");
-
-  if (lastSwipe.action === "superlike") {
-    // Note: Guide says super keens can be undone?
-    // Usually Super Keens are high value, some apps block undo.
-    // Keeping existing behavior unless asked.
-    throw new Error("Superlike undo not allowed");
-  }
-
-  const match = await Match.findOne({
-    users: { $all: [swiperId, targetId] },
-  });
-  if (match) throw new Error("Cannot undo after match");
-
-  await Swipe.deleteOne({ _id: lastSwipe._id });
-
-  if (redis) {
-    await Promise.all([
-      redis.sRem(`swiped:${swiperId}`, targetId.toString()),
-      redis.del(`feed:${swiperId}`),
-    ]);
-  }
-
-  return { success: true, message: "Swipe undone" };
-}
-
 module.exports = {
   getFeedService,
   doSwipe,
-  undoSwipe,
 };

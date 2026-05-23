@@ -39,40 +39,60 @@ module.exports.action = async (req, res) => {
     const { targetId, action } = req.body;
 
     // Gate: Only verified users with complete profiles can perform actions
-    const swiperProfile = await Profile.findOne({ userId })
-      .select("isMandatoryComplete verification")
-      .lean();
+    // 🚀 Cache swiper eligibility in Redis — avoids DB hit on every swipe
+    const SWIPER_KEY = `swiper:eligible:${userId.toString()}`;
+    let swiperEligible = null;
 
-    if (!swiperProfile) {
+    if (redis) {
+      try {
+        const cached = await redis.get(SWIPER_KEY);
+        if (cached) swiperEligible = JSON.parse(cached);
+      } catch (e) { /* fall through */ }
+    }
+
+    if (!swiperEligible) {
+      const swiperProfile = await Profile.findOne({ userId })
+        .select("isMandatoryComplete verification")
+        .lean();
+
+      swiperEligible = {
+        found: !!swiperProfile,
+        mandatory: swiperProfile?.isMandatoryComplete || false,
+        verificationStatus: swiperProfile?.verification?.status || "not_started",
+      };
+
+      // Cache for 5 min — profile/verification status rarely changes mid-session
+      if (redis) {
+        try {
+          await redis.set(SWIPER_KEY, JSON.stringify(swiperEligible), { EX: 300 });
+        } catch (e) { /* non-blocking */ }
+      }
+    }
+
+    if (!swiperEligible.found) {
       return res.status(403).json({
         success: false,
         message: "Please complete your profile to start matching!",
-        data: {
-          actionAllowed: false,
-          reason: "PROFILE_NOT_FOUND"
-        }
+        data: { actionAllowed: false, reason: "PROFILE_NOT_FOUND" }
       });
     }
 
-    if (!swiperProfile.isMandatoryComplete) {
+    if (!swiperEligible.mandatory) {
       return res.status(403).json({
         success: false,
         message: "Complete your profile to start swiping!",
-        data: {
-          actionAllowed: false,
-          reason: "PROFILE_INCOMPLETE"
-        }
+        data: { actionAllowed: false, reason: "PROFILE_INCOMPLETE" }
       });
     }
 
-    if (swiperProfile.verification?.status !== "approved") {
+    if (swiperEligible.verificationStatus !== "approved") {
       return res.status(403).json({
         success: false,
         message: "Verify your identity to unlock swiping",
         data: {
           actionAllowed: false,
           reason: "VERIFICATION_PENDING",
-          verificationStatus: swiperProfile.verification?.status || "not_started"
+          verificationStatus: swiperEligible.verificationStatus
         }
       });
     }
@@ -156,6 +176,22 @@ module.exports.unmatchUser = async (req, res) => {
 module.exports.getMatches = async (req, res) => {
   try {
     const userId = req.user._id;
+    const MATCHES_KEY = `matches:${userId.toString()}`;
+
+    // Try to load from Redis cache first
+    if (redis) {
+      try {
+        const cachedMatches = await redis.get(MATCHES_KEY);
+        if (cachedMatches) {
+          return res.json({
+            success: true,
+            data: JSON.parse(cachedMatches),
+          });
+        }
+      } catch (err) {
+        console.error("Redis error fetching matches:", err);
+      }
+    }
 
     // Fetch all matches (no populate needed — we only use raw user IDs)
     const matches = await Match.find({ users: userId })
@@ -205,11 +241,22 @@ module.exports.getMatches = async (req, res) => {
       };
     });
 
+    const finalData = {
+      conversations: conversations.filter(Boolean),
+    };
+
+    // Cache to Redis with 15s TTL
+    if (redis) {
+      try {
+        await redis.set(MATCHES_KEY, finalData, { EX: 15 });
+      } catch (err) {
+        console.error("Redis set matches cache error:", err);
+      }
+    }
+
     return res.json({
       success: true,
-      data: {
-        conversations: conversations.filter(Boolean),
-      },
+      data: finalData,
     });
   } catch (err) {
     console.error("getMatches error:", err);
@@ -244,31 +291,27 @@ module.exports.getKeenData = async (req, res, actionType) => {
     const { page = 1, limit = 20 } = req.query;
     const skip = (parseInt(page) - 1) * parseInt(limit);
 
-    // Fetch my profile to get location for distance calculation
-    const myProfile = await Profile.findOne({ userId }).select("location").lean();
-
-    // 1. Un IDs ko nikalna jinhe user ne already swipe kiya hai
-    const mySwipedIds = await Swipe.find({ swiperId: userId }).distinct(
-      "targetId"
-    );
-
-    const matchedUserIds = await Match.find({ users: userId })
-      .lean()
-      .then(matches =>
-        matches.map(m =>
-          m.users.find(u => u.toString() !== userId.toString())
+    // Parallelize independent DB lookups to improve latency and high-traffic event loop utilization
+    const [myProfile, mySwipedIds, matchedUserIds] = await Promise.all([
+      Profile.findOne({ userId }).select("location").lean(),
+      Swipe.find({ swiperId: userId }).distinct("targetId"),
+      Match.find({ users: userId })
+        .lean()
+        .then(matches =>
+          matches.map(m =>
+            m.users.find(u => u.toString() !== userId.toString())
+          ).filter(Boolean)
         )
-      );
+    ]);
 
+
+    const excludeIds = [...mySwipedIds, ...matchedUserIds];
 
     // 2. Swipes dhundna (Populate ko Profile collection par point kar rahe hain)
     const keens = await Swipe.find({
       targetId: userId,
       action: actionType,
-      swiperId: { $nin: mySwipedIds }
-      //      swiperId: {
-      //   $nin: [...mySwipedIds, ...matchedUserIds]
-      // }
+      swiperId: { $nin: excludeIds }
     })
       .sort({ createdAt: -1 })
       .skip(skip)
@@ -284,10 +327,7 @@ module.exports.getKeenData = async (req, res, actionType) => {
     const total = await Swipe.countDocuments({
       targetId: userId,
       action: actionType,
-      // swiperId: { $nin: mySwipedIds }
-      swiperId: {
-        $nin: [...mySwipedIds, ...matchedUserIds]
-      }
+      swiperId: { $nin: excludeIds }
     });
 
 
@@ -340,8 +380,7 @@ module.exports.getKeenData = async (req, res, actionType) => {
   }
 };
 
-exports.getKeen = (req, res) => exports.getKeenData(req, res, "like");
-exports.getSuperKeen = (req, res) => exports.getKeenData(req, res, "superlike");
+// exports.getKeen and exports.getSuperKeen duplicates removed from here as they are correctly exported at the end of module
 
 
 
@@ -351,7 +390,19 @@ exports.undo = async (req, res) => {
   try {
     const userId = req.user._id;
 
-    // 1️⃣ REWIND QUOTA CHECK — BEFORE opening any session
+    // 1️⃣ Find last swipe first to avoid wasting quota if no swipe exists
+    const lastSwipe = await Swipe.findOne({ swiperId: userId })
+      .sort({ createdAt: -1 })
+      .lean();
+
+    if (!lastSwipe) {
+      return res.status(404).json({
+        success: false,
+        message: "No swipe found to undo"
+      });
+    }
+
+    // 2️⃣ REWIND QUOTA CHECK — AFTER verifying swipe exists
     try {
       await UsageService.useItem(userId, 'REWIND');
     } catch (error) {
@@ -362,15 +413,6 @@ exports.undo = async (req, res) => {
         });
       }
       throw error;
-    }
-
-    // 2️⃣ Find last swipe — NO session needed for read
-    const lastSwipe = await Swipe.findOne({ swiperId: userId })
-      .sort({ createdAt: -1 })
-      .lean();
-
-    if (!lastSwipe) {
-      throw new Error("No swipe found to undo");
     }
 
     const { targetId, action } = lastSwipe;

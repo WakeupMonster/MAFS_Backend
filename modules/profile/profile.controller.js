@@ -22,7 +22,7 @@ async function getFullUserData(userId, existingProfile = null) {
       User.findById(userId).lean(),
       existingProfile
         ? Promise.resolve(existingProfile)
-        : Profile.findOne({ userId }),
+        : Profile.findOne({ userId }).lean(),
       BlockedContact.find({ userId }).lean(),
       Block.find({ blockerId: userId }).lean(),
       UserSubscription.findOne({ userId }),
@@ -208,6 +208,7 @@ exports.updateProfile = async (req, res) => {
       console.error("Audit log failed for user profile update:", auditErr);
     }
 
+    await clearProfileCache(userId);
     const data = await getFullUserData(userId, profile);
     res.json({
       success: true,
@@ -494,20 +495,25 @@ exports.reorderPhotos = async (req, res) => {
 exports.resetDiscoveryFilters = async (req, res) => {
   try {
     const userId = req.user._id;
-    const profile = await Profile.findOne({ userId });
+    const profile = await Profile.findOneAndUpdate(
+      { userId },
+      {
+        $set: {
+          discovery: {
+            distanceRange: 50,
+            ageRange: { min: 18, max: 60 },
+            showMeGender: [],
+            relationshipGoal: null,
+            globalVisibility: "everyone",
+            preferredInterests: [],
+            advancedFilters: {}
+          }
+        }
+      },
+      { new: true }
+    );
     if (!profile) return res.status(404).json({ success: false, message: "Profile not found" });
 
-    profile.discovery = {
-      distanceRange: 50,
-      ageRange: { min: 18, max: 60 },
-      showMeGender: [],
-      relationshipGoal: null,
-      globalVisibility: "everyone",
-      preferredInterests: [],
-      advancedFilters: {}
-    };
-
-    await profile.save();
     await clearProfileCache(userId);
 
     const data = await getFullUserData(userId, profile);
@@ -525,24 +531,28 @@ exports.updateDiscoveryFilters = async (req, res) => {
   try {
     const userId = req.user._id;
     const { discoveryFilters } = req.body;
-    const profile = await Profile.findOne({ userId });
+
+    const updateOps = {};
+    if (discoveryFilters.relationshipGoal) updateOps["discovery.relationshipGoal"] = discoveryFilters.relationshipGoal;
+    if (discoveryFilters.interests) updateOps["discovery.preferredInterests"] = discoveryFilters.interests;
+    if (discoveryFilters.showMeGender) updateOps["discovery.showMeGender"] = discoveryFilters.showMeGender;
+    if (discoveryFilters.ageRange) updateOps["discovery.ageRange"] = discoveryFilters.ageRange;
+    if (discoveryFilters.distanceRange) updateOps["discovery.distanceRange"] = discoveryFilters.distanceRange;
+
+    if (discoveryFilters.advanced) {
+      for (const [key, value] of Object.entries(discoveryFilters.advanced)) {
+        updateOps[`discovery.advancedFilters.${key}`] = value;
+      }
+    }
+
+    const profile = await Profile.findOneAndUpdate(
+      { userId },
+      { $set: updateOps },
+      { new: true }
+    );
 
     if (!profile) return res.status(404).json({ success: false, message: "Profile not found" });
 
-    if (discoveryFilters.relationshipGoal) profile.discovery.relationshipGoal = discoveryFilters.relationshipGoal;
-    if (discoveryFilters.interests) profile.discovery.preferredInterests = discoveryFilters.interests;
-    if (discoveryFilters.showMeGender) profile.discovery.showMeGender = discoveryFilters.showMeGender;
-    if (discoveryFilters.ageRange) profile.discovery.ageRange = discoveryFilters.ageRange;
-    if (discoveryFilters.distanceRange) profile.discovery.distanceRange = discoveryFilters.distanceRange;
-
-    if (discoveryFilters.advanced) {
-      profile.discovery.advancedFilters = {
-        ...profile.discovery.advancedFilters,
-        ...discoveryFilters.advanced
-      };
-    }
-
-    await profile.save();
     await clearProfileCache(userId);
 
     const data = await getFullUserData(userId, profile);
@@ -566,10 +576,17 @@ exports.uploadSelfie = async (req, res) => {
       transformation: [{ width: 600, height: 600, crop: "fill" }]
     });
 
-    const profile = await getOrCreateProfile(userId);
-    profile.verification.selfieUrl = result.secure_url;
-    profile.verification.status = "pending";
-    await profile.save();
+    const profile = await Profile.findOneAndUpdate(
+      { userId },
+      {
+        $set: {
+          "verification.selfieUrl": result.secure_url,
+          "verification.status": "pending"
+        }
+      },
+      { new: true, upsert: true }
+    );
+    await clearProfileCache(userId);
 
     res.json({ success: true, message: "Selfie uploaded successfully", url: result.secure_url });
   } catch (err) {
@@ -587,11 +604,18 @@ exports.uploadIDDocument = async (req, res) => {
       folder: `mafs/users/${userId}/kyc`
     });
 
-    const profile = await getOrCreateProfile(userId);
-    profile.verification.docUrl = frontResult.secure_url;
-    profile.verification.status = "pending";
-    profile.verification.submittedAt = new Date();
-    await profile.save();
+    const profile = await Profile.findOneAndUpdate(
+      { userId },
+      {
+        $set: {
+          "verification.docUrl": frontResult.secure_url,
+          "verification.status": "pending",
+          "verification.submittedAt": new Date()
+        }
+      },
+      { new: true, upsert: true }
+    );
+    await clearProfileCache(userId);
 
     res.json({ success: true, message: "ID document uploaded successfully" });
   } catch (err) {
@@ -614,18 +638,23 @@ exports.getVerificationStatus = async (req, res) => {
 exports.updateLocation = async (req, res) => {
   try {
     const { latitude, longitude, city, state, country, full_address } = req.body;
-    const profile = await getOrCreateProfile(req.user._id);
+    const profile = await Profile.findOneAndUpdate(
+      { userId: req.user._id },
+      {
+        $set: {
+          location: {
+            type: "Point",
+            coordinates: [longitude, latitude],
+            city,
+            state,
+            country,
+            full_address
+          }
+        }
+      },
+      { new: true, upsert: true }
+    );
 
-    profile.location = {
-      type: "Point",
-      coordinates: [longitude, latitude],
-      city,
-      state,
-      country,
-      full_address
-    };
-
-    await profile.save();
     await clearProfileCache(req.user._id);
 
     res.json({ success: true, message: "Location updated", location: profile.location });
@@ -727,8 +756,9 @@ exports.updateVisibility = async (req, res) => {
     const profile = await Profile.findOneAndUpdate(
       { userId: req.user._id },
       { "discovery.globalVisibility": visibility },
-      { new: true }
+      { new: true, lean: true }
     );
+    await clearProfileCache(req.user._id);
     res.json({ success: true, message: "Visibility updated", visibility: profile.discovery?.globalVisibility || visibility });
   } catch (err) {
     res.status(500).json({ success: false, message: "Update failed" });

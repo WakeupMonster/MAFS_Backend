@@ -1,3 +1,4 @@
+const mongoose = require("mongoose");
 const Block = require("./user.block");
 const Report = require("./user.report");
 const Profile = require("./profile.model");
@@ -18,7 +19,7 @@ module.exports.blockUser = async (req, res) => {
         .status(400)
         .json({ success: false, message: "Self-block not allowed" });
 
-    await Block.findOneAndUpdate(
+    await Block.updateOne(
       { blockerId: userId, blockedId: targetId },
       { blockerId: userId, blockedId: targetId },
       { upsert: true },
@@ -46,13 +47,20 @@ module.exports.reportUser = async (req, res) => {
     const { reason, description, context } = req.body;
     const { matchId, lastMessages } = context || {};
 
-    const reporterProfile = await Profile.findOne({ userId: reporterId });
+    if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
+      return res.status(400).json({ success: false, message: "Invalid reported user ID" });
+    }
+
+    const [reporterProfile, reportedUserExists] = await Promise.all([
+      Profile.findOne({ userId: reporterId }).select("_id nickname").lean(),
+      User.exists({ _id: req.params.id })
+    ]);
+
     if (!reporterProfile) {
       return res.status(404).json({ success: false, message: "Reporter profile not found" });
     }
 
-    const reportedUser = await User.findById(req.params.id);
-    if (!reportedUser) {
+    if (!reportedUserExists) {
       return res.status(404).json({ success: false, message: "Reported user not found" });
     }
 
@@ -82,7 +90,7 @@ module.exports.reportUser = async (req, res) => {
         description: `New report by ${reporterProfile.nickname || "User"}`,
         color: "#F75555"
       });
-    } catch(err) {
+    } catch (err) {
       console.error("Admin event emit failed", err);
     }
 
@@ -107,13 +115,11 @@ module.exports.reportUser = async (req, res) => {
 
 // 3. Get Blocked Users (Figma Design Format)
 exports.getBlockList = async (req, res) => {
-  console.log("enter");
   try {
-    const myId = req.user._id; // Anubhav ki ID (6953b15de877bc37d35435e3)
-    console.log(myId, "myId");
+    const myId = req.user._id;
 
     // 1. Un logo ki IDs nikalo jinhe Anubhav ne block kiya hai
-    const blocks = await Block.find({ blockerId: myId }).select("blockedId");
+    const blocks = await Block.find({ blockerId: myId }).select("blockedId").lean();
 
     if (!blocks.length) {
       return res.status(200).json({
@@ -160,7 +166,7 @@ exports.getBlockList = async (req, res) => {
 module.exports.unblockUser = async (req, res) => {
   const userId = req.user._id;
   try {
-    await Block.findOneAndDelete({
+    await Block.deleteOne({
       blockerId: req.user._id,
       blockedId: req.params.id,
     });

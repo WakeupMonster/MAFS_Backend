@@ -1,5 +1,8 @@
 const jwt = require("jsonwebtoken");
 const User = require("../auth/auth.model");
+const redis = require("../../config/cache");
+
+const AUTH_CACHE_TTL = 30; // 30 seconds — short enough to catch bans/deletes quickly
 
 module.exports = async function authMiddleware(req, res, next) {
   try {
@@ -12,38 +15,44 @@ module.exports = async function authMiddleware(req, res, next) {
 
     // Verify token
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    const userId = decoded.userId;
 
-    // Attach user to request
-    //  const user = await User.findById(userId).select(
-    //   "accountStatus banDetails deactivationDetails deletionDetails"
-    // );
+    // 🚀 Redis cache — avoid hitting MongoDB on every request
+    let user = null;
+    const AUTH_KEY = `auth:user:${userId}`;
 
-    const user = await User.findById(decoded.userId);
-    if (!user) {
-      return res.status(401).json({ message: "Invalid token user not found" });
+    if (redis) {
+      try {
+        const cached = await redis.get(AUTH_KEY);
+        if (cached) {
+          user = JSON.parse(cached);
+          // Attach _id as ObjectId for downstream compatibility
+          const mongoose = require("mongoose");
+          user._id = new mongoose.Types.ObjectId(user._id);
+        }
+      } catch (e) {
+        // Redis error — fall through to DB
+      }
     }
-    // if (user.accountStatus === "deleted") {
-    //   return res.status(401).json({
-    //     success: false,
-    //     message: "Account no longer exists"
-    //   });
-    // }
 
-    //  if (user.banDetails?.isBanned) {
-    //   return res.status(403).json({
-    //     success: false,
-    //     code: "ACCOUNT_BANNED",
-    //     banDetails: user.banDetails?.reason
-    //   });
-    // }
+    // Cache miss — fetch from DB
+    if (!user) {
+      const dbUser = await User.findById(userId).lean();
+      if (!dbUser) {
+        return res.status(401).json({ message: "Invalid token user not found" });
+      }
+      user = dbUser;
 
-    // // 📴 DEACTIVATED
-    // if (user.deactivationDetails?.isDeactivated) {
-    //   return res.status(403).json({
-    //     success: false,
-    //     code: "ACCOUNT_DEACTIVATED"
-    //   });
-    // }
+      // Cache for 30s
+      if (redis) {
+        try {
+          await redis.set(AUTH_KEY, JSON.stringify(dbUser), { EX: AUTH_CACHE_TTL });
+        } catch (e) {
+          // Non-blocking — cache failure shouldn't break auth
+        }
+      }
+    }
+
     req.user = user;
     next();
 
