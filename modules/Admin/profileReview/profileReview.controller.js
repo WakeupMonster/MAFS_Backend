@@ -855,6 +855,7 @@ const getReportedProfiles = async (req, res) => {
           reportCount: { $sum: 1 },
           reasons: { $addToSet: "$reason" },
           latestReport: { $first: "$createdAt" },
+          latestResolvedAt: { $max: "$resolvedAt" },
           latestStatus: { $first: "$status" },
           latestSeverity: { $first: "$severity" },
           hasHighPriority: {
@@ -961,7 +962,7 @@ const getReportedProfiles = async (req, res) => {
           // Actual Data with Pagination
           data: [
             ...commonPipeline,
-            { $sort: { latestReport: -1 } },
+            { $sort: status === "resolved" ? { latestResolvedAt: -1 } : { latestReport: -1 } },
             { $skip: skip },
             { $limit: limit },
           ],

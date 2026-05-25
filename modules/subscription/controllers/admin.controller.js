@@ -102,6 +102,22 @@ exports.updateProduct = async (req, res, next) => {
 };
 
 /**
+ * Normalize frontend planType values to internal format:
+ * ONE_MONTH → 1_MONTH
+ * THREE_MONTHS → 3_MONTH
+ */
+const normalizePlanTypeFilter = (planType) => {
+  if (!planType) return null;
+  const mapping = {
+    ONE_MONTH: "1_MONTH",
+    THREE_MONTHS: "3_MONTH",
+    "1_MONTH": "1_MONTH",    // Support internal format too
+    "3_MONTH": "3_MONTH",
+  };
+  return mapping[planType] || planType; // Fallback to original if no mapping
+};
+
+/**
  * 3. USER MANAGEMENT (Subscribers)
  */
 exports.listSubscribers = async (req, res, next) => {
@@ -109,7 +125,8 @@ exports.listSubscribers = async (req, res, next) => {
         const { page = 1, limit = 20, status, planType, platform, search } = req.query;
         const filter = {};
         if (status) filter.status = status;
-        if (planType) filter.planType = planType;
+        const normalizedPlanType = normalizePlanTypeFilter(planType);
+        if (normalizedPlanType) filter.planType = normalizedPlanType;
         if (platform) filter.platform = platform;
 
         // Enhanced Search: Nickname, Phone, Email

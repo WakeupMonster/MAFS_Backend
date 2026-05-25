@@ -5,6 +5,18 @@ const Profile = require("../../profile/profile.model");
 const mongoose = require("mongoose");
 const logger = require("../utils/logger");
 
+const ADMIN_PLATFORM_VALUES = ["ADMIN", "admin_granted"];
+
+const normalizePlatformFilter = (platform) => {
+  if (!platform) return null;
+  const normalized = String(platform).toLowerCase();
+  if (normalized === "admin" || normalized === "admin_granted") {
+    // frontend sends admin; legacy DB may use ADMIN or admin_granted
+    return { $in: ADMIN_PLATFORM_VALUES };
+  }
+  return platform;
+};
+
 /**
  * Commission rates for Net Revenue calculation.
  * Apple/Google take 30% standard, 15% for Small Business Program.
@@ -39,7 +51,8 @@ exports.getTransactions = async (req, res, next) => {
     // Build filter
     const filter = {};
     if (eventType) filter.eventType = eventType;
-    if (platform) filter.platform = platform;
+    const platformFilter = normalizePlatformFilter(platform);
+    if (platformFilter) filter.platform = platformFilter;
     if (productId) filter.productId = productId;
     if (startDate && endDate) {
       filter.occurredAt = {
@@ -321,7 +334,8 @@ exports.exportTransactionsCSV = async (req, res, next) => {
 
     const filter = {};
     if (eventType) filter.eventType = eventType;
-    if (platform) filter.platform = platform;
+    const platformFilter = normalizePlatformFilter(platform);
+    if (platformFilter) filter.platform = platformFilter;
     if (startDate && endDate) {
       filter.occurredAt = {
         $gte: new Date(startDate),
