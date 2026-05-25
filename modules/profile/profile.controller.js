@@ -740,6 +740,7 @@ exports.updateVisibility = async (req, res) => {
       { "discovery.globalVisibility": visibility },
       { new: true }
     );
+    await clearProfileCache(req.user._id);
     res.json({ success: true, message: "Visibility updated", visibility: profile.discovery?.globalVisibility || visibility });
   } catch (err) {
     res.status(500).json({ success: false, message: "Update failed" });
