@@ -62,8 +62,6 @@
 //   }
 // };
 
-
-
 const jwt = require("jsonwebtoken");
 const User = require("../auth/auth.model");
 const redis = require("../../config/cache");
@@ -104,13 +102,17 @@ module.exports = async function authMiddleware(req, res, next) {
     if (!user) {
       const dbUser = await User.findById(userId).lean();
       if (!dbUser) {
-        return res.status(401).json({ message: "Invalid token user not found" });
+        return res
+          .status(401)
+          .json({ message: "Invalid token user not found" });
       }
 
       // Cache for 30s
       if (redis) {
         try {
-          await redis.set(AUTH_KEY, JSON.stringify(dbUser), { EX: AUTH_CACHE_TTL });
+          await redis.set(AUTH_KEY, JSON.stringify(dbUser), {
+            EX: AUTH_CACHE_TTL,
+          });
         } catch (e) {
           // Non-blocking — cache failure shouldn't break auth
         }

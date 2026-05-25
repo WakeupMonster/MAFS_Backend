@@ -559,7 +559,7 @@ const updateProfileStatus = async (req, res) => {
         );
 
         // Don't await all notifications - let them complete in background
-        Promise.allSettled(notificationPromises).catch(() => {});
+        Promise.allSettled(notificationPromises).catch(() => { });
 
         // Save as 'reply' in audit log to pass User model enum validation
         auditEntry.action = "reply";
@@ -858,6 +858,7 @@ const getReportedProfiles = async (req, res) => {
           latestResolvedAt: { $max: "$resolvedAt" },
           latestStatus: { $first: "$status" },
           latestSeverity: { $first: "$severity" },
+          latestResolvedAt: { $max: "$resolvedAt" },
           hasHighPriority: {
             $max: {
               $cond: [

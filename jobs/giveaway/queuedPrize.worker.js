@@ -17,6 +17,7 @@ const User = require("../../modules/auth/auth.model");
 const Subscription = require("../../modules/subscription/models/Subscription");
 const subscriptionService = require("../../modules/subscription/services/subscription.service");
 const utils = require("../../modules/auth/auth.utils");
+const { queuedPremiumPrizeEmailTemplate } = require("../../common/utils/queuedPremiumPrizeEmailTemplate");
 
 const LOG_PREFIX = "[QUEUED-PRIZE]";
 
@@ -160,17 +161,12 @@ async function processSingleQueuedPrize(win) {
       await utils.sendEmail(
         emailToSend,
         "🎉 Your Free Premium Has Been Activated!",
-        `
-          <h2>🎉 Great News! Your Queued Prize is Now Active!</h2>
-          <p>Your prize <b>"${prize.title}"</b> was waiting for your previous subscription to end.</p>
-          <p>It has now been <b>automatically activated</b> on your account!</p>
-          <table style="border-collapse:collapse; margin:16px 0;">
-            <tr><td style="padding:8px; font-weight:bold;">Plan:</td><td style="padding:8px;">${prize.planType || "Premium"}</td></tr>
-            <tr><td style="padding:8px; font-weight:bold;">Duration:</td><td style="padding:8px;">${prize.durationInDays} Days</td></tr>
-            <tr><td style="padding:8px; font-weight:bold;">Valid Until:</td><td style="padding:8px;">${expiryStr}</td></tr>
-          </table>
-          <p>Open the app and enjoy your premium features now! 🚀</p>
-        `
+        queuedPremiumPrizeEmailTemplate({
+          prizeTitle: prize.title,
+          planType: prize.planType,
+          durationInDays: prize.durationInDays,
+          expiryStr,
+        })
       );
       console.log(`${LOG_PREFIX} 📧 Email sent to ${emailToSend}`);
     } catch (emailErr) {

@@ -538,6 +538,7 @@ exports.updateDiscoveryFilters = async (req, res) => {
     if (discoveryFilters.showMeGender) updateOps["discovery.showMeGender"] = discoveryFilters.showMeGender;
     if (discoveryFilters.ageRange) updateOps["discovery.ageRange"] = discoveryFilters.ageRange;
     if (discoveryFilters.distanceRange) updateOps["discovery.distanceRange"] = discoveryFilters.distanceRange;
+    if (discoveryFilters.globalVisibility) updateOps["discovery.globalVisibility"] = discoveryFilters.globalVisibility;
 
     if (discoveryFilters.advanced) {
       for (const [key, value] of Object.entries(discoveryFilters.advanced)) {

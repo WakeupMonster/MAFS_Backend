@@ -7,6 +7,10 @@ const { normalizePhone, hashPhone } = require("../../common/utils/phone.util");
 const AppError = require("../../common/errors/ApiError");
 const { formatProfileResponse } = require("../profile/profile.formatter");
 const { getClientIp } = require("../../common/constants/ip.extraction");
+const Profile = require("../../modules/profile/profile.model");
+const BlockedContact = require("../../modules/BlockedContact/blockedContacts.model");
+const BlockedUser = require("../../modules/profile/user.block");
+const UserSubscription = require("../../modules/auth/UserSubscription.model");
 // const { buildOnboardingResponse } = require("../../common/utils/onBoardingSteps");
 
 module.exports.sendOtp = async (req, res, next) => {
@@ -424,11 +428,6 @@ module.exports.resendEmailOtp = async (req, res) => {
     });
   }
 };
-
-const Profile = require("../../modules/profile/profile.model");
-const BlockedContact = require("../../modules/BlockedContact/blockedContacts.model");
-const BlockedUser = require("../../modules/profile/user.block");
-const UserSubscription = require("../../modules/auth/UserSubscription.model");
 
 module.exports.sendTestOtp = async (req, res) => {
   try {

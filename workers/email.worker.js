@@ -1,5 +1,6 @@
 const { Worker } = require("bullmq");
 const utils = require("../modules/auth/auth.utils");
+const { emailOtpEmailTemplate } = require("../common/utils/emailOtpEmailTemplate");
 // const {connection} = require("../config/cache")
 
 new Worker(
@@ -10,7 +11,7 @@ new Worker(
     await utils.sendEmail(
       email,
       "Your verification code",
-      `Your OTP is ${otp}`
+      emailOtpEmailTemplate(otp)
     );
 
     return { status: "sent" };

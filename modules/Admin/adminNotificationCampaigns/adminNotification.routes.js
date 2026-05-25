@@ -10,7 +10,10 @@ const {
   sendIndividualNotification,
 } = require("./adminNotification.controller");
 
-const { createEmailCampaign, getEmailCampaignLogs } = require("./adminEmail.controller");
+const {
+  createEmailCampaign,
+  getEmailCampaignLogs,
+} = require("./adminEmail.controller");
 
 router.get("/email-campaign/:campaignId/logs", getEmailCampaignLogs);
 
@@ -20,6 +23,7 @@ router.post("/broadcastemail", createEmailCampaign);
 
 router.post("/premium/send", sendNotificationToPremiumUsers);
 
+// compare this one and
 router.post("/individual", sendIndividualNotification);
 
 router.post("/premium-expiry/send", createPremiumExpiryCampaign);
@@ -27,7 +31,6 @@ router.post("/premium-expiry/send", createPremiumExpiryCampaign);
 router.post("/premium-expiry/:campaignId/trigger", sendPremiumExpiryNow);
 
 router.get("/notifications/history", getNotificationHistory);
-
 
 router.patch("/update/:userId", updateNotificationSettings);
 

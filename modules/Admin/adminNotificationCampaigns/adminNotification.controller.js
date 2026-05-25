@@ -7,6 +7,7 @@ const { addAdminPushJob } = require("../../../queues/adminPush.queue");
 const mongoose = require("mongoose");
 const sendEmail = require("../../../common/notification/email.service");
 const EmailLog = require("./emailLog.model");
+const { adminDirectNotificationEmailTemplate } = require("../../../common/utils/adminDirectNotificationEmailTemplate");
 
 module.exports.sendNotificationToPremiumUsers = async (req, res) => {
   try {
@@ -491,11 +492,8 @@ module.exports.sendIndividualNotification = async (req, res) => {
         errors.email = "User has no email address";
       } else {
         try {
-          const htmlContent = `<div style="font-family: Arial, sans-serif; padding: 20px; color: #333;">
-            <h2>${title}</h2>
-            <p>${message}</p>
-          </div>`;
-          
+          const htmlContent = adminDirectNotificationEmailTemplate({ title, message });
+
           await sendEmail({
             to: user.email,
             subject: title,
@@ -553,7 +551,7 @@ module.exports.sendIndividualNotification = async (req, res) => {
     // 📢 Send verification to ntfy.sh for the admin's testing/tracking
     if (hasSucceeded) {
       try {
-        const fetch = (...args) => import('node-fetch').then(({default: fetch}) => fetch(...args));
+        const fetch = (...args) => import('node-fetch').then(({ default: fetch }) => fetch(...args));
         await fetch("https://ntfy.sh/my-test-notifications", {
           method: "POST",
           body: `[User: ${user._id}]\n[Channels: ${Object.keys(results).join(", ")}]\n${message}`,

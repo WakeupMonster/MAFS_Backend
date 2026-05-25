@@ -1,6 +1,7 @@
 const User = require("../../auth/auth.model");
 const Profile = require("../../profile/profile.model");
 const utils = require("../../auth/auth.utils");
+const { adminOtpEmailTemplate } = require("../../../common/utils/adminOtpEmailTemplate");
 const AppError = require("../../../common/errors/ApiError");
 const {
   adminRegisterSchema,
@@ -176,7 +177,7 @@ module.exports.sendEmailOTP = async (req, res, next) => {
      * while the server handles the SMTP handshake in parallel.
      */
     utils
-      .sendEmail(email, "Admin Password Reset OTP", `Your OTP is ${otp}`)
+      .sendEmail(email, "Admin Password Reset OTP", adminOtpEmailTemplate(otp))
       .catch((err) => console.error("Background Email Error:", err));
 
     // Instant Response

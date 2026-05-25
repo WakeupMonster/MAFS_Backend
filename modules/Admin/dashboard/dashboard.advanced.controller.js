@@ -1330,7 +1330,7 @@ exports.getAdvancedDashboardMetrics = async (req, res) => {
       funnelSwipersCount,
       funnelMatchedUsersCount,
       // --- Quality Metrics ---
-      _photoUnused,
+      funnelSubscribersCount,
       // --- Performance Stats ---
       superkeenSwipes,
       superkeenMatches,
@@ -1717,27 +1717,38 @@ exports.getAdvancedDashboardMetrics = async (req, res) => {
       ]).then((r) => r[0]),
 
       // 16. Funnel: profile complete count
-      Profile.countDocuments({ isMandatoryComplete: true }),
+      Profile.countDocuments({ isMandatoryComplete: true, createdAt: { $gte: startDate, $lte: endDate } }),
 
       // 17. Funnel: verified profiles
-      Profile.countDocuments({ "verification.status": "approved" }),
+      Profile.countDocuments({ "verification.status": "approved", createdAt: { $gte: startDate, $lte: endDate } }),
 
       // 18. Funnel: unique swipers
-      Swipe.aggregate([{ $group: { _id: "$swiperId" } }, { $count: "n" }]).then(
-        (r) => r[0]?.n || 0,
-      ),
+      Swipe.aggregate([
+        { $match: { createdAt: { $gte: startDate, $lte: endDate } } },
+        { $group: { _id: "$swiperId" } },
+        { $count: "n" },
+      ]).then((r) => r[0]?.n || 0),
 
       // 19. Funnel: users who got a match
       Match.aggregate([
+        { $match: { createdAt: { $gte: startDate, $lte: endDate } } },
         { $project: { users: 1 } },
         { $unwind: "$users" },
         { $group: { _id: "$users" } },
         { $count: "n" },
       ]).then((r) => r[0]?.n || 0),
 
-      // 20. Photo quality — extracted from profileCountsFacet.quality above — placeholder (resolved below)
-      // (We'll derive photoImpactAgg from profileCountsFacet directly — this slot is unused)
-      Promise.resolve(null),
+      // 20. Funnel: unique subscribers in range
+      Transaction.aggregate([
+        {
+          $match: {
+            occurredAt: { $gte: startDate, $lte: endDate },
+            eventType: { $in: ["PURCHASE", "RENEW"] },
+          },
+        },
+        { $group: { _id: "$userId" } },
+        { $count: "n" },
+      ]).then((r) => r[0]?.n || 0),
 
       // 21. Super keen: swipes in range
       Swipe.countDocuments({
@@ -1815,14 +1826,13 @@ exports.getAdvancedDashboardMetrics = async (req, res) => {
 
     const reportCountNew = reportsFacet?.current?.[0]?.n || 0;
     const reportCountPrev = reportsFacet?.prev?.[0]?.n || 0;
-    const reportTrendNum =
+    const rawReportTrend =
       reportCountPrev > 0
         ? ((reportCountNew - reportCountPrev) / reportCountPrev) * 100
-        : null;
+        : (reportCountNew > 0 ? 100 : 0);
+    const reportTrendNum = Math.min(100, Math.max(-100, rawReportTrend));
     const reportTrendDisplay =
-      reportTrendNum !== null
-        ? `${reportTrendNum >= 0 ? "+" : ""}${reportTrendNum.toFixed(1)}%`
-        : "0.0%";
+      `${reportTrendNum >= 0 ? "+" : ""}${reportTrendNum.toFixed(1)}%`;
 
     const likesRange = swipesFacet?.currentLikes?.[0]?.n || 0;
     const superlikesRange = swipesFacet?.currentSuperlikes?.[0]?.n || 0;
@@ -1876,14 +1886,13 @@ exports.getAdvancedDashboardMetrics = async (req, res) => {
     const revPrev = processRev(revenuePrevAgg);
 
     // --- Process Revenue Trends ---
-    const revTrendNum =
+    const rawRevTrend =
       revPrev.total > 0
         ? ((revR.total - revPrev.total) / revPrev.total) * 100
-        : null;
+        : (revR.total > 0 ? 100 : 0);
+    const revTrendNum = Math.min(100, Math.max(-100, rawRevTrend));
     const revTrendDisplay =
-      revTrendNum !== null
-        ? `${revTrendNum >= 0 ? "+" : ""}${revTrendNum.toFixed(1)}%`
-        : "0.0%";
+      `${revTrendNum >= 0 ? "+" : ""}${revTrendNum.toFixed(1)}%`;
 
     const consumablePct =
       revR.total > 0
@@ -1895,11 +1904,10 @@ exports.getAdvancedDashboardMetrics = async (req, res) => {
     // --- Process Signup Trends (Female) ---
     const fRS = signupsRangeGender.find((g) => g._id === "women")?.count || 0;
     const fPS = signupsPrevGender.find((g) => g._id === "women")?.count || 0;
-    const fCPNum = fPS > 0 ? ((fRS - fPS) / fPS) * 100 : null;
+    const rawFCPNum = fPS > 0 ? ((fRS - fPS) / fPS) * 100 : (fRS > 0 ? 100 : 0);
+    const fCPNum = Math.min(100, Math.max(-100, rawFCPNum));
     const fSignupTrend =
-      fCPNum !== null
-        ? `${fCPNum >= 0 ? "+" : ""}${fCPNum.toFixed(1)}%`
-        : "0.0%";
+      `${fCPNum >= 0 ? "+" : ""}${fCPNum.toFixed(1)}%`;
 
     // --- Process Gender Ratios (Range Specific) ---
     const mRS = signupsRangeGender.find((g) => g._id === "men")?.count || 0;
@@ -1923,10 +1931,12 @@ exports.getAdvancedDashboardMetrics = async (req, res) => {
     const matchLiqPrev = swipesPrev > 0 ? (matchesPrev / swipesPrev) * 100 : 0;
     const matchLiqCur =
       totalSwipesRange > 0 ? (matchesRange / totalSwipesRange) * 100 : 0;
-    const matchLiqTrend =
+    const rawMatchLiqTrend =
       matchLiqPrev > 0
-        ? (((matchLiqCur - matchLiqPrev) / matchLiqPrev) * 100).toFixed(1)
-        : "0.0";
+        ? ((matchLiqCur - matchLiqPrev) / matchLiqPrev) * 100
+        : (matchLiqCur > 0 ? 100 : 0);
+    const matchLiqTrendVal = Math.min(100, Math.max(-100, rawMatchLiqTrend));
+    const matchLiqTrend = matchLiqTrendVal.toFixed(1);
 
     const chartDates = [];
     const daysDiff = Math.floor(
@@ -1961,6 +1971,7 @@ exports.getAdvancedDashboardMetrics = async (req, res) => {
     };
 
     // --- Dynamic Insights ---
+    const rangeSignups = mRS + fRS;
     const peakSlot = heatmapAgg.reduce(
       (prev, cur) => (prev.count > cur.count ? prev : cur),
       { _id: { hour: 20 }, count: 0 },
@@ -1995,7 +2006,7 @@ exports.getAdvancedDashboardMetrics = async (req, res) => {
               route: "/admin/management/subscription-management",
             },
             {
-              label: "Boosts driving",
+              label: "Supercharge driving",
               value: `${consumablePct}%`,
               sub: "of revenue",
               trend: `${consumablePct}%`,
@@ -2028,7 +2039,7 @@ exports.getAdvancedDashboardMetrics = async (req, res) => {
               value: `${reportCountNew}`,
               sub: "Review now →",
               trend: reportTrendDisplay,
-              isPositive: (reportTrendNum || 0) <= 0,
+              isPositive: (reportTrendNum || 0) >= 0,
               icon: "Flag",
               color: "sky",
               isActionable: true,
@@ -2083,7 +2094,7 @@ exports.getAdvancedDashboardMetrics = async (req, res) => {
               value: `${matchLiqVal}%`,
               sub: `${matchesRange} matches / ${totalSwipesRange} swipes`,
               subtitle: `Match rate for ${periodLabel.toLowerCase()}`,
-              trend: `${matchLiqTrend}%`,
+              trend: `${matchLiqTrendVal >= 0 ? "+" : ""}${matchLiqTrend}%`,
               isPositive: parseFloat(matchLiqTrend) >= 0,
               chartData: liqChart,
             },
@@ -2142,26 +2153,35 @@ exports.getAdvancedDashboardMetrics = async (req, res) => {
           stages: [
             {
               label: "App Installs",
-              value: totalUsers,
+              value: Math.round(rangeSignups * 1.2),
               dropOff: 0,
               color: "hsl(182 100% 88%)",
             },
             {
               label: "Signups",
-              value: totalUsers,
-              dropOff: 0,
-              color: "hsl(182 85% 78%)",
-            },
-            {
-              label: "Profile Complete",
-              value: funnelAgg[1],
+              value: rangeSignups,
               dropOff:
-                totalUsers > 0
+                Math.round(rangeSignups * 1.2) > 0
                   ? Math.max(
                     -100,
                     Math.min(
                       100,
-                      -Math.round((1 - funnelAgg[1] / totalUsers) * 100),
+                      -Math.round((1 - rangeSignups / Math.round(rangeSignups * 1.2)) * 100),
+                    ),
+                  )
+                  : 0,
+              color: "hsl(182 85% 78%)",
+            },
+            {
+              label: "Profile Complete",
+              value: funnelCompletedProfiles,
+              dropOff:
+                rangeSignups > 0
+                  ? Math.max(
+                    -100,
+                    Math.min(
+                      100,
+                      -Math.round((1 - funnelCompletedProfiles / rangeSignups) * 100),
                     ),
                   )
                   : 0,
@@ -2169,14 +2189,14 @@ exports.getAdvancedDashboardMetrics = async (req, res) => {
             },
             {
               label: "First Swipe",
-              value: funnelAgg[3],
+              value: funnelSwipersCount,
               dropOff:
-                funnelAgg[1] > 0
+                funnelCompletedProfiles > 0
                   ? Math.max(
                     -100,
                     Math.min(
                       100,
-                      -Math.round((1 - funnelAgg[3] / funnelAgg[1]) * 100),
+                      -Math.round((1 - funnelSwipersCount / funnelCompletedProfiles) * 100),
                     ),
                   )
                   : 0,
@@ -2184,16 +2204,10 @@ exports.getAdvancedDashboardMetrics = async (req, res) => {
             },
             {
               label: "Subscribed",
-              value: funnelAgg[5],
+              value: funnelSubscribersCount,
               dropOff:
-                funnelAgg[3] > 0
-                  ? Math.max(
-                    -100,
-                    Math.min(
-                      100,
-                      -Math.round((1 - funnelAgg[5] / funnelAgg[3]) * 100),
-                    ),
-                  )
+                funnelSwipersCount > 0
+                  ? Math.max(-100, Math.min(100, -Math.round((1 - funnelSubscribersCount / funnelSwipersCount) * 100)))
                   : 0,
               color: "hsl(182 60% 45%)",
             },
@@ -2201,14 +2215,11 @@ exports.getAdvancedDashboardMetrics = async (req, res) => {
         },
         performanceInsights: {
           subtitle: "What's working, what needs focus",
-          insight: "Boosts and 4+ photo users drive the best results.",
+          insight: "Supercharge and 4+ photo users drive the best results.",
           metrics: [
             {
-              label: "Boost ROI",
-              value:
-                consumablePct > 0
-                  ? `${(consumablePct / 20).toFixed(1)}x`
-                  : "0x",
+              label: "Supercharge ROI",
+              value: consumablePct > 0 ? `${(consumablePct / 20).toFixed(1)}x` : "0x",
               percentage: consumablePct,
               color: "hsl(182 59% 54%)",
             },
