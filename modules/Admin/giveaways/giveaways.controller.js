@@ -14,7 +14,7 @@ const timezone = require("dayjs/plugin/timezone");
 dayjs.extend(utc);
 dayjs.extend(timezone);
 
-const CURRENT_TZ = process.env.GIVEAWAY_TIMEZONE || "Australia/Sydney";
+const CURRENT_TZ = (process.env.GIVEAWAY_TIMEZONE || "Australia/Sydney").replace(/['"]/g, '').trim();
 
 // ═══════════════════════════════════════════
 // 🛡️ HELPER: Weekly Boundary Calculator
@@ -383,7 +383,7 @@ module.exports.createCampaign = async (req, res) => {
 
     return res.status(500).json({
       success: false,
-      message: "Failed to create giveaway campaign",
+      message: "Failed to create giveaway campaign: " + error.message,
     });
   }
 };

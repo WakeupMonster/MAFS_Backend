@@ -19,47 +19,6 @@ const UsageService = require("../../subscription/services/usage.service");
 const Subscription = require("../../subscription/models/Subscription");
 const adminEvents = require("../../../events/admin.events");
 
-let localNonActiveUsers = null;
-let lastFetchedNonActive = 0;
-
-async function getNonActiveUserIds() {
-  const now = Date.now();
-  if (localNonActiveUsers && (now - lastFetchedNonActive < 300000)) { // 5 minutes cache
-    return localNonActiveUsers;
-  }
-
-  const NON_ACTIVE_KEY = "global:nonActiveUsers";
-  if (redis) {
-    try {
-      const cachedNA = await redis.get(NON_ACTIVE_KEY);
-      if (cachedNA) {
-        localNonActiveUsers = JSON.parse(cachedNA);
-        lastFetchedNonActive = now;
-        return localNonActiveUsers;
-      }
-    } catch (e) {
-      console.error("NonActiveUsers Redis get error:", e);
-    }
-  }
-
-  try {
-    const ids = (
-      await User.find({ accountStatus: { $ne: "active" } }).distinct("_id")
-    ).map((id) => id.toString());
-
-    localNonActiveUsers = ids;
-    lastFetchedNonActive = now;
-
-    if (redis) {
-      await redis.set(NON_ACTIVE_KEY, JSON.stringify(ids), { EX: 300 });
-    }
-    return ids;
-  } catch (err) {
-    console.error("NonActiveUsers DB fetch error:", err);
-    return localNonActiveUsers || [];
-  }
-}
-
 function calculateDistance(lat1, lon1, lat2, lon2) {
   const R = 6371;
   const dLat = (lat2 - lat1) * (Math.PI / 180);
@@ -75,26 +34,17 @@ function calculateDistance(lat1, lon1, lat2, lon2) {
 }
 
 async function getFeedService(userId, limit, page) {
-  const getFeedStart = Date.now();
-  console.log(`[FEED SERVICE START] User: ${userId} | Page: ${page} | Limit: ${limit}`);
-
   const CACHE_KEY = `feed:${userId.toString()}`;
   const SEEN_KEY = `feed:seen:${userId.toString()}`;
-  const CACHE_TTL = 30;
+  const CACHE_TTL = 60;
   const SEEN_TTL = 60 * 60 * 24;
   const skip = (page - 1) * limit;
 
   // 1. Setup Subscription and Profile
-  const setupStart = Date.now();
   let [sub, myProfile] = await Promise.all([
-    Subscription.findOne({
-      userId,
-      status: "ACTIVE",
-      expiresAt: { $gt: new Date() },
-    }).lean(),
+    Subscription.findActiveByUser(userId).lean(),
     Profile.findOne({ userId }).lean(),
   ]);
-  const setupTime = Date.now() - setupStart;
 
   const isPremium = !!sub;
   if (!myProfile) throw new Error("Profile not found");
@@ -105,7 +55,6 @@ async function getFeedService(userId, limit, page) {
   // If user has no location, $near filter is simply skipped (line 154 handles this).
 
   // 2. Fetch Seen Profiles from Redis (to avoid repeats in session)
-  const seenStart = Date.now();
   let seenProfiles = [];
   if (redis) {
     try {
@@ -116,7 +65,6 @@ async function getFeedService(userId, limit, page) {
       console.error("Redis Get Error (SeenProfiles):", e);
     }
   }
-  const seenTime = Date.now() - seenStart;
 
   // 3. Return from Cache if available (only page 1 — other pages always fresh)
   if (redis && page === 1) {
@@ -124,8 +72,6 @@ async function getFeedService(userId, limit, page) {
       const cached = await redis.get(CACHE_KEY);
       if (cached) {
         const parsed = JSON.parse(cached);
-        const totalTime = Date.now() - getFeedStart;
-        console.log(`[FEED SERVICE END] User: ${userId} | Count: ${parsed.data?.length} (CACHED) | Total Time: ${totalTime}ms`);
         return {
           success: true,
           count: parsed.data?.length,
@@ -140,14 +86,13 @@ async function getFeedService(userId, limit, page) {
 
   // 4. Gather Exclusion IDs — CACHED for 60 seconds to avoid 8 DB queries per request
   const EXCLUDE_KEY = `feed:exclude:${userId.toString()}`;
-  const EXCLUDE_TTL = 60; // seconds
+  const EXCLUDE_TTL = 300; // 5 minutes — exclusion list doesn't change frequently
 
   let baseExcludeSet;
   let receivedSuperlikes = [];
   let excludeIds = [];
 
   // Try to load from cache first
-  const excludeStart = Date.now();
   let cacheHit = false;
   if (redis) {
     try {
@@ -165,12 +110,38 @@ async function getFeedService(userId, limit, page) {
 
   // Cache miss — build from DB (same logic as before, unchanged)
   if (!cacheHit) {
-    // Cache nonActiveUsers globally and locally in-memory — avoids full User table scan
-    const nonActiveUserIds = await getNonActiveUserIds();
+    // Cache nonActiveUsers globally — avoids full User table scan on every request
+    let nonActiveUserIds = [];
+    const NON_ACTIVE_KEY = "global:nonActiveUsers";
+    if (redis) {
+      try {
+        const cachedNA = await redis.get(NON_ACTIVE_KEY);
+        if (cachedNA) {
+          nonActiveUserIds = JSON.parse(cachedNA);
+        } else {
+          nonActiveUserIds = (
+            await User.find({ accountStatus: { $ne: "active" } }).distinct("_id")
+          ).map((id) => id.toString());
+          await redis.set(NON_ACTIVE_KEY, nonActiveUserIds, { EX: 300 });
+        }
+      } catch (e) {
+        console.error("NonActiveUsers cache error:", e);
+        nonActiveUserIds = (
+          await User.find({ accountStatus: { $ne: "active" } }).distinct("_id")
+        ).map((id) => id.toString());
+      }
+    } else {
+      nonActiveUserIds = (
+        await User.find({ accountStatus: { $ne: "active" } }).distinct("_id")
+      ).map((id) => id.toString());
+    }
 
     const [swipes, matches, myBlocked, blockedMe, myReports, rcvdSuperlikes] =
       await Promise.all([
-        Swipe.find({ swiperId: userId }).distinct("targetId"),
+        Swipe.find({
+          swiperId: userId,
+          action: { $in: ["like", "pass", "superlike"] },
+        }).distinct("targetId"),
         Match.find({ users: userId }).distinct("users"),
         Block.find({ blockerId: userId }).distinct("blockedId"),
         Block.find({ blockedId: userId }).distinct("blockerId"),
@@ -217,12 +188,14 @@ async function getFeedService(userId, limit, page) {
       }
     }
   }
-  const excludeTime = Date.now() - excludeStart;
 
-  excludeIds =
+  // Cap exclusion list to prevent $nin degradation on large arrays
+  const MAX_EXCLUDE = 500;
+  const rawExclude =
     page === 1
       ? [...new Set([...baseExcludeSet, ...seenProfiles])]
       : [...baseExcludeSet];
+  excludeIds = rawExclude.slice(0, MAX_EXCLUDE);
 
   // 5. Build Final Query Filters
   const queryFilters = {
@@ -258,7 +231,7 @@ async function getFeedService(userId, limit, page) {
           type: "Point",
           coordinates: myProfile.location.coordinates,
         },
-        $maxDistance: (discovery.distanceRange?.max || discovery.distanceRange || 50) * 1000,
+        $maxDistance: (discovery.distanceRange || 50) * 1000,
       },
     };
   }
@@ -277,7 +250,6 @@ async function getFeedService(userId, limit, page) {
   }
 
   // Fetch Superlikers on ALL pages — they must always be at the top until user swipes
-  const superBoostStart = Date.now();
   let profiles = [];
   {
     const superlikersToFetch = receivedSuperlikes.filter(
@@ -314,19 +286,20 @@ async function getFeedService(userId, limit, page) {
     try {
       if (redis) {
         const now = Date.now();
-        // Prune expired boosts
-        await redis.zRemRangeByScore("boosted:users", "-inf", now);
-        // Fetch active boosted users
-        const boostedUserIdsRaw = await redis.zRangeByScore("boosted:users", now, "+inf");
-        
-        if (boostedUserIdsRaw && boostedUserIdsRaw.length > 0) {
+        // Asynchronously prune expired boosts to keep memory clean
+        redis.zRemRangeByScore('boosted:users', '-inf', now.toString()).catch(err => console.error("ZREM boost clean error:", err));
+
+        // Fetch active boosted user IDs (score is expiry timestamp, so score > now is active)
+        const boostedUserIds = await redis.zRangeByScore('boosted:users', now.toString(), '+inf');
+
+        if (boostedUserIds && boostedUserIds.length > 0) {
           // Exclude already seen superlikes and base exclusions
           const currentExcludeSet = new Set([...baseExcludeSet, ...profiles.map(p => p.userId.toString())]);
-          const boostedUserIds = boostedUserIdsRaw.filter(id => !currentExcludeSet.has(id.toString()));
+          const filteredBoostedIds = boostedUserIds.filter(id => !currentExcludeSet.has(id.toString()));
 
-          if (boostedUserIds.length > 0) {
+          if (filteredBoostedIds.length > 0) {
             const boostQuery = {
-              userId: { $in: boostedUserIds },
+              userId: { $in: filteredBoostedIds },
               isMandatoryComplete: true,
               "discovery.globalVisibility": "everyone"
             };
@@ -335,6 +308,7 @@ async function getFeedService(userId, limit, page) {
             }
             // if (queryFilters.dob) boostQuery.dob = queryFilters.dob;
             if (queryFilters.location) boostQuery.location = queryFilters.location;
+
 
             // Limit to max 5 boosted profiles per page so it doesn't flood the limit
             const maxBoosted = Math.min(5, limit - profiles.length);
@@ -347,10 +321,8 @@ async function getFeedService(userId, limit, page) {
       console.error("Error explicitly fetching boosted profiles:", err);
     }
   }
-  const superBoostTime = Date.now() - superBoostStart;
 
   // Fetch remaining profiles
-  const mainQueryStart = Date.now();
   const remainingLimit = limit - profiles.length;
   let additionalProfiles = [];
   if (remainingLimit > 0) {
@@ -361,32 +333,22 @@ async function getFeedService(userId, limit, page) {
     additionalProfiles = await runQuery(queryFilters);
     profiles = [...profiles, ...additionalProfiles];
   }
-  const mainQueryTime = Date.now() - mainQueryStart;
 
   // 7. HANDLE EXHAUSTION (RETRY)
   // Check if normal db pool exhausted (ignoring explicitly fetched superlikes)
   if (additionalProfiles.length === 0 && seenProfiles.length > 0 && page === 1) {
     console.log(
-      `Pool exhausted for ${userId}. Resetting seenProfiles asynchronously...`,
+      `Pool exhausted for ${userId}. Resetting seenProfiles and retrying immediately...`,
     );
-    if (redis) {
-      redis.del(SEEN_KEY).catch(err => console.error("Error clearing seen profiles:", err));
-    }
-
-    /* 
-    // OLD CODE (Removed to prevent double-query storm under high concurrency):
+    if (redis) await redis.del(SEEN_KEY);
     seenProfiles = [];
+
+    // Make sure we still exclude any superlikers/boosted users we just grabbed above!
     const excludeForRetry = [...new Set([...baseExcludeSet, ...profiles.map(p => p.userId.toString())])];
     queryFilters.userId = { $nin: excludeForRetry };
     const retryProfiles = await runQuery(queryFilters);
     profiles = [...profiles, ...retryProfiles];
-    */
   }
-
-  const totalTime = Date.now() - getFeedStart;
-  console.log(
-    `[FEED SERVICE END] User: ${userId} | Count: ${profiles.length} | Time: ${totalTime}ms (Setup: ${setupTime}ms, Seen: ${seenTime}ms, Exclude: ${excludeTime}ms, SuperBoost: ${superBoostTime}ms, MainQuery: ${mainQueryTime}ms)`
-  );
 
   if (profiles.length === 0) {
     return {
@@ -616,7 +578,8 @@ async function getFeedService(userId, limit, page) {
     await redis.expire(SEEN_KEY, SEEN_TTL);
     // Only cache page 1 results (other pages are always fresh)
     if (page === 1) {
-      await redis.set(CACHE_KEY, { data: finalResult }, { EX: CACHE_TTL });
+      // ✅ FIX: Stringify data properly for Redis
+      await redis.set(CACHE_KEY, JSON.stringify({ data: finalResult }), { EX: CACHE_TTL });
     }
   }
 
@@ -635,10 +598,56 @@ function calculateAge(dob) {
   return Math.floor(diff / 31557600000); // Years in ms
 }
 
-async function doSwipe(swiperId, targetId, action) {
-  const swipeStart = Date.now();
-  console.log(`[SWIPE START] Swiper: ${swiperId} | Target: ${targetId} | Action: ${action}`);
+async function removeUserFromFeedCache(userId, targetIdToRemove) {
+  if (!redis) return;
 
+  const CACHE_KEY = `feed:${userId.toString()}`;
+
+  try {
+    // ✅ Get current TTL PEHLE
+    const ttl = await redis.ttl(CACHE_KEY);
+    if (ttl <= 0) return; // Cache nahi hai ya expire ho gayi
+
+    const cached = await redis.get(CACHE_KEY);
+    if (!cached) return;
+
+    let parsed;
+    try {
+      parsed = typeof cached === 'string' ? JSON.parse(cached) : cached;
+    } catch (e) {
+      // Invalid cache — delete karo
+      await redis.del(CACHE_KEY);
+      return;
+    }
+
+    if (!parsed?.data || !Array.isArray(parsed.data)) return;
+
+    const targetStr = targetIdToRemove.toString();
+    const updatedData = parsed.data.filter(
+      (profile) => profile.userId?.toString() !== targetStr
+    );
+
+    if (updatedData.length === parsed.data.length) return; // Nothing changed
+
+    // ✅ Redis 6.0 compatible — KEEPTTL nahi, manual TTL use karo
+    await redis.set(
+      CACHE_KEY,
+      JSON.stringify({ data: updatedData }),
+      { EX: Math.max(ttl, 1) }  // Original TTL preserve karo manually
+    );
+
+    console.log(
+      `[FEED CACHE] Removed ${targetStr} from ${userId} feed. ` +
+      `Remaining: ${updatedData.length}, TTL: ${ttl}s`
+    );
+  } catch (err) {
+    console.error("removeUserFromFeedCache error:", err);
+    // Fallback: delete karo taaki stale data na rahe
+    try { await redis.del(CACHE_KEY); } catch (e) { /* ignore */ }
+  }
+}
+
+async function doSwipe(swiperId, targetId, action) {
   // 1. Initial Checks
   if (swiperId.toString() === targetId.toString()) {
     throw new Error("Cannot swipe on your own profile");
@@ -661,7 +670,6 @@ async function doSwipe(swiperId, targetId, action) {
     // Check duplicate (unique index handles race condition atomically)
     const existingSwipe = await Swipe.findOne({ swiperId, targetId }).lean();
     if (existingSwipe) {
-      console.log(`[SWIPE PASS END] Swiper: ${swiperId} -> Target: ${targetId} | Already Swiped | Time: ${Date.now() - swipeStart}ms`);
       return { success: true, already: true, message: "Already swiped", match: false };
     }
 
@@ -679,7 +687,6 @@ async function doSwipe(swiperId, targetId, action) {
       await Swipe.create({ swiperId, targetId, action, createdAt: new Date() });
     } catch (err) {
       if (err.code === 11000) {
-        console.log(`[SWIPE PASS END] Swiper: ${swiperId} -> Target: ${targetId} | Duplicate Create | Time: ${Date.now() - swipeStart}ms`);
         return { success: true, already: true, message: "Already swiped", match: false };
       }
       throw err;
@@ -687,10 +694,10 @@ async function doSwipe(swiperId, targetId, action) {
 
     // Clear caches
     if (redis) {
-      await redis.del(`feed:${swiperId.toString()}`);
+      await removeUserFromFeedCache(swiperId, targetId);
+      await redis.del(`feed:exclude:${swiperId.toString()}`);
     }
 
-    console.log(`[SWIPE PASS END] Swiper: ${swiperId} -> Target: ${targetId} | Time: ${Date.now() - swipeStart}ms`);
     return { success: true, match: false, message: "Swipe processed" };
   }
 
@@ -703,7 +710,6 @@ async function doSwipe(swiperId, targetId, action) {
   const usageType = action === "superlike" ? "SUPER_KEEN" : "LIKE";
 
   // Parallel pre-checks — no session, no transaction overhead
-  const preCheckStart = Date.now();
   const [targetProfile, blockExists, existingSwipe] = await Promise.all([
     Profile.findOne({ userId: targetId })
       .select("nickname photos")
@@ -716,24 +722,20 @@ async function doSwipe(swiperId, targetId, action) {
     }).lean(),
     Swipe.findOne({ swiperId, targetId }).lean(),
   ]);
-  const preCheckTime = Date.now() - preCheckStart;
 
   if (!targetProfile) throw new Error("Target profile not found");
   if (blockExists)
     throw new Error("Action not allowed. User interaction is blocked.");
   if (existingSwipe) {
-    console.log(`[SWIPE TX END] Swiper: ${swiperId} -> Target: ${targetId} | Already Swiped | Time: ${Date.now() - swipeStart}ms`);
     return { success: true, already: true, message: "Already swiped", match: false };
   }
 
   // Quota check — BEFORE opening session (saves session if limit reached)
-  const quotaStart = Date.now();
   try {
     await UsageService.useItem(swiperId, usageType);
   } catch (error) {
     if (error.message === "LIMIT_REACHED") {
       const status = await UsageService.getUsageStatus(swiperId);
-      console.log(`[SWIPE TX END] Swiper: ${swiperId} | Quota Limit Reached | Time: ${Date.now() - swipeStart}ms`);
       return {
         success: false,
         message:
@@ -761,10 +763,8 @@ async function doSwipe(swiperId, targetId, action) {
     }
     throw error;
   }
-  const quotaTime = Date.now() - quotaStart;
 
   // ── MINIMAL TRANSACTION: Only atomic DB writes ──
-  const txnStart = Date.now();
   const session = await mongoose.startSession();
   let isMatch = false;
   let matchDoc = null;
@@ -785,10 +785,14 @@ async function doSwipe(swiperId, targetId, action) {
       }).session(session).lean();
 
       if (mutualSwipe) {
+        // Sort lexicographically to prevent order-dependent duplicate matches in the unique positional index
+        const sortedUsers = [swiperId.toString(), targetId.toString()].sort();
+        const userIds = sortedUsers.map(id => new mongoose.Types.ObjectId(id));
+
         [matchDoc] = await Match.create(
           [
             {
-              users: [swiperId, targetId],
+              users: userIds,
               status: "matched",
               lastMessageAt: new Date(),
             },
@@ -801,19 +805,12 @@ async function doSwipe(swiperId, targetId, action) {
   } catch (err) {
     // Handle duplicate swipe race condition via unique index
     if (err.code === 11000) {
-      console.log(`[SWIPE TX END] Swiper: ${swiperId} -> Target: ${targetId} | Duplicate Tx Create | Time: ${Date.now() - swipeStart}ms`);
       return { success: true, already: true, message: "Already swiped", match: false };
     }
-    console.error(`[SWIPE TX ERROR] Swiper: ${swiperId} -> Target: ${targetId} | Error: ${err.message}`, err);
     throw err;
   } finally {
     await session.endSession(); // Session released ASAP
   }
-  const txnTime = Date.now() - txnStart;
-
-  console.log(
-    `[SWIPE TX OK] Swiper: ${swiperId} -> Target: ${targetId} | Match: ${isMatch} | Time: ${Date.now() - swipeStart}ms (PreCheck: ${preCheckTime}ms, Quota: ${quotaTime}ms, Txn: ${txnTime}ms)`
-  );
 
   // ── POST-TRANSACTION: Response building (session already released) ──
   const status = await UsageService.getUsageStatus(swiperId);
@@ -887,15 +884,15 @@ async function doSwipe(swiperId, targetId, action) {
   // Cache clearing — after session released, non-blocking
   if (redis) {
     const cacheOps = [
-      redis.del(`feed:${swiperId.toString()}`),
+      removeUserFromFeedCache(swiperId, targetId),
       redis.del(`feed:${targetId.toString()}`),
+      redis.del(`feed:exclude:${swiperId.toString()}`),
     ];
     if (isMatch) {
       cacheOps.push(
         redis.del(`matches:${swiperId}`),
         redis.del(`matches:${targetId}`),
-        redis.del(`chat:list:${swiperId.toString()}`),
-        redis.del(`chat:list:${targetId.toString()}`),
+        redis.del(`feed:exclude:${targetId.toString()}`),
       );
     }
     await Promise.all(cacheOps);
@@ -904,49 +901,7 @@ async function doSwipe(swiperId, targetId, action) {
   return result;
 }
 
-async function undoSwipe(swiperId, targetId) {
-  // 1. Quota Check (v3)
-  try {
-    await UsageService.useItem(swiperId, "REWIND");
-  } catch (error) {
-    if (error.message === "LIMIT_REACHED") {
-      throw new Error("No Rewinds left for today!");
-    }
-    throw error;
-  }
-
-  const lastSwipe = await Swipe.findOne({ swiperId, targetId }).sort({
-    createdAt: -1,
-  });
-
-  if (!lastSwipe) throw new Error("No swipe to undo");
-
-  if (lastSwipe.action === "superlike") {
-    // Note: Guide says super keens can be undone?
-    // Usually Super Keens are high value, some apps block undo.
-    // Keeping existing behavior unless asked.
-    throw new Error("Superlike undo not allowed");
-  }
-
-  const match = await Match.findOne({
-    users: { $all: [swiperId, targetId] },
-  });
-  if (match) throw new Error("Cannot undo after match");
-
-  await Swipe.deleteOne({ _id: lastSwipe._id });
-
-  if (redis) {
-    await Promise.all([
-      redis.sRem(`swiped:${swiperId}`, targetId.toString()),
-      redis.del(`feed:${swiperId}`),
-    ]);
-  }
-
-  return { success: true, message: "Swipe undone" };
-}
-
 module.exports = {
   getFeedService,
   doSwipe,
-  undoSwipe,
 };

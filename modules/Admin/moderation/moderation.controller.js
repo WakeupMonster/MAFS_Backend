@@ -10,6 +10,7 @@ const notificationService = require("../../notifications/notification.service");
 const {
   NOTIFICATION_TYPES,
 } = require("../../notifications/notification.enums");
+const mongoose = require("mongoose");
 const { reportReviewEmailTemplate } = require("../../../common/utils/reportReviewEmailTemplate");
 const { reportResolutionEmailTemplate } = require("../../../common/utils/reportResolutionEmailTemplate");
 

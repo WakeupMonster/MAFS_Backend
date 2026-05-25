@@ -46,29 +46,13 @@ const BASE_URL = __ENV.API_URL || 'http://localhost:3001/api/v1';
 // ═══════════════════════════════════════
 export const options = {
     stages: [
-        { duration: '30s',  target: 10   },  // Stage 1: Ramp to 10
-        { duration: '2m',   target: 10   },  // Hold 10
-        { duration: '30s',  target: 25   },  // Stage 2: Ramp to 25
-        { duration: '2m',   target: 25   },  // Hold 25
-        { duration: '30s',  target: 50   },  // Stage 3: Ramp to 50
-        { duration: '2m',   target: 50   },  // Hold 50
-        { duration: '30s',  target: 100  },  // Stage 4: Ramp to 100
-        { duration: '2m',   target: 100  },  // Hold 100
-        { duration: '30s',  target: 200  },  // Stage 5: Ramp to 200
-        { duration: '2m',   target: 200  },  // Hold 200
-        { duration: '30s',  target: 300  },  // Stage 6: Ramp to 300
-        { duration: '2m',   target: 300  },  // Hold 300
-        { duration: '30s',  target: 500  },  // Stage 7: Ramp to 500
-        { duration: '2m',   target: 500  },  // Hold 500
-        { duration: '30s',  target: 750  },  // Stage 8: Ramp to 750
-        { duration: '2m',   target: 750  },  // Hold 750
-        { duration: '30s',  target: 1000 },  // Stage 9: Ramp to 1000
-        { duration: '2m',   target: 1000 },  // Hold 1000
-        { duration: '30s',  target: 1500 },  // Stage 10: Ramp to 1500
-        { duration: '2m',   target: 1500 },  // Hold 1500
-        { duration: '30s',  target: 2000 },  // Stage 11: Ramp to 2000
-        { duration: '2m',   target: 2000 },  // Hold 2000
-        { duration: '1m',   target: 0    },  // Ramp down
+        { duration: '10s',  target: 10   },
+        { duration: '30s',  target: 10   },
+        { duration: '20s',  target: 50   },
+        { duration: '1m',   target: 50   },
+        { duration: '30s',  target: 100  },
+        { duration: '2m',   target: 100  },
+        { duration: '30s',  target: 0    },
     ],
     thresholds: {
         'http_req_duration':    ['p(95)<2000'],

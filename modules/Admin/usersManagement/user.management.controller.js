@@ -1485,71 +1485,14 @@ module.exports.GETGhostingUsers = async (req, res) => {
       totalBlockedUsers,
       totalGhostedUsers,
     ] = await Promise.all([
-      // 1. Unique users in any matches in range
-      Match.aggregate([
-        { $match: rangeFilter },
-        { $unwind: "$users" },
-        { $group: { _id: "$users" } },
-        {
-          $lookup: {
-            from: "users",
-            localField: "_id",
-            foreignField: "_id",
-            as: "matchedUser",
-          },
-        },
-        { $unwind: "$matchedUser" },
-        {
-          $match: {
-            "matchedUser.role": "USER",
-          },
-        },
-        { $count: "count" },
-      ]).then((r) => r[0]?.count || 0),
+      // 1. Total matches in range
+      Match.countDocuments(rangeFilter),
 
-      // 2. Unique users in ghosted matches in range
-      Match.aggregate([
-        { $match: { lastMessageBy: null, ...rangeFilter } },
-        { $unwind: "$users" },
-        { $group: { _id: "$users" } },
-        {
-          $lookup: {
-            from: "users",
-            localField: "_id",
-            foreignField: "_id",
-            as: "matchedUser",
-          },
-        },
-        { $unwind: "$matchedUser" },
-        {
-          $match: {
-            "matchedUser.role": "USER",
-          },
-        },
-        { $count: "count" },
-      ]).then((r) => r[0]?.count || 0),
+      // 2. Total ghosted matches in range
+      Match.countDocuments({ lastMessageBy: null, ...rangeFilter }),
 
-      // 3. Unique users in active matches in range
-      Match.aggregate([
-        { $match: { lastMessageBy: { $ne: null }, ...rangeFilter } },
-        { $unwind: "$users" },
-        { $group: { _id: "$users" } },
-        {
-          $lookup: {
-            from: "users",
-            localField: "_id",
-            foreignField: "_id",
-            as: "matchedUser",
-          },
-        },
-        { $unwind: "$matchedUser" },
-        {
-          $match: {
-            "matchedUser.role": "USER",
-          },
-        },
-        { $count: "count" },
-      ]).then((r) => r[0]?.count || 0),
+      // 3. Total active matches in range
+      Match.countDocuments({ lastMessageBy: { $ne: null }, ...rangeFilter }),
 
       // 4. Unique users involved in blocks after chatting in range
       Block.aggregate([

@@ -464,21 +464,14 @@ module.exports.updateNotificationSettings = async (req, res) => {
   }
 };
 
-module.exports.sendSingleUserNotification = async (req, res) => {
+module.exports.sendIndividualNotification = async (req, res) => {
   try {
-    const { userId, channel, subject, message } = req.body;
+    const { userId, title, message, channels, ctaLabel, ctaAction } = req.body;
 
-    if (!userId || !channel || !subject || !message) {
+    if (!userId || !title || !message || !channels || !Array.isArray(channels) || channels.length === 0) {
       return res.status(400).json({
         success: false,
-        message: "userId, channel, subject, and message are required",
-      });
-    }
-
-    if (!["email", "push", "both"].includes(channel)) {
-      return res.status(400).json({
-        success: false,
-        message: "Invalid channel. Must be 'email', 'push', or 'both'",
+        message: "userId, title, message, and channels are required",
       });
     }
 
@@ -490,115 +483,103 @@ module.exports.sendSingleUserNotification = async (req, res) => {
       });
     }
 
-    let emailSent = false;
-    let pushSent = false;
-    let emailError = null;
-    let pushError = null;
+    const results = {};
+    const errors = {};
 
-    // Send Email
-    if (channel === "email" || channel === "both") {
+    if (channels.includes("email")) {
       if (!user.email) {
-        emailError = "User has no email address";
+        errors.email = "User has no email address";
       } else {
         try {
+          const htmlContent = `<div style="font-family: Arial, sans-serif; padding: 20px; color: #333;">
+            <h2>${title}</h2>
+            <p>${message}</p>
+          </div>`;
+          
           await sendEmail({
             to: user.email,
-            subject: subject,
-            html: message,
+            subject: title,
+            html: htmlContent
           });
-          emailSent = true;
+
           await EmailLog.create({
             userId: user._id,
             email: user.email,
-            campaignId: null,
-            status: "sent",
+            status: "sent"
           });
+          results.email = "Sent successfully";
         } catch (err) {
-          emailError = err.message;
+          console.error("❌ Individual notification email sending failed:", err);
+          errors.email = err.message;
+
           await EmailLog.create({
             userId: user._id,
             email: user.email,
-            campaignId: null,
             status: "failed",
-            error: err.message,
+            error: err.message
           });
         }
       }
     }
 
-    // Send Push Notification
-    if (channel === "push" || channel === "both") {
-      if (!user.fcmTokens || user.fcmTokens.length === 0) {
-        pushError = "User has no push tokens (FCM tokens)";
-      } else {
-        try {
-          await notificationService.sendAdminNotification({
-            userId: user._id,
-            title: subject,
-            message: message,
-            data: { type: "ADMIN_NOTIFICATION" },
-            respectUserSettings: false, // Bypass settings for admin-direct notifications
-          });
-          pushSent = true;
-        } catch (err) {
-          pushError = err.message;
-        }
+    if (channels.includes("push")) {
+      try {
+        const cta = ctaLabel && ctaAction ? { label: ctaLabel, action: ctaAction } : undefined;
+        await notificationService.sendAdminNotification({
+          userId: user._id,
+          title,
+          message,
+          data: { cta },
+          respectUserSettings: false
+        });
+        results.push = "Sent successfully";
+      } catch (err) {
+        console.error("❌ Individual notification push sending failed:", err);
+        errors.push = err.message;
       }
     }
 
-    // Return responsive message
-    if (channel === "both") {
-      if (emailSent && pushSent) {
-        return res.json({
-          success: true,
-          message: "Email and Push Notification sent successfully",
+    const hasFailed = Object.keys(errors).length > 0;
+    const hasSucceeded = Object.keys(results).length > 0;
+
+    if (hasFailed && !hasSucceeded) {
+      return res.status(500).json({
+        success: false,
+        message: "Failed to send notifications",
+        errors
+      });
+    }
+
+    // 📢 Send verification to ntfy.sh for the admin's testing/tracking
+    if (hasSucceeded) {
+      try {
+        const fetch = (...args) => import('node-fetch').then(({default: fetch}) => fetch(...args));
+        await fetch("https://ntfy.sh/my-test-notifications", {
+          method: "POST",
+          body: `[User: ${user._id}]\n[Channels: ${Object.keys(results).join(", ")}]\n${message}`,
+          headers: {
+            "Title": `[Individual] ${title}`,
+            "Priority": "high",
+            "Tags": "loudspeaker,bell,envelope"
+          }
         });
-      } else if (emailSent) {
-        return res.json({
-          success: true,
-          message: `Email sent successfully. Push failed: ${pushError}`,
-        });
-      } else if (pushSent) {
-        return res.json({
-          success: true,
-          message: `Push sent successfully. Email failed: ${emailError}`,
-        });
-      } else {
-        return res.status(500).json({
-          success: false,
-          message: `Both notifications failed. Email error: ${emailError}. Push error: ${pushError}`,
-        });
-      }
-    } else if (channel === "email") {
-      if (emailSent) {
-        return res.json({
-          success: true,
-          message: "Email sent successfully",
-        });
-      } else {
-        return res.status(400).json({
-          success: false,
-          message: `Email failed to send: ${emailError}`,
-        });
-      }
-    } else {
-      if (pushSent) {
-        return res.json({
-          success: true,
-          message: "Push Notification sent successfully",
-        });
-      } else {
-        return res.status(400).json({
-          success: false,
-          message: `Push Notification failed to send: ${pushError}`,
-        });
+      } catch (ntfyErr) {
+        console.error("Failed to send to ntfy:", ntfyErr.message);
       }
     }
+
+    return res.json({
+      success: true,
+      message: "Notification processing completed",
+      results,
+      errors: hasFailed ? errors : undefined
+    });
+
   } catch (err) {
-    console.error("❌ sendSingleUserNotification error:", err);
+    console.error("❌ sendIndividualNotification error:", err);
     return res.status(500).json({
       success: false,
-      message: err.message || "Failed to send notification to single user",
+      message: err.message
     });
   }
 };
