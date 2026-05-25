@@ -29,12 +29,12 @@ const validateDiscoveryFilters = (req, res, next) => {
   }
 
   // ─── 2. Unknown top-level keys ───
-//   const unknownTopKeys = Object.keys(discoveryFilters).filter(
-//     key => !VALID_TOP_LEVEL_KEYS.includes(key)
-//   );
-//   if (unknownTopKeys.length > 0) {
-//     return sendError(res, `Unknown filter key: ${unknownTopKeys[0]}`);
-//   }
+  //   const unknownTopKeys = Object.keys(discoveryFilters).filter(
+  //     key => !VALID_TOP_LEVEL_KEYS.includes(key)
+  //   );
+  //   if (unknownTopKeys.length > 0) {
+  //     return sendError(res, `Unknown filter key: ${unknownTopKeys[0]}`);
+  //   }
 
   // ─── 3. relationshipGoal must be string only ───
   if (discoveryFilters.relationshipGoal !== undefined) {
@@ -55,6 +55,17 @@ const validateDiscoveryFilters = (req, res, next) => {
   //     return sendError(res, "showMeGender cannot be empty.");
   //   }
   // }
+
+  // ─── 4.5. globalVisibility validation ───
+  if (discoveryFilters.globalVisibility !== undefined) {
+    if (typeof discoveryFilters.globalVisibility !== "string") {
+      return sendError(res, "globalVisibility must be a string.");
+    }
+    const validVisibility = ["everyone", "matches_only", "nobody"];
+    if (!validVisibility.includes(discoveryFilters.globalVisibility)) {
+      return sendError(res, "globalVisibility must be one of: everyone, matches_only, nobody.");
+    }
+  }
 
   // ─── 5. advanced filters validation ───
   if (discoveryFilters.advanced !== undefined) {

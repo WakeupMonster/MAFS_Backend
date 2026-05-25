@@ -765,9 +765,14 @@ exports.getDashboardStats = async (req, res, next) => {
         });
 
         const activeCountCurrent = totals[0]?.activeSubscribers || 0;
-        const subChange = activeCountStartOfMonth > 0
-            ? (((activeCountCurrent - activeCountStartOfMonth) / activeCountStartOfMonth) * 100).toFixed(1)
-            : 0;
+        let subChangeVal = 0;
+        if (activeCountStartOfMonth > 0) {
+            const rawSubChange = ((activeCountCurrent - activeCountStartOfMonth) / activeCountStartOfMonth) * 100;
+            subChangeVal = Math.min(100, Math.max(-100, rawSubChange));
+        } else {
+            subChangeVal = activeCountCurrent > 0 ? 100 : 0;
+        }
+        const subChange = `${subChangeVal >= 0 ? "+" : ""}${subChangeVal.toFixed(1)}%`;
 
         return res.json({
             success: true,
@@ -776,7 +781,7 @@ exports.getDashboardStats = async (req, res, next) => {
                     consumableRevenue: monthlyConsumableRevenueResult[0]?.totalAmount || 0,
                     activeSubscribers: {
                         count: activeCountCurrent,
-                        change: `${subChange}%`
+                        change: subChange
                     },
                     mrr: {
                         amount: Math.round(totalMRR),

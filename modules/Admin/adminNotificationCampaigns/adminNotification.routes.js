@@ -32,9 +32,6 @@ router.post("/premium-expiry/:campaignId/trigger", sendPremiumExpiryNow);
 
 router.get("/notifications/history", getNotificationHistory);
 
-// this one
-router.post("/send-single", sendSingleUserNotification);
-
 router.patch("/update/:userId", updateNotificationSettings);
 
 module.exports = router;
