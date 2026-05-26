@@ -874,6 +874,7 @@ const Transaction = require("../../subscription/models/SubscriptionTransaction")
 const Product = require("../../subscription/models_v3/Product");
 const SupportTicket = require("../../AppConfiguration/contactSupport/supportTicket.model");
 const Block = require("../../profile/user.block");
+const { formatCompactNumber } = require("../../../common/utils/formatCompactNumber");
 
 // exports.getAdvancedDashboardMetrics = async (req, res) => {
 //   try {
@@ -1252,6 +1253,8 @@ exports.getAdvancedDashboardMetrics = async (req, res) => {
     const startOfYear = new Date(now.getFullYear(), 0, 1); // Jan 1st
     const endOfYear = new Date(now.getFullYear(), 11, 31, 23, 59, 59); // Dec 31st
     const last30d = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+    const twoMonthsAgo = new Date();
+    twoMonthsAgo.setMonth(twoMonthsAgo.getMonth() - 2);
 
     // Meta Labels & Context
     let periodLabel = "Custom Range";
@@ -1311,7 +1314,7 @@ exports.getAdvancedDashboardMetrics = async (req, res) => {
       supportOpen,
       totalMessagesRange,
       deepConvoAggCount,
-      ghostingRangeAgg,
+      ghostedUsersCount,
       // --- Swipes ---
       swipesFacet,
       // --- Matches ---
@@ -1476,6 +1479,7 @@ exports.getAdvancedDashboardMetrics = async (req, res) => {
         { $count: "deepTotal" },
       ]).then((r) => r[0]?.deepTotal || 0),
 
+      /*
       Match.aggregate([
         { $match: { createdAt: { $gte: startDate, $lte: endDate } } },
         {
@@ -1488,6 +1492,17 @@ exports.getAdvancedDashboardMetrics = async (req, res) => {
           },
         },
       ]).then((r) => r[0] || { total: 0, ghosted: 0 }),
+      */
+      User.countDocuments({
+        role: "USER",
+        isFake: { $ne: true },
+        accountStatus: "active",
+        createdAt: { $lt: twoMonthsAgo },
+        $or: [
+          { lastLoginAt: { $lt: twoMonthsAgo } },
+          { lastLoginAt: null }
+        ]
+      }).catch(() => 0),
 
       // 9. Swipe counts: current + prev merged via $facet
       Swipe.aggregate([
@@ -2000,7 +2015,7 @@ exports.getAdvancedDashboardMetrics = async (req, res) => {
               value: fmtAmount(revR.total),
               sub: contextLabel,
               trend: revTrendDisplay,
-              isPositive: (revTrendNum || 0) >= 0,
+              isPositive: (revTrendNum || 0) < 0,
               icon: "Sparkles",
               color: "emerald",
               route: "/admin/management/subscription-management",
@@ -2062,13 +2077,22 @@ exports.getAdvancedDashboardMetrics = async (req, res) => {
             {
               id: "reported",
               label: "High Reported Users",
-              value: `${highReportedRange.length} ${highReportedRange.length === 1 ? "user with 5+ reports" : "users with 5+ reports"} ${preset === "today" ? "today" : preset === "yesterday" ? "yesterday" : "in this period"}`,
+              value: (() => {
+                const periodText = preset === "today"
+                  ? "today" : preset === "yesterday"
+                    ? "yesterday" : preset === "last7"
+                      ? "in the last 7 days" : preset === "last30"
+                        ? "in the last 30 days" : preset === "last90"
+                          ? "in the last 90 days" : "in this period";
+                return `${highReportedRange.length} ${highReportedRange.length === 1 ? "user with 5+ reports" : "users with 5+ reports"} ${periodText}`;
+              })(),
               sub: "Investigate and take action",
               badge: highReportedRange.length > 5 ? "Critical" : "Medium",
               badgeColor: "orange",
               icon: "AlertTriangle",
               route: "/admin/management/profile-reports",
             },
+            /*
             {
               id: "ghosting",
               label: "Ghosting Rate",
@@ -2084,6 +2108,25 @@ exports.getAdvancedDashboardMetrics = async (req, res) => {
               badgeColor: "blue",
               icon: "Activity",
               route: "/admin/management/ghosting-users",
+            },
+            */
+            {
+              id: "ghosting",
+              label: "Ghosted Users",
+              value: (() => {
+                const countStr = formatCompactNumber(ghostedUsersCount);
+                const verb = ghostedUsersCount === 1 ? "user has" : "users have";
+                return `${countStr} ${verb} ghosted in the last 2 months`;
+              })(),
+              sub: (() => {
+                const countStr = formatCompactNumber(ghostedUsersCount);
+                const totalStr = formatCompactNumber(totalUsers);
+                return `${countStr} out of ${totalStr} total users have no login activity.`;
+              })(),
+              badge: "Ghosted",
+              badgeColor: "blue",
+              icon: "Activity",
+              route: "/admin/management/users-management",
             },
           ],
         },
@@ -2101,7 +2144,7 @@ exports.getAdvancedDashboardMetrics = async (req, res) => {
             {
               label: "Gender Ratio",
               value: `${mRatioRange} : ${fRatioRange}`,
-              subtitle: "Distribution of male vs female signups",
+              subtitle: `Distribution of male vs female signups for ${periodLabel.toLowerCase()}`,
               sub: "Male : Female",
               isRatio: true,
               ratioValue: mRatioRange,

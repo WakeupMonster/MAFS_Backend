@@ -45,13 +45,13 @@ module.exports.GETAllUsers = async (req, res) => {
 
     const baseMatch = { role: "USER", isFake: { $ne: true } };
 
-    // --- GHOSTING FILTER LOGIC (Inactive for > 1 Month) ---
+    // --- GHOSTING FILTER LOGIC (Inactive for > 2 Months) ---
     if (isGhosting === "true") {
-      const oneMonthAgo = new Date();
-      oneMonthAgo.setMonth(oneMonthAgo.getMonth() - 1);
+      const twoMonthsAgo = new Date();
+      twoMonthsAgo.setMonth(twoMonthsAgo.getMonth() - 2);
 
-      // Filter users who haven't been active in the last 1 month
-      baseMatch.lastLoginAt = { $lt: oneMonthAgo };
+      // Filter users who haven't been active in the last 2 months
+      baseMatch.lastLoginAt = { $lt: twoMonthsAgo };
     }
 
     if (accountStatus) baseMatch.accountStatus = accountStatus;
@@ -147,43 +147,43 @@ module.exports.GETAllUsers = async (req, res) => {
           // If we didn't lookup profiles earlier, we do it now (only for the 10 paginated users!)
           ...(!needsEarlyProfileLookup
             ? [
-                {
-                  $lookup: {
-                    from: "profiles",
-                    localField: "_id",
-                    foreignField: "userId",
-                    as: "profile",
-                  },
+              {
+                $lookup: {
+                  from: "profiles",
+                  localField: "_id",
+                  foreignField: "userId",
+                  as: "profile",
                 },
-                {
-                  $unwind: {
-                    path: "$profile",
-                    preserveNullAndEmptyArrays: true,
-                  },
+              },
+              {
+                $unwind: {
+                  path: "$profile",
+                  preserveNullAndEmptyArrays: true,
                 },
-                {
-                  $addFields: {
-                    "profile.calculatedAge": {
-                      $cond: {
-                        if: {
-                          $and: [
-                            { $gt: ["$profile.dob", null] },
-                            { $toLower: "$profile.dob" },
-                          ],
-                        },
-                        then: {
-                          $dateDiff: {
-                            startDate: { $toDate: "$profile.dob" },
-                            endDate: "$$NOW",
-                            unit: "year",
-                          },
-                        },
-                        else: null,
+              },
+              {
+                $addFields: {
+                  "profile.calculatedAge": {
+                    $cond: {
+                      if: {
+                        $and: [
+                          { $gt: ["$profile.dob", null] },
+                          { $toLower: "$profile.dob" },
+                        ],
                       },
+                      then: {
+                        $dateDiff: {
+                          startDate: { $toDate: "$profile.dob" },
+                          endDate: "$$NOW",
+                          unit: "year",
+                        },
+                      },
+                      else: null,
                     },
                   },
                 },
-              ]
+              },
+            ]
             : []),
           {
             $project: {
@@ -1717,43 +1717,43 @@ module.exports.GETGhostingUsers = async (req, res) => {
           { $limit: limit },
           ...(!needsEarlyProfileLookup
             ? [
-                {
-                  $lookup: {
-                    from: "profiles",
-                    localField: "_id",
-                    foreignField: "userId",
-                    as: "profile",
-                  },
+              {
+                $lookup: {
+                  from: "profiles",
+                  localField: "_id",
+                  foreignField: "userId",
+                  as: "profile",
                 },
-                {
-                  $unwind: {
-                    path: "$profile",
-                    preserveNullAndEmptyArrays: true,
-                  },
+              },
+              {
+                $unwind: {
+                  path: "$profile",
+                  preserveNullAndEmptyArrays: true,
                 },
-                {
-                  $addFields: {
-                    "profile.calculatedAge": {
-                      $cond: {
-                        if: {
-                          $and: [
-                            { $gt: ["$profile.dob", null] },
-                            { $toLower: "$profile.dob" },
-                          ],
-                        },
-                        then: {
-                          $dateDiff: {
-                            startDate: { $toDate: "$profile.dob" },
-                            endDate: "$$NOW",
-                            unit: "year",
-                          },
-                        },
-                        else: null,
+              },
+              {
+                $addFields: {
+                  "profile.calculatedAge": {
+                    $cond: {
+                      if: {
+                        $and: [
+                          { $gt: ["$profile.dob", null] },
+                          { $toLower: "$profile.dob" },
+                        ],
                       },
+                      then: {
+                        $dateDiff: {
+                          startDate: { $toDate: "$profile.dob" },
+                          endDate: "$$NOW",
+                          unit: "year",
+                        },
+                      },
+                      else: null,
                     },
                   },
                 },
-              ]
+              },
+            ]
             : []),
           {
             $project: {

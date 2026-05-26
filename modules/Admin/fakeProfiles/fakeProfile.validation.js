@@ -19,7 +19,8 @@ const listQuerySchema = Joi.object({
     search: Joi.string().trim().allow("").optional(),
     city: Joi.string().valid("Sydney", "Melbourne", "Brisbane", "Perth", "Adelaide", "Gold Coast", "Canberra", "all").default("all"),
     sortBy: Joi.string().valid("createdAt", "nickname", "gender", "city", "accountStatus").default("createdAt"),
-    sortOrder: Joi.string().valid("asc", "desc").default("desc")
+    sortOrder: Joi.string().valid("asc", "desc").default("desc"),
+    isPremium: Joi.string().valid("true", "false").optional()
 });
 
 module.exports = {

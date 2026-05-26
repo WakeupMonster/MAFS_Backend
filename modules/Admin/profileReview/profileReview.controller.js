@@ -823,11 +823,9 @@ const getReportedProfiles = async (req, res) => {
     } else if (fromQuery || toQuery) {
       if (fromQuery) {
         startDate = new Date(fromQuery);
-        startDate.setHours(0, 0, 0, 0);
       }
       if (toQuery) {
         endDate = new Date(toQuery);
-        endDate.setHours(23, 59, 59, 999);
       }
     }
 
@@ -858,6 +856,7 @@ const getReportedProfiles = async (req, res) => {
           latestStatus: { $first: "$status" },
           latestSeverity: { $first: "$severity" },
           latestResolvedAt: { $max: "$resolvedAt" },
+          latestUpdatedAt: { $max: "$updatedAt" },
           hasHighPriority: {
             $max: {
               $cond: [
@@ -892,12 +891,7 @@ const getReportedProfiles = async (req, res) => {
               {
                 $or: [
                   { $eq: ["$hasHighPriority", 1] },
-                  {
-                    $and: [
-                      { $gte: ["$reportCount", 5] },
-                      { $ne: ["$latestStatus", "resolved"] },
-                    ],
-                  },
+                  { $gte: ["$reportCount", 5] },
                 ],
               },
               1,
@@ -1000,12 +994,7 @@ const getReportedProfiles = async (req, res) => {
                     {
                       $or: [
                         { $eq: ["$hasHighPriority", 1] },
-                        {
-                          $and: [
-                            { $gte: ["$reportCount", 5] },
-                            { $ne: ["$status", "resolved"] },
-                          ],
-                        },
+                        { $gte: ["$reportCount", 5] },
                       ],
                     },
                     1,

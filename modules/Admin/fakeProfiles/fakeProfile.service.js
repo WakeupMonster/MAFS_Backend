@@ -230,11 +230,15 @@ const listFakeProfiles = async ({
   city,
   sortBy,
   sortOrder,
+  isPremium,
 }) => {
   // ── 1. Build User query ──
   const userQuery = { isFake: true };
   if (batchId) userQuery["fakeProfileMeta.batchId"] = batchId;
   if (status && status !== "all") userQuery.accountStatus = status;
+  if (isPremium !== undefined && isPremium !== null) {
+    userQuery.isPremium = isPremium === "true" || isPremium === true;
+  }
 
   // ── 2. Handle search & profile-level filters ──
   // If search, city, or gender filter is provided, we first query Profile collection
