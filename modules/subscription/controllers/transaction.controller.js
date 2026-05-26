@@ -124,6 +124,19 @@ exports.getTransactions = async (req, res, next) => {
       SubscriptionTransaction.countDocuments(filter),
     ]);
 
+    const userIds = transactions
+      .map(txn => txn.userId && txn.userId._id ? txn.userId._id : null)
+      .filter(Boolean);
+
+    const profiles = await Profile.find({ userId: { $in: userIds } })
+      .select("userId nickname photos verification.selfieUrl")
+      .lean();
+
+    const profileMap = {};
+    profiles.forEach(p => {
+      profileMap[p.userId.toString()] = p;
+    });
+
     // Enrich transactions with Net Revenue and Metadata
     const enrichedTransactions = transactions.map(txn => {
       // Use stored amounts if available (new records), else calculate on the fly (legacy records)
@@ -135,10 +148,20 @@ exports.getTransactions = async (req, res, next) => {
       const commission = txn.commission !== undefined ? txn.commission : calculatedCommission;
       const netAmount = txn.netAmount !== undefined ? txn.netAmount : calculatedNet;
 
+      let userObj = txn.userId;
+      if (userObj && userObj._id) {
+        const p = profileMap[userObj._id.toString()];
+        if (p) {
+          userObj.nickname = p.nickname || userObj.nickname;
+          userObj.selfieUrl = p.verification?.selfieUrl || null;
+          userObj.photos = p.photos || [];
+        }
+      }
+
       return {
         _id: txn._id,
         date: txn.occurredAt,
-        user: txn.userId,
+        user: userObj,
         productId: txn.productId,
         eventType: txn.eventType,
         grossAmount: grossAmount,
@@ -347,6 +370,28 @@ exports.exportTransactionsCSV = async (req, res, next) => {
       .populate("userId", "nickname email phone")
       .sort({ occurredAt: -1 })
       .lean();
+
+    const userIds = transactions
+      .map(txn => txn.userId && txn.userId._id ? txn.userId._id : null)
+      .filter(Boolean);
+
+    const profiles = await Profile.find({ userId: { $in: userIds } })
+      .select("userId nickname")
+      .lean();
+
+    const profileMap = {};
+    profiles.forEach(p => {
+      profileMap[p.userId.toString()] = p;
+    });
+
+    transactions.forEach(txn => {
+      if (txn.userId && txn.userId._id) {
+        const p = profileMap[txn.userId._id.toString()];
+        if (p && p.nickname) {
+          txn.userId.nickname = p.nickname;
+        }
+      }
+    });
 
     // CSV Header
     const headers = [
