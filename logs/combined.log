@@ -2055,4 +2055,9 @@
 {"level":"debug","message":"GET /api/v1/admin/profile-review/6a02df0125a77e767f140cca","service":"iap-service","timestamp":"2026-05-25 19:20:07"}
 {"level":"debug","message":"PUT /api/v1/admin/profile-review/6a02df0125a77e767f140cca/status","service":"iap-service","timestamp":"2026-05-25 19:22:53"}
 {"level":"debug","message":"GET /api/v1/admin/profile-review/6a02df0125a77e767f140cca","service":"iap-service","timestamp":"2026-05-25 19:22:55"}
-{"level":"debug","message":"GET /api/v1/admin/profile-review/reported?page=1&limit=20","service":"iap-service","timestamp":"2026-05-25 19:22:55"}
+{"level":"debug","message":"GET /api/v1/admin/profile-review/reported?page=1&limit=20","service":"iap-service","timestamp":"2026-05-25 19:22:55"}{"level":"info","message":"[CRON] Subscription cron jobs initialized (v3 - Grace Period & Billing Retry Support)","service":"iap-service","timestamp":"2026-05-26 11:48:54"}
+{"level":"info","message":"🧪 [DEV] Dev tools routes registered at /api/v1/dev/*","service":"iap-service","timestamp":"2026-05-26 11:48:56"}
+{"level":"info","message":"[CRON] Subscription cron jobs initialized (v3 - Grace Period & Billing Retry Support)","service":"iap-service","timestamp":"2026-05-26 12:22:41"}
+{"level":"info","message":"🧪 [DEV] Dev tools routes registered at /api/v1/dev/*","service":"iap-service","timestamp":"2026-05-26 12:22:43"}
+{"level":"info","message":"[CRON] Subscription cron jobs initialized (v3 - Grace Period & Billing Retry Support)","service":"iap-service","timestamp":"2026-05-26 13:13:16"}
+{"level":"info","message":"🧪 [DEV] Dev tools routes registered at /api/v1/dev/*","service":"iap-service","timestamp":"2026-05-26 13:13:19"}

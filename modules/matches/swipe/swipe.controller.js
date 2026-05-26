@@ -12,11 +12,12 @@ module.exports.getFeed = async (req, res) => {
     const userId = req.user._id;
     const limit = Number(req.query.limit) || 20;
     const page = Number(req.query.page) || 1;
+    const isRefresh = req.query.refresh === 'true' || req.query.refresh === true;
 
     // Profile validation is handled inside getFeedService (service.js Line 54)
     // Removed duplicate Profile.findOne() that was wasting 1 DB query per request
 
-    const feedResult = await service.getFeedService(userId, limit, page);
+    const feedResult = await service.getFeedService(userId, limit, page, isRefresh);
 
     return res.json({
       success: true,
