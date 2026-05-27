@@ -191,7 +191,17 @@ exports.listSubscribers = async (req, res, next) => {
             return responseObj;
         });
 
-        const total = await Subscription.countDocuments(filter);
+        const now = new Date();
+        const [total, totalActive, totalRevoked] = await Promise.all([
+            Subscription.countDocuments(filter),
+            Subscription.countDocuments({ status: "ACTIVE", expiresAt: { $gt: now } }),
+            Subscription.countDocuments({
+                $or: [
+                    { status: { $ne: "ACTIVE" } },
+                    { expiresAt: { $lte: now } }
+                ]
+            })
+        ]);
 
         return res.json({
             success: true,
@@ -200,7 +210,9 @@ exports.listSubscribers = async (req, res, next) => {
                 total,
                 page: Number(page),
                 limit: Number(limit),
-                totalPages: Math.ceil(total / limit)
+                totalPages: Math.ceil(total / limit),
+                totalActive,
+                totalRevoked
             }
         });
     } catch (err) {

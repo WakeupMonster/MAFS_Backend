@@ -36,6 +36,8 @@ module.exports.GETAllUsers = async (req, res) => {
       isDeactivated,
       isScheduledForDeletion,
       isGhosting,
+      preset,
+      from,
     } = req.query;
 
     const page = Math.max(parseInt(reqPage) || 1, 1);
@@ -45,13 +47,29 @@ module.exports.GETAllUsers = async (req, res) => {
 
     const baseMatch = { role: "USER", isFake: { $ne: true } };
 
-    // --- GHOSTING FILTER LOGIC (Inactive for > 2 Months) ---
+    // --- GHOSTING FILTER LOGIC (Dynamic inactivity threshold aligned with dashboard) ---
     if (isGhosting === "true") {
-      const twoMonthsAgo = new Date();
-      twoMonthsAgo.setMonth(twoMonthsAgo.getMonth() - 2);
+      let thresholdDate;
+      if (preset === "last7") {
+        thresholdDate = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+      } else if (preset === "last30") {
+        thresholdDate = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+      } else if (preset === "last90") {
+        thresholdDate = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000);
+      } else if (preset === "custom" && from) {
+        thresholdDate = new Date(from);
+      } else {
+        // Default fallback (including "today" and "yesterday" presets): 2 months inactivity
+        thresholdDate = new Date();
+        thresholdDate.setMonth(thresholdDate.getMonth() - 2);
+      }
 
-      // Filter users who haven't been active in the last 2 months
-      baseMatch.lastLoginAt = { $lt: twoMonthsAgo };
+      baseMatch.accountStatus = "active";
+      baseMatch.createdAt = { $lt: thresholdDate };
+      baseMatch.$or = [
+        { lastLoginAt: { $lt: thresholdDate } },
+        { lastLoginAt: null },
+      ];
     }
 
     if (accountStatus) baseMatch.accountStatus = accountStatus;
