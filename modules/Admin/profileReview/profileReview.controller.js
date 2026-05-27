@@ -598,195 +598,6 @@ const updateProfileStatus = async (req, res) => {
   }
 };
 
-// const getReportedProfiles = async (req, res) => {
-//   try {
-//     const page = parseInt(req.query.page) || 1;
-//     const limit = parseInt(req.query.limit) || 20;
-//     const skip = (page - 1) * limit;
-//     const search = req.query.search || "";
-//     const status = req.query.status || ""; // ✅ Get status filter from frontend
-
-//     // Dynamic match stage
-//     const matchStage = { reportedId: { $exists: true, $ne: null } };
-
-//     // ✅ Apply status filter: if "all" or empty, allow all valid statuses
-//     if (status && status !== "all") {
-//       matchStage.status = status;
-//     } else {
-//       matchStage.status = { $in: ["new", "in_progress", "resolved"] };
-//     }
-
-//     const pipeline = [
-//       { $match: matchStage },
-//       { $sort: { createdAt: -1 } },
-
-//       // Join User data
-//       {
-//         $lookup: {
-//           from: "users",
-//           localField: "reportedId",
-//           foreignField: "_id",
-//           as: "reportedUser",
-//         },
-//       },
-//       { $unwind: { path: "$reportedUser", preserveNullAndEmptyArrays: true } },
-
-//       // Join Profile data
-//       {
-//         $lookup: {
-//           from: "profiles",
-//           localField: "reportedId",
-//           foreignField: "userId",
-//           as: "profile",
-//         },
-//       },
-//       { $unwind: { path: "$profile", preserveNullAndEmptyArrays: true } },
-
-//       // ===== SEARCH FILTER =====
-//       ...(search
-//         ? [
-//             {
-//               $match: {
-//                 $or: [
-//                   { "profile.nickname": { $regex: search, $options: "i" } },
-//                   { "reportedUser.name": { $regex: search, $options: "i" } },
-//                 ],
-//               },
-//             },
-//           ]
-//         : []),
-
-//       // Group reports by user
-//       {
-//         $group: {
-//           _id: "$reportedId",
-//           user: { $first: "$reportedUser" },
-//           profile: { $first: "$profile" },
-//           reportCount: { $sum: 1 },
-//           reasons: { $addToSet: "$reason" },
-//           latestReport: { $first: "$createdAt" },
-//           latestStatus: { $first: "$status" },
-//           latestSeverity: { $first: "$severity" },
-//           reports: {
-//             $push: {
-//               _id: "$_id",
-//               reason: "$reason",
-//               description: "$description",
-//               status: "$status",
-//               severity: "$severity",
-//               reportedById: "$reporterId",
-//               reportedAt: "$createdAt",
-//             },
-//           },
-//         },
-//       },
-//       { $sort: { latestReport: -1 } },
-//     ];
-
-//     // Execute aggregation for data and stats
-//     const [aggResult] = await Report.aggregate([
-//       {
-//         $facet: {
-//           data: [...pipeline, { $skip: skip }, { $limit: limit }],
-//           totalCount: [...pipeline, { $count: "total" }],
-//           kpiStats: [
-//             { $match: { reportedId: { $exists: true, $ne: null } } },
-//             {
-//               $group: {
-//                 _id: "$reportedId",
-//                 status: { $first: "$status" },
-//                 severity: { $first: "$severity" },
-//               },
-//             },
-//             {
-//               $group: {
-//                 _id: null,
-//                 total: { $sum: 1 },
-//                 newCount: {
-//                   $sum: { $cond: [{ $eq: ["$status", "new"] }, 1, 0] },
-//                 },
-//                 inProgressCount: {
-//                   $sum: { $cond: [{ $eq: ["$status", "in_progress"] }, 1, 0] },
-//                 },
-//                 resolvedCount: {
-//                   $sum: { $cond: [{ $eq: ["$status", "resolved"] }, 1, 0] },
-//                 },
-//                 highPriorityCount: {
-//                   $sum: { $cond: [{ $eq: ["$severity", "high"] }, 1, 0] },
-//                 },
-//               },
-//             },
-//           ],
-//         },
-//       },
-//     ]);
-
-//     const reports = aggResult.data || [];
-//     const total = aggResult.totalCount[0]?.total || 0;
-//     const stats = aggResult.kpiStats[0] || {
-//       total: 0,
-//       newCount: 0,
-//       inProgressCount: 0,
-//       resolvedCount: 0,
-//       highPriorityCount: 0,
-//     };
-
-//     const kpiStats = {
-//       totalReports: stats.total,
-//       newReports: stats.newCount,
-//       inProgressReports: stats.inProgressCount,
-//       resolvedReports: stats.resolvedCount,
-//       highPriorityReports: stats.highPriorityCount,
-//     };
-
-//     // ===== FORMAT RESPONSE =====
-//     const formattedData = reports.map((item) => {
-//       const user = item.user || {};
-//       const profile = item.profile || {};
-
-//       return {
-//         userId: item._id,
-//         nickname: profile.nickname || user.name || "No Nickname",
-//         profilePhoto: profile.photos?.[0]?.url || null,
-//         reportCount: item.reportCount,
-//         lastReportedAt: item.latestReport,
-//         status: item.latestStatus,
-//         severity: item.latestSeverity,
-//         reasons: item.reasons,
-//         profile: {
-//           photos: profile.photos || [],
-//           bio: profile.about || "",
-//           interests: profile.interests || [],
-//           gender: profile.gender || user.gender || "",
-//           age: profile.age || user.age || null,
-//           location: profile.location || {},
-//           verification: profile.verification || {},
-//         },
-//         reports: item.reports,
-//       };
-//     });
-
-//     return res.json({
-//       success: true,
-//       pagination: {
-//         total,
-//         page,
-//         limit,
-//         totalPages: Math.ceil(total / limit),
-//       },
-//       kpiStats,
-//       data: formattedData,
-//     });
-//   } catch (error) {
-//     console.error("Error in getReportedProfiles:", error);
-//     return res.status(500).json({
-//       success: false,
-//       message: "Failed to fetch reported profiles",
-//       error: error.message,
-//     });
-//   }
-// };
-
 const getReportedProfiles = async (req, res) => {
   try {
     const page = Math.max(parseInt(req.query.page) || 1, 1);
@@ -823,11 +634,9 @@ const getReportedProfiles = async (req, res) => {
     } else if (fromQuery || toQuery) {
       if (fromQuery) {
         startDate = new Date(fromQuery);
-        startDate.setHours(0, 0, 0, 0);
       }
       if (toQuery) {
         endDate = new Date(toQuery);
-        endDate.setHours(23, 59, 59, 999);
       }
     }
 
@@ -859,6 +668,7 @@ const getReportedProfiles = async (req, res) => {
           latestStatus: { $first: "$status" },
           latestSeverity: { $first: "$severity" },
           latestResolvedAt: { $max: "$resolvedAt" },
+          latestUpdatedAt: { $max: "$updatedAt" },
           hasHighPriority: {
             $max: {
               $cond: [
@@ -893,12 +703,7 @@ const getReportedProfiles = async (req, res) => {
               {
                 $or: [
                   { $eq: ["$hasHighPriority", 1] },
-                  {
-                    $and: [
-                      { $gte: ["$reportCount", 5] },
-                      { $ne: ["$latestStatus", "resolved"] },
-                    ],
-                  },
+                  { $gte: ["$reportCount", 5] },
                 ],
               },
               1,
@@ -1001,12 +806,7 @@ const getReportedProfiles = async (req, res) => {
                     {
                       $or: [
                         { $eq: ["$hasHighPriority", 1] },
-                        {
-                          $and: [
-                            { $gte: ["$reportCount", 5] },
-                            { $ne: ["$status", "resolved"] },
-                          ],
-                        },
+                        { $gte: ["$reportCount", 5] },
                       ],
                     },
                     1,

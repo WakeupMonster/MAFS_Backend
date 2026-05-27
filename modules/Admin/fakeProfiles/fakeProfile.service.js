@@ -236,7 +236,7 @@ const listFakeProfiles = async ({
   const userQuery = { isFake: true };
   if (batchId) userQuery["fakeProfileMeta.batchId"] = batchId;
   if (status && status !== "all") userQuery.accountStatus = status;
-  if (isPremium !== undefined) {
+  if (isPremium !== undefined && isPremium !== null) {
     userQuery.isPremium = isPremium === "true" || isPremium === true;
   }
 
