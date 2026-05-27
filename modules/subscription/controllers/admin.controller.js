@@ -509,14 +509,28 @@ exports.getDashboardStats = async (req, res, next) => {
             if (queryEndDate) endDate = new Date(queryEndDate);
         } else {
             // Fallbacks: handles "daily", "last7", "90", "1", etc.
-            if (timeFilter === 'daily' || timeFilter === '1') {
+            if (timeFilter === 'today' || timeFilter === 'daily' || timeFilter === '1') {
                 startDate = startOfToday;
+            } else if (timeFilter === 'yesterday') {
+                const yesterday = new Date(now);
+                yesterday.setDate(yesterday.getDate() - 1);
+                yesterday.setHours(0, 0, 0, 0);
+                startDate = yesterday;
+                endDate = new Date(yesterday);
+                endDate.setHours(23, 59, 59, 999);
             } else if (timeFilter === 'weekly' || timeFilter === 'last7' || timeFilter === '7') {
                 startDate = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
             } else if (timeFilter === 'last15' || timeFilter === '15') {
                 startDate = new Date(now.getTime() - 15 * 24 * 60 * 60 * 1000);
             } else if (timeFilter === 'last30' || timeFilter === '30') {
                 startDate = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+            } else if (timeFilter === 'last90' || timeFilter === '90') {
+                startDate = new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000);
+            } else if (timeFilter === 'thisMonth') {
+                startDate = startOfMonth;
+            } else if (timeFilter === 'lastMonth') {
+                startDate = startOfLastMonth;
+                endDate = new Date(now.getFullYear(), now.getMonth(), 0, 23, 59, 59, 999);
             } else if (timeFilter === 'allTime') {
                 startDate = new Date(0);
             } else if (!isNaN(timeFilter)) {

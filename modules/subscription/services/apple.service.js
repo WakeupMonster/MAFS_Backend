@@ -33,7 +33,14 @@ class AppleService {
     const jwt = require("jsonwebtoken");
     const fs = require("fs");
 
-    const privateKey = fs.readFileSync(iapConfig.apple.privateKeyPath, "utf8");
+    // 🛡️ SECURITY/DEV CHECK: Ensure privateKeyPath is actually a file before reading
+    const keyPath = iapConfig.apple.privateKeyPath;
+    if (fs.existsSync(keyPath) && fs.statSync(keyPath).isDirectory()) {
+      logger.error(`Apple Service Config Error: APPLE_PRIVATE_KEY_PATH resolves to a directory (${keyPath}). It must be a path to a .p8 file.`);
+      throw new Error(`Invalid Apple Private Key path. Expected a file but got a directory: ${keyPath}`);
+    }
+
+    const privateKey = fs.readFileSync(keyPath, "utf8");
 
     const token = jwt.sign(
       {
