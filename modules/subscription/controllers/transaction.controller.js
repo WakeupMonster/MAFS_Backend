@@ -41,6 +41,7 @@ exports.getTransactions = async (req, res, next) => {
       productId,
       status,
       search,
+      itemType,
       page = 1,
       limit = 20,
       startDate,
@@ -51,10 +52,18 @@ exports.getTransactions = async (req, res, next) => {
 
     // Build filter
     const filter = {};
-    if (eventType) filter.eventType = eventType;
+    if (eventType) {
+      filter.eventType = eventType;
+    } else if (itemType) {
+      if (itemType === 'CONSUMABLE') {
+        filter.eventType = { $in: ["CONSUMABLE_PURCHASE", "ADMIN_CONSUMABLE_GRANT", "CONSUMABLE_REFUND"] };
+      } else if (itemType === 'SUBSCRIPTION') {
+        filter.eventType = { $nin: ["CONSUMABLE_PURCHASE", "ADMIN_CONSUMABLE_GRANT", "CONSUMABLE_REFUND"] };
+      }
+    }
     const platformFilter = normalizePlatformFilter(platform);
     if (platformFilter) filter.platform = platformFilter;
-    if (productId) filter.productId = productId;
+    if (productId && productId !== 'all') filter.productId = productId;
     if (startDate && endDate) {
       filter.occurredAt = {
         $gte: new Date(startDate),
@@ -348,10 +357,18 @@ exports.getTransactionSummary = async (req, res, next) => {
  */
 exports.exportTransactionsCSV = async (req, res, next) => {
   try {
-    const { startDate, endDate, eventType, platform } = req.query;
+    const { startDate, endDate, eventType, platform, itemType } = req.query;
 
     const filter = {};
-    if (eventType) filter.eventType = eventType;
+    if (eventType) {
+      filter.eventType = eventType;
+    } else if (itemType) {
+      if (itemType === 'CONSUMABLE') {
+        filter.eventType = { $in: ["CONSUMABLE_PURCHASE", "ADMIN_CONSUMABLE_GRANT", "CONSUMABLE_REFUND"] };
+      } else if (itemType === 'SUBSCRIPTION') {
+        filter.eventType = { $nin: ["CONSUMABLE_PURCHASE", "ADMIN_CONSUMABLE_GRANT", "CONSUMABLE_REFUND"] };
+      }
+    }
     const platformFilter = normalizePlatformFilter(platform);
     if (platformFilter) filter.platform = platformFilter;
     if (startDate && endDate) {

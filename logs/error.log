@@ -141,3 +141,7 @@
 {"level":"error","message":"[CRON] Cancelled expire check error:","service":"iap-service","timestamp":"2026-05-26 18:00:24"}
 {"level":"error","message":"[CRON] AutoRenew fallback check error:","service":"iap-service","timestamp":"2026-05-26 18:00:24"}
 {"level":"error","message":"[CRON] Failed events check error:","service":"iap-service","timestamp":"2026-05-26 18:00:24"}
+{"level":"error","message":"Verify purchase error:","service":"iap-service","timestamp":"2026-05-28 18:22:45"}
+{"level":"error","message":"Verify purchase error:","service":"iap-service","timestamp":"2026-05-28 18:22:55"}
+{"level":"error","message":"Verify purchase error:","service":"iap-service","timestamp":"2026-05-28 18:24:53"}
+{"level":"error","message":"Verify purchase error:","service":"iap-service","timestamp":"2026-05-28 18:37:42"}

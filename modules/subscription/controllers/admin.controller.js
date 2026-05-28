@@ -109,16 +109,6 @@ exports.updateProduct = async (req, res, next) => {
  * ONE_MONTH → 1_MONTH
  * THREE_MONTHS → 3_MONTH
  */
-const normalizePlanTypeFilter = (planType) => {
-  if (!planType) return null;
-  const mapping = {
-    ONE_MONTH: "1_MONTH",
-    THREE_MONTHS: "3_MONTH",
-    "1_MONTH": "1_MONTH",    // Support internal format too
-    "3_MONTH": "3_MONTH",
-  };
-  return mapping[planType] || planType; // Fallback to original if no mapping
-};
 
 /**
  * 3. USER MANAGEMENT (Subscribers)
@@ -128,8 +118,20 @@ exports.listSubscribers = async (req, res, next) => {
         const { page = 1, limit = 20, status, planType, platform, search } = req.query;
         const filter = {};
         if (status) filter.status = status;
-        const normalizedPlanType = normalizePlanTypeFilter(planType);
-        if (normalizedPlanType) filter.planType = normalizedPlanType;
+        if (planType) {
+            const upperPlan = planType.toUpperCase();
+            if (['1_MONTH', '1 MONTH', 'MONTHLY', 'ONE_MONTH', '1 MONTHS'].includes(upperPlan)) {
+                filter.planType = { $in: ['1_MONTH', '1 MONTH', '1 MONTHS', 'MONTHLY', 'monthly', 'ONE_MONTH'] };
+            } else if (['3_MONTH', '3 MONTH', '3 MONTHS', 'QUARTERLY', 'THREE_MONTHS'].includes(upperPlan)) {
+                filter.planType = { $in: ['3_MONTH', '3 MONTH', '3 MONTHS', 'QUARTERLY', 'quarterly', 'THREE_MONTHS'] };
+            } else if (['6_MONTH', '6 MONTH', '6 MONTHS', 'BIANNUALLY', 'SIX_MONTHS'].includes(upperPlan)) {
+                filter.planType = { $in: ['6_MONTH', '6 MONTH', '6 MONTHS', 'BIANNUALLY', 'SIX_MONTHS'] };
+            } else if (['12_MONTH', '12 MONTH', '12 MONTHS', 'ANNUALLY', 'YEARLY', 'TWELVE_MONTHS'].includes(upperPlan)) {
+                filter.planType = { $in: ['12_MONTH', '12 MONTH', '12 MONTHS', 'ANNUALLY', 'YEARLY', 'TWELVE_MONTHS'] };
+            } else {
+                filter.planType = planType;
+            }
+        }
         if (platform) filter.platform = platform;
 
         // Enhanced Search: Nickname, Phone, Email
@@ -209,7 +211,6 @@ exports.listSubscribers = async (req, res, next) => {
 
             // Remove the redundant userId object to keep it clean
             delete responseObj.userId;
-
             return responseObj;
         }));
 
@@ -227,7 +228,6 @@ exports.listSubscribers = async (req, res, next) => {
 
         return res.json({
             success: true,
-            data: enrichedSubs,
             pagination: {
                 total,
                 page: Number(page),
@@ -235,7 +235,8 @@ exports.listSubscribers = async (req, res, next) => {
                 totalPages: Math.ceil(total / limit),
                 totalActive,
                 totalRevoked
-            }
+            },
+            data: enrichedSubs
         });
     } catch (err) {
         next(err);
@@ -396,10 +397,10 @@ exports.grantConsumables = async (req, res, next) => {
         // 🔔 Send Push Notification to User
         try {
             const title = type === 'SUPER_KEEN' ? "✨ You received Super Keens!" : "🚀 You received Boosts!";
-            const message = type === 'SUPER_KEEN' 
-              ? `You have been granted ${quantity} Super Keens by the admin.` 
-              : `You have been granted ${quantity} Boosts by the admin.`;
-            
+            const message = type === 'SUPER_KEEN'
+                ? `You have been granted ${quantity} Super Keens by the admin.`
+                : `You have been granted ${quantity} Boosts by the admin.`;
+
             await notificationService.sendAdminNotification({
                 userId,
                 title,

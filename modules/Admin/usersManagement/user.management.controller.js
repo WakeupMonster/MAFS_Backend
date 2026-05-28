@@ -489,6 +489,8 @@ module.exports.GETSingleUserDetails = async (req, res) => {
       isEmailVerified: b.isEmailVerified,
       role: b.role,
       lastLoginAt: b.lastLoginAt,
+      isMilestoneUser: !!(b.giveaway && (b.giveaway.isEligibleForFreeTrial || b.giveaway.claimedAt)),
+      milestoneDisplayStatus: (b.giveaway && b.giveaway.claimedAt) ? "Claimed (Active)" : ((b.giveaway && b.giveaway.isEligibleForFreeTrial) ? "Eligible" : "Not Enrolled"),
       security: {
         currentIp: b.currentIp,
         lastUsedDevice: b.lastUsedDevice,

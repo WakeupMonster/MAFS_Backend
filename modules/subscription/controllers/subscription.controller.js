@@ -187,7 +187,7 @@ const verifyPurchase = async (req, res, next) => {
         reason: result.type === "CONSUMABLE" ? `Purchased ${result.quantity} ${result.consumableType}` : `Subscribed to ${sub.planType}`,
         actedBy: userId,
         actedAt: new Date(),
-        details: { 
+        details: {
           purchaseType: result.type,
           productId: result.productId || sub.productId,
           transactionId: result.transactionId || result.orderId
@@ -691,7 +691,15 @@ const getAllSubscriptions = async (req, res, next) => {
     // 1. Build the Match Filter (Direct Subscription Fields)
     const matchStage = {};
     if (status) matchStage.status = status;
-    if (plan) matchStage.planType = plan;
+    if (plan) {
+      if (plan === '1_MONTH') {
+        matchStage.planType = { $in: ['1_MONTH', '1 MONTH', 'MONTHLY', 'monthly', 'ONE_MONTH'] };
+      } else if (plan === '3_MONTH') {
+        matchStage.planType = { $in: ['3_MONTH', '3 MONTH', 'QUARTERLY', 'quarterly', 'THREE_MONTHS'] };
+      } else {
+        matchStage.planType = plan;
+      }
+    }
     if (platform) matchStage.platform = platform;
 
     // 2. Aggregation Pipeline

@@ -31,7 +31,10 @@ class GoogleService {
   }
 
   async verifySubscription(subscriptionId, purchaseToken) {
-    if (!this.isReady()) {
+    const isDev = process.env.NODE_ENV === "development" || !process.env.NODE_ENV;
+    const isMockToken = isDev && purchaseToken && purchaseToken.startsWith("mock");
+
+    if (!this.isReady() || isMockToken) {
       logger.warn("Google MOCK MODE: Returning mock verification");
       return this.getMockSubscriptionData(subscriptionId);
     }
@@ -61,7 +64,10 @@ class GoogleService {
   }
 
   async acknowledgePurchase(subscriptionId, purchaseToken) {
-    if (!this.isReady()) {
+    const isDev = process.env.NODE_ENV === "development" || !process.env.NODE_ENV;
+    const isMockToken = isDev && purchaseToken && purchaseToken.startsWith("mock");
+
+    if (!this.isReady() || isMockToken) {
       logger.warn("Google MOCK MODE: Skipping acknowledge");
       return;
     }
@@ -88,7 +94,10 @@ class GoogleService {
   }
 
   async verifyConsumable(productId, purchaseToken) {
-    if (!this.isReady()) {
+    const isDev = process.env.NODE_ENV === "development" || !process.env.NODE_ENV;
+    const isMockToken = isDev && purchaseToken && purchaseToken.startsWith("mock");
+
+    if (!this.isReady() || isMockToken) {
       logger.warn("Google MOCK MODE: Returning mock consumable verification");
       return this.getMockConsumableData(productId);
     }
@@ -118,7 +127,10 @@ class GoogleService {
   }
 
   async acknowledgeConsumable(productId, purchaseToken) {
-    if (!this.isReady()) {
+    const isDev = process.env.NODE_ENV === "development" || !process.env.NODE_ENV;
+    const isMockToken = isDev && purchaseToken && purchaseToken.startsWith("mock");
+
+    if (!this.isReady() || isMockToken) {
       logger.warn("Google MOCK MODE: Skipping consumable acknowledge");
       return;
     }
