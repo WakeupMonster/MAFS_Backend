@@ -12187,3 +12187,121 @@
 {"level":"debug","message":"GET /api/v1/admin/users?page=1&limit=10","service":"iap-service","timestamp":"2026-05-28 16:59:42"}
 {"level":"debug","message":"GET /api/v1/admin/dashboard/stats/kpi?preset=today","service":"iap-service","timestamp":"2026-05-28 16:59:42"}
 {"level":"debug","message":"GET /api/v1/admin/dashboard-v2/advanced-metrics?preset=today","service":"iap-service","timestamp":"2026-05-28 16:59:42"}
+{"level":"info","message":"[CRON] Subscription cron jobs initialized (v3 - Grace Period & Billing Retry Support)","service":"iap-service","timestamp":"2026-05-28 17:01:58"}
+{"level":"info","message":"🧪 [DEV] Dev tools routes registered at /api/v1/dev/*","service":"iap-service","timestamp":"2026-05-28 17:01:59"}
+{"level":"debug","message":"GET /api/v1/admin/giveaway/campaigns?page=1&limit=10","service":"iap-service","timestamp":"2026-05-28 17:02:45"}
+{"level":"debug","message":"GET /api/v1/admin/account","service":"iap-service","timestamp":"2026-05-28 17:02:45"}
+{"level":"debug","message":"GET /api/v1/admin/profile-review/reported?limit=1","service":"iap-service","timestamp":"2026-05-28 17:02:45"}
+{"level":"debug","message":"GET /api/v1/admin/moderation/pending-verifications?limit=1","service":"iap-service","timestamp":"2026-05-28 17:02:45"}
+{"level":"debug","message":"GET /api/v1/contact/alltickets?limit=1","service":"iap-service","timestamp":"2026-05-28 17:02:45"}
+{"level":"debug","message":"GET /api/v1/admin/giveaway/campaigns?page=1&limit=10","service":"iap-service","timestamp":"2026-05-28 17:02:46"}
+{"level":"debug","message":"GET /api/v1/contact/alltickets?limit=1","service":"iap-service","timestamp":"2026-05-28 17:02:46"}
+{"level":"debug","message":"GET /api/v1/admin/profile-review/reported?limit=1","service":"iap-service","timestamp":"2026-05-28 17:02:46"}
+{"level":"debug","message":"GET /api/v1/admin/moderation/pending-verifications?limit=1","service":"iap-service","timestamp":"2026-05-28 17:02:46"}
+{"level":"debug","message":"GET /api/v1/admin/account","service":"iap-service","timestamp":"2026-05-28 17:02:46"}
+{"level":"debug","message":"GET /api/v1/admin/dashboard-v2/advanced-metrics?preset=today","service":"iap-service","timestamp":"2026-05-28 17:02:47"}
+{"level":"debug","message":"GET /api/v1/admin/dashboard/stats/kpi?preset=today","service":"iap-service","timestamp":"2026-05-28 17:02:47"}
+{"level":"debug","message":"GET /api/v1/admin/dashboard/stats/kpi?preset=today","service":"iap-service","timestamp":"2026-05-28 17:02:47"}
+{"level":"debug","message":"GET /api/v1/admin/dashboard-v2/advanced-metrics?preset=today","service":"iap-service","timestamp":"2026-05-28 17:02:47"}
+{"level":"debug","message":"GET /api/v1/admin/users?page=1&limit=10","service":"iap-service","timestamp":"2026-05-28 17:02:48"}
+{"level":"debug","message":"GET /api/v1/admin/users?page=1&limit=10","service":"iap-service","timestamp":"2026-05-28 17:02:48"}
+{"level":"debug","message":"GET /","service":"iap-service","timestamp":"2026-05-28 17:08:15"}
+{"level":"debug","message":"GET /favicon.ico","service":"iap-service","timestamp":"2026-05-28 17:08:15"}
+{"level":"debug","message":"POST /api/v1/auth/phonetest","service":"iap-service","timestamp":"2026-05-28 17:21:10"}
+{"level":"debug","message":"POST /api/v1/auth/verifytestotp","service":"iap-service","timestamp":"2026-05-28 17:22:43"}
+{"level":"debug","message":"PATCH /api/v1/profile/update","service":"iap-service","timestamp":"2026-05-28 17:24:04"}
+{"level":"debug","message":"PATCH /api/v1/profile/update","service":"iap-service","timestamp":"2026-05-28 17:24:33"}
+{"level":"debug","message":"POST /api/v1/profile/photos","service":"iap-service","timestamp":"2026-05-28 17:25:13"}
+{"level":"debug","message":"POST /api/v1/profile/photos","service":"iap-service","timestamp":"2026-05-28 17:29:19"}
+{"level":"info","message":"[CRON] Subscription cron jobs initialized (v3 - Grace Period & Billing Retry Support)","service":"iap-service","timestamp":"2026-05-28 17:37:39"}
+{"level":"info","message":"🧪 [DEV] Dev tools routes registered at /api/v1/dev/*","service":"iap-service","timestamp":"2026-05-28 17:37:41"}
+{"level":"debug","message":"GET /api/v1/admin/giveaway/campaigns?page=1&limit=10","service":"iap-service","timestamp":"2026-05-28 17:38:10"}
+{"level":"debug","message":"GET /api/v1/admin/account","service":"iap-service","timestamp":"2026-05-28 17:38:10"}
+{"level":"debug","message":"GET /api/v1/admin/profile-review/reported?limit=1","service":"iap-service","timestamp":"2026-05-28 17:38:10"}
+{"level":"debug","message":"GET /api/v1/admin/moderation/pending-verifications?limit=1","service":"iap-service","timestamp":"2026-05-28 17:38:10"}
+{"level":"debug","message":"GET /api/v1/contact/alltickets?limit=1","service":"iap-service","timestamp":"2026-05-28 17:38:10"}
+{"level":"debug","message":"GET /api/v1/admin/giveaway/campaigns?page=1&limit=10","service":"iap-service","timestamp":"2026-05-28 17:38:10"}
+{"level":"debug","message":"GET /api/v1/admin/moderation/pending-verifications?limit=1","service":"iap-service","timestamp":"2026-05-28 17:38:10"}
+{"level":"debug","message":"GET /api/v1/admin/account","service":"iap-service","timestamp":"2026-05-28 17:38:10"}
+{"level":"debug","message":"GET /api/v1/contact/alltickets?limit=1","service":"iap-service","timestamp":"2026-05-28 17:38:10"}
+{"level":"debug","message":"GET /api/v1/admin/profile-review/reported?limit=1","service":"iap-service","timestamp":"2026-05-28 17:38:10"}
+{"level":"debug","message":"GET /api/v1/admin/subscription/subscribers?page=1&limit=10&planType=1_MONTH","service":"iap-service","timestamp":"2026-05-28 17:38:11"}
+{"level":"debug","message":"GET /api/v1/admin/subscription/subscribers?page=1&limit=10&planType=1_MONTH","service":"iap-service","timestamp":"2026-05-28 17:38:11"}
+{"level":"debug","message":"GET /api/v1/admin/subscription/subscribers?page=1&limit=10","service":"iap-service","timestamp":"2026-05-28 17:38:14"}
+{"level":"debug","message":"GET /api/v1/admin/subscription/subscribers?page=1&limit=10&planType=1_MONTH","service":"iap-service","timestamp":"2026-05-28 17:38:17"}
+{"level":"info","message":"[CRON] Subscription cron jobs initialized (v3 - Grace Period & Billing Retry Support)","service":"iap-service","timestamp":"2026-05-28 17:38:30"}
+{"level":"info","message":"🧪 [DEV] Dev tools routes registered at /api/v1/dev/*","service":"iap-service","timestamp":"2026-05-28 17:38:31"}
+{"level":"info","message":"[CRON] Subscription cron jobs initialized (v3 - Grace Period & Billing Retry Support)","service":"iap-service","timestamp":"2026-05-28 17:39:52"}
+{"level":"info","message":"🧪 [DEV] Dev tools routes registered at /api/v1/dev/*","service":"iap-service","timestamp":"2026-05-28 17:39:54"}
+{"level":"info","message":"[CRON] Subscription cron jobs initialized (v3 - Grace Period & Billing Retry Support)","service":"iap-service","timestamp":"2026-05-28 17:40:01"}
+{"level":"info","message":"🧪 [DEV] Dev tools routes registered at /api/v1/dev/*","service":"iap-service","timestamp":"2026-05-28 17:40:03"}
+{"level":"info","message":"[CRON] Subscription cron jobs initialized (v3 - Grace Period & Billing Retry Support)","service":"iap-service","timestamp":"2026-05-28 17:40:40"}
+{"level":"info","message":"🧪 [DEV] Dev tools routes registered at /api/v1/dev/*","service":"iap-service","timestamp":"2026-05-28 17:40:41"}
+{"level":"debug","message":"GET /api/v1/admin/giveaway/campaigns?page=1&limit=10","service":"iap-service","timestamp":"2026-05-28 17:42:35"}
+{"level":"debug","message":"GET /api/v1/admin/account","service":"iap-service","timestamp":"2026-05-28 17:42:35"}
+{"level":"debug","message":"GET /api/v1/admin/profile-review/reported?limit=1","service":"iap-service","timestamp":"2026-05-28 17:42:35"}
+{"level":"debug","message":"GET /api/v1/admin/moderation/pending-verifications?limit=1","service":"iap-service","timestamp":"2026-05-28 17:42:35"}
+{"level":"debug","message":"GET /api/v1/contact/alltickets?limit=1","service":"iap-service","timestamp":"2026-05-28 17:42:35"}
+{"level":"debug","message":"GET /api/v1/admin/profile-review/reported?limit=1","service":"iap-service","timestamp":"2026-05-28 17:42:35"}
+{"level":"debug","message":"GET /api/v1/admin/giveaway/campaigns?page=1&limit=10","service":"iap-service","timestamp":"2026-05-28 17:42:35"}
+{"level":"debug","message":"GET /api/v1/admin/moderation/pending-verifications?limit=1","service":"iap-service","timestamp":"2026-05-28 17:42:35"}
+{"level":"debug","message":"GET /api/v1/contact/alltickets?limit=1","service":"iap-service","timestamp":"2026-05-28 17:42:35"}
+{"level":"debug","message":"GET /api/v1/admin/account","service":"iap-service","timestamp":"2026-05-28 17:42:35"}
+{"level":"debug","message":"GET /api/v1/admin/subscription/subscribers?page=1&limit=10&planType=1_MONTH","service":"iap-service","timestamp":"2026-05-28 17:42:36"}
+{"level":"debug","message":"GET /api/v1/admin/subscription/subscribers?page=1&limit=10&planType=1_MONTH","service":"iap-service","timestamp":"2026-05-28 17:42:36"}
+{"level":"debug","message":"GET /api/v1/admin/giveaway/campaigns?page=1&limit=10","service":"iap-service","timestamp":"2026-05-28 17:42:42"}
+{"level":"debug","message":"GET /api/v1/admin/account","service":"iap-service","timestamp":"2026-05-28 17:42:42"}
+{"level":"debug","message":"GET /api/v1/admin/profile-review/reported?limit=1","service":"iap-service","timestamp":"2026-05-28 17:42:42"}
+{"level":"debug","message":"GET /api/v1/admin/moderation/pending-verifications?limit=1","service":"iap-service","timestamp":"2026-05-28 17:42:42"}
+{"level":"debug","message":"GET /api/v1/contact/alltickets?limit=1","service":"iap-service","timestamp":"2026-05-28 17:42:42"}
+{"level":"debug","message":"GET /api/v1/admin/giveaway/campaigns?page=1&limit=10","service":"iap-service","timestamp":"2026-05-28 17:42:42"}
+{"level":"debug","message":"GET /api/v1/contact/alltickets?limit=1","service":"iap-service","timestamp":"2026-05-28 17:42:42"}
+{"level":"debug","message":"GET /api/v1/admin/profile-review/reported?limit=1","service":"iap-service","timestamp":"2026-05-28 17:42:42"}
+{"level":"debug","message":"GET /api/v1/admin/moderation/pending-verifications?limit=1","service":"iap-service","timestamp":"2026-05-28 17:42:42"}
+{"level":"debug","message":"GET /api/v1/admin/account","service":"iap-service","timestamp":"2026-05-28 17:42:42"}
+{"level":"debug","message":"GET /api/v1/admin/subscription/subscribers?page=1&limit=10&planType=1_MONTH","service":"iap-service","timestamp":"2026-05-28 17:42:44"}
+{"level":"debug","message":"GET /api/v1/admin/subscription/subscribers?page=1&limit=10&planType=1_MONTH","service":"iap-service","timestamp":"2026-05-28 17:42:44"}
+{"level":"info","message":"[CRON] Subscription cron jobs initialized (v3 - Grace Period & Billing Retry Support)","service":"iap-service","timestamp":"2026-05-28 17:45:41"}
+{"level":"info","message":"🧪 [DEV] Dev tools routes registered at /api/v1/dev/*","service":"iap-service","timestamp":"2026-05-28 17:45:43"}
+{"level":"info","message":"[CRON] Subscription cron jobs initialized (v3 - Grace Period & Billing Retry Support)","service":"iap-service","timestamp":"2026-05-28 17:45:58"}
+{"level":"info","message":"🧪 [DEV] Dev tools routes registered at /api/v1/dev/*","service":"iap-service","timestamp":"2026-05-28 17:46:00"}
+{"level":"info","message":"[CRON] Subscription cron jobs initialized (v3 - Grace Period & Billing Retry Support)","service":"iap-service","timestamp":"2026-05-28 17:46:44"}
+{"level":"info","message":"🧪 [DEV] Dev tools routes registered at /api/v1/dev/*","service":"iap-service","timestamp":"2026-05-28 17:46:45"}
+{"level":"info","message":"[CRON] Subscription cron jobs initialized (v3 - Grace Period & Billing Retry Support)","service":"iap-service","timestamp":"2026-05-28 17:46:58"}
+{"level":"info","message":"🧪 [DEV] Dev tools routes registered at /api/v1/dev/*","service":"iap-service","timestamp":"2026-05-28 17:46:59"}
+{"level":"info","message":"[CRON] Subscription cron jobs initialized (v3 - Grace Period & Billing Retry Support)","service":"iap-service","timestamp":"2026-05-28 17:48:42"}
+{"level":"info","message":"🧪 [DEV] Dev tools routes registered at /api/v1/dev/*","service":"iap-service","timestamp":"2026-05-28 17:48:44"}
+{"level":"info","message":"[CRON] Subscription cron jobs initialized (v3 - Grace Period & Billing Retry Support)","service":"iap-service","timestamp":"2026-05-28 17:48:51"}
+{"level":"info","message":"🧪 [DEV] Dev tools routes registered at /api/v1/dev/*","service":"iap-service","timestamp":"2026-05-28 17:48:52"}
+{"level":"info","message":"[CRON] Subscription cron jobs initialized (v3 - Grace Period & Billing Retry Support)","service":"iap-service","timestamp":"2026-05-28 17:49:03"}
+{"level":"info","message":"🧪 [DEV] Dev tools routes registered at /api/v1/dev/*","service":"iap-service","timestamp":"2026-05-28 17:49:04"}
+{"level":"info","message":"[CRON] Subscription cron jobs initialized (v3 - Grace Period & Billing Retry Support)","service":"iap-service","timestamp":"2026-05-28 17:49:26"}
+{"level":"info","message":"🧪 [DEV] Dev tools routes registered at /api/v1/dev/*","service":"iap-service","timestamp":"2026-05-28 17:49:27"}
+{"level":"info","message":"[CRON] Subscription cron jobs initialized (v3 - Grace Period & Billing Retry Support)","service":"iap-service","timestamp":"2026-05-28 17:49:42"}
+{"level":"info","message":"🧪 [DEV] Dev tools routes registered at /api/v1/dev/*","service":"iap-service","timestamp":"2026-05-28 17:49:43"}
+{"level":"info","message":"[CRON] Subscription cron jobs initialized (v3 - Grace Period & Billing Retry Support)","service":"iap-service","timestamp":"2026-05-28 17:50:09"}
+{"level":"info","message":"🧪 [DEV] Dev tools routes registered at /api/v1/dev/*","service":"iap-service","timestamp":"2026-05-28 17:50:10"}
+{"level":"info","message":"[CRON] Subscription cron jobs initialized (v3 - Grace Period & Billing Retry Support)","service":"iap-service","timestamp":"2026-05-28 17:50:16"}
+{"level":"info","message":"🧪 [DEV] Dev tools routes registered at /api/v1/dev/*","service":"iap-service","timestamp":"2026-05-28 17:50:17"}
+{"level":"info","message":"[CRON] Subscription cron jobs initialized (v3 - Grace Period & Billing Retry Support)","service":"iap-service","timestamp":"2026-05-28 17:50:24"}
+{"level":"info","message":"🧪 [DEV] Dev tools routes registered at /api/v1/dev/*","service":"iap-service","timestamp":"2026-05-28 17:50:25"}
+{"level":"debug","message":"GET /api/v1/admin/giveaway/campaigns?page=1&limit=10","service":"iap-service","timestamp":"2026-05-28 17:50:34"}
+{"level":"debug","message":"GET /api/v1/admin/account","service":"iap-service","timestamp":"2026-05-28 17:50:34"}
+{"level":"debug","message":"GET /api/v1/admin/account","service":"iap-service","timestamp":"2026-05-28 17:50:34"}
+{"level":"debug","message":"GET /api/v1/admin/profile-review/reported?limit=1","service":"iap-service","timestamp":"2026-05-28 17:50:34"}
+{"level":"debug","message":"GET /api/v1/admin/moderation/pending-verifications?limit=1","service":"iap-service","timestamp":"2026-05-28 17:50:34"}
+{"level":"debug","message":"GET /api/v1/admin/giveaway/campaigns?page=1&limit=10","service":"iap-service","timestamp":"2026-05-28 17:50:34"}
+{"level":"debug","message":"GET /api/v1/contact/alltickets?limit=1","service":"iap-service","timestamp":"2026-05-28 17:50:34"}
+{"level":"debug","message":"GET /api/v1/admin/profile-review/reported?limit=1","service":"iap-service","timestamp":"2026-05-28 17:50:34"}
+{"level":"debug","message":"GET /api/v1/admin/moderation/pending-verifications?limit=1","service":"iap-service","timestamp":"2026-05-28 17:50:34"}
+{"level":"debug","message":"GET /api/v1/contact/alltickets?limit=1","service":"iap-service","timestamp":"2026-05-28 17:50:34"}
+{"level":"debug","message":"GET /api/v1/admin/subscription/subscribers?page=1&limit=10&planType=1_MONTH","service":"iap-service","timestamp":"2026-05-28 17:50:35"}
+{"level":"debug","message":"GET /api/v1/admin/subscription/subscribers?page=1&limit=10&planType=1_MONTH","service":"iap-service","timestamp":"2026-05-28 17:50:36"}
+{"level":"debug","message":"GET /api/v1/admin/subscription/subscribers?page=1&limit=10&planType=3_MONTH","service":"iap-service","timestamp":"2026-05-28 17:50:52"}
+{"level":"debug","message":"GET /api/v1/admin/subscription/subscribers?page=1&limit=10&planType=1_MONTH","service":"iap-service","timestamp":"2026-05-28 17:50:55"}
+{"level":"debug","message":"GET /api/v1/admin/subscription/stats?timeFilter=today","service":"iap-service","timestamp":"2026-05-28 17:51:25"}
+{"level":"debug","message":"GET /api/v1/admin/subscription/stats?timeFilter=today","service":"iap-service","timestamp":"2026-05-28 17:51:25"}
+{"level":"debug","message":"GET /api/v1/admin/subscription/subscribers?page=1&limit=10&planType=1_MONTH","service":"iap-service","timestamp":"2026-05-28 17:51:32"}
+{"level":"debug","message":"GET /api/v1/admin/subscription/subscribers?page=1&limit=10&planType=1_MONTH","service":"iap-service","timestamp":"2026-05-28 17:51:33"}
+{"level":"info","message":"[CRON] Subscription cron jobs initialized (v3 - Grace Period & Billing Retry Support)","service":"iap-service","timestamp":"2026-05-28 17:51:41"}
+{"level":"info","message":"🧪 [DEV] Dev tools routes registered at /api/v1/dev/*","service":"iap-service","timestamp":"2026-05-28 17:51:42"}

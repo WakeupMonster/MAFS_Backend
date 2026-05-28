@@ -109,7 +109,15 @@ exports.listSubscribers = async (req, res, next) => {
         const { page = 1, limit = 20, status, planType, platform, search } = req.query;
         const filter = {};
         if (status) filter.status = status;
-        if (planType) filter.planType = planType;
+        if (planType) {
+            if (planType === '1_MONTH') {
+                filter.planType = { $in: ['1_MONTH', '1 MONTH', 'MONTHLY', 'monthly', 'ONE_MONTH'] };
+            } else if (planType === '3_MONTH') {
+                filter.planType = { $in: ['3_MONTH', '3 MONTH', 'QUARTERLY', 'quarterly', 'THREE_MONTHS'] };
+            } else {
+                filter.planType = planType;
+            }
+        }
         if (platform) filter.platform = platform;
 
         // Enhanced Search: Nickname, Phone, Email
@@ -187,7 +195,6 @@ exports.listSubscribers = async (req, res, next) => {
 
             // Remove the redundant userId object to keep it clean
             delete responseObj.userId;
-
             return responseObj;
         });
 
@@ -205,7 +212,6 @@ exports.listSubscribers = async (req, res, next) => {
 
         return res.json({
             success: true,
-            data: enrichedSubs,
             pagination: {
                 total,
                 page: Number(page),
@@ -213,7 +219,8 @@ exports.listSubscribers = async (req, res, next) => {
                 totalPages: Math.ceil(total / limit),
                 totalActive,
                 totalRevoked
-            }
+            },
+            data: enrichedSubs
         });
     } catch (err) {
         next(err);
