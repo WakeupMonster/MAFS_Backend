@@ -46,25 +46,30 @@ exports.getAdvancedDashboardMetrics = async (req, res) => {
     const { boostKeys, superkeenKeys } = queries.getProductKeys(allProducts);
 
     const {
-      userCountsFacet, profileCountsFacet, totalMatchesCount, reportsFacet, supportOpen,
-      totalMessagesRange, deepConvoAggCount, ghostedUsersCount, swipesFacet, matchesFacet,
+      userCountsFacet, profileCountsFacet, totalMatchesCount, reportsFacet,
+      deepConvoAggCount, ghostedUsersCount, swipesFacet, matchesFacet,
       matches7dDaily, swipes7dDaily, heatmapAgg, revenueFacet, signupGenderFacet,
-      funnelCompletedProfiles, funnelVerifiedProfiles, funnelSwipersCount, funnelMatchedUsersCount,
-      funnelSubscribersCount, highReportedRange, blockCountRange,
+      funnelCompletedProfiles, funnelSwipersCount,
+      funnelSubscribersCount, highReportedRange, blocksRange
     } = await queries.fetchDashboardData(
-      { User, Profile, Match, Swipe, ChatMessage, Transaction, Report, Block, SupportTicket },
+      { User, Profile, Match, Swipe, ChatMessage, Transaction, Report, Block },
       { startDate, endDate, prevStartDate, prevEndDate, startOfYear, last30d, ghostingThresholdDate }
     );
 
     const totalUsers = userCountsFacet?.total?.[0]?.n || 0;
-    const premiumUsers = userCountsFacet?.premium?.[0]?.n || 0;
     const pendingKYC = profileCountsFacet?.pending?.[0]?.n || 0;
     const photoImpactAgg = profileCountsFacet?.quality?.[0] || { total: 0, good: 0 };
+
+    const activeAllTime = userCountsFacet?.activeAllTime?.[0]?.n || 0;
+    const deactivatedAllTime = userCountsFacet?.deactivated?.[0]?.n || 0;
+    const deletedAllTime = userCountsFacet?.deleted?.[0]?.n || 0;
+    const suspendedAllTime = userCountsFacet?.suspended?.[0]?.n || 0;
+    const bannedAllTime = userCountsFacet?.banned?.[0]?.n || 0;
 
     const reportCountNew = reportsFacet?.current?.[0]?.n || 0;
     const reportCountPrev = reportsFacet?.prev?.[0]?.n || 0;
     const rawReportTrend = reportCountPrev > 0 ? ((reportCountNew - reportCountPrev) / reportCountPrev) * 100 : (reportCountNew > 0 ? 100 : 0);
-    const reportTrendNum = Math.min(100, Math.max(-100, rawReportTrend));
+    const reportTrendNum = Math.max(-100, rawReportTrend);
     const reportTrendDisplay = `${reportTrendNum >= 0 ? "+" : ""}${reportTrendNum.toFixed(1)}%`;
 
     const likesRange = swipesFacet?.currentLikes?.[0]?.n || 0;
@@ -80,7 +85,6 @@ exports.getAdvancedDashboardMetrics = async (req, res) => {
 
     const revenueRangeAgg = revenueFacet?.current || [];
     const revenuePrevAgg = revenueFacet?.prev || [];
-    const revenue7dDaily = revenueFacet?.daily || [];
 
     const signups7dDaily = signupGenderFacet?.rangeByDay || [];
     const signupsRangeGender = signupGenderFacet?.rangeTotal || [];
@@ -91,7 +95,7 @@ exports.getAdvancedDashboardMetrics = async (req, res) => {
     const revPrev = helpers.processRevenue(revenuePrevAgg, boostKeys, superkeenKeys);
 
     const rawRevTrend = revPrev.total > 0 ? ((revR.total - revPrev.total) / revPrev.total) * 100 : (revR.total > 0 ? 100 : 0);
-    const revTrendNum = Math.min(100, Math.max(-100, rawRevTrend));
+    const revTrendNum = Math.max(-100, rawRevTrend);
     const revTrendDisplay = `${revTrendNum >= 0 ? "+" : ""}${revTrendNum.toFixed(1)}%`;
 
     const consumablePct = revR.total > 0 ? Math.round(((revR.boost + revR.superkeen) / revR.total) * 100) : 0;
@@ -100,7 +104,7 @@ exports.getAdvancedDashboardMetrics = async (req, res) => {
     const fRS = signupsRangeGender.find((g) => g._id === "women")?.count || 0;
     const fPS = signupsPrevGender.find((g) => g._id === "women")?.count || 0;
     const rawFCPNum = fPS > 0 ? ((fRS - fPS) / fPS) * 100 : (fRS > 0 ? 100 : 0);
-    const fCPNum = Math.min(100, Math.max(-100, rawFCPNum));
+    const fCPNum = Math.max(-100, rawFCPNum);
     const fSignupTrend = `${fCPNum >= 0 ? "+" : ""}${fCPNum.toFixed(1)}%`;
 
     const mRS = signupsRangeGender.find((g) => g._id === "men")?.count || 0;
@@ -119,15 +123,14 @@ exports.getAdvancedDashboardMetrics = async (req, res) => {
     const matchLiqPrev = swipesPrev > 0 ? (matchesPrev / swipesPrev) * 100 : 0;
     const matchLiqCur = totalSwipesRange > 0 ? (matchesRange / totalSwipesRange) * 100 : 0;
     const rawMatchLiqTrend = matchLiqPrev > 0 ? ((matchLiqCur - matchLiqPrev) / matchLiqPrev) * 100 : (matchLiqCur > 0 ? 100 : 0);
-    const matchLiqTrendVal = Math.min(100, Math.max(-100, rawMatchLiqTrend));
+    const matchLiqTrendVal = Math.max(-100, rawMatchLiqTrend);
     const matchLiqTrend = matchLiqTrendVal.toFixed(1);
 
     const chartDates = helpers.buildChartDates(startDate, endDate, preset);
-    const revChart = chartDates.map((d) => revenue7dDaily.find((x) => x._id === d)?.total || 0);
     const liqChart = chartDates.map((d) => {
       const m = matches7dDaily.find((x) => x._id === d)?.count || 0;
-      const s = swipes7dDaily.find((x) => x._id === d)?.count || 1;
-      return parseFloat(((m / s) * 100).toFixed(1));
+      const s = swipes7dDaily.find((x) => x._id === d)?.count || 0;
+      return s > 0 ? parseFloat(((m / s) * 100).toFixed(1)) : 0.0;
     });
 
     const heatmapD = helpers.buildHeatmapData(heatmapAgg);
@@ -140,7 +143,7 @@ exports.getAdvancedDashboardMetrics = async (req, res) => {
         zoneA: {
           title: preset === "custom" ? "Period at a glance" : `${periodLabel} at a glance`,
           stats: [
-            { label: "Revenue", value: helpers.formatAmount(revR.total), sub: contextLabel, trend: revTrendDisplay, isPositive: (revTrendNum || 0) < 0, icon: "Sparkles", color: "emerald", route: "/admin/management/subscription-management" },
+            { label: "Revenue", value: helpers.formatAmount(revR.total), sub: contextLabel, trend: revTrendDisplay, isPositive: (revTrendNum || 0) >= 0, icon: "Sparkles", color: "emerald", route: "/admin/management/subscription-management" },
             { label: "Supercharge driving", value: `${consumablePct}%`, sub: "of revenue", trend: `${consumablePct}%`, isPositive: true, icon: "TrendingUp", color: "blue" },
             { label: "Female signups", value: `${fRS}`, sub: contextLabel, trend: fSignupTrend, isPositive: (fCPNum || 0) >= 0, icon: "Users", color: "orange", route: "/admin/management/users-management" },
             { label: "KYC pending", value: `${pendingKYC}`, sub: "Review now →", isPositive: false, icon: "ShieldAlert", color: "cyan", isActionable: true, route: "/admin/management/kyc-verifications" },
@@ -226,7 +229,7 @@ exports.getAdvancedDashboardMetrics = async (req, res) => {
         genderGrowth: (() => {
           let subtitle = `Daily signups for ${periodLabel}`;
           let data = [];
-          if (preset === "last30") {
+          if (preset === "last30" || preset === "last90" || chartDates.length > 30) {
             subtitle = `Weekly signups for ${periodLabel}`;
             const weeks = [];
             for (let i = 0; i < chartDates.length; i += 7) {
@@ -248,6 +251,13 @@ exports.getAdvancedDashboardMetrics = async (req, res) => {
           }
           return { subtitle, insight: `Male signups are dominant at ${mRatioTotal}%`, data };
         })(),
+        userDistribution: {
+          active: activeAllTime,
+          deactivated: deactivatedAllTime,
+          deleted: deletedAllTime,
+          suspended: suspendedAllTime,
+          banned: bannedAllTime,
+        },
       },
     });
   } catch (err) {

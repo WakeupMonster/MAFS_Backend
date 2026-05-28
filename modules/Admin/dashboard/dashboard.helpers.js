@@ -31,6 +31,9 @@ function parseDateRange(query, now) {
   } else if (presetParam === "last30") {
     startDate = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
     endDate = new Date(now);
+  } else if (presetParam === "last90") {
+    startDate = new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000);
+    endDate = new Date(now);
   } else {
     startDate = fromQuery
       ? new Date(fromQuery)
@@ -60,6 +63,9 @@ function parseDateRange(query, now) {
   } else if (preset === "last30") {
     periodLabel = "Last 30 Days";
     contextLabel = "vs previous 30 days";
+  } else if (preset === "last90") {
+    periodLabel = "Last 90 Days";
+    contextLabel = "vs previous 90 days";
   } else {
     const hours = durationMs / (1000 * 60 * 60);
     if (hours <= 25) {

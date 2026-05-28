@@ -37,16 +37,15 @@ async function fetchDashboardData(models, dateParams) {
     Transaction,
     Report,
     Block,
-    SupportTicket,
   } = models;
 
   const { startDate, endDate, prevStartDate, prevEndDate, startOfYear, last30d, ghostingThresholdDate } = dateParams;
 
   const [
-    userCountsFacet, profileCountsFacet, totalMatchesCount, reportsFacet, supportOpen, totalMessagesRange,
+    userCountsFacet, profileCountsFacet, totalMatchesCount, reportsFacet,
     deepConvoAggCount, ghostedUsersCount, swipesFacet, matchesFacet, matches7dDaily, swipes7dDaily, heatmapAgg,
-    revenueFacet, signupGenderFacet, funnelCompletedProfiles, funnelVerifiedProfiles, funnelSwipersCount,
-    funnelMatchedUsersCount, funnelSubscribersCount, highReportedRange, blockCountRange
+    revenueFacet, signupGenderFacet, funnelCompletedProfiles, funnelSwipersCount,
+    funnelSubscribersCount, highReportedRange, blocksRange
   ] = await Promise.all([
     // 1. All user status counts (parallelized for index usage instead of $facet)
     Promise.all([
@@ -115,15 +114,7 @@ async function fetchDashboardData(models, dateParams) {
       },
     ]).then((r) => r[0] || {}),
 
-    // 5. Open support tickets
-    SupportTicket.countDocuments({ status: "open" }).catch(() => 0),
-
-    // 6. Messages in range
-    ChatMessage.countDocuments({
-      createdAt: { $gte: startDate, $lte: endDate },
-    }),
-
-    // 7. Deep conversations (30d baseline)
+    // 5. Deep conversations (30d baseline)
     ChatMessage.aggregate([
       { $match: { createdAt: { $gte: last30d } } },
       { $group: { _id: "$matchId", count: { $sum: 1 } } },
@@ -131,7 +122,7 @@ async function fetchDashboardData(models, dateParams) {
       { $count: "deepTotal" },
     ]).then((r) => r[0]?.deepTotal || 0),
 
-    // 8. Ghosted users
+    // 6. Ghosted users
     User.countDocuments({
       role: "USER",
       isFake: { $ne: true },
@@ -143,7 +134,7 @@ async function fetchDashboardData(models, dateParams) {
       ],
     }).catch(() => 0),
 
-    // 9. Swipe counts (current, prev, superkeen, normal merged)
+    // 7. Swipe counts (current, prev, superkeen, normal merged)
     Swipe.aggregate([
       { $match: { createdAt: { $gte: prevStartDate, $lte: endDate }, action: { $in: ["like", "superlike"] } } },
       {
@@ -172,7 +163,7 @@ async function fetchDashboardData(models, dateParams) {
       },
     ]).then((r) => r[0] || {}),
 
-    // 10. Match counts (current, prev, superkeen matches, normal matches merged)
+    // 8. Match counts (current, prev, superkeen matches, normal matches merged)
     Match.aggregate([
       { $match: { createdAt: { $gte: prevStartDate, $lte: endDate } } },
       {
@@ -185,7 +176,7 @@ async function fetchDashboardData(models, dateParams) {
       },
     ]).then((r) => r[0] || {}),
 
-    // 11. Match daily chart
+    // 9. Match daily chart
     Match.aggregate([
       { $match: { createdAt: { $gte: startDate, $lte: endDate } } },
       {
@@ -197,7 +188,7 @@ async function fetchDashboardData(models, dateParams) {
       { $sort: { _id: 1 } },
     ]).catch(() => []),
 
-    // 12. Swipe daily chart
+    // 10. Swipe daily chart
     Swipe.aggregate([
       {
         $match: { createdAt: { $gte: startDate, $lte: endDate }, action: { $in: ["like", "superlike"] } },
@@ -208,7 +199,7 @@ async function fetchDashboardData(models, dateParams) {
       { $sort: { _id: 1 } },
     ]).catch(() => []),
 
-    // 13. Activity heatmap
+    // 11. Activity heatmap
     Swipe.aggregate([
       { $match: { createdAt: { $gte: startOfYear } } },
       { $addFields: { _hour: { $hour: "$createdAt" } } },
@@ -240,7 +231,7 @@ async function fetchDashboardData(models, dateParams) {
       { $sort: { "_id.date": 1, "_id.slot": 1 } },
     ]).catch(() => []),
 
-    // 14. Revenue: current + prev + daily merged
+    // 12. Revenue: current + prev merged
     Transaction.aggregate([
       {
         $match: {
@@ -270,23 +261,11 @@ async function fetchDashboardData(models, dateParams) {
               },
             },
           ],
-          daily: [
-            { $match: { occurredAt: { $gte: startDate } } },
-            {
-              $group: {
-                _id: {
-                  $dateToString: { format: "%Y-%m-%d", date: "$occurredAt" },
-                },
-                total: { $sum: "$amount" },
-              },
-            },
-            { $sort: { _id: 1 } },
-          ],
         },
       },
     ]).then((r) => r[0] || {}),
 
-    // 15. Signup gender stats
+    // 13. Signup gender stats
     Profile.aggregate([
       {
         $facet: {
@@ -322,35 +301,20 @@ async function fetchDashboardData(models, dateParams) {
       },
     ]).then((r) => r[0] || {}),
 
-    // 16. Funnel: profile complete count
+    // 14. Funnel: profile complete count
     Profile.countDocuments({
       isMandatoryComplete: true,
       createdAt: { $gte: startDate, $lte: endDate },
     }),
 
-    // 17. Funnel: verified profiles
-    Profile.countDocuments({
-      "verification.status": "approved",
-      createdAt: { $gte: startDate, $lte: endDate },
-    }),
-
-    // 18. Funnel: unique swipers
+    // 15. Funnel: unique swipers
     Swipe.aggregate([
       { $match: { createdAt: { $gte: startDate, $lte: endDate } } },
       { $group: { _id: "$swiperId" } },
       { $count: "n" },
     ]).then((r) => r[0]?.n || 0),
 
-    // 19. Funnel: users who got a match
-    Match.aggregate([
-      { $match: { createdAt: { $gte: startDate, $lte: endDate } } },
-      { $project: { users: 1 } },
-      { $unwind: "$users" },
-      { $group: { _id: "$users" } },
-      { $count: "n" },
-    ]).then((r) => r[0]?.n || 0),
-
-    // 20. Funnel: unique subscribers in range
+    // 16. Funnel: unique subscribers in range
     Transaction.aggregate([
       {
         $match: {
@@ -362,7 +326,7 @@ async function fetchDashboardData(models, dateParams) {
       { $count: "n" },
     ]).then((r) => r[0]?.n || 0),
 
-    // 21. High reported users in range
+    // 17. High reported users in range
     Report.aggregate([
       { $match: { createdAt: { $gte: startDate, $lte: endDate } } },
       { $group: { _id: "$reportedId", count: { $sum: 1 } } },
@@ -402,10 +366,24 @@ async function fetchDashboardData(models, dateParams) {
   ]);
 
   return {
-    userCountsFacet, profileCountsFacet, totalMatchesCount, reportsFacet, supportOpen, totalMessagesRange,
-    deepConvoAggCount, ghostedUsersCount, swipesFacet, matchesFacet, matches7dDaily, swipes7dDaily, heatmapAgg, revenueFacet,
-    signupGenderFacet, funnelCompletedProfiles, funnelVerifiedProfiles, funnelSwipersCount, funnelMatchedUsersCount, funnelSubscribersCount,
-    highReportedRange, blockCountRange
+    userCountsFacet,
+    profileCountsFacet,
+    totalMatchesCount,
+    reportsFacet,
+    deepConvoAggCount,
+    ghostedUsersCount,
+    swipesFacet,
+    matchesFacet,
+    matches7dDaily,
+    swipes7dDaily,
+    heatmapAgg,
+    revenueFacet,
+    signupGenderFacet,
+    funnelCompletedProfiles,
+    funnelSwipersCount,
+    funnelSubscribersCount,
+    highReportedRange,
+    blocksRange,
   };
 }
 
