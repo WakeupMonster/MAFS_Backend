@@ -10,6 +10,7 @@ const Product = require("../models_v3/Product");
 const SubscriptionConfig = require("../models_v3/SubscriptionConfig");
 const UsageService = require("../services/usage.service");
 const featureService = require("../services/feature.service");
+const productDisplayHelper = require("../utils/productDisplayHelper");
 
 const verifyPurchase = async (req, res, next) => {
   try {
@@ -137,7 +138,9 @@ const verifyPurchase = async (req, res, next) => {
       user.giveaway.claimedAt = new Date();
       user.giveaway.isEligibleForFreeTrial = false;
       await user.save();
-      purchaseData.source = "FREE_TRIAL";
+      if (purchaseData) {
+        purchaseData.source = "FREE_TRIAL";
+      }
     }
 
     console.log("📍 Step: Calling subscriptionService.handlePurchase...");
@@ -209,6 +212,7 @@ const verifyPurchase = async (req, res, next) => {
           planType: sub.planType,
           platform: sub.platform,
           productId: sub.productId,
+          displayName: await productDisplayHelper.resolveDisplayName(sub.productId, sub.customDisplayName, sub.source),
           startedAt: sub.startedAt,
           expiresAt: sub.expiresAt,
           autoRenew: sub.autoRenew,
@@ -349,10 +353,9 @@ const getStatus = async (req, res, next) => {
 
 const getCatalog = async (req, res, next) => {
   try {
-    const [products, config, milestoneCount] = await Promise.all([
+    const [products, config] = await Promise.all([
       Product.find({ isActive: true }).sort({ sortOrder: 1 }),
       SubscriptionConfig.getOrCreate(),
-      Subscription.countDocuments({ planType: "MILESTONE" }),
     ]);
 
     // Separate into categories
@@ -419,7 +422,7 @@ const getCatalog = async (req, res, next) => {
         },
         milestone: {
           target: config.milestone.targetUserCount,
-          currentCount: milestoneCount,
+          currentCount: config.milestone.currentCount,
           isActive: config.milestone.isActive,
         },
         freeFeatures,
@@ -438,11 +441,13 @@ const getHistory = async (req, res, next) => {
     const { transactions, total } =
       await subscriptionService.getTransactionHistory(req.user._id, limit);
 
+    const enrichedTransactions = await productDisplayHelper.enrichWithDisplayName(transactions);
+
     return res.json({
       success: true,
       message: "Transaction history fetched",
       data: {
-        transactions: transactions,
+        transactions: enrichedTransactions,
         hasMore: transactions.length < total,
         total: total,
       },
@@ -456,10 +461,11 @@ const getHistory = async (req, res, next) => {
 const getSubscription = async (req, res, next) => {
   try {
     const sub = await subscriptionService.getUserSubscription(req.user._id);
+    const enrichedSub = sub ? await productDisplayHelper.enrichWithDisplayName([sub.toObject()]).then(res => res[0]) : null;
 
     return res.json({
       success: true,
-      subscription: sub || null,
+      subscription: enrichedSub,
     });
   } catch (err) {
     logger.error("Get subscription error:", err.message);
@@ -784,11 +790,13 @@ const getAllSubscriptions = async (req, res, next) => {
     const total = result[0].metadata[0]?.total || 0;
     const totalPages = Math.ceil(total / limitNum);
 
+    const enrichedSubscriptions = await productDisplayHelper.enrichWithDisplayName(subscriptions);
+
     return res.json({
       success: true,
       message: "subscriptions fetched successfully",
       data: {
-        subscriptions,
+        subscriptions: enrichedSubscriptions,
         pagination: {
           page: pageNum,
           limit: limitNum,
@@ -1019,10 +1027,14 @@ const getUserSubscriptionDetail = async (req, res, next) => {
       });
     }
 
+    const data = result[0];
+    const enrichedData = await productDisplayHelper.enrichWithDisplayName([data]).then(res => res[0]);
+    enrichedData.transactions = await productDisplayHelper.enrichWithDisplayName(enrichedData.transactions);
+
     return res.json({
       success: true,
       message: "subscription detail fetched successfully",
-      data: result[0],
+      data: enrichedData,
     });
   } catch (err) {
     logger.error("Admin user detail aggregation error:", err.message);
@@ -1289,17 +1301,10 @@ const getAtRiskUsers = async (req, res, next) => {
     const limitNum = parseInt(limit);
     const totalPages = Math.ceil(total / limitNum);
 
-    return res.json({
-      success: true,
-      pagination: {
-        page: pageNum,
-        limit: limitNum,
-        totalPages,
-        total,
-      },
-      atRiskUsers: users.map((u) => ({
+    const enrichedUsers = await Promise.all(users.map(async u => ({
         userId: u.userId,
         plan: u.planType,
+        displayName: await productDisplayHelper.resolveDisplayName(u.productId, u.customDisplayName, u.source),
         platform: u.platform,
         retryCount: u.retryCount,
         gracePeriodEndsAt: u.gracePeriodEndsAt,
@@ -1311,7 +1316,17 @@ const getAtRiskUsers = async (req, res, next) => {
           ),
         ),
         startedAt: u.startedAt,
-      })),
+      })));
+
+    return res.json({
+      success: true,
+      pagination: {
+        page: pageNum,
+        limit: limitNum,
+        totalPages,
+        total,
+      },
+      atRiskUsers: enrichedUsers,
     });
   } catch (err) {
     logger.error("Admin at risk error:", err.message);
@@ -1393,6 +1408,8 @@ const getAllTransactions = async (req, res, next) => {
       SubscriptionTransaction.countDocuments(filter),
     ]);
 
+    const enrichedTransactions = await productDisplayHelper.enrichWithDisplayName(transactions);
+
     return res.json({
       success: true,
       pagination: {
@@ -1400,7 +1417,7 @@ const getAllTransactions = async (req, res, next) => {
         totalPages: Math.ceil(total / parseInt(limit)),
         totalItems: total,
       },
-      transactions: transactions,
+      transactions: enrichedTransactions,
     });
   } catch (err) {
     logger.error("Admin transactions error:", err.message);
@@ -1422,17 +1439,19 @@ const makeMePremiumTemp = async (req, res, next) => {
       userId: userId,
       platform: "admin_granted",
       productId: "test_premium_plan_1",
-      planType: "monthly",
+      planType: "1 MONTH",
       status: "ACTIVE",
       startedAt: new Date(),
       expiresAt: oneMonthFromNow,
       environment: "sandbox",
     });
 
+    const enrichedSubscription = await productDisplayHelper.enrichWithDisplayName([subscription.toObject()]).then(res => res[0]);
+
     return res.json({
       success: true,
       message: "Aap ab 1 mahine ke liye premium hain!",
-      data: subscription,
+      data: enrichedSubscription,
     });
   } catch (err) {
     return next(err);

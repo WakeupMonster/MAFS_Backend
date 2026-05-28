@@ -48,45 +48,47 @@ async function fetchDashboardData(models, dateParams) {
     revenueFacet, signupGenderFacet, funnelCompletedProfiles, funnelVerifiedProfiles, funnelSwipersCount,
     funnelMatchedUsersCount, funnelSubscribersCount, highReportedRange, blockCountRange
   ] = await Promise.all([
-    // 1. All user status counts in one $facet
-    User.aggregate([
-      { $match: { role: "USER" } },
-      {
-        $facet: {
-          total: [{ $count: "n" }],
-          active: [{ $match: { lastLoginAt: { $gte: startDate, $lte: endDate }, accountStatus: "active" } }, { $count: "n" }],
-          premium: [{ $match: { isPremium: true } }, { $count: "n" }],
-          banned: [{ $match: { accountStatus: "banned" } }, { $count: "n" }],
-          suspended: [{ $match: { accountStatus: "suspended" } }, { $count: "n" }],
-        },
-      },
-    ]).then((r) => r[0] || {}),
+    // 1. All user status counts (parallelized for index usage instead of $facet)
+    Promise.all([
+      User.countDocuments({ role: "USER" }),
+      User.countDocuments({ role: "USER", lastLoginAt: { $gte: startDate, $lte: endDate }, accountStatus: "active" }),
+      User.countDocuments({ role: "USER", isPremium: true }),
+      User.countDocuments({ role: "USER", accountStatus: "banned" }),
+      User.countDocuments({ role: "USER", accountStatus: "suspended" }),
+    ]).then(([t, a, p, b, s]) => ({
+      total: [{ n: t }],
+      active: [{ n: a }],
+      premium: [{ n: p }],
+      banned: [{ n: b }],
+      suspended: [{ n: s }],
+    })),
 
-    // 2. All profile/KYC counts in one $facet
-    Profile.aggregate([
-      {
-        $facet: {
-          pending: [{ $match: { "verification.status": "pending" } }, { $count: "n" }],
-          approved: [{ $match: { "verification.status": "approved" } }, { $count: "n" }],
-          rejected: [{ $match: { "verification.status": "rejected" } }, { $count: "n" }],
-          mandatory: [{ $match: { isMandatoryComplete: true } }, { $count: "n" }],
-          // Photo quality scan
-          quality: [
-            {
-              $group: {
-                _id: null,
-                total: { $sum: 1 },
-                good: {
-                  $sum: {
-                    $cond: [{ $and: [{ $gte: [{ $size: { $ifNull: ["$photos", []] } }, 4] }, { $and: [{ $ne: ["$about", null] }, { $ne: ["$about", ""] }] }] }, 1, 0],
-                  },
-                },
+    // 2. All profile/KYC counts (parallelized)
+    Promise.all([
+      Profile.countDocuments({ "verification.status": "pending" }),
+      Profile.countDocuments({ "verification.status": "approved" }),
+      Profile.countDocuments({ "verification.status": "rejected" }),
+      Profile.countDocuments({ isMandatoryComplete: true }),
+      Profile.aggregate([
+        {
+          $group: {
+            _id: null,
+            total: { $sum: 1 },
+            good: {
+              $sum: {
+                $cond: [{ $and: [{ $gte: [{ $size: { $ifNull: ["$photos", []] } }, 4] }, { $and: [{ $ne: ["$about", null] }, { $ne: ["$about", ""] }] }] }, 1, 0],
               },
             },
-          ],
+          },
         },
-      },
-    ]).then((r) => r[0] || {}),
+      ]),
+    ]).then(([pending, approved, rejected, mandatory, quality]) => ({
+      pending: [{ n: pending }],
+      approved: [{ n: approved }],
+      rejected: [{ n: rejected }],
+      mandatory: [{ n: mandatory }],
+      quality: quality,
+    })),
 
     // 3. Total matches (all time)
     Match.countDocuments({}),
@@ -373,22 +375,26 @@ async function fetchDashboardData(models, dateParams) {
       {
         $lookup: {
           from: "matches",
-          let: { b1: "$blockerId", b2: "$blockedId" },
-          pipeline: [
-            {
-              $match: {
-                $expr: {
-                  $and: [
-                    { $in: ["$$b1", "$users"] },
-                    { $in: ["$$b2", "$users"] },
-                    { $ne: ["$lastMessageBy", null] },
-                  ],
-                },
-              },
-            },
-          ],
+          localField: "blockerId",
+          foreignField: "users",
           as: "match",
         },
+      },
+      {
+        $addFields: {
+          match: {
+            $filter: {
+              input: "$match",
+              as: "m",
+              cond: {
+                $and: [
+                  { $in: ["$blockedId", "$$m.users"] },
+                  { $ne: ["$$m.lastMessageBy", null] }
+                ]
+              }
+            }
+          }
+        }
       },
       { $match: { "match.0": { $exists: true } } },
       { $count: "n" },

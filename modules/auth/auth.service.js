@@ -12,6 +12,7 @@ const UserSubscription = require("../auth/UserSubscription.model");
 const { formatProfileResponse } = require("../profile/profile.formatter");
 const subscriptionService = require("../subscription/services/subscription.service");
 const { getClientIp } = require("../../common/constants/ip.extraction");
+const logger = require("../subscription/utils/logger");
 const EMAIL_OTP_TTL_MS = Number(1000 * 60 * 10); // 10 min
 const OTP_TTL = 300; // 5 minutes
 const RATE_LIMIT_MAX = 2; // max OTP requests allowed
@@ -114,7 +115,7 @@ async function verifyPhoneOtpUnified(phone, otp, req) {
   }
 
   // Single upsert: creates if new, updates if existing (1 Atlas roundtrip)
-  const user = await User.findOneAndUpdate(
+  let user = await User.findOneAndUpdate(
     { phoneHash },
     {
       $set: {
@@ -161,27 +162,31 @@ async function verifyPhoneOtpUnified(phone, otp, req) {
   // ➕ Initiative 3: First 1000 Users Milestone Eligibility
   if (isFirstVerification) {
     const SubscriptionConfig = require("../subscription/models_v3/SubscriptionConfig");
-    const config = await SubscriptionConfig.findOneAndUpdate(
-      {}, // Singleton document
-      { $inc: { "milestone.currentCount": 1 } },
-      { new: true, upsert: true }
-    );
+    const existingConfig = await SubscriptionConfig.getOrCreate();
 
-    const rank = config.milestone.currentCount;
-    const isEligible = rank <= (config.milestone.targetUserCount || 1000);
-    const offerExpiresAt = new Date();
-    offerExpiresAt.setDate(offerExpiresAt.getDate() + 3);
+    if (existingConfig && existingConfig.milestone && existingConfig.milestone.isActive) {
+      const config = await SubscriptionConfig.findOneAndUpdate(
+        {}, // Singleton document
+        { $inc: { "milestone.currentCount": 1 } },
+        { new: true, upsert: true }
+      );
 
-    await User.findByIdAndUpdate(user._id, {
-      $set: {
-        registrationRank: rank,
-        "giveaway.isEligibleForFreeTrial": isEligible,
-        "giveaway.offerExpiresAt": offerExpiresAt,
-        "giveaway.freeTrialDurationDays": config.milestone.grantDurationDays || 30
-      }
-    });
+      const rank = config.milestone.currentCount;
+      const isEligible = rank <= (config.milestone.targetUserCount || 1000);
+      const offerExpiresAt = new Date();
+      offerExpiresAt.setDate(offerExpiresAt.getDate() + 3);
 
-    logger.info(`Milestone eligibility assigned to User ${user._id} (Rank: ${rank}, Eligible: ${isEligible})`);
+      user = await User.findByIdAndUpdate(user._id, {
+        $set: {
+          registrationRank: rank,
+          "giveaway.isEligibleForFreeTrial": isEligible,
+          "giveaway.offerExpiresAt": offerExpiresAt,
+          "giveaway.freeTrialDurationDays": config.milestone.grantDurationDays || 30
+        }
+      }, { new: true });
+
+      logger.info(`Milestone eligibility assigned to User ${user._id} (Rank: ${rank}, Eligible: ${isEligible})`);
+    }
   }
 
   return {
@@ -199,155 +204,6 @@ async function verifyPhoneOtpUnified(phone, otp, req) {
     isFirstVerification,
   };
 }
-
-// async function verifyPhoneTestOtpUnified(phone, otp, req) {
-//   // 1️⃣ Normalize phone (VERY IMPORTANT)
-//   const normalizedPhone = normalizePhone(phone);
-//   if (!normalizedPhone) throw new Error("Invalid phone number");
-
-//   // 2️⃣ Redis OTP check
-//   const redisKey = `login:${normalizedPhone}`;
-//   const storedOtp = await redis.get(redisKey);
-//   if (!storedOtp || storedOtp !== otp) {
-//     throw new Error("Invalid OTP");
-//   }
-
-//   // 3️⃣ Extract Device Info from Flutter Request
-//   // Frontend se ye fields body mein bhejne honge (deviceId, deviceName, platform, os)
-//   const { deviceId, deviceName, platform, os } = req.body;
-//   const currentIp =
-//     req.ip || req.headers["x-forwarded-for"] || req.socket.remoteAddress;
-
-//   const phoneHash = hashPhone(normalizedPhone);
-
-//   let user = await User.findOne({ phone: normalizedPhone });
-//   const isFirstVerification = !user || !user.isPhoneVerified; // Milestone logic fix
-//   // const isNewUser = !user;
-
-//   if (!user) {
-//     user = await User.create({
-//       phone: normalizedPhone,
-//       phoneHash: phoneHash,
-//     });
-//   }
-
-//   // ACCOUNT STATE CHECK (CRITICAL)
-//   // if (user.banDetails?.isBanned) {
-//   //   throw new Error("Your account has been banned. Please contact support.");
-//   // }
-//   // if (
-//   //   user.suspensionDetails?.isSuspended &&
-//   //   user.suspensionDetails.suspendUntil > new Date()
-//   // ) {
-//   //   throw new Error(
-//   //     `Your account is suspended until ${user.suspensionDetails.suspendUntil.toISOString()}`
-//   //   );
-//   // }
-
-//   // 4️⃣ Auth Tokens Generation (Existing)
-//   const accessToken = utils.generateAccessToken(user);
-//   const refreshTokenRaw = utils.generateRefreshToken();
-//   const refreshHash = utils.hashToken(refreshTokenRaw);
-//   const expiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
-
-//   // 5️⃣ SESSION & HISTORY LOGIC
-//   const sessionData = {
-//     deviceId: deviceId || "unknown",
-//     deviceName: deviceName || "Unknown Device",
-//     platform: platform || "web",
-//     os: os || "Unknown OS",
-//     lastIp: currentIp,
-//     lastUsedAt: new Date(),
-//     isActive: true,
-//   };
-
-//   const historyEntry = {
-//     ip: currentIp,
-//     device: deviceName || "Unknown Device",
-//     timestamp: new Date(),
-//     authMethod: "phone",
-//     status: "success",
-//   };
-
-//   // 6️⃣ UPDATE USER (Atomic Update with Sessions & History)
-//   const updateQuery = {
-//     $set: {
-//       phone: normalizedPhone,
-//       phoneHash: phoneHash,
-//       isPhoneVerified: true,
-//       isNewUser: false,
-//       lastLoginAt: new Date(),
-//       currentIp: currentIp, // New Field
-//       lastUsedDevice: deviceName, // New Field
-//     },
-//     $push: {
-//       refreshTokens: { tokenHash: refreshHash, expiresAt },
-//       loginHistory: { $each: [historyEntry], $slice: -15 }, // Last 15 login history rakhega
-//     },
-//   };
-
-//   // Session logic: Agar deviceId pehle se hai toh update, warna push
-//   // Mongoose mein array of objects update karne ke liye ye best way hai:
-//   user = await User.findById(user._id, { new: true });
-//   const existingSessionIndex = user.sessions.findIndex(
-//     (s) => s.deviceId === deviceId,
-//   );
-
-//   if (existingSessionIndex !== -1) {
-//     user.sessions[existingSessionIndex] = sessionData;
-//   } else {
-//     user.sessions.push(sessionData);
-//     if (user.sessions.length > 5) user.sessions.shift(); // Limit 5 devices per user
-//   }
-
-//   // Final Save with all other updates
-//   Object.assign(user, updateQuery.$set);
-//   user.refreshTokens.push(updateQuery.$push.refreshTokens);
-//   user.loginHistory.push(historyEntry);
-//   if (user.loginHistory.length > 15) user.loginHistory.shift();
-
-//   await user.save();
-
-//   // 7️⃣ REST OF YOUR LOGIC (Profile, Blocked, Subscription...)
-//   const profile = await profileModel
-//     .findOneAndUpdate(
-//       { userId: user._id },
-//       { $set: { "onboardingProgress.phoneVerified": true } },
-//       { upsert: true, new: true, setDefaultsOnInsert: true },
-//     )
-//     .lean();
-
-//   const [blockedContacts, blockedUser] = await Promise.all([
-//     BlockedContact.find({ userId: user._id }).lean(),
-//     Block.find({ blockerId: user._id }).lean(),
-//   ]);
-
-//   let subData = await UserSubscription.findOne({ userId: user._id });
-//   if (!subData) subData = await UserSubscription.create({ userId: user._id });
-//   subData.resetIfNeeded();
-
-//   // v3 Milestone: Grant premium to first 1000 users (Test mode)
-//   if (isFirstVerification) {
-//     await subscriptionService
-//       .handleMilestoneGrant(user._id)
-//       .catch((err) => console.error(err));
-//   }
-
-//   await redis.del(redisKey);
-
-//   return {
-//     accessToken,
-//     refreshToken: refreshTokenRaw,
-//     isNewUser: !user.firstName,
-//     user: await formatProfileResponse(
-//       user,
-//       profile,
-//       blockedContacts,
-//       blockedUser,
-//       req,
-//     ),
-//   };
-// }
 
 async function verifyPhoneTestOtpUnified(phone, otp, req) {
   // 1️⃣ Normalize phone (VERY IMPORTANT)
@@ -493,25 +349,29 @@ async function verifyPhoneTestOtpUnified(phone, otp, req) {
   // ➕ Initiative 3: First 1000 Users Milestone Eligibility (Test Mode)
   if (isFirstVerification) {
     const SubscriptionConfig = require("../subscription/models_v3/SubscriptionConfig");
-    const config = await SubscriptionConfig.findOneAndUpdate(
-      {},
-      { $inc: { "milestone.currentCount": 1 } },
-      { new: true, upsert: true }
-    );
+    const existingConfig = await SubscriptionConfig.getOrCreate();
 
-    const rank = config.milestone.currentCount;
-    const isEligible = rank <= (config.milestone.targetUserCount || 1000);
-    const offerExpiresAt = new Date();
-    offerExpiresAt.setDate(offerExpiresAt.getDate() + 3);
+    if (existingConfig && existingConfig.milestone && existingConfig.milestone.isActive) {
+      const config = await SubscriptionConfig.findOneAndUpdate(
+        {},
+        { $inc: { "milestone.currentCount": 1 } },
+        { new: true, upsert: true }
+      );
 
-    await User.findByIdAndUpdate(user._id, {
-      $set: {
-        registrationRank: rank,
-        "giveaway.isEligibleForFreeTrial": isEligible,
-        "giveaway.offerExpiresAt": offerExpiresAt,
-        "giveaway.freeTrialDurationDays": config.milestone.grantDurationDays || 30
-      }
-    });
+      const rank = config.milestone.currentCount;
+      const isEligible = rank <= (config.milestone.targetUserCount || 1000);
+      const offerExpiresAt = new Date();
+      offerExpiresAt.setDate(offerExpiresAt.getDate() + 3);
+
+      await User.findByIdAndUpdate(user._id, {
+        $set: {
+          registrationRank: rank,
+          "giveaway.isEligibleForFreeTrial": isEligible,
+          "giveaway.offerExpiresAt": offerExpiresAt,
+          "giveaway.freeTrialDurationDays": config.milestone.grantDurationDays || 30
+        }
+      });
+    }
   }
 
   await redis.del(redisKey);
@@ -556,69 +416,6 @@ async function verifyPhoneOtp(phone, otp) {
 
   return user;
 }
-
-// async function sendEmailOtp(token, email) {
-
-//   const decoded = utils.verifyToken(token);
-//   const user = await User.findById(decoded.userId);
-
-//   if (!user) throw new Error("User not found");
-//   if (!user.isPhoneVerified) {
-//     throw new Error("Phone must be verified before email verification");
-//   }
-
-//   const existing = await User.findOne({ email, _id: { $ne: user._id } });
-//   if (existing) {
-//     throw new Error("Email already in use");
-//   }
-
-//   user.email = email;
-//   await user.save();
-
-//   const otp = utils.generateOtp();
-
-//   const redisKey = `user:email:otp:${user._id.toString()}`;
-//   console.log("SETTING OTP IN REDIS:", redisKey);
-//   await redis.set(redisKey, {otp}, { EX: EMAIL_OTP_TTL_MS / 1000 });
-
-//   const subject = "Your verification code";
-//   const text = `Your email verification code is ${otp}`;
-//   await utils.sendEmail(email, subject, text);
-
-//   return { ok: true };
-// }
-
-// async function verifyEmailOtp(token, otp) {
-//   const decoded = utils.verifyToken(token);
-//   const user = await User.findById(decoded.userId);
-
-//   if (!user) throw new Error("User not found");
-
-//   const redisKey = `user:email:otp:${user._id}`;
-// console.log("🔥 GETTING OTP IN REDIS:", redisKey);
-//   const storedOtp = await redis.get(redisKey);
-//   if (!storedOtp) throw new Error("OTP expired");
-//   if (String(otp) !== String(storedOtp)) throw new Error("Invalid OTP");
-
-//   user.isEmailVerified = true;
-//   await user.save();
-
-//   await redis.del(redisKey);
-
-//   const [profile, blockedContacts, blockedUser] = await Promise.all([
-//     profileModel.findOneAndUpdate(
-//       { userId: user._id },
-//       { $set: { "onboardingProgress.emailVerified": true } },
-//       { upsert: true, new: true, lean: true }
-//     ),
-//     BlockedContact.find({ userId: user._id }).lean(),
-//     Block.find({ blockerId: user._id }).lean()
-//   ]);
-
-//   return {
-//     user: formatUserProfile(user, profile, blockedContacts, blockedUser)
-//   };
-// }
 
 async function verifyEmailOtp(token, otp, req) {
   const decoded = utils.verifyToken(token);
@@ -946,200 +743,3 @@ module.exports = {
   sendPhoneOtpTest,
   // socialAuthHandler
 };
-
-// async function verifyEmailOtp(userId, otp) {
-//   const user = await User.findById(userId);
-//   if (!user) throw new Error("User not found");
-
-//   if (!user.emailOtpExpires || Date.now() > user.emailOtpExpires) {
-//     throw new Error("OTP expired or not found");
-//   }
-
-//   // const valid = await utils.verifyOtpHash(otp, user.emailOtpHash);
-//   // if (!valid) throw new Error("Invalid OTP");
-
-//   // user.isEmailVerified/* = true;
-//   user.emailOtpHash = undefined;
-//   user.emailOtpExpires = undefined;
-
-//   // create refresh token and access token (email verified => completed signup)
-//   const accessToken = utils.generateAccessToken(user);
-//   const refreshTokenRaw = utils.generateRefreshToken();
-//   const refreshTokenHash = utils.hashToken(refreshTokenRaw);
-//   user.refreshTokens.push({
-//     tokenHash: refreshTokenHash,
-//     expiresAt: Date.now() + REFRESH_TOKEN_TTL_MS
-//   });
-
-//   await user.save();
-
-//   return { user, accessToken, refreshToken: refreshTokenRaw };
-// }
-
-// login: send otp to phone (if not phone verified, still allow OTP to login? you said login with phone OTP)
-// async function loginSendOtp(phone) {
-//   // must exist; create if not
-//   let user = await User.findOne({ phone });
-//   if (!user) {
-//     user = await User.create({ phone });
-//   }
-
-//   const otp = utils.generateOtp();
-//   // const otpHash = await utils.hashOtp(otp);
-//   user.phoneOtp = otp;
-//   user.phoneOtpExpires = Date.now() + PHONE_OTP_TTL_MS;
-//   await user.save();
-
-//   const message = `Your login code is ${otp}`;
-//   await utils.sendSms(phone, message);
-
-//   return { ok: true };
-// }
-
-// async function loginVerifyOtp(phone, otp) {
-//   const user = await User.findOne({ phone });
-//   if (!user) throw new Error("User not found");
-
-//   // check OTP expiration
-//   if (!user.phoneOtp || !user.phoneOtpExpires || Date.now() > user.phoneOtpExpires) {
-//     throw new Error("OTP expired or not found");
-//   }
-
-//   // compare raw OTP
-//   if (otp !== user.phoneOtp) {
-//     throw new Error("Invalid OTP");
-//   }
-
-//   // mark phone verified
-//   user.isPhoneVerified = true;
-
-//   // clear OTP fields
-//   // user.phoneOtp = undefined;
-//   // user.phoneOtpExpires = undefined;
-
-//   // generate tokens
-//   const accessToken = utils.generateAccessToken(user);
-//   const refreshTokenRaw = utils.generateRefreshToken();
-//   const refreshTokenHash = utils.hashToken(refreshTokenRaw);
-
-//   user.refreshTokens.push({
-//     tokenHash: refreshTokenHash,
-//     expiresAt: Date.now() + REFRESH_TOKEN_TTL_MS
-//   });
-
-//   await user.save();
-
-//   return { user, accessToken, refreshToken: refreshTokenRaw };
-// }
-
-// login verify: if user is phone verified, issue tokens; if not phone verified but OTP matched, mark phone verified and issue tokens?
-// async function loginVerifyOtp(phone, otp) {
-//   const user = await User.findOne({ phone });
-//   if (!user) throw new Error("User not found");
-
-//   if (!user.phoneOtpExpires || Date.now() > user.phoneOtpExpires) {
-//     throw new Error("OTP expired or not found");
-//   }
-
-//   // const valid = await utils.verifyOtpHash(otp, user.phoneOtpHash);
-//   // if (!valid) throw new Error("Invalid OTP");
-
-//   // mark phone verified if not already
-//   user.isPhoneVerified = true;
-//   user.phoneOtpHash = undefined;
-//   user.phoneOtpExpires = undefined;
-
-//   // create tokens
-//   const accessToken = utils.generateAccessToken(user);
-//   const refreshTokenRaw = utils.generateRefreshToken();
-//   const refreshTokenHash = utils.hashToken(refreshTokenRaw);
-//   user.refreshTokens.push({
-//     tokenHash: refreshTokenHash,
-//     expiresAt: Date.now() + REFRESH_TOKEN_TTL_MS
-//   });
-
-//   await user.save();
-
-//   return { user, accessToken, refreshToken: refreshTokenRaw };
-// }
-
-// async function socialAuthHandler(email, provider, providerId) {
-//   let user = await User.findOne({ email });
-
-//   // If first time social login → create new user
-//   if (!user) {
-//     user = await User.create({
-//       email,
-//       isEmailVerified: true,
-//       social: {
-//         provider,
-//         providerId
-//       }
-//     });
-//   }
-
-//   // create access & refresh tokens
-//   const accessToken = utils.generateAccessToken(user);
-//   const refreshTokenRaw = utils.generateRefreshToken();
-//   const refreshTokenHash = utils.hashToken(refreshTokenRaw);
-
-//   user.refreshTokens.push({
-//     tokenHash: refreshTokenHash,
-//     expiresAt: Date.now() + REFRESH_TOKEN_TTL_MS
-//   });
-
-//   await user.save();
-
-//   return {
-//     userId: user._id,
-//     accessToken,
-//     refreshToken: refreshTokenRaw,
-//     isProfileCompleted: user.isProfileCompleted
-//   };
-// }
-// const { OAuth2Client } = require("google-auth-library");
-// const googleClient = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
-// module.exports.googleLogin = async (idToken) => {
-//   const ticket = await googleClient.verifyIdToken({
-//     idToken,
-//     audience: process.env.GOOGLE_CLIENT_ID
-//   });
-
-//   const payload = ticket.getPayload();
-//   if (!payload.email) throw new Error("Google email not found");
-
-//   return socialAuthHandler(
-//     payload.email,
-//     "google",
-//     payload.sub
-//   );
-// };
-// const fetch = require("node-fetch");
-// module.exports.facebookLogin = async (accessToken) => {
-//   const response = await fetch(
-//     `https://graph.facebook.com/me?access_token=${accessToken}&fields=id,email`
-//   );
-
-//   const data = await response.json();
-//   if (!data.email) throw new Error("Facebook email not found");
-
-//   return socialAuthHandler(
-//     data.email,
-//     "facebook",
-//     data.id
-//   );
-// };
-// const jwt = require("jsonwebtoken");
-// module.exports.appleLogin = async (idToken) => {
-//   const decoded = jwt.decode(idToken);
-
-//   if (!decoded || !decoded.email) {
-//     throw new Error("Apple email not found");
-//   }
-
-//   return socialAuthHandler(
-//     decoded.email,
-//     "apple",
-//     decoded.sub
-//   );
-// };

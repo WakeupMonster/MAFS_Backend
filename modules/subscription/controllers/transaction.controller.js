@@ -4,6 +4,7 @@ const User = require("../../auth/auth.model");
 const Profile = require("../../profile/profile.model");
 const mongoose = require("mongoose");
 const logger = require("../utils/logger");
+const productDisplayHelper = require("../utils/productDisplayHelper");
 
 const ADMIN_PLATFORM_VALUES = ["ADMIN", "admin_granted"];
 
@@ -138,7 +139,7 @@ exports.getTransactions = async (req, res, next) => {
     });
 
     // Enrich transactions with Net Revenue and Metadata
-    const enrichedTransactions = transactions.map(txn => {
+    let mappedTransactions = transactions.map(txn => {
       // Use stored amounts if available (new records), else calculate on the fly (legacy records)
       const grossAmount = txn.grossAmount || txn.amount || 0;
       const commissionRate = COMMISSION_RATES[txn.platform] || 0.30;
@@ -182,6 +183,8 @@ exports.getTransactions = async (req, res, next) => {
       };
     });
 
+    const finalizedTransactions = await productDisplayHelper.enrichWithDisplayName(mappedTransactions);
+
     return res.json({
       success: true,
       pagination: {
@@ -189,7 +192,7 @@ exports.getTransactions = async (req, res, next) => {
         totalPages: Math.ceil(total / parseInt(limit)),
         totalItems: total,
       },
-      transactions: enrichedTransactions,
+      transactions: finalizedTransactions,
     });
   } catch (err) {
     logger.error("Transaction list error:", err.message);
@@ -300,20 +303,12 @@ exports.getTransactionSummary = async (req, res, next) => {
     });
 
     // Product breakdown — lookup display names
-    const allProducts = await Product.find().lean();
-    const productNameMap = {};
-    allProducts.forEach(p => {
-      productNameMap[p.productKey] = p.displayName;
-      if (p.appleProductId) productNameMap[p.appleProductId] = p.displayName;
-      if (p.googleProductId) productNameMap[p.googleProductId] = p.displayName;
-    });
-
-    const productBreakdown = revenueByProduct.map(p => ({
+    const productBreakdown = await Promise.all(revenueByProduct.map(async p => ({
       productId: p._id,
-      displayName: productNameMap[p._id] || p._id,
+      displayName: await productDisplayHelper.resolveDisplayName(p._id),
       grossRevenue: parseFloat(p.grossRevenue.toFixed(2)),
       sales: p.sales,
-    }));
+    })));
 
     // Refund Rate
     const totalRefunds = refundStats[0]?.totalRefunds || 0;
@@ -396,36 +391,54 @@ exports.exportTransactionsCSV = async (req, res, next) => {
     // CSV Header
     const headers = [
       "Date",
+      "Created At",
       "User Nickname",
       "User Email",
       "Product ID",
+      "Display Name",
+      "Subscription ID",
       "Type",
-      "Gross Amount (AUD)",
+      "Currency",
+      "Gross Amount",
       "Commission",
-      "Net Amount (AUD)",
+      "Net Amount",
       "Platform",
+      "Environment",
       "Transaction ID",
+      "Original Transaction ID",
+      "Reason",
+      "Refund Amount",
       "Refund Reason",
     ].join(",");
 
+    const enrichedTransactions = await productDisplayHelper.enrichWithDisplayName(transactions);
+
     // CSV Rows
-    const rows = transactions.map(txn => {
-      const gross = txn.amount || 0;
+    const rows = enrichedTransactions.map(txn => {
+      const gross = txn.grossAmount || txn.amount || 0;
       const commissionRate = COMMISSION_RATES[txn.platform] || 0.30;
-      const commission = (gross * commissionRate).toFixed(2);
-      const net = (gross * (1 - commissionRate)).toFixed(2);
+      const commission = txn.commission !== undefined ? txn.commission : parseFloat((gross * commissionRate).toFixed(2));
+      const net = txn.netAmount !== undefined ? txn.netAmount : parseFloat((gross - commission).toFixed(2));
 
       return [
         txn.occurredAt ? new Date(txn.occurredAt).toISOString() : "",
+        txn.createdAt ? new Date(txn.createdAt).toISOString() : "",
         txn.userId?.nickname || "N/A",
         txn.userId?.email || "N/A",
         txn.productId || "",
+        txn.displayName || "",
+        txn.subscriptionId || "",
         txn.eventType || "",
+        txn.currency || "AUD",
         gross.toFixed(2),
-        commission,
-        net,
+        Number(commission).toFixed(2),
+        Number(net).toFixed(2),
         txn.platform || "",
-        txn.transactionId || txn.orderId || "",
+        txn.environment || "production",
+        txn.transactionId || txn.gatewayTransactionId || txn.orderId || txn.purchaseToken || "N/A",
+        txn.originalTransactionId || txn.transactionId || txn.gatewayTransactionId || txn.orderId || txn.purchaseToken || "N/A",
+        txn.reason || "",
+        txn.refundAmount !== undefined && txn.refundAmount !== null ? Number(txn.refundAmount).toFixed(2) : "",
         txn.refundReason || "",
       ].map(field => `"${String(field).replace(/"/g, '""')}"`).join(",");
     });

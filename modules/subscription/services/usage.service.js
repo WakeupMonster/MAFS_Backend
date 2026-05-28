@@ -9,6 +9,7 @@ const UserConsumableBalance = require("../models_v3/UserConsumableBalance");
 const Product = require("../models_v3/Product");
 const dateHelpers = require("../utils/dateHelpers");
 const featureService = require("./feature.service");
+const productDisplayHelper = require("../utils/productDisplayHelper");
 
 /**
  * Centalized service for usage tracking and enforcement.
@@ -129,7 +130,7 @@ class UsageService {
             data: {
                 isPremium,
                 planType: activeSub ? activeSub.planType : null,
-                displayName: activeSub?.customDisplayName || productInfo?.displayName || (activeSub ? "Support Team Grant" : null),
+                displayName: activeSub ? await productDisplayHelper.resolveDisplayName(activeSub.productId, activeSub.customDisplayName, activeSub.source) : null,
                 durationDays: productInfo?.durationDays || null,
                 subtitle: productInfo?.subtitle || null,
                 badge: productInfo?.badge || null,

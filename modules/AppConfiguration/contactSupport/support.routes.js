@@ -3,8 +3,19 @@ const controller = require("./support.controller");
 const authMiddleware = require("../../auth/auth.middleware");
 const { upload } = require("../../upload/upload.middleware");
 const { apiLimiter } = require("../../../common/middlewares/apiLimiter");
+const rateLimit = require("express-rate-limit");
 
-router.post("/", authMiddleware, apiLimiter("support_create", 3, 3600), controller.contactSupport);
+const createTicketLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000, // 1 hour window
+  max: 3, // start blocking after 3 requests
+  keyGenerator: (req) => req.user ? req.user._id.toString() : (req.headers['x-forwarded-for'] || req.socket.remoteAddress),
+  message: {
+    success: false,
+    message: "Too many support requests, please try again after an hour."
+  }
+});
+
+router.post("/", authMiddleware, createTicketLimiter, controller.contactSupport);
 router.get("/alltickets", authMiddleware, apiLimiter("support_list", 20, 60), controller.getAllTickets);
 router.get("/ticket/:ticketId", authMiddleware, apiLimiter("support_view", 20, 60), controller.getMyTicketById);
 router.post(
