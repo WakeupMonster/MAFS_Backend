@@ -98,16 +98,66 @@ async function fetchDashboardData(models, dateParams) {
         $facet: {
           current: [
             { $match: { createdAt: { $gte: startDate, $lte: endDate } } },
-            { $sort: { createdAt: -1 } },
-            { $group: { _id: "$reportedId", status: { $first: "$status" } } },
-            { $match: { status: "new" } },
+            {
+              $group: {
+                _id: "$reportedId",
+                reportCount: { $sum: 1 },
+                hasHighSeverity: {
+                  $max: {
+                    $cond: [
+                      {
+                        $and: [
+                          { $eq: ["$severity", "high"] },
+                          { $ne: ["$status", "resolved"] },
+                        ],
+                      },
+                      1,
+                      0,
+                    ],
+                  },
+                },
+              },
+            },
+            {
+              $match: {
+                $or: [
+                  { hasHighSeverity: 1 },
+                  { reportCount: { $gte: 5 } },
+                ],
+              },
+            },
             { $count: "n" },
           ],
           prev: [
             { $match: { createdAt: { $gte: prevStartDate, $lt: startDate } } },
-            { $sort: { createdAt: -1 } },
-            { $group: { _id: "$reportedId", status: { $first: "$status" } } },
-            { $match: { status: "new" } },
+            {
+              $group: {
+                _id: "$reportedId",
+                reportCount: { $sum: 1 },
+                hasHighSeverity: {
+                  $max: {
+                    $cond: [
+                      {
+                        $and: [
+                          { $eq: ["$severity", "high"] },
+                          { $ne: ["$status", "resolved"] },
+                        ],
+                      },
+                      1,
+                      0,
+                    ],
+                  },
+                },
+              },
+            },
+            {
+              $match: {
+                $or: [
+                  { hasHighSeverity: 1 },
+                  { reportCount: { $gte: 5 } },
+                ],
+              },
+            },
             { $count: "n" },
           ],
         },

@@ -147,7 +147,7 @@ exports.getAdvancedDashboardMetrics = async (req, res) => {
             { label: "Supercharge driving", value: `${consumablePct}%`, sub: "of revenue", trend: `${consumablePct}%`, isPositive: true, icon: "TrendingUp", color: "blue" },
             { label: "Female signups", value: `${fRS}`, sub: contextLabel, trend: fSignupTrend, isPositive: (fCPNum || 0) >= 0, icon: "Users", color: "orange", route: "/admin/management/users-management" },
             { label: "KYC pending", value: `${pendingKYC}`, sub: "Review now →", isPositive: false, icon: "ShieldAlert", color: "cyan", isActionable: true, route: "/admin/management/kyc-verifications" },
-            { label: "Users flagged", value: `${reportCountNew}`, sub: "Review now →", trend: reportTrendDisplay, isPositive: (reportTrendNum || 0) >= 0, icon: "Flag", color: "sky", isActionable: true, route: "/admin/management/profile-reports" },
+            { label: "Users flagged", value: `${reportCountNew}`, sub: "Review now →", trend: reportTrendDisplay, isPositive: (reportTrendNum || 0) <= 0, icon: "Flag", color: "sky", isActionable: true, route: "/admin/management/profile-reports" },
           ],
         },
         zoneB: {
