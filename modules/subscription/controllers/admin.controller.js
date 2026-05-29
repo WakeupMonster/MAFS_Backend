@@ -10,6 +10,9 @@ const UserConsumableBalance = require("../models_v3/UserConsumableBalance");
 const subscriptionService = require("../services/subscription.service");
 const UsageService = require("../services/usage.service");
 const logger = require("../utils/logger");
+const notificationService = require("../../notifications/notification.service");
+const { NOTIFICATION_TYPES } = require("../../notifications/notification.enums");
+const productDisplayHelper = require("../utils/productDisplayHelper");
 
 /**
  * 1. CONFIGURATION APIs
@@ -102,6 +105,12 @@ exports.updateProduct = async (req, res, next) => {
 };
 
 /**
+ * Normalize frontend planType values to internal format:
+ * ONE_MONTH → 1_MONTH
+ * THREE_MONTHS → 3_MONTH
+ */
+
+/**
  * 3. USER MANAGEMENT (Subscribers)
  */
 exports.listSubscribers = async (req, res, next) => {
@@ -110,10 +119,15 @@ exports.listSubscribers = async (req, res, next) => {
         const filter = {};
         if (status) filter.status = status;
         if (planType) {
-            if (planType === '1_MONTH') {
-                filter.planType = { $in: ['1_MONTH', '1 MONTH', 'MONTHLY', 'monthly', 'ONE_MONTH'] };
-            } else if (planType === '3_MONTH') {
-                filter.planType = { $in: ['3_MONTH', '3 MONTH', 'QUARTERLY', 'quarterly', 'THREE_MONTHS'] };
+            const upperPlan = planType.toUpperCase();
+            if (['1_MONTH', '1 MONTH', 'MONTHLY', 'ONE_MONTH', '1 MONTHS'].includes(upperPlan)) {
+                filter.planType = { $in: ['1_MONTH', '1 MONTH', '1 MONTHS', 'MONTHLY', 'monthly', 'ONE_MONTH'] };
+            } else if (['3_MONTH', '3 MONTH', '3 MONTHS', 'QUARTERLY', 'THREE_MONTHS'].includes(upperPlan)) {
+                filter.planType = { $in: ['3_MONTH', '3 MONTH', '3 MONTHS', 'QUARTERLY', 'quarterly', 'THREE_MONTHS'] };
+            } else if (['6_MONTH', '6 MONTH', '6 MONTHS', 'BIANNUALLY', 'SIX_MONTHS'].includes(upperPlan)) {
+                filter.planType = { $in: ['6_MONTH', '6 MONTH', '6 MONTHS', 'BIANNUALLY', 'SIX_MONTHS'] };
+            } else if (['12_MONTH', '12 MONTH', '12 MONTHS', 'ANNUALLY', 'YEARLY', 'TWELVE_MONTHS'].includes(upperPlan)) {
+                filter.planType = { $in: ['12_MONTH', '12 MONTH', '12 MONTHS', 'ANNUALLY', 'YEARLY', 'TWELVE_MONTHS'] };
             } else {
                 filter.planType = planType;
             }
@@ -177,9 +191,10 @@ exports.listSubscribers = async (req, res, next) => {
         }, {});
 
         // 5. Response ko enrich karo aur structure saaf karo
-        const enrichedSubs = subscriptions.map(sub => {
+        const enrichedSubs = await Promise.all(subscriptions.map(async (sub) => {
             const userProfile = sub.userId ? profileMap[sub.userId._id.toString()] : null;
             const isActuallyExpired = sub.expiresAt && new Date(sub.expiresAt) < new Date();
+            const displayName = await productDisplayHelper.resolveDisplayName(sub.productId, sub.customDisplayName, sub.source);
 
             const responseObj = {
                 user: {
@@ -190,13 +205,14 @@ exports.listSubscribers = async (req, res, next) => {
                     photo: userProfile?.photos?.[0]?.url || null
                 },
                 ...sub,
+                displayName,
                 isExpired: isActuallyExpired,
             };
 
             // Remove the redundant userId object to keep it clean
             delete responseObj.userId;
             return responseObj;
-        });
+        }));
 
         const now = new Date();
         const [total, totalActive, totalRevoked] = await Promise.all([
@@ -246,6 +262,13 @@ exports.getUserSubscriptionDetail = async (req, res, next) => {
             ...(subscription?._id ? { _id: { $ne: subscription._id } } : {})
         }).sort({ createdAt: -1 }).lean();
 
+        // Add displayName to subscription, history, and transactions
+        const [enrichedSubscription, enrichedHistory, enrichedTransactions] = await Promise.all([
+            subscription ? productDisplayHelper.enrichWithDisplayName([subscription]).then(res => res[0]) : null,
+            productDisplayHelper.enrichWithDisplayName(subscriptionHistory),
+            productDisplayHelper.enrichWithDisplayName(transactions)
+        ]);
+
         return res.json({
             success: true,
             data: {
@@ -255,10 +278,10 @@ exports.getUserSubscriptionDetail = async (req, res, next) => {
                     nickname: profile?.nickname,
                     photo: profile?.photos?.[0]?.url || null
                 },
-                subscription,
-                subscriptionHistory,
-                transactions,
-                recentTransactions: transactions, // Keep backward compatibility
+                subscription: enrichedSubscription,
+                subscriptionHistory: enrichedHistory,
+                transactions: enrichedTransactions,
+                recentTransactions: enrichedTransactions, // Keep backward compatibility
                 wallet
             }
         });
@@ -275,14 +298,25 @@ exports.manualGrant = async (req, res, next) => {
         const { userId } = req.params;
         const { planType, durationDays = 30, reason } = req.body;
 
+        // Force normalize legacy labels from frontend request
+        let normalizedPlanType = "1 MONTH";
+        if (planType) {
+            const upperPlan = planType.toUpperCase();
+            if (["MONTHLY", "ONE_MONTH", "1_MONTH", "1 MONTH"].includes(upperPlan)) normalizedPlanType = "1 MONTH";
+            else if (["QUARTERLY", "THREE_MONTHS", "3_MONTH", "3 MONTHS"].includes(upperPlan)) normalizedPlanType = "3 MONTHS";
+            else if (["BIANNUALLY", "SIX_MONTHS", "6_MONTH", "6 MONTHS"].includes(upperPlan)) normalizedPlanType = "6 MONTHS";
+            else if (["ANNUALLY", "YEARLY", "TWELVE_MONTHS", "12_MONTH", "12 MONTHS"].includes(upperPlan)) normalizedPlanType = "12 MONTHS";
+            else normalizedPlanType = planType;
+        }
+
         const expiresAt = new Date();
         expiresAt.setDate(expiresAt.getDate() + durationDays);
 
         const subscription = await Subscription.create({
             userId,
             platform: "admin_granted",
-            productId: `manual_${planType.toLowerCase()}`,
-            planType: planType || "MONTHLY",
+            productId: `manual_${normalizedPlanType.toLowerCase().replace(/ /g, '_')}`,
+            planType: normalizedPlanType,
             status: "ACTIVE",
             autoRenew: false,
             startedAt: new Date(),
@@ -301,7 +335,7 @@ exports.manualGrant = async (req, res, next) => {
             subscriptionId: subscription._id,
             platform: "ADMIN",
             eventType: "ADMIN_GRANT",
-            productId: `manual_${planType.toLowerCase()}`,
+            productId: `manual_${normalizedPlanType.toLowerCase().replace(/ /g, '_')}`,
             amount: 0, // Admin grants are free
             currency: "AUD",
             reason: reason || "Admin manual grant",
@@ -317,7 +351,9 @@ exports.manualGrant = async (req, res, next) => {
         await UsageService._syncPremiumState(userId, true);
         await subscriptionService._syncProfile(subscription);
 
-        return res.json({ success: true, message: "Subscription granted successfully", data: { subscription } });
+        const enrichedSubscription = await productDisplayHelper.enrichWithDisplayName([subscription.toObject()]).then(res => res[0]);
+
+        return res.json({ success: true, message: "Subscription granted successfully", data: { subscription: enrichedSubscription } });
     } catch (err) {
         next(err);
     }
@@ -357,6 +393,26 @@ exports.grantConsumables = async (req, res, next) => {
             isSandbox: false,
             occurredAt: new Date(),
         });
+
+        // 🔔 Send Push Notification to User
+        try {
+            const title = type === 'SUPER_KEEN' ? "✨ You received Super Keens!" : "🚀 You received Boosts!";
+            const message = type === 'SUPER_KEEN'
+                ? `You have been granted ${quantity} Super Keens by the admin.`
+                : `You have been granted ${quantity} Boosts by the admin.`;
+
+            await notificationService.sendAdminNotification({
+                userId,
+                title,
+                message,
+                data: {
+                    type: NOTIFICATION_TYPES.ADMIN_NOTIFICATION,
+                    cta: { action: "NAVIGATE_WALLET" },
+                },
+            });
+        } catch (notifErr) {
+            console.error("Consumable Grant Notification error (Non-blocking):", notifErr);
+        }
 
         return res.json({ success: true, message: "Consumables granted", wallet });
     } catch (err) {
@@ -511,14 +567,28 @@ exports.getDashboardStats = async (req, res, next) => {
             if (queryEndDate) endDate = new Date(queryEndDate);
         } else {
             // Fallbacks: handles "daily", "last7", "90", "1", etc.
-            if (timeFilter === 'daily' || timeFilter === '1') {
+            if (timeFilter === 'today' || timeFilter === 'daily' || timeFilter === '1') {
                 startDate = startOfToday;
+            } else if (timeFilter === 'yesterday') {
+                const yesterday = new Date(now);
+                yesterday.setDate(yesterday.getDate() - 1);
+                yesterday.setHours(0, 0, 0, 0);
+                startDate = yesterday;
+                endDate = new Date(yesterday);
+                endDate.setHours(23, 59, 59, 999);
             } else if (timeFilter === 'weekly' || timeFilter === 'last7' || timeFilter === '7') {
                 startDate = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
             } else if (timeFilter === 'last15' || timeFilter === '15') {
                 startDate = new Date(now.getTime() - 15 * 24 * 60 * 60 * 1000);
             } else if (timeFilter === 'last30' || timeFilter === '30') {
                 startDate = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+            } else if (timeFilter === 'last90' || timeFilter === '90') {
+                startDate = new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000);
+            } else if (timeFilter === 'thisMonth') {
+                startDate = startOfMonth;
+            } else if (timeFilter === 'lastMonth') {
+                startDate = startOfLastMonth;
+                endDate = new Date(now.getFullYear(), now.getMonth(), 0, 23, 59, 59, 999);
             } else if (timeFilter === 'allTime') {
                 startDate = new Date(0);
             } else if (!isNaN(timeFilter)) {
@@ -690,7 +760,6 @@ exports.getDashboardStats = async (req, res, next) => {
         // MRR Calculation & Product mapping
         const allProducts = await Product.find().lean();
         const priceMap = {};
-        const productNameMap = {};
         const categoryMap = {};
 
         allProducts.forEach(p => {
@@ -703,11 +772,6 @@ exports.getDashboardStats = async (req, res, next) => {
                 if (p.googleProductId) priceMap[p.googleProductId] = monthlyPrice;
             }
 
-            // Setup for Best Selling Products Names
-            productNameMap[p.productKey] = p.displayName;
-            if (p.appleProductId) productNameMap[p.appleProductId] = p.displayName;
-            if (p.googleProductId) productNameMap[p.googleProductId] = p.displayName;
-
             // Setup for Revenue Trend Categorization
             let category = "other";
             if (p.type === 'SUBSCRIPTION') category = p.planType || 'subscription';
@@ -718,16 +782,16 @@ exports.getDashboardStats = async (req, res, next) => {
             if (p.googleProductId) categoryMap[p.googleProductId] = category;
         });
 
-        const formattedBestSelling = bestSellingProducts.map(p => {
+        const formattedBestSelling = await Promise.all(bestSellingProducts.map(async (p) => {
             const isSub = categoryMap[p._id] !== 'consumable' && categoryMap[p._id] !== 'SUPER_KEEN' && categoryMap[p._id] !== 'BOOST';
             return {
                 productId: p._id,
-                displayName: productNameMap[p._id] || p._id,
+                displayName: await productDisplayHelper.resolveDisplayName(p._id),
                 productType: isSub ? 'Subscription' : 'Consumable',
                 salesCount: p.salesCount,
                 revenue: parseFloat(p.revenue.toFixed(2))
             };
-        });
+        }));
 
         let totalMRR = 0;
         activeSubscriptions.forEach(group => {
@@ -736,9 +800,13 @@ exports.getDashboardStats = async (req, res, next) => {
 
         // Format Trends Plan Distribution
         const validPlans = ["1_MONTH", "3_MONTH", "6_MONTH", "12_MONTH", "LIFETIME", "MILESTONE"];
-        const finalPlanDist = planDistribution
+        const finalPlanDist = await Promise.all(planDistribution
             .filter(p => p._id && validPlans.includes(p._id.toUpperCase()))
-            .map(p => ({ plan: p._id.toUpperCase(), count: p.count }));
+            .map(async (p) => {
+                const product = allProducts.find(prod => prod.planType === p._id.toUpperCase());
+                const displayName = product ? product.displayName : p._id.toUpperCase();
+                return { plan: p._id.toUpperCase(), displayName, count: p.count };
+            }));
 
         // Format Revenue Trend Chart
         const formattedRevTrend = {};
@@ -810,9 +878,9 @@ exports.getDashboardStats = async (req, res, next) => {
                     conversionRate: totalActiveUsers > 0 ? ((activeCountCurrent / totalActiveUsers * 100).toFixed(2) + "%") : "0%",
                     churnRate: activeCountStartOfMonth > 0 ? ((monthlyCancellations / activeCountStartOfMonth * 100).toFixed(1) + "%") : "0%",
                     milestone: {
-                        currentCount: milestoneCount,
+                        currentCount: config.milestone.currentCount,
                         targetCount: config.milestone.targetUserCount,
-                        percentage: (milestoneCount / config.milestone.targetUserCount * 100).toFixed(1)
+                        percentage: (config.milestone.currentCount / config.milestone.targetUserCount * 100).toFixed(1)
                     }
                 },
                 charts: {

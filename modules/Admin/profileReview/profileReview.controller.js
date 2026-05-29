@@ -664,6 +664,7 @@ const getReportedProfiles = async (req, res) => {
           reportCount: { $sum: 1 },
           reasons: { $addToSet: "$reason" },
           latestReport: { $first: "$createdAt" },
+          latestResolvedAt: { $max: "$resolvedAt" },
           latestStatus: { $first: "$status" },
           latestSeverity: { $first: "$severity" },
           latestResolvedAt: { $max: "$resolvedAt" },

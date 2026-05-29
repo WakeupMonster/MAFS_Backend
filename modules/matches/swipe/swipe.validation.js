@@ -3,7 +3,8 @@ const Joi = require("joi");
 module.exports.feed = (req, res, next) => {
   const schema = Joi.object({
     limit: Joi.number().min(1).max(100).optional(),
-    page: Joi.string().optional() // optional cursor for paging
+    page: Joi.string().optional(), // optional cursor for paging
+    refresh: Joi.boolean().optional() // force clear seen profiles & fetch fresh batch
   });
   const { error } = schema.validate(req.query);
   if (error) return res.status(400).json({ success: false, message: error.details[0].message });

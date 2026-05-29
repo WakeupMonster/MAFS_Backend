@@ -33,12 +33,23 @@ function calculateDistance(lat1, lon1, lat2, lon2) {
   return Math.round(R * c);
 }
 
-async function getFeedService(userId, limit, page) {
+async function getFeedService(userId, limit, page, isRefresh = false) {
   const CACHE_KEY = `feed:${userId.toString()}`;
   const SEEN_KEY = `feed:seen:${userId.toString()}`;
-  const CACHE_TTL = 60;
+  const CACHE_TTL = 3;
   const SEEN_TTL = 60 * 60 * 24;
   const skip = (page - 1) * limit;
+
+  // If user explicitly requests refresh, clear the seen profiles to ensure fresh batch
+  if (isRefresh && redis && page === 1) {
+    try {
+      await redis.del(CACHE_KEY);
+      await redis.del(EXCLUDE_KEY);
+      console.log(`[FEED] User ${userId} requested refresh — cleared CACHE_KEY & EXCLUDE_KEY (SEEN_KEY preserved)`);
+    } catch (err) {
+      console.error("Error clearing refresh cache:", err);
+    }
+  }
 
   // 1. Setup Subscription and Profile
   let [sub, myProfile] = await Promise.all([
@@ -67,7 +78,8 @@ async function getFeedService(userId, limit, page) {
   }
 
   // 3. Return from Cache if available (only page 1 — other pages always fresh)
-  if (redis && page === 1) {
+  // Skip cache if refresh was requested
+  if (redis && page === 1 && !isRefresh) {
     try {
       const cached = await redis.get(CACHE_KEY);
       if (cached) {
@@ -334,11 +346,16 @@ async function getFeedService(userId, limit, page) {
     profiles = [...profiles, ...additionalProfiles];
   }
 
-  // 7. HANDLE EXHAUSTION (RETRY)
-  // Check if normal db pool exhausted (ignoring explicitly fetched superlikes)
-  if (additionalProfiles.length === 0 && seenProfiles.length > 0 && page === 1) {
+  // 7. HANDLE EXHAUSTION (RETRY) — More aggressive retry logic
+  // Retry if regular pool is exhausted, even if we have some superlikers/boosted (not enough to satisfy limit)
+  const isPoolExhausted = additionalProfiles.length === 0 && seenProfiles.length > 0;
+  const isBelowLimit = profiles.length < limit;
+
+  if (isPoolExhausted && isBelowLimit && page === 1) {
     console.log(
-      `Pool exhausted for ${userId}. Resetting seenProfiles and retrying immediately...`,
+      `[FEED EXHAUST] Pool exhausted for ${userId}. ` +
+      `Current: ${profiles.length} profiles, Expected: ${limit}. ` +
+      `Resetting seenProfiles and retrying...`
     );
     if (redis) await redis.del(SEEN_KEY);
     seenProfiles = [];
@@ -348,6 +365,10 @@ async function getFeedService(userId, limit, page) {
     queryFilters.userId = { $nin: excludeForRetry };
     const retryProfiles = await runQuery(queryFilters);
     profiles = [...profiles, ...retryProfiles];
+
+    console.log(
+      `[FEED EXHAUST] Retry returned ${retryProfiles.length} profiles. Total now: ${profiles.length}`
+    );
   }
 
   if (profiles.length === 0) {

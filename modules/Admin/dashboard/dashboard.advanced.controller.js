@@ -50,9 +50,9 @@ exports.getAdvancedDashboardMetrics = async (req, res) => {
       deepConvoAggCount, ghostedUsersCount, swipesFacet, matchesFacet,
       matches7dDaily, swipes7dDaily, heatmapAgg, revenueFacet, signupGenderFacet,
       funnelCompletedProfiles, funnelSwipersCount,
-      funnelSubscribersCount, highReportedRange,
+      funnelSubscribersCount, highReportedRange, blocksRange
     } = await queries.fetchDashboardData(
-      { User, Profile, Match, Swipe, ChatMessage, Transaction, Report },
+      { User, Profile, Match, Swipe, ChatMessage, Transaction, Report, Block },
       { startDate, endDate, prevStartDate, prevEndDate, startOfYear, last30d, ghostingThresholdDate }
     );
 

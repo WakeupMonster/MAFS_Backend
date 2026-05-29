@@ -7,6 +7,12 @@ const { allowAdmin } = require("../../../common/middlewares/allowAdmin.middlewar
 // All routes are protected and admin-only
 router.use(auth, allowAdmin);
 
+// City management routes
+router.post("/cities", fakeProfileController.addCity);
+router.get("/cities", fakeProfileController.listCities);
+router.delete("/cities/:id", fakeProfileController.deleteCity);
+
+// Profile routes
 router.post("/bulk-create", fakeProfileController.bulkCreate);
 router.get("/", fakeProfileController.listAll);
 router.patch("/:id/toggle", fakeProfileController.toggleStatus);

@@ -4,6 +4,19 @@ const User = require("../../auth/auth.model");
 const Profile = require("../../profile/profile.model");
 const mongoose = require("mongoose");
 const logger = require("../utils/logger");
+const productDisplayHelper = require("../utils/productDisplayHelper");
+
+const ADMIN_PLATFORM_VALUES = ["ADMIN", "admin_granted"];
+
+const normalizePlatformFilter = (platform) => {
+  if (!platform) return null;
+  const normalized = String(platform).toLowerCase();
+  if (normalized === "admin" || normalized === "admin_granted") {
+    // frontend sends admin; legacy DB may use ADMIN or admin_granted
+    return { $in: ADMIN_PLATFORM_VALUES };
+  }
+  return platform;
+};
 
 /**
  * Commission rates for Net Revenue calculation.
@@ -28,6 +41,7 @@ exports.getTransactions = async (req, res, next) => {
       productId,
       status,
       search,
+      itemType,
       page = 1,
       limit = 20,
       startDate,
@@ -38,9 +52,18 @@ exports.getTransactions = async (req, res, next) => {
 
     // Build filter
     const filter = {};
-    if (eventType) filter.eventType = eventType;
-    if (platform) filter.platform = platform;
-    if (productId) filter.productId = productId;
+    if (eventType) {
+      filter.eventType = eventType;
+    } else if (itemType) {
+      if (itemType === 'CONSUMABLE') {
+        filter.eventType = { $in: ["CONSUMABLE_PURCHASE", "ADMIN_CONSUMABLE_GRANT", "CONSUMABLE_REFUND"] };
+      } else if (itemType === 'SUBSCRIPTION') {
+        filter.eventType = { $nin: ["CONSUMABLE_PURCHASE", "ADMIN_CONSUMABLE_GRANT", "CONSUMABLE_REFUND"] };
+      }
+    }
+    const platformFilter = normalizePlatformFilter(platform);
+    if (platformFilter) filter.platform = platformFilter;
+    if (productId && productId !== 'all') filter.productId = productId;
     if (startDate && endDate) {
       filter.occurredAt = {
         $gte: new Date(startDate),
@@ -111,8 +134,21 @@ exports.getTransactions = async (req, res, next) => {
       SubscriptionTransaction.countDocuments(filter),
     ]);
 
+    const userIds = transactions
+      .map(txn => txn.userId && txn.userId._id ? txn.userId._id : null)
+      .filter(Boolean);
+
+    const profiles = await Profile.find({ userId: { $in: userIds } })
+      .select("userId nickname photos verification.selfieUrl")
+      .lean();
+
+    const profileMap = {};
+    profiles.forEach(p => {
+      profileMap[p.userId.toString()] = p;
+    });
+
     // Enrich transactions with Net Revenue and Metadata
-    const enrichedTransactions = transactions.map(txn => {
+    let mappedTransactions = transactions.map(txn => {
       // Use stored amounts if available (new records), else calculate on the fly (legacy records)
       const grossAmount = txn.grossAmount || txn.amount || 0;
       const commissionRate = COMMISSION_RATES[txn.platform] || 0.30;
@@ -122,10 +158,20 @@ exports.getTransactions = async (req, res, next) => {
       const commission = txn.commission !== undefined ? txn.commission : calculatedCommission;
       const netAmount = txn.netAmount !== undefined ? txn.netAmount : calculatedNet;
 
+      let userObj = txn.userId;
+      if (userObj && userObj._id) {
+        const p = profileMap[userObj._id.toString()];
+        if (p) {
+          userObj.nickname = p.nickname || userObj.nickname;
+          userObj.selfieUrl = p.verification?.selfieUrl || null;
+          userObj.photos = p.photos || [];
+        }
+      }
+
       return {
         _id: txn._id,
         date: txn.occurredAt,
-        user: txn.userId,
+        user: userObj,
         productId: txn.productId,
         eventType: txn.eventType,
         grossAmount: grossAmount,
@@ -146,6 +192,8 @@ exports.getTransactions = async (req, res, next) => {
       };
     });
 
+    const finalizedTransactions = await productDisplayHelper.enrichWithDisplayName(mappedTransactions);
+
     return res.json({
       success: true,
       pagination: {
@@ -153,7 +201,7 @@ exports.getTransactions = async (req, res, next) => {
         totalPages: Math.ceil(total / parseInt(limit)),
         totalItems: total,
       },
-      transactions: enrichedTransactions,
+      transactions: finalizedTransactions,
     });
   } catch (err) {
     logger.error("Transaction list error:", err.message);
@@ -264,20 +312,12 @@ exports.getTransactionSummary = async (req, res, next) => {
     });
 
     // Product breakdown — lookup display names
-    const allProducts = await Product.find().lean();
-    const productNameMap = {};
-    allProducts.forEach(p => {
-      productNameMap[p.productKey] = p.displayName;
-      if (p.appleProductId) productNameMap[p.appleProductId] = p.displayName;
-      if (p.googleProductId) productNameMap[p.googleProductId] = p.displayName;
-    });
-
-    const productBreakdown = revenueByProduct.map(p => ({
+    const productBreakdown = await Promise.all(revenueByProduct.map(async p => ({
       productId: p._id,
-      displayName: productNameMap[p._id] || p._id,
+      displayName: await productDisplayHelper.resolveDisplayName(p._id),
       grossRevenue: parseFloat(p.grossRevenue.toFixed(2)),
       sales: p.sales,
-    }));
+    })));
 
     // Refund Rate
     const totalRefunds = refundStats[0]?.totalRefunds || 0;
@@ -317,11 +357,20 @@ exports.getTransactionSummary = async (req, res, next) => {
  */
 exports.exportTransactionsCSV = async (req, res, next) => {
   try {
-    const { startDate, endDate, eventType, platform } = req.query;
+    const { startDate, endDate, eventType, platform, itemType } = req.query;
 
     const filter = {};
-    if (eventType) filter.eventType = eventType;
-    if (platform) filter.platform = platform;
+    if (eventType) {
+      filter.eventType = eventType;
+    } else if (itemType) {
+      if (itemType === 'CONSUMABLE') {
+        filter.eventType = { $in: ["CONSUMABLE_PURCHASE", "ADMIN_CONSUMABLE_GRANT", "CONSUMABLE_REFUND"] };
+      } else if (itemType === 'SUBSCRIPTION') {
+        filter.eventType = { $nin: ["CONSUMABLE_PURCHASE", "ADMIN_CONSUMABLE_GRANT", "CONSUMABLE_REFUND"] };
+      }
+    }
+    const platformFilter = normalizePlatformFilter(platform);
+    if (platformFilter) filter.platform = platformFilter;
     if (startDate && endDate) {
       filter.occurredAt = {
         $gte: new Date(startDate),
@@ -334,39 +383,79 @@ exports.exportTransactionsCSV = async (req, res, next) => {
       .sort({ occurredAt: -1 })
       .lean();
 
+    const userIds = transactions
+      .map(txn => txn.userId && txn.userId._id ? txn.userId._id : null)
+      .filter(Boolean);
+
+    const profiles = await Profile.find({ userId: { $in: userIds } })
+      .select("userId nickname")
+      .lean();
+
+    const profileMap = {};
+    profiles.forEach(p => {
+      profileMap[p.userId.toString()] = p;
+    });
+
+    transactions.forEach(txn => {
+      if (txn.userId && txn.userId._id) {
+        const p = profileMap[txn.userId._id.toString()];
+        if (p && p.nickname) {
+          txn.userId.nickname = p.nickname;
+        }
+      }
+    });
+
     // CSV Header
     const headers = [
       "Date",
+      "Created At",
       "User Nickname",
       "User Email",
       "Product ID",
+      "Display Name",
+      "Subscription ID",
       "Type",
-      "Gross Amount (AUD)",
+      "Currency",
+      "Gross Amount",
       "Commission",
-      "Net Amount (AUD)",
+      "Net Amount",
       "Platform",
+      "Environment",
       "Transaction ID",
+      "Original Transaction ID",
+      "Reason",
+      "Refund Amount",
       "Refund Reason",
     ].join(",");
 
+    const enrichedTransactions = await productDisplayHelper.enrichWithDisplayName(transactions);
+
     // CSV Rows
-    const rows = transactions.map(txn => {
-      const gross = txn.amount || 0;
+    const rows = enrichedTransactions.map(txn => {
+      const gross = txn.grossAmount || txn.amount || 0;
       const commissionRate = COMMISSION_RATES[txn.platform] || 0.30;
-      const commission = (gross * commissionRate).toFixed(2);
-      const net = (gross * (1 - commissionRate)).toFixed(2);
+      const commission = txn.commission !== undefined ? txn.commission : parseFloat((gross * commissionRate).toFixed(2));
+      const net = txn.netAmount !== undefined ? txn.netAmount : parseFloat((gross - commission).toFixed(2));
 
       return [
         txn.occurredAt ? new Date(txn.occurredAt).toISOString() : "",
+        txn.createdAt ? new Date(txn.createdAt).toISOString() : "",
         txn.userId?.nickname || "N/A",
         txn.userId?.email || "N/A",
         txn.productId || "",
+        txn.displayName || "",
+        txn.subscriptionId || "",
         txn.eventType || "",
+        txn.currency || "AUD",
         gross.toFixed(2),
-        commission,
-        net,
+        Number(commission).toFixed(2),
+        Number(net).toFixed(2),
         txn.platform || "",
-        txn.transactionId || txn.orderId || "",
+        txn.environment || "production",
+        txn.transactionId || txn.gatewayTransactionId || txn.orderId || txn.purchaseToken || "N/A",
+        txn.originalTransactionId || txn.transactionId || txn.gatewayTransactionId || txn.orderId || txn.purchaseToken || "N/A",
+        txn.reason || "",
+        txn.refundAmount !== undefined && txn.refundAmount !== null ? Number(txn.refundAmount).toFixed(2) : "",
         txn.refundReason || "",
       ].map(field => `"${String(field).replace(/"/g, '""')}"`).join(",");
     });

@@ -1,6 +1,6 @@
 const express = require("express");
 const router = express.Router();
-const socketRoutes = require("./socket.routes");
+// const socketRoutes = require("./socket.routes");
 
 router.use("/auth", require("../../modules/auth/auth.routes"));
 router.use("/profile", require("../../modules/profile/profile.routes"));
@@ -13,7 +13,7 @@ router.use(
   require("../../modules/notifications/notification.routes"),
 );
 router.use("/giveaway", require("../../modules/auth/user.spinwheel.route"));
-router.use("/socket", socketRoutes);
+// router.use("/socket", socketRoutes);
 router.use("/fwb", require("../../modules/fwb/fwb.routes"));
 router.use("/chat", require("../../modules/matches/chat/chat.route"));
 router.use(

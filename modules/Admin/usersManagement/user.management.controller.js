@@ -155,127 +155,139 @@ module.exports.GETAllUsers = async (req, res) => {
       }
     }
 
-    // Facet Stage
-    pipeline.push({
-      $facet: {
-        data: [
-          { $sort: { createdAt: -1 } },
-          { $skip: skip },
-          { $limit: limit },
-          // If we didn't lookup profiles earlier, we do it now (only for the 10 paginated users!)
-          ...(!needsEarlyProfileLookup
-            ? [
-              {
-                $lookup: {
-                  from: "profiles",
-                  localField: "_id",
-                  foreignField: "userId",
-                  as: "profile",
-                },
-              },
-              {
-                $unwind: {
-                  path: "$profile",
-                  preserveNullAndEmptyArrays: true,
-                },
-              },
-              {
-                $addFields: {
-                  "profile.calculatedAge": {
-                    $cond: {
-                      if: {
-                        $and: [
-                          { $gt: ["$profile.dob", null] },
-                          { $toLower: "$profile.dob" },
-                        ],
-                      },
-                      then: {
-                        $dateDiff: {
-                          startDate: { $toDate: "$profile.dob" },
-                          endDate: "$$NOW",
-                          unit: "year",
-                        },
-                      },
-                      else: null,
-                    },
-                  },
-                },
-              },
-            ]
-            : []),
+    const dataPipeline = [
+      { $sort: { createdAt: -1 } },
+      { $skip: skip },
+      { $limit: limit },
+      // If we didn't lookup profiles earlier, we do it now (only for the 10 paginated users!)
+      ...(!needsEarlyProfileLookup
+        ? [
           {
-            $project: {
-              _id: 1,
-              role: 1,
-              account: {
-                status: "$accountStatus",
-                isPremium: "$isPremium",
-                phone: "$phone",
-                email: "$email",
-                authMethod: "$authMethod",
-                banDetails: "$banDetails",
-                deactivationDetails: "$deactivationDetails",
-                deletionDetails: "$deletionDetails",
-                suspensionDetails: {
-                  $mergeObjects: [
-                    "$suspensionDetails",
-                    {
-                      suspendedByName: {
-                        $ifNull: [
-                          "$suspendedByProfile.nickname",
-                          "$suspendedByProfile.fullName",
-                        ],
-                      },
-                      suspendedByEmail: "$suspendedByUser.email",
-                    },
-                  ],
-                },
-                createdAt: "$createdAt",
-              },
-              profile: {
-                profileId: "$profile._id",
-                nickname: "$profile.nickname",
-                dob: "$profile.dob",
-                age: "$profile.calculatedAge",
-                gender: "$profile.gender",
-                height: "$profile.height",
-                about: "$profile.about",
-                jobTitle: "$profile.jobTitle",
-                company: "$profile.company",
-                totalCompletion: "$profile.onboardingProgress.totalCompletion",
-              },
-              location: "$profile.location",
-              photos: { $arrayElemAt: ["$profile.photos.url", 0] },
-              lastProfileUpdate: "$profile.lastProfileUpdate",
-              createdAt: 1,
-              lastLoginAt: 1,
+            $lookup: {
+              from: "profiles",
+              localField: "_id",
+              foreignField: "userId",
+              as: "profile",
             },
           },
-        ],
-        total: [{ $count: "count" }],
-        activeCount: [
-          { $match: { accountStatus: "active" } },
-          { $count: "count" },
-        ],
-        premiumCount: [{ $match: { isPremium: true } }, { $count: "count" }],
-        bannedCount: [
-          { $match: { accountStatus: "banned" } },
-          { $count: "count" },
-        ],
-        suspendedCount: [
-          { $match: { accountStatus: "suspended" } },
-          { $count: "count" },
-        ],
+          {
+            $unwind: {
+              path: "$profile",
+              preserveNullAndEmptyArrays: true,
+            },
+          },
+          {
+            $addFields: {
+              "profile.calculatedAge": {
+                $cond: {
+                  if: {
+                    $and: [
+                      { $gt: ["$profile.dob", null] },
+                      { $toLower: "$profile.dob" },
+                    ],
+                  },
+                  then: {
+                    $dateDiff: {
+                      startDate: { $toDate: "$profile.dob" },
+                      endDate: "$$NOW",
+                      unit: "year",
+                    },
+                  },
+                  else: null,
+                },
+              },
+            },
+          },
+        ]
+        : []),
+      {
+        $project: {
+          _id: 1,
+          role: 1,
+          account: {
+            status: "$accountStatus",
+            isPremium: "$isPremium",
+            phone: "$phone",
+            email: "$email",
+            authMethod: "$authMethod",
+            banDetails: "$banDetails",
+            deactivationDetails: "$deactivationDetails",
+            deletionDetails: "$deletionDetails",
+            suspensionDetails: {
+              $mergeObjects: [
+                "$suspensionDetails",
+                {
+                  suspendedByName: {
+                    $ifNull: [
+                      "$suspendedByProfile.nickname",
+                      "$suspendedByProfile.fullName",
+                    ],
+                  },
+                  suspendedByEmail: "$suspendedByUser.email",
+                },
+              ],
+            },
+            createdAt: "$createdAt",
+          },
+          profile: {
+            profileId: "$profile._id",
+            nickname: "$profile.nickname",
+            dob: "$profile.dob",
+            age: "$profile.calculatedAge",
+            gender: "$profile.gender",
+            height: "$profile.height",
+            about: "$profile.about",
+            jobTitle: "$profile.jobTitle",
+            company: "$profile.company",
+            totalCompletion: "$profile.onboardingProgress.totalCompletion",
+          },
+          location: "$profile.location",
+          photos: { $arrayElemAt: ["$profile.photos.url", 0] },
+          lastProfileUpdate: "$profile.lastProfileUpdate",
+          createdAt: 1,
+          lastLoginAt: 1,
+        },
       },
-    });
+    ];
 
-    const result = await User.aggregate(pipeline);
-    const users = result[0]?.data || [];
-    const total = result[0]?.total[0]?.count || 0;
-    const activeTotal = result[0]?.activeCount[0]?.count || 0;
-    const premiumTotal = result[0]?.premiumCount[0]?.count || 0;
-    const bannedTotal = result[0]?.bannedCount[0]?.count || 0;
-    const suspendedTotal = result[0]?.suspendedCount[0]?.count || 0;
+    let users = [];
+    let total = 0, activeTotal = 0, premiumTotal = 0, bannedTotal = 0, suspendedTotal = 0;
+
+    if (!needsEarlyProfileLookup) {
+      const [
+        usersData, t, a, p, b, s
+      ] = await Promise.all([
+        User.aggregate([...pipeline, ...dataPipeline]),
+        User.countDocuments(baseMatch),
+        User.countDocuments({ ...baseMatch, accountStatus: "active" }),
+        User.countDocuments({ ...baseMatch, isPremium: true }),
+        User.countDocuments({ ...baseMatch, accountStatus: "banned" }),
+        User.countDocuments({ ...baseMatch, accountStatus: "suspended" }),
+      ]);
+      users = usersData;
+      total = t;
+      activeTotal = a;
+      premiumTotal = p;
+      bannedTotal = b;
+      suspendedTotal = s;
+    } else {
+      const [
+        usersData, t, a, p, b, s
+      ] = await Promise.all([
+        User.aggregate([...pipeline, ...dataPipeline]),
+        User.aggregate([...pipeline, { $count: "count" }]),
+        User.aggregate([...pipeline, { $match: { accountStatus: "active" } }, { $count: "count" }]),
+        User.aggregate([...pipeline, { $match: { isPremium: true } }, { $count: "count" }]),
+        User.aggregate([...pipeline, { $match: { accountStatus: "banned" } }, { $count: "count" }]),
+        User.aggregate([...pipeline, { $match: { accountStatus: "suspended" } }, { $count: "count" }]),
+      ]);
+      users = usersData;
+      total = t[0]?.count || 0;
+      activeTotal = a[0]?.count || 0;
+      premiumTotal = p[0]?.count || 0;
+      bannedTotal = b[0]?.count || 0;
+      suspendedTotal = s[0]?.count || 0;
+    }
 
     const responseData = {
       pagination: {
@@ -319,663 +331,302 @@ module.exports.GETSingleUserDetails = async (req, res) => {
       });
     }
 
-    // 2. Aggregation Pipeline
-    const pipeline = [
-      {
-        $match: { _id: new mongoose.Types.ObjectId(userId) },
-      },
-      // 1. Join Profile
-      {
-        $lookup: {
-          from: "profiles", // Collection name check karein (usually plural)
-          localField: "_id",
-          foreignField: "userId",
-          as: "profile",
-        },
-      },
-      {
-        $unwind: {
-          path: "$profile",
-          preserveNullAndEmptyArrays: true, // Profile nahi bani toh bhi user data milega
-        },
-      },
-      // --- AGE CALCULATION START ---
+    const uId = new mongoose.Types.ObjectId(userId);
+
+    const Match = mongoose.model("Match");
+    const Swipe = mongoose.model("Swipe");
+    const Block = mongoose.model("Block");
+    const Report = mongoose.model("Report");
+    const SubscriptionTransaction = mongoose.model("SubscriptionTransaction");
+
+    // 2. Base Pipeline for lightweight 1-to-1 or embedded lookups
+    const basePipeline = [
+      { $match: { _id: uId } },
+      { $lookup: { from: "profiles", localField: "_id", foreignField: "userId", as: "profile" } },
+      { $unwind: { path: "$profile", preserveNullAndEmptyArrays: true } },
       {
         $addFields: {
           "profile.calculatedAge": {
             $cond: {
-              if: {
-                $and: [
-                  { $gt: ["$profile.dob", null] },
-                  { $toLower: "$profile.dob" },
-                ],
-              },
-              then: {
-                $dateDiff: {
-                  startDate: { $toDate: "$profile.dob" },
-                  endDate: "$$NOW",
-                  unit: "year",
-                },
-              },
+              if: { $and: [{ $gt: ["$profile.dob", null] }, { $toLower: "$profile.dob" }] },
+              then: { $dateDiff: { startDate: { $toDate: "$profile.dob" }, endDate: "$$NOW", unit: "year" } },
               else: null,
             },
           },
         },
       },
-      // --- AGE CALCULATION END ---
-      // 2. Join Account
-      {
-        $lookup: {
-          from: "accounts",
-          localField: "_id",
-          foreignField: "userId",
-          as: "account",
-        },
-      },
+      { $lookup: { from: "accounts", localField: "_id", foreignField: "userId", as: "account" } },
       { $unwind: { path: "$account", preserveNullAndEmptyArrays: true } },
-      // 3. Swipe Stats
-      {
-        $lookup: {
-          from: "swipes",
-          let: { userId: "$_id" },
-          pipeline: [
-            { $match: { $expr: { $eq: ["$swiperId", "$$userId"] } } },
-            {
-              $group: {
-                _id: null,
-                totalSwipes: { $sum: 1 },
-                likes: {
-                  $sum: { $cond: [{ $eq: ["$action", "like"] }, 1, 0] },
-                },
-                superLikes: {
-                  $sum: { $cond: [{ $eq: ["$action", "superlike"] }, 1, 0] },
-                },
-                rejections: {
-                  $sum: { $cond: [{ $eq: ["$action", "pass"] }, 1, 0] },
-                },
-              },
-            },
-          ],
-          as: "swipeStats",
-        },
-      },
-      { $unwind: { path: "$swipeStats", preserveNullAndEmptyArrays: true } },
-      // 4. Match History
-      {
-        $lookup: {
-          from: "matches",
-          let: { currentUserId: "$_id" },
-          pipeline: [
-            { $match: { $expr: { $in: ["$$currentUserId", "$users"] } } },
-            { $sort: { matchedAt: -1 } },
-            {
-              $addFields: {
-                otherUserId: {
-                  $first: {
-                    $filter: {
-                      input: "$users",
-                      as: "uId",
-                      cond: { $ne: ["$$uId", "$$currentUserId"] },
-                    },
-                  },
-                },
-              },
-            },
-            {
-              $lookup: {
-                from: "users",
-                localField: "otherUserId",
-                foreignField: "_id",
-                as: "otherUser",
-              },
-            },
-            {
-              $unwind: {
-                path: "$otherUser",
-                preserveNullAndEmptyArrays: true,
-              },
-            },
-            {
-              $lookup: {
-                from: "profiles",
-                localField: "otherUserId",
-                foreignField: "userId",
-                as: "otherProfile",
-              },
-            },
-            {
-              $unwind: {
-                path: "$otherProfile",
-                preserveNullAndEmptyArrays: true,
-              },
-            },
-            {
-              $project: {
-                _id: 1,
-                matchedAt: 1,
-                ouserId: "$otherProfile.userId",
-                nickname: "$otherProfile.nickname",
-                email: "$otherUser.email",
-                age: "$otherProfile.age",
-                photo: { $arrayElemAt: ["$otherProfile.photos.url", 0] },
-              },
-            },
-          ],
-          as: "matchData",
-        },
-      },
-      // 5. Blocked Users & Blocked Contacts.
-      {
-        $lookup: {
-          from: "blocks",
-          let: { currentUserId: "$_id" },
-          pipeline: [
-            { $match: { $expr: { $eq: ["$blockerId", "$$currentUserId"] } } },
-            {
-              $lookup: {
-                from: "users",
-                localField: "blockedId",
-                foreignField: "_id",
-                as: "blockedUserInfo",
-              },
-            },
-            {
-              $unwind: {
-                path: "$blockedUserInfo",
-                preserveNullAndEmptyArrays: true,
-              },
-            },
-            {
-              $lookup: {
-                from: "profiles",
-                localField: "blockedId",
-                foreignField: "userId",
-                as: "blockedProfile",
-              },
-            },
-            {
-              $unwind: {
-                path: "$blockedProfile",
-                preserveNullAndEmptyArrays: true,
-              },
-            },
-            {
-              $project: {
-                _id: "$blockedId",
-                nickname: { $ifNull: ["$blockedProfile.nickname", ""] },
-                photo: { $arrayElemAt: ["$blockedProfile.photos.url", 0] },
-                email: { $ifNull: ["$blockedUserInfo.email", ""] },
-                phone: { $ifNull: ["$blockedUserInfo.phone", ""] },
-                blockedAt: "$createdAt",
-              },
-            },
-          ],
-          as: "blockedUsersData",
-        },
-      },
-      {
-        $lookup: {
-          from: "blockedcontacts",
-          localField: "_id",
-          foreignField: "userId",
-          as: "blockedContactsData",
-        },
-      },
-      // 6. Subscriptions & Transactions
-      {
-        $lookup: {
-          from: "subscriptions", // Look up the main subscription record
-          localField: "_id",
-          foreignField: "userId",
-          as: "subscriptionInfo",
-        },
-      },
+      { $lookup: { from: "blockedcontacts", localField: "_id", foreignField: "userId", as: "blockedContactsData" } },
+      { $lookup: { from: "subscriptions", localField: "_id", foreignField: "userId", as: "subscriptionInfo" } },
       {
         $addFields: {
-          // Get the most recent/active subscription
           currentSubscription: {
             $arrayElemAt: [
-              {
-                $sortArray: {
-                  input: {
-                    $filter: {
-                      input: "$subscriptionInfo",
-                      as: "sub",
-                      cond: {
-                        $in: [
-                          "$$sub.status",
-                          ["ACTIVE", "CANCELLED", "GRACE", "PENDING"],
-                        ],
-                      },
-                    },
-                  },
-                  sortBy: { expiresAt: -1 },
-                },
-              },
-              0,
+              { $sortArray: { input: { $filter: { input: "$subscriptionInfo", as: "sub", cond: { $in: ["$$sub.status", ["ACTIVE", "CANCELLED", "GRACE", "PENDING"]] } } }, sortBy: { expiresAt: -1 } } }, 0
             ],
           },
-          // If no active, just get the latest one by date
           latestSubscription: {
-            $arrayElemAt: [
-              {
-                $sortArray: {
-                  input: "$subscriptionInfo",
-                  sortBy: { expiresAt: -1 },
-                },
-              },
-              0,
-            ],
+            $arrayElemAt: [{ $sortArray: { input: "$subscriptionInfo", sortBy: { expiresAt: -1 } } }, 0],
           },
         },
       },
-      {
-        $lookup: {
-          from: "subscriptiontransactions",
-          localField: "_id",
-          foreignField: "userId",
-          as: "transactionHistory",
-        },
-      },
-      {
-        $addFields: {
-          transactionHistory: {
-            $sortArray: {
-              input: "$transactionHistory",
-              sortBy: { createdAt: -1 },
-            },
-          },
-        },
-      },
-      // 7. Join Consumable Balances (SuperKeens & Boosts) - NEW
-      {
-        $lookup: {
-          from: "user_consumable_balances",
-          localField: "_id",
-          foreignField: "userId",
-          as: "consumableBalances",
-        },
-      },
-      {
-        $unwind: {
-          path: "$consumableBalances",
-          preserveNullAndEmptyArrays: true,
-        },
-      },
-      // 8. Reports Against This User (New Stage)
-      {
-        $lookup: {
-          from: "reports", // Collection name check karein (Report model ka plural)
-          let: { currentUserId: "$_id" },
-          pipeline: [
-            { $match: { $expr: { $eq: ["$reportedId", "$$currentUserId"] } } },
-            { $sort: { createdAt: -1 } }, // Latest reports pehle
-            {
-              $lookup: {
-                from: "profiles",
-                localField: "reporterId",
-                foreignField: "userId",
-                as: "reporterInfo",
-              },
-            },
-            {
-              $project: {
-                _id: 1,
-                reason: 1,
-                type: 1,
-                status: 1,
-                severity: 1,
-                createdAt: 1,
-                reporterNickname: {
-                  $arrayElemAt: ["$reporterInfo.nickname", 0],
-                },
-              },
-            },
-          ],
-          as: "reportsReceived",
-        },
-      },
-      // 9. Lookup for Suspended By
-      {
-        $lookup: {
-          from: "users",
-          localField: "suspensionDetails.suspendedBy",
-          foreignField: "_id",
-          as: "suspendedByUser",
-        },
-      },
-      {
-        $unwind: {
-          path: "$suspendedByUser",
-          preserveNullAndEmptyArrays: true,
-        },
-      },
-      {
-        $lookup: {
-          from: "profiles",
-          localField: "suspensionDetails.suspendedBy",
-          foreignField: "userId",
-          as: "suspendedByProfile",
-        },
-      },
-      {
-        $unwind: {
-          path: "$suspendedByProfile",
-          preserveNullAndEmptyArrays: true,
-        },
-      },
-      // 10. Lookup for Banned By
-      {
-        $lookup: {
-          from: "users",
-          localField: "banDetails.bannedBy",
-          foreignField: "_id",
-          as: "bannedByUser",
-        },
-      },
-      {
-        $unwind: {
-          path: "$bannedByUser",
-          preserveNullAndEmptyArrays: true,
-        },
-      },
-      {
-        $lookup: {
-          from: "profiles",
-          localField: "banDetails.bannedBy",
-          foreignField: "userId",
-          as: "bannedByProfile",
-        },
-      },
-      {
-        $unwind: {
-          path: "$bannedByProfile",
-          preserveNullAndEmptyArrays: true,
-        },
-      },
-      // 11. Lookup profiles for all audit logs (Admin names)
-      {
-        $lookup: {
-          from: "profiles",
-          localField: "auditLogs.actedBy",
-          foreignField: "userId",
-          as: "auditAdminProfiles",
-        },
-      },
-      {
-        $project: {
-          _id: 1,
-          isPhoneVerified: 1,
-          isEmailVerified: 1,
-          role: 1,
-          lastLoginAt: 1,
-          // ============ NEW SECURITY & DEVICE DATA ============
-          security: {
-            currentIp: "$currentIp",
-            lastUsedDevice: "$lastUsedDevice",
-            activeSessions: "$sessions", // Saare active devices
-            history: "$loginHistory", // Poori login history list
-          },
-          // Statistics (total, swipe, likes, superlikes, rejection, matches, transactions, reports, login count)
-          stats: {
-            totalSwipes: { $ifNull: ["$swipeStats.totalSwipes", 0] },
-            totalLikes: { $ifNull: ["$swipeStats.likes", 0] },
-            totalSuperLikes: { $ifNull: ["$swipeStats.superLikes", 0] },
-            totalRejections: { $ifNull: ["$swipeStats.rejections", 0] },
-            totalMatches: { $size: "$matchData" },
-            totalTransactions: { $size: "$transactionHistory" }, // Useful stat
-            totalReports: { $size: "$reportsReceived" }, // Kitni reports hui total
-            pendingReports: {
-              $size: {
-                $filter: {
-                  input: "$reportsReceived",
-                  as: "r",
-                  cond: { $eq: ["$$r.status", "new"] },
-                },
-              },
-            },
-            totalSessions: { $size: { $ifNull: ["$sessions", []] } },
-          },
-          // Reports ka detail data
-          reports: "$reportsReceived",
-          // Show only the 5 most recent matches in the array
-          recentMatches: { $slice: ["$matchData", 5] },
-          // Flattened Account Info
-          account: {
-            status: "$accountStatus",
-            isPremium: "$isPremium",
-            phone: "$phone",
-            email: "$email",
-            authMethod: "$authMethod",
-            banDetails: {
-              $mergeObjects: [
-                "$banDetails",
-                {
-                  bannedByName: {
-                    $ifNull: [
-                      "$bannedByProfile.nickname",
-                      "$bannedByProfile.fullName",
-                    ],
-                  },
-                  bannedByEmail: "$bannedByUser.email",
-                },
-              ],
-            },
-            deactivationDetails: "$deactivationDetails",
-            deletionDetails: "$deletionDetails",
-            suspensionDetails: {
-              $mergeObjects: [
-                "$suspensionDetails",
-                {
-                  suspendedByName: {
-                    $ifNull: [
-                      "$suspendedByProfile.nickname",
-                      "$suspendedByProfile.fullName",
-                    ],
-                  },
-                  suspendedByEmail: "$suspendedByUser.email",
-                },
-              ],
-            },
-            createdAt: "$createdAt",
-          },
-          // Profile Info
-          profile: {
-            profileId: "$profile._id",
-            nickname: "$profile.nickname",
-            fullName: "$profile.fullName",
-            dob: "$profile.dob",
-            age: "$profile.calculatedAge",
-            gender: "$profile.gender",
-            height: "$profile.height",
-            about: "$profile.about",
-            jobTitle: "$profile.jobTitle",
-            company: "$profile.company",
-            school: "$profile.school",
-            totalCompletion: "$profile.onboardingProgress.totalCompletion",
-            livingIn: "$profile.livingIn",
-          },
-          // Subscription Detail
-          subscription: {
-            _id: {
-              $ifNull: ["$currentSubscription._id", "$latestSubscription._id"],
-            },
-            status: {
-              $ifNull: [
-                "$currentSubscription.status",
-                "$latestSubscription.status",
-              ],
-            },
-            planType: {
-              $ifNull: [
-                "$currentSubscription.planType",
-                "$latestSubscription.planType",
-              ],
-            },
-            platform: {
-              $ifNull: [
-                "$currentSubscription.platform",
-                "$latestSubscription.platform",
-              ],
-            },
-            startedAt: {
-              $ifNull: [
-                "$currentSubscription.startedAt",
-                "$latestSubscription.startedAt",
-              ],
-            },
-            expiresAt: {
-              $ifNull: [
-                "$currentSubscription.expiresAt",
-                "$latestSubscription.expiresAt",
-              ],
-            },
-            // Available Balance Stats
-            availableSuperKeens: {
-              $ifNull: ["$consumableBalances.superKeensBalance", 0],
-            },
-            availableBoosts: {
-              $ifNull: ["$consumableBalances.boostsBalance", 0],
-            },
-            isCurrentlyActive: {
-              $or: [
-                {
-                  $and: [
-                    {
-                      $in: [
-                        "$currentSubscription.status",
-                        ["ACTIVE", "CANCELLED"],
-                      ],
-                    },
-                    { $gt: ["$currentSubscription.expiresAt", "$$NOW"] },
-                  ],
-                },
-                {
-                  $and: [
-                    { $eq: ["$currentSubscription.status", "GRACE"] },
-                    { $eq: ["$currentSubscription.isInGracePeriod", true] },
-                  ],
-                },
-                { $eq: ["$currentSubscription.isInBillingRetry", true] },
-              ],
-            },
-            autoRenew: {
-              $ifNull: [
-                "$currentSubscription.autoRenew",
-                { $ifNull: ["$latestSubscription.autoRenew", false] },
-              ],
-            },
-          },
-          transactions: "$transactionHistory",
-          // Attributes
-          attributes: {
-            zodiac: "$profile.attributes.zodiac",
-            education: "$profile.attributes.education",
-            familyPlans: "$profile.attributes.familyPlans",
-            personalityType: "$profile.attributes.personalityType",
-            communicationStyle: "$profile.attributes.communicationStyle",
-            loveStyle: "$profile.attributes.loveStyle",
-            pets: "$profile.attributes.pets",
-            drinking: "$profile.attributes.drinking",
-            smoking: "$profile.attributes.smoking",
-            workout: "$profile.attributes.workout",
-            dietary: "$profile.attributes.dietary",
-            sleeping: "$profile.attributes.sleeping",
-            socialMedia: "$profile.attributes.socialMedia",
-            languages: "$profile.attributes.languages",
-            interests: "$profile.attributes.interests",
-            music: "$profile.attributes.music",
-            movies: "$profile.attributes.movies",
-            books: "$profile.attributes.books",
-            travel: "$profile.attributes.travel",
-            religion: "$profile.attributes.religion",
-            relationshipGoal: "$profile.discovery.relationshipGoal",
-          },
-          // Discovery
-          discovery: {
-            distanceRange: "$profile.discovery.distanceRange",
-            ageRange: "$profile.discovery.ageRange",
-            showMeGender: "$profile.discovery.showMeGender",
-            relationshipGoal: "$profile.discovery.filterRelationshipGoal",
-            globalVisibility: "$profile.discovery.globalVisibility",
-            discoveryFilters: "$profile.discovery.advancedFilters",
-          },
-          settings: {
-            notifications: "$notificationSettings",
-            blockedContacts: {
-              $map: {
-                input: "$blockedContactsData",
-                as: "bc",
-                in: {
-                  _id: "$$bc._id",
-                  blockedName: "$$bc.blockedName",
-                  blockedPhone: "$$bc.blockedPhone",
-                  blockedPhoneHash: "$$bc.blockedPhoneHash",
-                  source: "$$bc.source",
-                  blockedAt: "$$bc.createdAt",
-                },
-              },
-            },
-            blockedUsers: "$blockedUsersData",
-            blockedBy: "$blockedByData",
-          },
-          location: "$profile.location",
-          photos: "$profile.photos",
-          // Verification Documents (KYC)
-          verification: "$profile.verification",
-          auditLogs: {
-            $map: {
-              input: {
-                $sortArray: {
-                  input: "$auditLogs",
-                  sortBy: { actedAt: -1 },
-                },
-              },
-              as: "log",
-              in: {
-                action: "$$log.action",
-                reason: "$$log.reason",
-                timestamp: "$$log.actedAt",
-                details: "$$log.details",
-                by: {
-                  $let: {
-                    vars: {
-                      adminProf: {
-                        $arrayElemAt: [
-                          {
-                            $filter: {
-                              input: "$auditAdminProfiles",
-                              as: "ap",
-                              cond: { $eq: ["$$ap.userId", "$$log.actedBy"] },
-                            },
-                          },
-                          0,
-                        ],
-                      },
-                    },
-                    in: {
-                      $ifNull: ["$$adminProf.nickname", "System"],
-                    },
-                  },
-                },
-              },
-            },
-          },
-          lastProfileUpdate: "$profile.lastProfileUpdate",
-        },
-      },
+      { $lookup: { from: "user_consumable_balances", localField: "_id", foreignField: "userId", as: "consumableBalances" } },
+      { $unwind: { path: "$consumableBalances", preserveNullAndEmptyArrays: true } },
+      { $lookup: { from: "users", localField: "suspensionDetails.suspendedBy", foreignField: "_id", as: "suspendedByUser" } },
+      { $unwind: { path: "$suspendedByUser", preserveNullAndEmptyArrays: true } },
+      { $lookup: { from: "profiles", localField: "suspensionDetails.suspendedBy", foreignField: "userId", as: "suspendedByProfile" } },
+      { $unwind: { path: "$suspendedByProfile", preserveNullAndEmptyArrays: true } },
+      { $lookup: { from: "users", localField: "banDetails.bannedBy", foreignField: "_id", as: "bannedByUser" } },
+      { $unwind: { path: "$bannedByUser", preserveNullAndEmptyArrays: true } },
+      { $lookup: { from: "profiles", localField: "banDetails.bannedBy", foreignField: "userId", as: "bannedByProfile" } },
+      { $unwind: { path: "$bannedByProfile", preserveNullAndEmptyArrays: true } },
+      { $lookup: { from: "profiles", localField: "auditLogs.actedBy", foreignField: "userId", as: "auditAdminProfiles" } }
     ];
 
-    const result = await User.aggregate(pipeline);
+    // 3. Parallel fetch of expensive sub-documents using precise indexes
+    const [
+      baseUserResult,
+      swipeStatsResult,
+      recentMatches,
+      totalMatches,
+      blockedUsersData,
+      reportsReceived,
+      transactionHistory
+    ] = await Promise.all([
+      User.aggregate(basePipeline),
+      Swipe.aggregate([
+        { $match: { swiperId: uId } },
+        {
+          $group: {
+            _id: null,
+            totalSwipes: { $sum: 1 },
+            likes: { $sum: { $cond: [{ $eq: ["$action", "like"] }, 1, 0] } },
+            superLikes: { $sum: { $cond: [{ $eq: ["$action", "superlike"] }, 1, 0] } },
+            rejections: { $sum: { $cond: [{ $eq: ["$action", "pass"] }, 1, 0] } },
+          },
+        }
+      ]),
+      Match.aggregate([
+        { $match: { users: uId } },
+        { $sort: { matchedAt: -1 } },
+        { $limit: 5 },
+        {
+          $addFields: {
+            otherUserId: {
+              $first: { $filter: { input: "$users", as: "uid", cond: { $ne: ["$$uid", uId] } } }
+            }
+          }
+        },
+        { $lookup: { from: "users", localField: "otherUserId", foreignField: "_id", as: "otherUser" } },
+        { $unwind: { path: "$otherUser", preserveNullAndEmptyArrays: true } },
+        { $lookup: { from: "profiles", localField: "otherUserId", foreignField: "userId", as: "otherProfile" } },
+        { $unwind: { path: "$otherProfile", preserveNullAndEmptyArrays: true } },
+        {
+          $project: {
+            _id: 1,
+            matchedAt: 1,
+            ouserId: "$otherProfile.userId",
+            nickname: "$otherProfile.nickname",
+            email: "$otherUser.email",
+            age: "$otherProfile.calculatedAge",
+            photo: { $arrayElemAt: ["$otherProfile.photos.url", 0] },
+          }
+        }
+      ]),
+      Match.countDocuments({ users: uId }),
+      Block.aggregate([
+        { $match: { blockerId: uId } },
+        { $lookup: { from: "users", localField: "blockedId", foreignField: "_id", as: "blockedUserInfo" } },
+        { $unwind: { path: "$blockedUserInfo", preserveNullAndEmptyArrays: true } },
+        { $lookup: { from: "profiles", localField: "blockedId", foreignField: "userId", as: "blockedProfile" } },
+        { $unwind: { path: "$blockedProfile", preserveNullAndEmptyArrays: true } },
+        {
+          $project: {
+            _id: "$blockedId",
+            nickname: { $ifNull: ["$blockedProfile.nickname", ""] },
+            photo: { $arrayElemAt: ["$blockedProfile.photos.url", 0] },
+            email: { $ifNull: ["$blockedUserInfo.email", ""] },
+            phone: { $ifNull: ["$blockedUserInfo.phone", ""] },
+            blockedAt: "$createdAt",
+          }
+        }
+      ]),
+      Report.aggregate([
+        { $match: { reportedId: uId } },
+        { $sort: { createdAt: -1 } },
+        { $lookup: { from: "profiles", localField: "reporterId", foreignField: "userId", as: "reporterInfo" } },
+        {
+          $project: {
+            _id: 1,
+            reason: 1,
+            type: 1,
+            status: 1,
+            severity: 1,
+            createdAt: 1,
+            reporterNickname: { $arrayElemAt: ["$reporterInfo.nickname", 0] },
+          }
+        }
+      ]),
+      SubscriptionTransaction.find({ userId: uId }).sort({ createdAt: -1 }).lean()
+    ]);
 
-    if (!result || result.length === 0) {
+    if (!baseUserResult || baseUserResult.length === 0) {
       return res.status(404).json({
         success: false,
         message: "User not found",
       });
     }
 
-    // 3. Log the view action in Audit Logs
+    const b = baseUserResult[0];
+    const s = swipeStatsResult[0] || {};
+    const pendingReports = reportsReceived.filter(r => r.status === "new").length;
+
+    // 4. Construct exact payload
+    const finalData = {
+      _id: b._id,
+      isPhoneVerified: b.isPhoneVerified,
+      isEmailVerified: b.isEmailVerified,
+      role: b.role,
+      lastLoginAt: b.lastLoginAt,
+      isMilestoneUser: !!(b.giveaway && (b.giveaway.isEligibleForFreeTrial || b.giveaway.claimedAt)),
+      milestoneDisplayStatus: (b.giveaway && b.giveaway.claimedAt) ? "Claimed (Active)" : ((b.giveaway && b.giveaway.isEligibleForFreeTrial) ? "Eligible" : "Not Enrolled"),
+      security: {
+        currentIp: b.currentIp,
+        lastUsedDevice: b.lastUsedDevice,
+        activeSessions: b.sessions,
+        history: b.loginHistory,
+      },
+      stats: {
+        totalSwipes: s.totalSwipes || 0,
+        totalLikes: s.likes || 0,
+        totalSuperLikes: s.superLikes || 0,
+        totalRejections: s.rejections || 0,
+        totalMatches: totalMatches,
+        totalTransactions: transactionHistory.length,
+        totalReports: reportsReceived.length,
+        pendingReports: pendingReports,
+        totalSessions: b.sessions ? b.sessions.length : 0,
+      },
+      reports: reportsReceived,
+      recentMatches: recentMatches,
+      account: {
+        status: b.accountStatus,
+        isPremium: b.isPremium,
+        phone: b.phone,
+        email: b.email,
+        authMethod: b.authMethod,
+        banDetails: {
+          ...(b.banDetails || {}),
+          bannedByName: b.bannedByProfile ? (b.bannedByProfile.nickname || b.bannedByProfile.fullName) : null,
+          bannedByEmail: b.bannedByUser ? b.bannedByUser.email : null,
+        },
+        deactivationDetails: b.deactivationDetails,
+        deletionDetails: b.deletionDetails,
+        suspensionDetails: {
+          ...(b.suspensionDetails || {}),
+          suspendedByName: b.suspendedByProfile ? (b.suspendedByProfile.nickname || b.suspendedByProfile.fullName) : null,
+          suspendedByEmail: b.suspendedByUser ? b.suspendedByUser.email : null,
+        },
+        createdAt: b.createdAt,
+      },
+      profile: {
+        profileId: b.profile ? b.profile._id : null,
+        nickname: b.profile ? b.profile.nickname : null,
+        fullName: b.profile ? b.profile.fullName : null,
+        dob: b.profile ? b.profile.dob : null,
+        age: b.profile ? b.profile.calculatedAge : null,
+        gender: b.profile ? b.profile.gender : null,
+        height: b.profile ? b.profile.height : null,
+        about: b.profile ? b.profile.about : null,
+        jobTitle: b.profile ? b.profile.jobTitle : null,
+        company: b.profile ? b.profile.company : null,
+        school: b.profile ? b.profile.school : null,
+        totalCompletion: b.profile && b.profile.onboardingProgress ? b.profile.onboardingProgress.totalCompletion : null,
+        livingIn: b.profile ? b.profile.livingIn : null,
+      },
+      subscription: {
+        _id: (b.currentSubscription && b.currentSubscription._id) || (b.latestSubscription && b.latestSubscription._id) || null,
+        status: (b.currentSubscription && b.currentSubscription.status) || (b.latestSubscription && b.latestSubscription.status) || null,
+        planType: (b.currentSubscription && b.currentSubscription.planType) || (b.latestSubscription && b.latestSubscription.planType) || null,
+        platform: (b.currentSubscription && b.currentSubscription.platform) || (b.latestSubscription && b.latestSubscription.platform) || null,
+        startedAt: (b.currentSubscription && b.currentSubscription.startedAt) || (b.latestSubscription && b.latestSubscription.startedAt) || null,
+        expiresAt: (b.currentSubscription && b.currentSubscription.expiresAt) || (b.latestSubscription && b.latestSubscription.expiresAt) || null,
+        availableSuperKeens: b.consumableBalances ? b.consumableBalances.superKeensBalance : 0,
+        availableBoosts: b.consumableBalances ? b.consumableBalances.boostsBalance : 0,
+        isCurrentlyActive: (() => {
+          const c = b.currentSubscription;
+          if (!c) return false;
+          const now = new Date();
+          const cond1 = ["ACTIVE", "CANCELLED"].includes(c.status) && new Date(c.expiresAt) > now;
+          const cond2 = c.status === "GRACE" && c.isInGracePeriod === true;
+          const cond3 = c.isInBillingRetry === true;
+          return cond1 || cond2 || cond3;
+        })(),
+        autoRenew: (b.currentSubscription && b.currentSubscription.autoRenew) || (b.latestSubscription && b.latestSubscription.autoRenew) || false,
+      },
+      transactions: transactionHistory,
+      attributes: {
+        zodiac: b.profile && b.profile.attributes ? b.profile.attributes.zodiac : null,
+        education: b.profile && b.profile.attributes ? b.profile.attributes.education : null,
+        familyPlans: b.profile && b.profile.attributes ? b.profile.attributes.familyPlans : null,
+        personalityType: b.profile && b.profile.attributes ? b.profile.attributes.personalityType : null,
+        communicationStyle: b.profile && b.profile.attributes ? b.profile.attributes.communicationStyle : null,
+        loveStyle: b.profile && b.profile.attributes ? b.profile.attributes.loveStyle : null,
+        pets: b.profile && b.profile.attributes ? b.profile.attributes.pets : null,
+        drinking: b.profile && b.profile.attributes ? b.profile.attributes.drinking : null,
+        smoking: b.profile && b.profile.attributes ? b.profile.attributes.smoking : null,
+        workout: b.profile && b.profile.attributes ? b.profile.attributes.workout : null,
+        dietary: b.profile && b.profile.attributes ? b.profile.attributes.dietary : null,
+        sleeping: b.profile && b.profile.attributes ? b.profile.attributes.sleeping : null,
+        socialMedia: b.profile && b.profile.attributes ? b.profile.attributes.socialMedia : null,
+        languages: b.profile && b.profile.attributes ? b.profile.attributes.languages : null,
+        interests: b.profile && b.profile.attributes ? b.profile.attributes.interests : null,
+        music: b.profile && b.profile.attributes ? b.profile.attributes.music : null,
+        movies: b.profile && b.profile.attributes ? b.profile.attributes.movies : null,
+        books: b.profile && b.profile.attributes ? b.profile.attributes.books : null,
+        travel: b.profile && b.profile.attributes ? b.profile.attributes.travel : null,
+        religion: b.profile && b.profile.attributes ? b.profile.attributes.religion : null,
+        relationshipGoal: b.profile && b.profile.discovery ? b.profile.discovery.relationshipGoal : null,
+      },
+      discovery: {
+        distanceRange: b.profile && b.profile.discovery ? b.profile.discovery.distanceRange : null,
+        ageRange: b.profile && b.profile.discovery ? b.profile.discovery.ageRange : null,
+        showMeGender: b.profile && b.profile.discovery ? b.profile.discovery.showMeGender : null,
+        relationshipGoal: b.profile && b.profile.discovery ? b.profile.discovery.filterRelationshipGoal : null,
+        globalVisibility: b.profile && b.profile.discovery ? b.profile.discovery.globalVisibility : null,
+        discoveryFilters: b.profile && b.profile.discovery ? b.profile.discovery.advancedFilters : null,
+      },
+      settings: {
+        notifications: b.notificationSettings,
+        blockedContacts: (b.blockedContactsData || []).map(bc => ({
+          _id: bc._id,
+          blockedName: bc.blockedName,
+          blockedPhone: bc.blockedPhone,
+          blockedPhoneHash: bc.blockedPhoneHash,
+          source: bc.source,
+          blockedAt: bc.createdAt,
+        })),
+        blockedUsers: blockedUsersData,
+        blockedBy: b.blockedByData || undefined,
+      },
+      location: b.profile ? b.profile.location : null,
+      photos: b.profile ? b.profile.photos : null,
+      verification: b.profile ? b.profile.verification : null,
+      auditLogs: (b.auditLogs || []).sort((x, y) => new Date(y.actedAt) - new Date(x.actedAt)).map(log => {
+        const adminProf = (b.auditAdminProfiles || []).find(ap => ap.userId && ap.userId.toString() === (log.actedBy || "").toString());
+        return {
+          action: log.action,
+          reason: log.reason,
+          timestamp: log.actedAt,
+          details: log.details,
+          by: adminProf && adminProf.nickname ? adminProf.nickname : "System"
+        };
+      }),
+      lastProfileUpdate: b.profile ? b.profile.lastProfileUpdate : null,
+    };
+
+    // 5. Log the view action in Audit Logs
     try {
       await User.findByIdAndUpdate(userId, {
         $push: {
@@ -994,7 +645,7 @@ module.exports.GETSingleUserDetails = async (req, res) => {
     return res.status(200).json({
       success: true,
       message: "User details fetched successfully",
-      data: result[0],
+      data: finalData,
     });
   } catch (error) {
     console.error("GET SINGLE USER ERROR:", error);
@@ -1518,22 +1169,26 @@ module.exports.GETGhostingUsers = async (req, res) => {
         {
           $lookup: {
             from: "matches",
-            let: { b1: "$blockerId", b2: "$blockedId" },
-            pipeline: [
-              {
-                $match: {
-                  $expr: {
-                    $and: [
-                      { $in: ["$$b1", "$users"] },
-                      { $in: ["$$b2", "$users"] },
-                      { $ne: ["$lastMessageBy", null] },
-                    ],
-                  },
-                },
-              },
-            ],
+            localField: "blockerId",
+            foreignField: "users",
             as: "match",
           },
+        },
+        {
+          $addFields: {
+            match: {
+              $filter: {
+                input: "$match",
+                as: "m",
+                cond: {
+                  $and: [
+                    { $in: ["$blockedId", "$$m.users"] },
+                    { $ne: ["$$m.lastMessageBy", null] }
+                  ]
+                }
+              }
+            }
+          }
         },
         { $match: { "match.0": { $exists: true } } },
         {
@@ -1584,22 +1239,26 @@ module.exports.GETGhostingUsers = async (req, res) => {
         {
           $lookup: {
             from: "matches",
-            let: { b1: "$blockerId", b2: "$blockedId" },
-            pipeline: [
-              {
-                $match: {
-                  $expr: {
-                    $and: [
-                      { $in: ["$$b1", "$users"] },
-                      { $in: ["$$b2", "$users"] },
-                      { $ne: ["$lastMessageBy", null] },
-                    ],
-                  },
-                },
-              },
-            ],
+            localField: "blockerId",
+            foreignField: "users",
             as: "match",
           },
+        },
+        {
+          $addFields: {
+            match: {
+              $filter: {
+                input: "$match",
+                as: "m",
+                cond: {
+                  $and: [
+                    { $in: ["$blockedId", "$$m.users"] },
+                    { $ne: ["$$m.lastMessageBy", null] }
+                  ]
+                }
+              }
+            }
+          }
         },
         { $match: { "match.0": { $exists: true } } },
         {
@@ -1727,112 +1386,125 @@ module.exports.GETGhostingUsers = async (req, res) => {
       }
     }
 
-    pipeline.push({
-      $facet: {
-        data: [
-          { $sort: { lastLoginAt: 1 } },
-          { $skip: skip },
-          { $limit: limit },
-          ...(!needsEarlyProfileLookup
-            ? [
-              {
-                $lookup: {
-                  from: "profiles",
-                  localField: "_id",
-                  foreignField: "userId",
-                  as: "profile",
-                },
-              },
-              {
-                $unwind: {
-                  path: "$profile",
-                  preserveNullAndEmptyArrays: true,
-                },
-              },
-              {
-                $addFields: {
-                  "profile.calculatedAge": {
-                    $cond: {
-                      if: {
-                        $and: [
-                          { $gt: ["$profile.dob", null] },
-                          { $toLower: "$profile.dob" },
-                        ],
-                      },
-                      then: {
-                        $dateDiff: {
-                          startDate: { $toDate: "$profile.dob" },
-                          endDate: "$$NOW",
-                          unit: "year",
-                        },
-                      },
-                      else: null,
-                    },
-                  },
-                },
-              },
-            ]
-            : []),
+    const dataPipeline = [
+      { $sort: { lastLoginAt: 1 } },
+      { $skip: skip },
+      { $limit: limit },
+      ...(!needsEarlyProfileLookup
+        ? [
           {
-            $project: {
-              _id: 1,
-              role: 1,
-              account: {
-                status: "$accountStatus",
-                isPremium: "$isPremium",
-                phone: "$phone",
-                email: "$email",
-                authMethod: "$authMethod",
-                banDetails: "$banDetails",
-                deactivationDetails: "$deactivationDetails",
-                deletionDetails: "$deletionDetails",
-                suspensionDetails: "$suspensionDetails",
-                createdAt: "$createdAt",
-              },
-              profile: {
-                profileId: "$profile._id",
-                nickname: "$profile.nickname",
-                dob: "$profile.dob",
-                age: "$profile.calculatedAge",
-                gender: "$profile.gender",
-                height: "$profile.height",
-                about: "$profile.about",
-                jobTitle: "$profile.jobTitle",
-                company: "$profile.company",
-                totalCompletion: "$profile.onboardingProgress.totalCompletion",
-              },
-              location: "$profile.location",
-              photos: { $arrayElemAt: ["$profile.photos.url", 0] },
-              lastProfileUpdate: "$profile.lastProfileUpdate",
-              createdAt: 1,
-              lastLoginAt: 1,
+            $lookup: {
+              from: "profiles",
+              localField: "_id",
+              foreignField: "userId",
+              as: "profile",
             },
           },
-        ],
-        total: [{ $count: "count" }],
-        activeCount: [
-          { $match: { accountStatus: "active" } },
-          { $count: "count" },
-        ],
-        premiumCount: [{ $match: { isPremium: true } }, { $count: "count" }],
-        bannedCount: [
-          { $match: { accountStatus: "banned" } },
-          { $count: "count" },
-        ],
-        suspendedCount: [
-          { $match: { accountStatus: "suspended" } },
-          { $count: "count" },
-        ],
+          {
+            $unwind: {
+              path: "$profile",
+              preserveNullAndEmptyArrays: true,
+            },
+          },
+          {
+            $addFields: {
+              "profile.calculatedAge": {
+                $cond: {
+                  if: {
+                    $and: [
+                      { $gt: ["$profile.dob", null] },
+                      { $toLower: "$profile.dob" },
+                    ],
+                  },
+                  then: {
+                    $dateDiff: {
+                      startDate: { $toDate: "$profile.dob" },
+                      endDate: "$$NOW",
+                      unit: "year",
+                    },
+                  },
+                  else: null,
+                },
+              },
+            },
+          },
+        ]
+        : []),
+      {
+        $project: {
+          _id: 1,
+          role: 1,
+          account: {
+            status: "$accountStatus",
+            isPremium: "$isPremium",
+            phone: "$phone",
+            email: "$email",
+            authMethod: "$authMethod",
+            banDetails: "$banDetails",
+            deactivationDetails: "$deactivationDetails",
+            deletionDetails: "$deletionDetails",
+            suspensionDetails: "$suspensionDetails",
+            createdAt: "$createdAt",
+          },
+          profile: {
+            profileId: "$profile._id",
+            nickname: "$profile.nickname",
+            dob: "$profile.dob",
+            age: "$profile.calculatedAge",
+            gender: "$profile.gender",
+            height: "$profile.height",
+            about: "$profile.about",
+            jobTitle: "$profile.jobTitle",
+            company: "$profile.company",
+            totalCompletion: "$profile.onboardingProgress.totalCompletion",
+          },
+          location: "$profile.location",
+          photos: { $arrayElemAt: ["$profile.photos.url", 0] },
+          lastProfileUpdate: "$profile.lastProfileUpdate",
+          createdAt: 1,
+          lastLoginAt: 1,
+        },
       },
-    });
+    ];
 
-    const result = await User.aggregate(pipeline);
-    const users = result[0]?.data || [];
-    const total = result[0]?.total[0]?.count || 0;
-    const activeTotal = result[0]?.activeCount[0]?.count || 0;
-    const premiumTotal = result[0]?.premiumCount[0]?.count || 0;
-    const bannedTotal = result[0]?.bannedCount[0]?.count || 0;
-    const suspendedTotal = result[0]?.suspendedCount[0]?.count || 0;
+    let users = [];
+    let total = 0, activeTotal = 0, premiumTotal = 0, bannedTotal = 0, suspendedTotal = 0;
+
+    if (!needsEarlyProfileLookup) {
+      const [
+        usersData, t, a, p, b, s
+      ] = await Promise.all([
+        User.aggregate([...pipeline, ...dataPipeline]),
+        User.countDocuments(baseMatch),
+        User.countDocuments({ ...baseMatch, accountStatus: "active" }),
+        User.countDocuments({ ...baseMatch, isPremium: true }),
+        User.countDocuments({ ...baseMatch, accountStatus: "banned" }),
+        User.countDocuments({ ...baseMatch, accountStatus: "suspended" }),
+      ]);
+      users = usersData;
+      total = t;
+      activeTotal = a;
+      premiumTotal = p;
+      bannedTotal = b;
+      suspendedTotal = s;
+    } else {
+      const [
+        usersData, t, a, p, b, s
+      ] = await Promise.all([
+        User.aggregate([...pipeline, ...dataPipeline]),
+        User.aggregate([...pipeline, { $count: "count" }]),
+        User.aggregate([...pipeline, { $match: { accountStatus: "active" } }, { $count: "count" }]),
+        User.aggregate([...pipeline, { $match: { isPremium: true } }, { $count: "count" }]),
+        User.aggregate([...pipeline, { $match: { accountStatus: "banned" } }, { $count: "count" }]),
+        User.aggregate([...pipeline, { $match: { accountStatus: "suspended" } }, { $count: "count" }]),
+      ]);
+      users = usersData;
+      total = t[0]?.count || 0;
+      activeTotal = a[0]?.count || 0;
+      premiumTotal = p[0]?.count || 0;
+      bannedTotal = b[0]?.count || 0;
+      suspendedTotal = s[0]?.count || 0;
+    }
 
     const responseData = {
       pagination: {

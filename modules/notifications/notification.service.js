@@ -299,11 +299,13 @@ class NotificationService {
 
       // 📢 Send to ntfy.sh for admin verification (if enabled or for testing)
       try {
+        // Encode Title using RFC 2047 to support emojis in HTTP Headers
+        const encodedTitle = title ? `=?UTF-8?B?${Buffer.from(title).toString('base64')}?=` : '';
         await fetch("https://ntfy.sh/my-test-notifications", {
           method: "POST",
           body: `[User: ${userId}]\n${message}`,
           headers: {
-            "Title": title,
+            "Title": encodedTitle,
             "Priority": "high",
             "Tags": "loudspeaker,bell"
           }
