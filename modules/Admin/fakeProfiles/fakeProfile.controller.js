@@ -2,6 +2,7 @@ const fakeProfileService = require("./fakeProfile.service");
 const {
   bulkCreateSchema,
   listQuerySchema,
+  addCitySchema,
 } = require("./fakeProfile.validation");
 const { formatProfileResponse } = require("../../profile/profile.formatter");
 
@@ -130,9 +131,65 @@ const deleteSingle = async (req, res) => {
   }
 };
 
+const addCity = async (req, res) => {
+  try {
+    const { error, value } = addCitySchema.validate(req.body);
+    if (error)
+      return res
+        .status(400)
+        .json({ success: false, message: error.details[0].message });
+
+    const city = await fakeProfileService.addCity({
+      ...value,
+      adminId: req.user._id,
+    });
+
+    res.status(201).json({
+      success: true,
+      message: `City "${city.name}" added successfully`,
+      data: city,
+    });
+  } catch (error) {
+    console.error("Add City Error:", error);
+    const status = error.message.includes("already") ? 409 : 500;
+    res.status(status).json({ success: false, message: error.message });
+  }
+};
+
+const listCities = async (req, res) => {
+  try {
+    const cities = await fakeProfileService.listCities();
+    res.status(200).json({
+      success: true,
+      message: "Cities fetched successfully",
+      data: cities,
+    });
+  } catch (error) {
+    console.error("List Cities Error:", error);
+    res.status(500).json({ success: false, message: "Internal server error" });
+  }
+};
+
+const deleteCity = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const result = await fakeProfileService.deleteCity(id);
+    res.status(200).json({
+      success: true,
+      message: `City "${result.name}" deleted successfully`,
+    });
+  } catch (error) {
+    console.error("Delete City Error:", error);
+    res.status(400).json({ success: false, message: error.message });
+  }
+};
+
 module.exports = {
   bulkCreate,
   listAll,
   toggleStatus,
   deleteSingle,
+  addCity,
+  listCities,
+  deleteCity,
 };

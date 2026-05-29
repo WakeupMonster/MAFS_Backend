@@ -37,9 +37,13 @@ try {
   "0 18 * * 5"
 */
 
+// const cronSchedule = process.env.NODE_ENV === "development"
+//   ? "*/1 * * * *"
+//   : "0 18 * * 5";
+
 const cronSchedule = process.env.NODE_ENV === "development"
   ? "*/1 * * * *"
-  : "0 18 * * 5";
+  : "*/1 * * * *";
 
 cron.schedule(cronSchedule, async () => {
   console.log(`🎯 Giveaway CRON triggered in Timezone: ${CURRENT_TZ}`);

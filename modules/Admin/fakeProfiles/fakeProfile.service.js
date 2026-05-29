@@ -2,6 +2,7 @@
 const axios = require("axios");
 const User = require("../../auth/auth.model");
 const Profile = require("../../profile/profile.model");
+const FakeProfileCity = require("./fakeProfileCity.model");
 const {
   AU_CITIES,
   INTERESTS_POOL,
@@ -16,6 +17,26 @@ const {
   getLifestyle,
   hashPhone,
 } = require("./fakeProfile.helpers");
+
+/**
+ * Resolves city location data — checks DB-added cities first, then falls back to hardcoded AU_CITIES.
+ * @param {string} cityName
+ * @returns {{ lat: number, lng: number, state: string }}
+ */
+const resolveCity = async (cityName) => {
+  // 1. Check hardcoded list first (fast path)
+  if (AU_CITIES[cityName]) {
+    return AU_CITIES[cityName];
+  }
+
+  // 2. Check DB for admin-added cities
+  const dbCity = await FakeProfileCity.findOne({ name: cityName }).lean();
+  if (dbCity) {
+    return { lat: dbCity.lat, lng: dbCity.lng, state: dbCity.state };
+  }
+
+  throw new Error(`City "${cityName}" is not available. Please add it first via City Management.`);
+};
 
 const calculateAge = (dob) => {
   const diff = Date.now() - new Date(dob).getTime();
@@ -133,7 +154,7 @@ const bulkCreateFakeProfiles = async ({
   const createdUsers = await User.insertMany(userObjects);
 
   // 3. Prepare Profile Objects
-  const locationData = AU_CITIES[city];
+  const locationData = await resolveCity(city);
   const profileObjects = createdUsers.map((user, index) => {
     const apiUser = apiUsers[index];
     const dob = new Date(apiUser.dob.date);
@@ -423,9 +444,71 @@ const deleteFakeProfile = async (userId) => {
   return { success: true };
 };
 
+/*====== City Management ======*/
+const addCity = async ({ name, state, lat, lng, adminId }) => {
+  // Check if city already exists (hardcoded or DB)
+  if (AU_CITIES[name]) {
+    throw new Error(`"${name}" is already a default city and cannot be added again.`);
+  }
+
+  const existing = await FakeProfileCity.findOne({ name });
+  if (existing) {
+    throw new Error(`"${name}" has already been added.`);
+  }
+
+  const city = await FakeProfileCity.create({
+    name,
+    state,
+    lat,
+    lng,
+    addedBy: adminId,
+  });
+
+  return city;
+};
+
+const listCities = async () => {
+  // 1. Hardcoded cities
+  const hardcoded = Object.entries(AU_CITIES).map(([name, data]) => ({
+    _id: null,
+    name,
+    state: data.state,
+    lat: data.lat,
+    lng: data.lng,
+    isDefault: true,
+  }));
+
+  // 2. DB-added cities
+  const dbCities = await FakeProfileCity.find().sort({ name: 1 }).lean();
+  const custom = dbCities.map((c) => ({
+    _id: c._id,
+    name: c.name,
+    state: c.state,
+    lat: c.lat,
+    lng: c.lng,
+    isDefault: false,
+    createdAt: c.createdAt,
+  }));
+
+  return [...hardcoded, ...custom];
+};
+
+const deleteCity = async (cityId) => {
+  const city = await FakeProfileCity.findById(cityId);
+  if (!city) {
+    throw new Error("City not found or it is a default city that cannot be deleted.");
+  }
+
+  await FakeProfileCity.deleteOne({ _id: cityId });
+  return { success: true, name: city.name };
+};
+
 module.exports = {
   bulkCreateFakeProfiles,
   listFakeProfiles,
   toggleFakeProfile,
   deleteFakeProfile,
+  addCity,
+  listCities,
+  deleteCity,
 };
