@@ -96,72 +96,33 @@ async function fetchDashboardData(models, dateParams) {
     // 3. Total matches (all time)
     Match.countDocuments({}),
 
-    // 4. Reports in range
+    // 4. Reports in range — count unique users whose latest report has status="new"
+    //    Mirrors profileReview kpiStats.newCount: group by reportedId → $first status → filter "new"
     Report.aggregate([
       {
         $facet: {
           current: [
             { $match: { createdAt: { $gte: startDate, $lte: endDate } } },
+            { $sort: { createdAt: -1 } },
             {
               $group: {
                 _id: "$reportedId",
-                reportCount: { $sum: 1 },
-                hasHighSeverity: {
-                  $max: {
-                    $cond: [
-                      {
-                        $and: [
-                          { $eq: ["$severity", "high"] },
-                          { $ne: ["$status", "resolved"] },
-                        ],
-                      },
-                      1,
-                      0,
-                    ],
-                  },
-                },
+                latestStatus: { $first: "$status" },
               },
             },
-            {
-              $match: {
-                $or: [
-                  { hasHighSeverity: 1 },
-                  { reportCount: { $gte: 5 } },
-                ],
-              },
-            },
+            { $match: { latestStatus: "new" } },
             { $count: "n" },
           ],
           prev: [
-            { $match: { createdAt: { $gte: prevStartDate, $lt: startDate } } },
+            { $match: { createdAt: { $gte: prevStartDate, $lte: prevEndDate } } },
+            { $sort: { createdAt: -1 } },
             {
               $group: {
                 _id: "$reportedId",
-                reportCount: { $sum: 1 },
-                hasHighSeverity: {
-                  $max: {
-                    $cond: [
-                      {
-                        $and: [
-                          { $eq: ["$severity", "high"] },
-                          { $ne: ["$status", "resolved"] },
-                        ],
-                      },
-                      1,
-                      0,
-                    ],
-                  },
-                },
+                latestStatus: { $first: "$status" },
               },
             },
-            {
-              $match: {
-                $or: [
-                  { hasHighSeverity: 1 },
-                  { reportCount: { $gte: 5 } },
-                ],
-              },
-            },
+            { $match: { latestStatus: "new" } },
             { $count: "n" },
           ],
         },
@@ -202,7 +163,7 @@ async function fetchDashboardData(models, dateParams) {
             { $count: "n" },
           ],
           prev: [
-            { $match: { createdAt: { $lt: startDate } } },
+            { $match: { createdAt: { $lte: prevEndDate } } },
             { $count: "n" },
           ],
           superkeenSwipes: [
@@ -223,7 +184,7 @@ async function fetchDashboardData(models, dateParams) {
       {
         $facet: {
           current: [{ $match: { createdAt: { $gte: startDate } } }, { $count: "n" }],
-          prev: [{ $match: { createdAt: { $lt: startDate } } }, { $count: "n" }],
+          prev: [{ $match: { createdAt: { $lte: prevEndDate } } }, { $count: "n" }],
           superkeenMatches: [{ $match: { createdAt: { $gte: startDate }, isSuperMatch: true } }, { $count: "n" }],
           normalMatches: [{ $match: { createdAt: { $gte: startDate }, isSuperMatch: { $ne: true } } }, { $count: "n" }],
         },
@@ -306,7 +267,7 @@ async function fetchDashboardData(models, dateParams) {
             },
           ],
           prev: [
-            { $match: { occurredAt: { $lt: startDate } } },
+            { $match: { occurredAt: { $lte: prevEndDate } } },
             {
               $group: {
                 _id: "$productId",
@@ -399,11 +360,16 @@ async function fetchDashboardData(models, dateParams) {
       { $count: "n" },
     ]).then((r) => r[0]?.n || 0),
 
-    // 17. High reported users in range
+    // 17. High reported users in range — mirrors profileReview: newCount >= 5
     Report.aggregate([
       { $match: { createdAt: { $gte: startDate, $lte: endDate } } },
-      { $group: { _id: "$reportedId", count: { $sum: 1 } } },
-      { $match: { count: { $gte: 5 } } },
+      {
+        $group: {
+          _id: "$reportedId",
+          newCount: { $sum: { $cond: [{ $eq: ["$status", "new"] }, 1, 0] } },
+        },
+      },
+      { $match: { newCount: { $gte: 5 } } },
     ]),
 
     // 22. Social Health: blocks in range

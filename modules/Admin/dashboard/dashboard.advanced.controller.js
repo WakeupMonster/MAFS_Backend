@@ -157,7 +157,7 @@ exports.getAdvancedDashboardMetrics = async (req, res) => {
             },
             { label: "KYC pending", value: `${pendingKYC}`, sub: "Review now →", isPositive: false, icon: "ShieldAlert", color: "cyan", isActionable: true, route: "/admin/management/kyc-verifications" },
             { 
-              label: "Users flagged", value: `${reportCountNew}`, sub: "Review now →", trend: reportTrendDisplay, isPositive: (reportTrendNum || 0) <= 0, icon: "Flag", color: "sky", isActionable: true, route: "/admin/management/profile-reports",
+              label: "Users flagged", value: `${reportCountNew}`, sub: "pending reports", trend: reportTrendDisplay, isPositive: (reportTrendNum || 0) <= 0, icon: "Flag", color: "sky", isActionable: true, route: "/admin/management/profile-reports",
               tooltipData: { current: reportCountNew, previous: reportCountPrev, isCurrency: false }
             },
           ],
@@ -212,13 +212,14 @@ exports.getAdvancedDashboardMetrics = async (req, res) => {
         },
         conversionFunnel: {
           subtitle: "Where users drop off",
-          insight: "Conversion funnel tracks user journey from install to sub.",
+          insight: "Conversion funnel tracks user journey from signup to subscription.",
           stages: [
-            { label: "App Installs", value: Math.round(rangeSignups * 1.2), dropOff: 0, color: "hsl(182 100% 88%)" },
-            { label: "Signups", value: rangeSignups, dropOff: Math.round(rangeSignups * 1.2) > 0 ? Math.max(-100, Math.min(100, -Math.round((1 - rangeSignups / Math.round(rangeSignups * 1.2)) * 100))) : 0, color: "hsl(182 85% 78%)" },
-            { label: "Profile Complete", value: funnelCompletedProfiles, dropOff: rangeSignups > 0 ? Math.max(-100, Math.min(100, -Math.round((1 - funnelCompletedProfiles / rangeSignups) * 100))) : 0, color: "hsl(182 70% 68%)" },
-            { label: "First Swipe", value: funnelSwipersCount, dropOff: funnelCompletedProfiles > 0 ? Math.max(-100, Math.min(100, -Math.round((1 - funnelSwipersCount / funnelCompletedProfiles) * 100))) : 0, color: "hsl(182 60% 54%)" },
-            { label: "Subscribed", value: funnelSubscribersCount, dropOff: funnelSwipersCount > 0 ? Math.max(-100, Math.min(100, -Math.round((1 - funnelSubscribersCount / funnelSwipersCount) * 100))) : 0, color: "hsl(182 60% 45%)" },
+            // App Installs: estimated from signups (assumes ~83% install-to-signup conversion), isEstimated flag for frontend to display accordingly
+            { label: "App Installs", value: Math.round(rangeSignups * 1.2), dropOff: 0, color: "hsl(182 100% 88%)", isEstimated: true },
+            { label: "Signups", value: rangeSignups, dropOff: Math.round(rangeSignups * 1.2) > 0 ? Math.max(-100, Math.min(0, -Math.round((1 - rangeSignups / Math.round(rangeSignups * 1.2)) * 100))) : 0, color: "hsl(182 85% 78%)" },
+            { label: "Profile Complete", value: funnelCompletedProfiles, dropOff: rangeSignups > 0 ? Math.max(-100, Math.min(0, -Math.round((1 - funnelCompletedProfiles / rangeSignups) * 100))) : 0, color: "hsl(182 70% 68%)" },
+            { label: "First Swipe", value: funnelSwipersCount, dropOff: funnelCompletedProfiles > 0 ? Math.max(-100, Math.min(0, -Math.round((1 - funnelSwipersCount / funnelCompletedProfiles) * 100))) : 0, color: "hsl(182 60% 54%)" },
+            { label: "Subscribed", value: funnelSubscribersCount, dropOff: funnelSwipersCount > 0 ? Math.max(-100, Math.min(0, -Math.round((1 - funnelSubscribersCount / funnelSwipersCount) * 100))) : 0, color: "hsl(182 60% 45%)" },
           ],
         },
         performanceInsights: {

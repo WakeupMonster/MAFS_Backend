@@ -667,22 +667,10 @@ const getReportedProfiles = async (req, res) => {
           latestResolvedAt: { $max: "$resolvedAt" },
           latestStatus: { $first: "$status" },
           latestSeverity: { $first: "$severity" },
-          latestResolvedAt: { $max: "$resolvedAt" },
           latestUpdatedAt: { $max: "$updatedAt" },
-          hasHighPriority: {
-            $max: {
-              $cond: [
-                {
-                  $and: [
-                    { $eq: ["$severity", "high"] },
-                    { $ne: ["$status", "resolved"] },
-                  ],
-                },
-                1,
-                0,
-              ],
-            },
-          },
+          // Track resolved vs new counts to derive dynamic severity
+          resolvedCount: { $sum: { $cond: [{ $eq: ["$status", "resolved"] }, 1, 0] } },
+          newCount: { $sum: { $cond: [{ $eq: ["$status", "new"] }, 1, 0] } },
           allReports: {
             $push: {
               _id: "$_id",
@@ -698,26 +686,38 @@ const getReportedProfiles = async (req, res) => {
       },
       {
         $addFields: {
-          hasHighPriority: {
-            $cond: [
-              {
-                $or: [
-                  { $eq: ["$hasHighPriority", 1] },
-                  { $gte: ["$reportCount", 5] },
-                ],
-              },
-              1,
-              0,
-            ],
-          },
+          /**
+           * Dynamic Severity Rules:
+           *   HIGH  → newCount >= 5  (5+ reports still "new", regardless of resolved ones)
+           *   LOW   → 5+ total reports, some resolved + some new but < 5 new remaining
+           *   else  → keep original latestSeverity from DB
+           */
           latestSeverity: {
             $switch: {
               branches: [
-                { case: { $eq: ["$latestStatus", "resolved"] }, then: "low" },
-                { case: { $gte: ["$reportCount", 5] }, then: "high" },
+                // 5+ new reports pending action → HIGH (even if some are already resolved)
+                {
+                  case: { $gte: ["$newCount", 5] },
+                  then: "high",
+                },
+                // Has 5+ total, some resolved, some still open but < 5 new → LOW
+                {
+                  case: {
+                    $and: [
+                      { $gte: ["$reportCount", 5] },
+                      { $gt: ["$resolvedCount", 0] },
+                      { $gt: ["$newCount", 0] },
+                    ],
+                  },
+                  then: "low",
+                },
               ],
               default: "$latestSeverity",
             },
+          },
+          // High priority = 5+ reports still in "new" status
+          hasHighPriority: {
+            $cond: [{ $gte: ["$newCount", 5] }, 1, 0],
           },
         },
       },
@@ -779,39 +779,20 @@ const getReportedProfiles = async (req, res) => {
             { $match: baseMatch },
             { $sort: { createdAt: -1 } },
             {
+              // Mirror commonPipeline: track resolvedCount + newCount for same severity logic
               $group: {
                 _id: "$reportedId",
                 reportCount: { $sum: 1 },
                 status: { $first: "$status" },
-                hasHighPriority: {
-                  $max: {
-                    $cond: [
-                      {
-                        $and: [
-                          { $eq: ["$severity", "high"] },
-                          { $ne: ["$status", "resolved"] },
-                        ],
-                      },
-                      1,
-                      0,
-                    ],
-                  },
-                },
+                resolvedCount: { $sum: { $cond: [{ $eq: ["$status", "resolved"] }, 1, 0] } },
+                newCount: { $sum: { $cond: [{ $eq: ["$status", "new"] }, 1, 0] } },
               },
             },
             {
+              // HIGH: 5+ reports still in "new" status (mirrors commonPipeline logic)
               $addFields: {
                 hasHighPriority: {
-                  $cond: [
-                    {
-                      $or: [
-                        { $eq: ["$hasHighPriority", 1] },
-                        { $gte: ["$reportCount", 5] },
-                      ],
-                    },
-                    1,
-                    0,
-                  ],
+                  $cond: [{ $gte: ["$newCount", 5] }, 1, 0],
                 },
               },
             },
@@ -893,7 +874,7 @@ const getReportedProfiles = async (req, res) => {
       };
     });
 
-    return res.json({
+    return res.status(200).json({
       success: true,
       pagination: {
         total: totalFiltered,
