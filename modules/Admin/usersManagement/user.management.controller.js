@@ -38,6 +38,7 @@ module.exports.GETAllUsers = async (req, res) => {
       isGhosting,
       preset,
       from,
+      to,
     } = req.query;
 
     const page = Math.max(parseInt(reqPage) || 1, 1);
@@ -85,6 +86,38 @@ module.exports.GETAllUsers = async (req, res) => {
     if (last24Hours === "true") {
       const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
       baseMatch.createdAt = { $gte: twentyFourHoursAgo };
+    } else if (isGhosting !== "true") {
+      // General date filtering for other filters (e.g. Female signups from dashboard)
+      if (from && to) {
+        baseMatch.createdAt = { $gte: new Date(from), $lte: new Date(to) };
+      } else if (preset) {
+        // IMPORTANT: Do NOT use now.setHours() — it mutates the Date object.
+        // Create fresh Date instances for each boundary to avoid corruption.
+        const now = new Date();
+
+        if (preset === "today") {
+          const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0);
+          const endOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999);
+          baseMatch.createdAt = { $gte: startOfToday, $lte: endOfToday };
+        } else if (preset === "yesterday") {
+          const y = new Date(now);
+          y.setDate(y.getDate() - 1);
+          const startOfYesterday = new Date(y.getFullYear(), y.getMonth(), y.getDate(), 0, 0, 0, 0);
+          const endOfYesterday = new Date(y.getFullYear(), y.getMonth(), y.getDate(), 23, 59, 59, 999);
+          baseMatch.createdAt = { $gte: startOfYesterday, $lte: endOfYesterday };
+        } else if (preset === "last7") {
+          const start = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+          baseMatch.createdAt = { $gte: start, $lte: now };
+        } else if (preset === "last30") {
+          const start = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+          baseMatch.createdAt = { $gte: start, $lte: now };
+        } else if (preset === "last90") {
+          const start = new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000);
+          baseMatch.createdAt = { $gte: start, $lte: now };
+        } else if (preset === "custom" && from) {
+          baseMatch.createdAt = { $gte: new Date(from) };
+        }
+      }
     }
 
     const pipeline = [{ $match: baseMatch }];

@@ -33,10 +33,16 @@ const getTransporter = async () => {
     },
   });
 
+  // Format fromName for proper branding capitalization
+  let rawFromName = smtp?.fromName || "Keen As Mustard Admin";
+  if (rawFromName.toLowerCase() === "keen as mustard admin") {
+    rawFromName = "Keen As Mustard Admin";
+  }
+
   return {
     transporter,
     fromEmail: smtp?.fromEmail || user,
-    fromName: smtp?.fromName || "App Team"
+    fromName: rawFromName
   };
 };
 
