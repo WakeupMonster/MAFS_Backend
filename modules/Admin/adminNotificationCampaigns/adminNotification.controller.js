@@ -55,6 +55,7 @@ module.exports.sendNotificationToPremiumUsers = async (req, res) => {
       isPremium: true,
       accountStatus: "active",
       "banDetails.isBanned": { $ne: true },
+      isFake: { $ne: true },
     });
 
     if (totalTargeted === 0) {
@@ -185,6 +186,7 @@ module.exports.sendPremiumExpiryNow = async (req, res) => {
       accountStatus: "active",
       premiumExpiresAt: { $gte: start, $lte: end },
       "banDetails.isBanned": { $ne: true },
+      isFake: { $ne: true },
     };
 
     const totalTargeted = await User.countDocuments(query);
@@ -262,6 +264,7 @@ module.exports.broadcastNotification = async (req, res) => {
     const userQuery = {
       accountStatus: "active",
       "banDetails.isBanned": { $ne: true },
+      isFake: { $ne: true },
     };
 
     if (target === "premium") {

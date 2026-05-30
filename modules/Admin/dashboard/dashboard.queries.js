@@ -49,17 +49,21 @@ async function fetchDashboardData(models, dateParams) {
   ] = await Promise.all([
     // 1. All user status counts (parallelized for index usage instead of $facet)
     Promise.all([
-      User.countDocuments({ role: "USER" }),
-      User.countDocuments({ role: "USER", lastLoginAt: { $gte: startDate, $lte: endDate }, accountStatus: "active" }),
-      User.countDocuments({ role: "USER", isPremium: true }),
-      User.countDocuments({ role: "USER", accountStatus: "banned" }),
-      User.countDocuments({ role: "USER", accountStatus: "suspended" }),
-    ]).then(([t, a, p, b, s]) => ({
+      User.countDocuments({ role: "USER", isFake: { $ne: true } }),
+      User.countDocuments({ role: "USER", accountStatus: "active", isFake: { $ne: true } }),
+      User.countDocuments({ role: "USER", isPremium: true, isFake: { $ne: true } }),
+      User.countDocuments({ role: "USER", accountStatus: "banned", isFake: { $ne: true } }),
+      User.countDocuments({ role: "USER", accountStatus: "suspended", isFake: { $ne: true } }),
+      User.countDocuments({ role: "USER", "deactivationDetails.isDeactivated": true, isFake: { $ne: true } }),
+      User.countDocuments({ role: "USER", "deletionDetails.isScheduledForDeletion": true, isFake: { $ne: true } }),
+    ]).then(([t, a, p, b, s, deact, del]) => ({
       total: [{ n: t }],
-      active: [{ n: a }],
+      activeAllTime: [{ n: a }],
       premium: [{ n: p }],
       banned: [{ n: b }],
       suspended: [{ n: s }],
+      deactivated: [{ n: deact }],
+      deleted: [{ n: del }]
     })),
 
     // 2. All profile/KYC counts (parallelized)
@@ -318,6 +322,19 @@ async function fetchDashboardData(models, dateParams) {
     // 13. Signup gender stats
     Profile.aggregate([
       {
+        $lookup: {
+          from: "users",
+          localField: "userId",
+          foreignField: "_id",
+          as: "user"
+        }
+      },
+      {
+        $match: {
+          "user.isFake": { $ne: true }
+        }
+      },
+      {
         $facet: {
           rangeByDay: [
             { $match: { createdAt: { $gte: startDate, $lte: endDate } } },
@@ -357,14 +374,17 @@ async function fetchDashboardData(models, dateParams) {
       createdAt: { $gte: startDate, $lte: endDate },
     }),
 
-    // 15. Funnel: unique swipers
+    // 15. Funnel: unique swipers from the new signups cohort
     Swipe.aggregate([
       { $match: { createdAt: { $gte: startDate, $lte: endDate } } },
       { $group: { _id: "$swiperId" } },
+      { $lookup: { from: "users", localField: "_id", foreignField: "_id", as: "user" } },
+      { $unwind: "$user" },
+      { $match: { "user.createdAt": { $gte: startDate, $lte: endDate }, "user.isFake": { $ne: true } } },
       { $count: "n" },
     ]).then((r) => r[0]?.n || 0),
 
-    // 16. Funnel: unique subscribers in range
+    // 16. Funnel: unique subscribers from the new signups cohort
     Transaction.aggregate([
       {
         $match: {
@@ -373,6 +393,9 @@ async function fetchDashboardData(models, dateParams) {
         },
       },
       { $group: { _id: "$userId" } },
+      { $lookup: { from: "users", localField: "_id", foreignField: "_id", as: "user" } },
+      { $unwind: "$user" },
+      { $match: { "user.createdAt": { $gte: startDate, $lte: endDate }, "user.isFake": { $ne: true } } },
       { $count: "n" },
     ]).then((r) => r[0]?.n || 0),
 

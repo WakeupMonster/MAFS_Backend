@@ -119,9 +119,9 @@ exports.getAdvancedDashboardMetrics = async (req, res) => {
     const fRatioTotal = 100 - mRatioTotal;
 
     const totalSwipesRange = likesRange + superlikesRange;
-    const matchLiqVal = totalSwipesRange > 0 ? ((matchesRange / totalSwipesRange) * 100).toFixed(1) : "0.0";
-    const matchLiqPrev = swipesPrev > 0 ? (matchesPrev / swipesPrev) * 100 : 0;
-    const matchLiqCur = totalSwipesRange > 0 ? (matchesRange / totalSwipesRange) * 100 : 0;
+    const matchLiqVal = totalSwipesRange > 0 ? Math.min(100, (matchesRange / totalSwipesRange) * 100).toFixed(1) : "0.0";
+    const matchLiqPrev = swipesPrev > 0 ? Math.min(100, (matchesPrev / swipesPrev) * 100) : 0;
+    const matchLiqCur = totalSwipesRange > 0 ? Math.min(100, (matchesRange / totalSwipesRange) * 100) : 0;
     const rawMatchLiqTrend = matchLiqPrev > 0 ? ((matchLiqCur - matchLiqPrev) / matchLiqPrev) * 100 : (matchLiqCur > 0 ? 100 : 0);
     const matchLiqTrendVal = Math.max(-100, rawMatchLiqTrend);
     const matchLiqTrend = matchLiqTrendVal.toFixed(1);
@@ -130,7 +130,7 @@ exports.getAdvancedDashboardMetrics = async (req, res) => {
     const liqChart = chartDates.map((d) => {
       const m = matches7dDaily.find((x) => x._id === d)?.count || 0;
       const s = swipes7dDaily.find((x) => x._id === d)?.count || 0;
-      return s > 0 ? parseFloat(((m / s) * 100).toFixed(1)) : 0.0;
+      return s > 0 ? Math.min(100, parseFloat(((m / s) * 100).toFixed(1))) : 0.0;
     });
 
     const heatmapD = helpers.buildHeatmapData(heatmapAgg);
@@ -143,11 +143,23 @@ exports.getAdvancedDashboardMetrics = async (req, res) => {
         zoneA: {
           title: preset === "custom" ? "Period at a glance" : `${periodLabel} at a glance`,
           stats: [
-            { label: "Revenue", value: helpers.formatAmount(revR.total), sub: contextLabel, trend: revTrendDisplay, isPositive: (revTrendNum || 0) >= 0, icon: "Sparkles", color: "emerald", route: "/admin/management/subscription-management" },
-            { label: "Supercharge driving", value: `${consumablePct}%`, sub: "of revenue", trend: `${consumablePct}%`, isPositive: true, icon: "TrendingUp", color: "blue" },
-            { label: "Female signups", value: `${fRS}`, sub: contextLabel, trend: fSignupTrend, isPositive: (fCPNum || 0) >= 0, icon: "Users", color: "orange", route: "/admin/management/users-management" },
+            { 
+              label: "Revenue", value: helpers.formatAmount(revR.total), sub: contextLabel, trend: revTrendDisplay, isPositive: (revTrendNum || 0) >= 0, icon: "Sparkles", color: "emerald", route: "/admin/management/subscription-management",
+              tooltipData: { current: revR.total, previous: revPrev.total, isCurrency: true }
+            },
+            { 
+              label: "Supercharge driving", value: `${consumablePct}%`, sub: "of revenue", trend: `${consumablePct}%`, isPositive: true, icon: "TrendingUp", color: "blue",
+              tooltipData: { type: "contribution", superChargeRev: (revR.boost + revR.superkeen), totalRev: revR.total, contribution: consumablePct }
+            },
+            { 
+              label: "Female signups", value: `${fRS}`, sub: contextLabel, trend: fSignupTrend, isPositive: (fCPNum || 0) >= 0, icon: "Users", color: "orange", route: "/admin/management/users-management",
+              tooltipData: { current: fRS, previous: fPS, isCurrency: false }
+            },
             { label: "KYC pending", value: `${pendingKYC}`, sub: "Review now →", isPositive: false, icon: "ShieldAlert", color: "cyan", isActionable: true, route: "/admin/management/kyc-verifications" },
-            { label: "Users flagged", value: `${reportCountNew}`, sub: "Review now →", trend: reportTrendDisplay, isPositive: (reportTrendNum || 0) <= 0, icon: "Flag", color: "sky", isActionable: true, route: "/admin/management/profile-reports" },
+            { 
+              label: "Users flagged", value: `${reportCountNew}`, sub: "Review now →", trend: reportTrendDisplay, isPositive: (reportTrendNum || 0) <= 0, icon: "Flag", color: "sky", isActionable: true, route: "/admin/management/profile-reports",
+              tooltipData: { current: reportCountNew, previous: reportCountPrev, isCurrency: false }
+            },
           ],
         },
         zoneB: {

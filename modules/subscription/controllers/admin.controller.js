@@ -868,15 +868,32 @@ exports.getDashboardStats = async (req, res, next) => {
                     consumableRevenue: monthlyConsumableRevenueResult[0]?.totalAmount || 0,
                     activeSubscribers: {
                         count: activeCountCurrent,
-                        change: subChange
+                        change: subChange,
+                        tooltipData: {
+                            current: activeCountCurrent,
+                            previous: activeCountStartOfMonth,
+                            isCurrency: false
+                        }
                     },
                     mrr: {
                         amount: Math.round(totalMRR),
                         currency: "AUD"
                     },
                     todayRevenue: todayStats[2][0]?.total || 0,
-                    conversionRate: totalActiveUsers > 0 ? ((activeCountCurrent / totalActiveUsers * 100).toFixed(2) + "%") : "0%",
-                    churnRate: activeCountStartOfMonth > 0 ? ((monthlyCancellations / activeCountStartOfMonth * 100).toFixed(1) + "%") : "0%",
+                    conversionRate: {
+                        value: totalActiveUsers > 0 ? ((activeCountCurrent / totalActiveUsers * 100).toFixed(2) + "%") : "0%",
+                        tooltipData: {
+                            subscribers: activeCountCurrent,
+                            totalUsers: totalActiveUsers,
+                        }
+                    },
+                    churnRate: {
+                        value: activeCountStartOfMonth > 0 ? ((monthlyCancellations / activeCountStartOfMonth * 100).toFixed(1) + "%") : "0%",
+                        tooltipData: {
+                            cancellations: monthlyCancellations,
+                            activeAtStart: activeCountStartOfMonth,
+                        }
+                    },
                     milestone: {
                         currentCount: config.milestone.currentCount,
                         targetCount: config.milestone.targetUserCount,

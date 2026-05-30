@@ -94,7 +94,7 @@ const worker = new Worker(
 
     // Build filter FIRST, then count (so totalUsers is accurate)
     // Exclude users without an email address to match sent+failed counts
-    const filter = { accountStatus: "active", email: { $exists: true, $ne: "" }, $and: [{ email: { $ne: null } }] };
+    const filter = { accountStatus: "active", isFake: { $ne: true }, email: { $exists: true, $ne: "" }, $and: [{ email: { $ne: null } }] };
     if (campaign.target === "premium") filter.isPremium = true;
     if (campaign.target === "free") filter.isPremium = false;
     if (campaign.target === "ghosted") {

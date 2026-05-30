@@ -25,6 +25,7 @@ const worker = new Worker(
     let query = {
       accountStatus: "active",
       "banDetails.isBanned": { $ne: true },
+      isFake: { $ne: true },
     };
 
     if (campaign.target === "premium") {

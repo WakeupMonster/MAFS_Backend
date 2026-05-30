@@ -6,7 +6,9 @@ const GiveawayWinHistory = require("../../../modules/Admin/giveaways/giveawayWin
 
 exports.getKpiOverview = async (req, res) => {
   try {
+    const helpers = require("./dashboard.helpers");
     const now = new Date();
+    const { startDate, endDate, durationMs } = helpers.parseDateRange(req.query, now);
     const last24Hours = new Date(now.getTime() - 24 * 60 * 60 * 1000);
 
     const [
@@ -20,16 +22,17 @@ exports.getKpiOverview = async (req, res) => {
       openReports,
       visitorStats,
     ] = await Promise.all([
-      User.countDocuments({ role: "USER" }),
+      User.countDocuments({ role: "USER", isFake: { $ne: true } }),
 
       User.countDocuments({
         lastLoginAt: { $gte: last24Hours },
         role: "USER",
         accountStatus: "active",
+        isFake: { $ne: true },
       }),
 
-      User.countDocuments({ isPremium: true }),
-      User.countDocuments({ accountStatus: "banned" }),
+      User.countDocuments({ isPremium: true, isFake: { $ne: true } }),
+      User.countDocuments({ accountStatus: "banned", isFake: { $ne: true } }),
       SupportTicket.countDocuments({ status: { $in: ["open"] } }),
 
       GiveawayWinHistory.countDocuments({
@@ -44,7 +47,8 @@ exports.getKpiOverview = async (req, res) => {
         {
           $match: {
             role: "USER",
-            createdAt: { $gte: new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000) }
+            isFake: { $ne: true },
+            createdAt: { $gte: startDate, $lte: endDate }
           }
         },
         {
@@ -94,8 +98,9 @@ exports.getKpiOverview = async (req, res) => {
     });
 
     const visitorHistory = [];
-    for (let i = 89; i >= 0; i--) {
-      const date = new Date(now.getTime() - i * 24 * 60 * 60 * 1000);
+    const daysDiff = Math.max(0, Math.floor((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24)));
+    for (let i = daysDiff; i >= 0; i--) {
+      const date = new Date(endDate.getTime() - i * 24 * 60 * 60 * 1000);
       const dateStr = date.toISOString().split("T")[0];
       const stats = regMap[dateStr] || { android: 0, ios: 0 };
       visitorHistory.push({
