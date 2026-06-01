@@ -43,8 +43,14 @@ function parseDateRange(query, now) {
   const durationMs = endDate.getTime() - startDate.getTime();
 
   // For comparison (vs yesterday or vs last period)
-  const prevStartDate = new Date(startDate.getTime() - durationMs);
-  const prevEndDate = startDate;
+  let prevStartDate, prevEndDate;
+  if (presetParam === "today") {
+    prevStartDate = new Date(startDate.getTime() - 24 * 60 * 60 * 1000);
+    prevEndDate = new Date(endDate.getTime() - 24 * 60 * 60 * 1000);
+  } else {
+    prevStartDate = new Date(startDate.getTime() - durationMs);
+    prevEndDate = startDate;
+  }
 
   // Meta Labels & Context
   let periodLabel = "Custom Range";
