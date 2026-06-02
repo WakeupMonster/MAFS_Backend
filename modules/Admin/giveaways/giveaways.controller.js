@@ -1665,7 +1665,7 @@ module.exports.getCampaignWinners = async (req, res) => {
             { $count: "count" },
           ],
           pending: [
-            { $match: { drawStatus: { $in: ["REVEALED"] } } },
+            { $match: { drawStatus: { $in: ["PENDING"] } } },
             { $count: "count" },
           ],
           withWinner: [

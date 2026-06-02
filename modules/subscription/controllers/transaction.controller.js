@@ -194,6 +194,12 @@ exports.getTransactions = async (req, res, next) => {
 
     const finalizedTransactions = await productDisplayHelper.enrichWithDisplayName(mappedTransactions);
 
+    finalizedTransactions.forEach(txn => {
+      if (txn.displayName && txn.displayName !== "Unknown Product") {
+        txn.productId = txn.displayName;
+      }
+    });
+
     return res.json({
       success: true,
       pagination: {

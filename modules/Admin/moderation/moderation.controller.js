@@ -72,7 +72,9 @@ module.exports.verifyUserProfile = async (req, res) => {
       profile.verification.rejectionReason = reason;
 
       if (!profile.onboarding) profile.onboarding = {};
-      profile.onboarding.isComplete = false;
+      if (profile.onboarding.isComplete !== true) {
+        profile.onboarding.isComplete = false;
+      }
     }
 
     await profile.save();
@@ -641,8 +643,8 @@ module.exports.getPendingVerifications = async (req, res, next) => {
     if (sortBy === "alphabetical") sortQuery = { nickname: 1 };
 
     // 2. DYNAMIC MATCHING
-    const baseMatchStage = { "user.role": "USER" };
-    const dataMatchStage = { "user.role": "USER" };
+    const baseMatchStage = { "user.role": "USER", "user.isFake": { $ne: true } };
+    const dataMatchStage = { "user.role": "USER", "user.isFake": { $ne: true } };
 
     if (status && status !== "all") {
       dataMatchStage["verification.status"] = status;

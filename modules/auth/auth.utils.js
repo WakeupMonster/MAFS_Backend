@@ -141,7 +141,7 @@ module.exports.sendPrizeDeliveredEmail = async (toEmail, prizeTitle) => {
   const { transporter, fromEmail, fromName } = await getTransporter();
 
   await transporter.sendMail({
-    from: `"${fromName} - Giveaway Team" <${fromEmail}>`,
+    from: `"${fromName}" <${fromEmail}>`,
     to: toEmail,
     subject: "🎉 Your Giveaway Prize is Delivered!",
     html: prizeDeliveredEmailTemplate(prizeTitle),
