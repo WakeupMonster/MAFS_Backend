@@ -26,6 +26,7 @@ async function test() {
       console.log("Success:", data.success);
       if (data.success) {
         console.log("Response Keys:", Object.keys(data.data));
+        console.log("Conversion Funnel stages:", JSON.stringify(data.data.conversionFunnel.stages, null, 2));
         console.log("User Distribution response data:", data.data.userDistribution);
       } else {
         console.log("Error details:", data.message, data.error);

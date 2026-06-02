@@ -8,8 +8,14 @@ exports.getKpiOverview = async (req, res) => {
   try {
     const helpers = require("./dashboard.helpers");
     const now = new Date();
-    const { startDate, endDate, durationMs } = helpers.parseDateRange(req.query, now);
+    const { startDate, endDate, durationMs, preset } = helpers.parseDateRange(req.query, now);
     const last24Hours = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+
+    let chartStartDate = startDate;
+    if (preset === "today" || preset === "yesterday") {
+      chartStartDate = new Date(endDate.getTime() - 6 * 24 * 60 * 60 * 1000);
+      chartStartDate.setHours(0, 0, 0, 0);
+    }
 
     const [
       totalUsers,
@@ -48,12 +54,12 @@ exports.getKpiOverview = async (req, res) => {
           $match: {
             role: "USER",
             isFake: { $ne: true },
-            createdAt: { $gte: startDate, $lte: endDate }
+            lastLoginAt: { $gte: chartStartDate, $lte: endDate }
           }
         },
         {
           $project: {
-            date: { $dateToString: { format: "%Y-%m-%d", date: "$createdAt" } },
+            date: { $dateToString: { format: "%Y-%m-%d", date: "$lastLoginAt" } },
             platform: {
               $cond: {
                 if: { $and: [{ $isArray: "$sessions" }, { $gt: [{ $size: "$sessions" }, 0] }] },
@@ -98,7 +104,7 @@ exports.getKpiOverview = async (req, res) => {
     });
 
     const visitorHistory = [];
-    const daysDiff = Math.max(0, Math.floor((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24)));
+    const daysDiff = Math.max(0, Math.floor((endDate.getTime() - chartStartDate.getTime()) / (1000 * 60 * 60 * 24)));
     for (let i = daysDiff; i >= 0; i--) {
       const date = new Date(endDate.getTime() - i * 24 * 60 * 60 * 1000);
       const dateStr = date.toISOString().split("T")[0];

@@ -109,8 +109,22 @@ function buildChartDates(startDate, endDate, preset) {
   const daysDiff = Math.floor(
     (endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24)
   );
-  const maxPoints = Math.min(daysDiff, preset === "last90" ? 90 : 30);
-  for (let i = maxPoints; i >= 0; i--) {
+  
+  let startOffset;
+  if (preset === "last7") {
+    startOffset = 6;
+  } else if (preset === "last30") {
+    startOffset = 29;
+  } else if (preset === "last90") {
+    startOffset = 89;
+  } else if (preset === "today" || preset === "yesterday") {
+    startOffset = 6;
+  } else {
+    // custom or default fallback
+    startOffset = daysDiff;
+  }
+
+  for (let i = startOffset; i >= 0; i--) {
     const d = new Date(endDate.getTime() - i * 24 * 60 * 60 * 1000);
     chartDates.push(d.toISOString().split("T")[0]);
   }

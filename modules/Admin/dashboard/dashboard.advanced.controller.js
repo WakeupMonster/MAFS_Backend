@@ -18,6 +18,12 @@ exports.getAdvancedDashboardMetrics = async (req, res) => {
     const dateParams = helpers.parseDateRange(req.query, now);
     const { startDate, endDate, prevStartDate, prevEndDate, preset, periodLabel, contextLabel } = dateParams;
 
+    let chartStartDate = startDate;
+    if (preset === "today" || preset === "yesterday") {
+      chartStartDate = new Date(endDate.getTime() - 6 * 24 * 60 * 60 * 1000);
+      chartStartDate.setHours(0, 0, 0, 0);
+    }
+
     const startOfYear = new Date(now.getFullYear(), 0, 1);
     const last30d = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
 
@@ -53,7 +59,7 @@ exports.getAdvancedDashboardMetrics = async (req, res) => {
       funnelSubscribersCount, highReportedRange, blocksRange
     } = await queries.fetchDashboardData(
       { User, Profile, Match, Swipe, ChatMessage, Transaction, Report, Block },
-      { startDate, endDate, prevStartDate, prevEndDate, startOfYear, last30d, ghostingThresholdDate }
+      { startDate, endDate, prevStartDate, prevEndDate, startOfYear, last30d, ghostingThresholdDate, chartStartDate }
     );
 
     const totalUsers = userCountsFacet?.total?.[0]?.n || 0;
@@ -71,6 +77,21 @@ exports.getAdvancedDashboardMetrics = async (req, res) => {
     const rawReportTrend = reportCountPrev > 0 ? ((reportCountNew - reportCountPrev) / reportCountPrev) * 100 : (reportCountNew > 0 ? 100 : 0);
     const reportTrendNum = Math.max(-100, rawReportTrend);
     const reportTrendDisplay = `${reportTrendNum >= 0 ? "+" : ""}${reportTrendNum.toFixed(1)}%`;
+
+    /*
+    // Custom flagged trend calculation logic (commented out per user request):
+    let reportTrendDisplayCustom;
+    let reportIsPositiveCustom;
+    if (reportCountNew === 0) {
+      reportTrendDisplayCustom = "0%";
+      reportIsPositiveCustom = false;
+    } else {
+      const rawReportTrendCustom = reportCountPrev > 0 ? ((reportCountNew - reportCountPrev) / reportCountPrev) * 100 : 100;
+      const reportTrendNumCustom = Math.max(-100, rawReportTrendCustom);
+      reportTrendDisplayCustom = `${reportTrendNumCustom >= 0 ? "+" : ""}${reportTrendNumCustom.toFixed(1)}%`;
+      reportIsPositiveCustom = reportTrendNumCustom >= 0;
+    }
+    */
 
     const likesRange = swipesFacet?.currentLikes?.[0]?.n || 0;
     const superlikesRange = swipesFacet?.currentSuperlikes?.[0]?.n || 0;
@@ -157,7 +178,15 @@ exports.getAdvancedDashboardMetrics = async (req, res) => {
             },
             { label: "KYC pending", value: `${pendingKYC}`, sub: "Review now →", isPositive: false, icon: "ShieldAlert", color: "cyan", isActionable: true, route: "/admin/management/kyc-verifications" },
             { 
-              label: "Users flagged", value: `${reportCountNew}`, sub: "pending reports", trend: reportTrendDisplay, isPositive: (reportTrendNum || 0) <= 0, icon: "Flag", color: "sky", isActionable: true, route: "/admin/management/profile-reports",
+              label: "Users flagged", 
+              value: `${reportCountNew}`, 
+              sub: "pending reports", 
+              trend: reportTrendDisplay, // Swap with reportTrendDisplayCustom for custom trend logic
+              isPositive: (reportTrendNum || 0) <= 0, // Swap with reportIsPositiveCustom for custom trend logic
+              icon: "Flag", 
+              color: "sky", 
+              isActionable: true, 
+              route: "/admin/management/profile-reports",
               tooltipData: { current: reportCountNew, previous: reportCountPrev, isCurrency: false }
             },
           ],
@@ -242,27 +271,66 @@ exports.getAdvancedDashboardMetrics = async (req, res) => {
         genderGrowth: (() => {
           let subtitle = `Daily signups for ${periodLabel}`;
           let data = [];
-          if (preset === "last30" || preset === "last90" || chartDates.length > 30) {
+          
+          if (preset === "last90" || chartDates.length > 31) {
+            subtitle = `Monthly signups for ${periodLabel}`;
+            const months = {};
+            const crossYear = startDate.getFullYear() !== endDate.getFullYear();
+            
+            chartDates.forEach((date) => {
+              const d = new Date(date);
+              const monthLabel = crossYear
+                ? d.toLocaleString("default", { month: "short", year: "2-digit" })
+                : d.toLocaleString("default", { month: "short" });
+                
+              if (!months[monthLabel]) {
+                months[monthLabel] = { male: 0, female: 0 };
+              }
+              const m = signups7dDaily.find((s) => s._id.date === date && s._id.gender === "men")?.count || 0;
+              const f = signups7dDaily.find((s) => s._id.date === date && s._id.gender === "women")?.count || 0;
+              months[monthLabel].male += m;
+              months[monthLabel].female += f;
+            });
+            
+            data = Object.keys(months).map((monthLabel) => ({
+              day: monthLabel,
+              male: months[monthLabel].male,
+              female: months[monthLabel].female,
+            }));
+          } else if (preset === "last30" || chartDates.length > 7) {
             subtitle = `Weekly signups for ${periodLabel}`;
             const weeks = [];
-            for (let i = 0; i < chartDates.length; i += 7) {
-              const weekSlice = chartDates.slice(i, i + 7);
-              const m = weekSlice.reduce((sum, date) => sum + (signups7dDaily.find((s) => s._id.date === date && s._id.gender === "men")?.count || 0), 0);
-              const f = weekSlice.reduce((sum, date) => sum + (signups7dDaily.find((s) => s._id.date === date && s._id.gender === "women")?.count || 0), 0);
-              weeks.push({ day: `Week ${Math.floor(i / 7) + 1}`, male: m, female: f });
+            const chunkSize = Math.ceil(chartDates.length / 4);
+            for (let i = 0; i < 4; i++) {
+              const start = i * chunkSize;
+              const end = Math.min(start + chunkSize, chartDates.length);
+              const weekDates = chartDates.slice(start, end);
+              if (weekDates.length === 0) break;
+              
+              const m = weekDates.reduce((sum, date) => sum + (signups7dDaily.find((s) => s._id.date === date && s._id.gender === "men")?.count || 0), 0);
+              const f = weekDates.reduce((sum, date) => sum + (signups7dDaily.find((s) => s._id.date === date && s._id.gender === "women")?.count || 0), 0);
+              weeks.push({ day: `Week ${i + 1}`, male: m, female: f });
             }
             data = weeks;
           } else {
             data = chartDates.map((date) => {
               const d = new Date(date);
+              const dayLabel = dayNamesShort[d.getDay()];
               return {
-                day: dayNamesShort[d.getDay()], fullDate: date,
+                day: dayLabel, fullDate: date,
                 male: signups7dDaily.find((s) => s._id.date === date && s._id.gender === "men")?.count || 0,
                 female: signups7dDaily.find((s) => s._id.date === date && s._id.gender === "women")?.count || 0,
               };
             });
+            if (data.length === 7) {
+              data.sort((a, b) => {
+                const dayA = (new Date(a.fullDate).getDay() + 6) % 7;
+                const dayB = (new Date(b.fullDate).getDay() + 6) % 7;
+                return dayA - dayB;
+              });
+            }
           }
-          return { subtitle, insight: `Male signups are dominant at ${mRatioTotal}%`, data };
+          return { subtitle, insight: `Male: ${mRatioTotal}% • Female: ${fRatioTotal}%`, data };
         })(),
         userDistribution: {
           active: activeAllTime,

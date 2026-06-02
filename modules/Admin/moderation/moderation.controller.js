@@ -325,6 +325,13 @@ module.exports.suspendUser = async (req, res) => {
       });
     }
 
+    if (durationHours < 0 || durationHours > 168) {
+      return res.status(400).json({
+        success: false,
+        message: "Suspension duration must be between 0 and 168 hours (max 7 days)",
+      });
+    }
+
     if (adminId.toString() === userId.toString()) {
       return res.status(403).json({
         success: false,

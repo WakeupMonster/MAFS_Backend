@@ -39,7 +39,7 @@ async function fetchDashboardData(models, dateParams) {
     Block,
   } = models;
 
-  const { startDate, endDate, prevStartDate, prevEndDate, startOfYear, last30d, ghostingThresholdDate } = dateParams;
+  const { startDate, endDate, prevStartDate, prevEndDate, startOfYear, last30d, ghostingThresholdDate, chartStartDate } = dateParams;
 
   const [
     userCountsFacet, profileCountsFacet, totalMatchesCount, reportsFacet,
@@ -193,7 +193,7 @@ async function fetchDashboardData(models, dateParams) {
 
     // 9. Match daily chart
     Match.aggregate([
-      { $match: { createdAt: { $gte: startDate, $lte: endDate } } },
+      { $match: { createdAt: { $gte: chartStartDate || startDate, $lte: endDate } } },
       {
         $group: {
           _id: { $dateToString: { format: "%Y-%m-%d", date: "$createdAt" } },
@@ -206,7 +206,7 @@ async function fetchDashboardData(models, dateParams) {
     // 10. Swipe daily chart
     Swipe.aggregate([
       {
-        $match: { createdAt: { $gte: startDate, $lte: endDate }, action: { $in: ["like", "superlike"] } },
+        $match: { createdAt: { $gte: chartStartDate || startDate, $lte: endDate }, action: { $in: ["like", "superlike"] } },
       },
       {
         $group: { _id: { $dateToString: { format: "%Y-%m-%d", date: "$createdAt" } }, count: { $sum: 1 } },
@@ -298,7 +298,7 @@ async function fetchDashboardData(models, dateParams) {
       {
         $facet: {
           rangeByDay: [
-            { $match: { createdAt: { $gte: startDate, $lte: endDate } } },
+            { $match: { createdAt: { $gte: chartStartDate || startDate, $lte: endDate } } },
             {
               $group: {
                 _id: {
@@ -331,7 +331,8 @@ async function fetchDashboardData(models, dateParams) {
 
     // 14. Funnel: profile complete count
     Profile.countDocuments({
-      isMandatoryComplete: true,
+      "verification.status": "approved",
+      "onboardingProgress.totalCompletion": { $gte: 60 },
       createdAt: { $gte: startDate, $lte: endDate },
     }),
 
