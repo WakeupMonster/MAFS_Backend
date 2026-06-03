@@ -122,6 +122,29 @@ module.exports = async function authMiddleware(req, res, next) {
       user = User.hydrate(dbUser);
     }
 
+    // ✅ Auto-unsuspend if suspension time has passed
+    if (
+      user.accountStatus === "suspended" &&
+      user.suspensionDetails?.isSuspended &&
+      user.suspensionDetails.suspendUntil &&
+      new Date() >= new Date(user.suspensionDetails.suspendUntil)
+    ) {
+      user.accountStatus = "active";
+      user.suspensionDetails.isSuspended = false;
+      user.suspensionDetails.reason = null;
+      user.suspensionDetails.suspendedBy = null;
+      user.suspensionDetails.suspendedAt = null;
+      user.suspensionDetails.suspendUntil = null;
+      
+      await user.save();
+
+      if (redis) {
+        try {
+          await redis.del(AUTH_KEY);
+        } catch (e) {}
+      }
+    }
+
     req.user = user;
     next();
   } catch (err) {

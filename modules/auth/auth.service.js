@@ -114,19 +114,35 @@ async function verifyPhoneOtpUnified(phone, otp, req) {
     );
   }
 
+  let updateSet = {
+    phone: normalizedPhone,
+    phoneHash,
+    authMethod: "phone",
+    isPhoneVerified: true,
+    isNewUser: false,
+    lastLoginAt: new Date(),
+    isTest: normalizedPhone.startsWith("+1000"),
+  };
+
+  if (
+    userBefore?.accountStatus === "suspended" &&
+    userBefore?.suspensionDetails?.isSuspended &&
+    userBefore?.suspensionDetails?.suspendUntil &&
+    new Date() >= new Date(userBefore.suspensionDetails.suspendUntil)
+  ) {
+    updateSet.accountStatus = "active";
+    updateSet["suspensionDetails.isSuspended"] = false;
+    updateSet["suspensionDetails.reason"] = null;
+    updateSet["suspensionDetails.suspendedBy"] = null;
+    updateSet["suspensionDetails.suspendedAt"] = null;
+    updateSet["suspensionDetails.suspendUntil"] = null;
+  }
+
   // Single upsert: creates if new, updates if existing (1 Atlas roundtrip)
   let user = await User.findOneAndUpdate(
     { phoneHash },
     {
-      $set: {
-        phone: normalizedPhone,
-        phoneHash,
-        authMethod: "phone",
-        isPhoneVerified: true,
-        isNewUser: false,
-        lastLoginAt: new Date(),
-        isTest: normalizedPhone.startsWith("+1000"),
-      },
+      $set: updateSet,
       $push: {
         refreshTokens: {
           $each: [{ tokenHash: refreshHash, expiresAt }],
@@ -294,6 +310,21 @@ async function verifyPhoneTestOtpUnified(phone, otp, req) {
 
   // 6️⃣ UPDATE USER (Atomic Update with Sessions & History)
   user = await User.findById(user._id); // Latest data fetch karein
+
+  // ✅ Auto-unsuspend if suspension time has passed
+  if (
+    user.accountStatus === "suspended" &&
+    user.suspensionDetails?.isSuspended &&
+    user.suspensionDetails?.suspendUntil &&
+    new Date() >= new Date(user.suspensionDetails.suspendUntil)
+  ) {
+    user.accountStatus = "active";
+    user.suspensionDetails.isSuspended = false;
+    user.suspensionDetails.reason = null;
+    user.suspensionDetails.suspendedBy = null;
+    user.suspensionDetails.suspendedAt = null;
+    user.suspensionDetails.suspendUntil = null;
+  }
 
   // Array safety checks
   if (!user.sessions) user.sessions = [];
@@ -628,6 +659,21 @@ async function refreshAccessToken(refreshTokenRaw, req) {
   if (!isStillValid) {
     await user.save(); // Clean up array in DB
     throw new Error("Refresh token expired");
+  }
+
+  // ✅ Auto-unsuspend if suspension time has passed
+  if (
+    user.accountStatus === "suspended" &&
+    user.suspensionDetails?.isSuspended &&
+    user.suspensionDetails?.suspendUntil &&
+    new Date() >= new Date(user.suspensionDetails.suspendUntil)
+  ) {
+    user.accountStatus = "active";
+    user.suspensionDetails.isSuspended = false;
+    user.suspensionDetails.reason = null;
+    user.suspensionDetails.suspendedBy = null;
+    user.suspensionDetails.suspendedAt = null;
+    user.suspensionDetails.suspendUntil = null;
   }
 
   // 5. Naya Access Token generate karo
