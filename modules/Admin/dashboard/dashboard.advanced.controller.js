@@ -272,7 +272,18 @@ exports.getAdvancedDashboardMetrics = async (req, res) => {
           let subtitle = `Daily signups for ${periodLabel}`;
           let data = [];
           
-          if (preset === "last90" || chartDates.length > 31) {
+          if (preset === "today" || preset === "yesterday") {
+            const dateStr = chartDates[chartDates.length - 1];
+            const dayLabel = preset === "today" ? "Today" : "Yesterday";
+            data = [
+              {
+                day: dayLabel,
+                fullDate: dateStr,
+                male: signups7dDaily.find((s) => s._id.date === dateStr && s._id.gender === "men")?.count || 0,
+                female: signups7dDaily.find((s) => s._id.date === dateStr && s._id.gender === "women")?.count || 0,
+              }
+            ];
+          } else if (preset === "last90" || chartDates.length > 31) {
             subtitle = `Monthly signups for ${periodLabel}`;
             const months = {};
             const crossYear = startDate.getFullYear() !== endDate.getFullYear();
@@ -330,7 +341,7 @@ exports.getAdvancedDashboardMetrics = async (req, res) => {
               });
             }
           }
-          return { subtitle, insight: `Male: ${mRatioTotal}% • Female: ${fRatioTotal}%`, data };
+          return { subtitle, insight: `Male: ${mRatioRange}% • Female: ${fRatioRange}%`, data };
         })(),
         userDistribution: {
           active: activeAllTime,

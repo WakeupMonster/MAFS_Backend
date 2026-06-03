@@ -201,36 +201,43 @@ module.exports.getAllTickets = async (req, res) => {
               },
             },
           ],
-          kpiStats: [
-            {
-              $group: {
-                _id: null,
-                totalTickets: { $sum: 1 },
-                openTickets: {
-                  $sum: { $cond: [{ $eq: ["$status", "open"] }, 1, 0] },
-                },
-                inProgressTickets: {
-                  $sum: { $cond: [{ $eq: ["$status", "in_progress"] }, 1, 0] },
-                },
-                resolvedTickets: {
-                  $sum: { $cond: [{ $eq: ["$status", "resolved"] }, 1, 0] },
-                },
-                closedTickets: {
-                  $sum: { $cond: [{ $eq: ["$status", "closed"] }, 1, 0] },
-                },
-              },
-            },
-          ],
         },
       },
     ];
 
-    const [result] = await SupportTicket.aggregate(pipeline);
+    // ── Global KPI Stats (unaffected by status/search filters) ──
+    const [result, globalKpiResult] = await Promise.all([
+      SupportTicket.aggregate(pipeline),
+      SupportTicket.aggregate([
+        {
+          $group: {
+            _id: null,
+            totalTickets: { $sum: 1 },
+            openTickets: {
+              $sum: { $cond: [{ $eq: ["$status", "open"] }, 1, 0] },
+            },
+            inProgressTickets: {
+              $sum: { $cond: [{ $eq: ["$status", "in_progress"] }, 1, 0] },
+            },
+            resolvedTickets: {
+              $sum: { $cond: [{ $eq: ["$status", "resolved"] }, 1, 0] },
+            },
+            closedTickets: {
+              $sum: { $cond: [{ $eq: ["$status", "closed"] }, 1, 0] },
+            },
+          },
+        },
+      ]),
+    ]);
+
+    const pipelineResult = result[0];
 
     // Extract total count from metadata
-    const totalItems = result.metadata[0]?.total || 0;
+    const totalItems = pipelineResult.metadata[0]?.total || 0;
     const totalPages = Math.ceil(totalItems / limitNum);
-    const stats = result.kpiStats[0] || {
+
+    // Global KPI stats — always reflect the full database
+    const globalStats = globalKpiResult[0] || {
       totalTickets: 0,
       openTickets: 0,
       inProgressTickets: 0,
@@ -239,15 +246,16 @@ module.exports.getAllTickets = async (req, res) => {
     };
 
     const kpiStats = {
-      totalTickets: stats.totalTickets,
-      openTickets: stats.openTickets,
-      inProgressTickets: stats.inProgressTickets,
-      resolvedTickets: stats.resolvedTickets,
-      closedTickets: stats.closedTickets,
+      totalTickets: globalStats.totalTickets,
+      openTickets: globalStats.openTickets,
+      inProgressTickets: globalStats.inProgressTickets,
+      resolvedTickets: globalStats.resolvedTickets,
+      closedTickets: globalStats.closedTickets,
     };
 
-    return res.json({
+    return res.status(200).json({
       success: true,
+      message: "Tickets fetched successfully",
       pagination: {
         totalPages,
         total: totalItems,
@@ -255,7 +263,7 @@ module.exports.getAllTickets = async (req, res) => {
         limit: limitNum,
       },
       kpiStats,
-      data: result.data,
+      data: pipelineResult.data,
     });
   } catch (err) {
     console.error("Ticket Fetch Error:", err);

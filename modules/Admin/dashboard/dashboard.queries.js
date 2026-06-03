@@ -330,11 +330,30 @@ async function fetchDashboardData(models, dateParams) {
     ]).then((r) => r[0] || {}),
 
     // 14. Funnel: profile complete count
-    Profile.countDocuments({
-      "verification.status": "approved",
-      "onboardingProgress.totalCompletion": { $gte: 60 },
-      createdAt: { $gte: startDate, $lte: endDate },
-    }),
+    Profile.aggregate([
+      {
+        $match: {
+          "verification.status": "approved",
+          "onboardingProgress.totalCompletion": { $gte: 60 },
+          createdAt: { $gte: startDate, $lte: endDate },
+        },
+      },
+      {
+        $lookup: {
+          from: "users",
+          localField: "userId",
+          foreignField: "_id",
+          as: "user",
+        },
+      },
+      { $unwind: "$user" },
+      {
+        $match: {
+          "user.isFake": { $ne: true },
+        },
+      },
+      { $count: "count" },
+    ]).then((r) => r[0]?.count || 0),
 
     // 15. Funnel: unique swipers from the new signups cohort
     Swipe.aggregate([

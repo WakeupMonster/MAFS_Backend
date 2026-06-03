@@ -5,6 +5,11 @@ const { updateUserSchema } = require("./user.management.validation");
 const { stringify } = require("csv-stringify");
 const { destroy } = require("../../upload/cloudinary.service");
 const { calculateAge } = require("../../../common/utils/calculate.age");
+const {
+  getSafeAgePipeline,
+  resolveDatePreset,
+  mapNestedProfileUpdates,
+} = require("./user.management.helpers");
 
 /*
 For Data Table & Search or filters:- 
@@ -137,28 +142,7 @@ module.exports.GETAllUsers = async (req, res) => {
           },
         },
         { $unwind: { path: "$profile", preserveNullAndEmptyArrays: true } },
-        {
-          $addFields: {
-            "profile.calculatedAge": {
-              $cond: {
-                if: {
-                  $and: [
-                    { $gt: ["$profile.dob", null] },
-                    { $toLower: "$profile.dob" },
-                  ],
-                },
-                then: {
-                  $dateDiff: {
-                    startDate: { $toDate: "$profile.dob" },
-                    endDate: "$$NOW",
-                    unit: "year",
-                  },
-                },
-                else: null,
-              },
-            },
-          },
-        },
+        getSafeAgePipeline(),
       );
 
       if (gender) {
@@ -209,28 +193,7 @@ module.exports.GETAllUsers = async (req, res) => {
               preserveNullAndEmptyArrays: true,
             },
           },
-          {
-            $addFields: {
-              "profile.calculatedAge": {
-                $cond: {
-                  if: {
-                    $and: [
-                      { $gt: ["$profile.dob", null] },
-                      { $toLower: "$profile.dob" },
-                    ],
-                  },
-                  then: {
-                    $dateDiff: {
-                      startDate: { $toDate: "$profile.dob" },
-                      endDate: "$$NOW",
-                      unit: "year",
-                    },
-                  },
-                  else: null,
-                },
-              },
-            },
-          },
+          getSafeAgePipeline(),
         ]
         : []),
       {
@@ -283,43 +246,36 @@ module.exports.GETAllUsers = async (req, res) => {
       },
     ];
 
+    // ── Global KPI Stats (unaffected by search/filter/pagination) ──
+    const globalBase = { role: "USER", isFake: { $ne: true } };
+    const [
+      globalTotal, globalActive, globalPremium, globalBanned, globalSuspended
+    ] = await Promise.all([
+      User.countDocuments(globalBase),
+      User.countDocuments({ ...globalBase, accountStatus: "active" }),
+      User.countDocuments({ ...globalBase, isPremium: true }),
+      User.countDocuments({ ...globalBase, accountStatus: "banned" }),
+      User.countDocuments({ ...globalBase, accountStatus: "suspended" }),
+    ]);
+
+    // ── Filtered user list + filtered total for pagination ──
     let users = [];
-    let total = 0, activeTotal = 0, premiumTotal = 0, bannedTotal = 0, suspendedTotal = 0;
+    let total = 0;
 
     if (!needsEarlyProfileLookup) {
-      const [
-        usersData, t, a, p, b, s
-      ] = await Promise.all([
+      const [usersData, t] = await Promise.all([
         User.aggregate([...pipeline, ...dataPipeline]),
         User.countDocuments(baseMatch),
-        User.countDocuments({ ...baseMatch, accountStatus: "active" }),
-        User.countDocuments({ ...baseMatch, isPremium: true }),
-        User.countDocuments({ ...baseMatch, accountStatus: "banned" }),
-        User.countDocuments({ ...baseMatch, accountStatus: "suspended" }),
       ]);
       users = usersData;
       total = t;
-      activeTotal = a;
-      premiumTotal = p;
-      bannedTotal = b;
-      suspendedTotal = s;
     } else {
-      const [
-        usersData, t, a, p, b, s
-      ] = await Promise.all([
+      const [usersData, t] = await Promise.all([
         User.aggregate([...pipeline, ...dataPipeline]),
         User.aggregate([...pipeline, { $count: "count" }]),
-        User.aggregate([...pipeline, { $match: { accountStatus: "active" } }, { $count: "count" }]),
-        User.aggregate([...pipeline, { $match: { isPremium: true } }, { $count: "count" }]),
-        User.aggregate([...pipeline, { $match: { accountStatus: "banned" } }, { $count: "count" }]),
-        User.aggregate([...pipeline, { $match: { accountStatus: "suspended" } }, { $count: "count" }]),
       ]);
       users = usersData;
       total = t[0]?.count || 0;
-      activeTotal = a[0]?.count || 0;
-      premiumTotal = p[0]?.count || 0;
-      bannedTotal = b[0]?.count || 0;
-      suspendedTotal = s[0]?.count || 0;
     }
 
     const responseData = {
@@ -330,11 +286,11 @@ module.exports.GETAllUsers = async (req, res) => {
         totalPages: Math.ceil(total / limit),
       },
       kpiStats: {
-        totalUsers: total,
-        activeTotal,
-        premiumTotal,
-        bannedTotal,
-        suspendedTotal,
+        totalUsers: globalTotal,
+        activeTotal: globalActive,
+        premiumTotal: globalPremium,
+        bannedTotal: globalBanned,
+        suspendedTotal: globalSuspended,
       },
       message: "Users fetched successfully",
       data: users,
@@ -377,17 +333,7 @@ module.exports.GETSingleUserDetails = async (req, res) => {
       { $match: { _id: uId } },
       { $lookup: { from: "profiles", localField: "_id", foreignField: "userId", as: "profile" } },
       { $unwind: { path: "$profile", preserveNullAndEmptyArrays: true } },
-      {
-        $addFields: {
-          "profile.calculatedAge": {
-            $cond: {
-              if: { $and: [{ $gt: ["$profile.dob", null] }, { $toLower: "$profile.dob" }] },
-              then: { $dateDiff: { startDate: { $toDate: "$profile.dob" }, endDate: "$$NOW", unit: "year" } },
-              else: null,
-            },
-          },
-        },
-      },
+      getSafeAgePipeline(),
       { $lookup: { from: "accounts", localField: "_id", foreignField: "userId", as: "account" } },
       { $unwind: { path: "$account", preserveNullAndEmptyArrays: true } },
       { $lookup: { from: "blockedcontacts", localField: "_id", foreignField: "userId", as: "blockedContactsData" } },
@@ -772,26 +718,14 @@ module.exports.UPDATESingleUserDetail = async (req, res) => {
         if (profile[field] !== undefined) profileUpdate[field] = profile[field];
       });
 
-      // FIX: Include 'settings' in the nested mapping loop
-      ["attributes", "location", "settings"].forEach((parentKey) => {
-        if (profile[parentKey]) {
-          Object.keys(profile[parentKey]).forEach((childKey) => {
-            // If it's a double-nested object (like settings.notifications)
-            if (
-              typeof profile[parentKey][childKey] === "object" &&
-              !Array.isArray(profile[parentKey][childKey])
-            ) {
-              Object.keys(profile[parentKey][childKey]).forEach(
-                (grandChildKey) => {
-                  profileUpdate[`${parentKey}.${childKey}.${grandChildKey}`] =
-                    profile[parentKey][childKey][grandChildKey];
-                },
-              );
-            } else {
-              profileUpdate[`${parentKey}.${childKey}`] =
-                profile[parentKey][childKey];
-            }
-          });
+      // Use null-safe helper for nested mapping
+      const nestedUpdates = mapNestedProfileUpdates(profile);
+      // nestedUpdates includes flat fields too; merge them,
+      // but since we already handled flat fields above, only
+      // take the dot-notation keys from the helper.
+      Object.keys(nestedUpdates).forEach((key) => {
+        if (key.includes(".")) {
+          profileUpdate[key] = nestedUpdates[key];
         }
       });
 
@@ -989,8 +923,8 @@ module.exports.DELETEPhoto = async (req, res) => {
 /* ======: For Bluk exports in csv file to get all Users Data: API 4: GET api/v1/admin/user-management/export =========== */
 module.exports.streamUsersExport = async (req, res) => {
   try {
-    // 1. Core Match: Export all users (Ignore filters)
-    const userMatch = { role: "USER" };
+    // 1. Core Match: Export real users only (exclude fake profiles)
+    const userMatch = { role: "USER", isFake: { $ne: true } };
     const pipeline = [{ $match: userMatch }];
 
     res.setHeader(
@@ -1086,8 +1020,8 @@ module.exports.streamUsersExport = async (req, res) => {
       const currentProgress = Math.floor((processedCount / totalUsers) * 100);
       if (currentProgress > lastSentProgress) {
         lastSentProgress = currentProgress;
-        // Sending progress marker via direct response write
-        res.write(`---PROG:${currentProgress}---`);
+        // NOTE: Progress markers removed — they polluted the CSV stream.
+        // Use SSE or a separate endpoint for export progress tracking.
       }
 
       // ✅ Robust Age Calculation
@@ -1150,19 +1084,9 @@ module.exports.GETGhostingUsers = async (req, res) => {
     const skip = (page - 1) * limit;
     const searchTrimmed = search?.trim();
 
-    // 1. Resolve Date Range (Matches Dashboard Logic)
-    let startDate, endDate;
-    if (from && to) {
-      startDate = new Date(from);
-      startDate.setHours(0, 0, 0, 0);
-      endDate = new Date(to);
-      endDate.setHours(23, 59, 59, 999);
-    } else if (preset === "today") {
-      startDate = new Date();
-      startDate.setHours(0, 0, 0, 0);
-      endDate = new Date();
-      endDate.setHours(23, 59, 59, 999);
-    }
+    // 1. Resolve Date Range (Matches Dashboard Logic) — uses centralized helper
+    const resolved = resolveDatePreset(preset, from, to);
+    const { startDate, endDate } = resolved;
 
     const oneMonthAgo = new Date();
     oneMonthAgo.setMonth(oneMonthAgo.getMonth() - 1);
@@ -1378,28 +1302,7 @@ module.exports.GETGhostingUsers = async (req, res) => {
           },
         },
         { $unwind: { path: "$profile", preserveNullAndEmptyArrays: true } },
-        {
-          $addFields: {
-            "profile.calculatedAge": {
-              $cond: {
-                if: {
-                  $and: [
-                    { $gt: ["$profile.dob", null] },
-                    { $toLower: "$profile.dob" },
-                  ],
-                },
-                then: {
-                  $dateDiff: {
-                    startDate: { $toDate: "$profile.dob" },
-                    endDate: "$$NOW",
-                    unit: "year",
-                  },
-                },
-                else: null,
-              },
-            },
-          },
-        },
+        getSafeAgePipeline(),
       );
 
       if (gender) {
@@ -1439,28 +1342,7 @@ module.exports.GETGhostingUsers = async (req, res) => {
               preserveNullAndEmptyArrays: true,
             },
           },
-          {
-            $addFields: {
-              "profile.calculatedAge": {
-                $cond: {
-                  if: {
-                    $and: [
-                      { $gt: ["$profile.dob", null] },
-                      { $toLower: "$profile.dob" },
-                    ],
-                  },
-                  then: {
-                    $dateDiff: {
-                      startDate: { $toDate: "$profile.dob" },
-                      endDate: "$$NOW",
-                      unit: "year",
-                    },
-                  },
-                  else: null,
-                },
-              },
-            },
-          },
+          getSafeAgePipeline(),
         ]
         : []),
       {
