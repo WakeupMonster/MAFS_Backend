@@ -124,20 +124,22 @@ const verifyPurchase = async (req, res, next) => {
 
     console.log("📍 Step: Preparing handlePurchase...", { userId, productId });
 
-    // ➕ Initiative 3: Milestone Claim Logic
+    // ➕ Initiative 3: Milestone Claim Logic (Updated: Safe Fallback)
     if (req.body.source === 'FREE_TRIAL') {
       console.log("📍 Step: Handling Free Trial logic...");
       const User = require("../../auth/auth.model");
       const user = await User.findById(userId);
 
-      if (!user || !user.giveaway || !user.giveaway.isEligibleForFreeTrial ||
-        (user.giveaway.offerExpiresAt && user.giveaway.offerExpiresAt < new Date())) {
-        throw new Error("You are not eligible or the offer has expired.");
+      // Agar user sach me eligible tha, toh uska giveaway status update kar do
+      if (user && user.giveaway && user.giveaway.isEligibleForFreeTrial) {
+        user.giveaway.claimedAt = new Date();
+        user.giveaway.isEligibleForFreeTrial = false;
+        await user.save();
       }
+      
+      // Note: Agar user eligible nahi tha (hacker bypass), tab bhi hum error THROW nahi kar rahe hain.
+      // Apple ne purchase approve kar di hai, isliye hum quietly usko premium de denge taaki App reject na ho.
 
-      user.giveaway.claimedAt = new Date();
-      user.giveaway.isEligibleForFreeTrial = false;
-      await user.save();
       if (purchaseData) {
         purchaseData.source = "FREE_TRIAL";
       }
