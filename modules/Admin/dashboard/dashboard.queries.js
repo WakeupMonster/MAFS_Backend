@@ -44,7 +44,7 @@ async function fetchDashboardData(models, dateParams) {
   const [
     userCountsFacet, profileCountsFacet, totalMatchesCount, reportsFacet,
     deepConvoAggCount, ghostedUsersCount, swipesFacet, matchesFacet, matches7dDaily, swipes7dDaily, heatmapAgg,
-    revenueFacet, signupGenderFacet, funnelCompletedProfiles, funnelSwipersCount,
+    revenueFacet, signupGenderFacet, funnelCompletedProfiles, funnelMatchesCount,
     funnelSubscribersCount, highReportedRange, blocksRange
   ] = await Promise.all([
     // 1. All user status counts (parallelized for index usage instead of $facet)
@@ -355,6 +355,7 @@ async function fetchDashboardData(models, dateParams) {
       { $count: "count" },
     ]).then((r) => r[0]?.count || 0),
 
+    /*
     // 15. Funnel: unique swipers from the new signups cohort
     Swipe.aggregate([
       { $match: { createdAt: { $gte: startDate, $lte: endDate } } },
@@ -364,6 +365,19 @@ async function fetchDashboardData(models, dateParams) {
       { $match: { "user.createdAt": { $gte: startDate, $lte: endDate }, "user.isFake": { $ne: true } } },
       { $count: "n" },
     ]).then((r) => r[0]?.n || 0),
+    */
+
+    // 15. Funnel: unique matched users from the new signups cohort (First Match)
+    Match.aggregate([
+      { $match: { createdAt: { $gte: startDate, $lte: endDate } } },
+      { $unwind: "$users" },
+      { $group: { _id: "$users" } },
+      { $lookup: { from: "users", localField: "_id", foreignField: "_id", as: "user" } },
+      { $unwind: "$user" },
+      { $match: { "user.createdAt": { $gte: startDate, $lte: endDate }, "user.isFake": { $ne: true } } },
+      { $count: "n" },
+    ]).then((r) => r[0]?.n || 0),
+
 
     // 16. Funnel: unique subscribers from the new signups cohort
     Transaction.aggregate([
@@ -439,7 +453,7 @@ async function fetchDashboardData(models, dateParams) {
     revenueFacet,
     signupGenderFacet,
     funnelCompletedProfiles,
-    funnelSwipersCount,
+    funnelMatchesCount,
     funnelSubscribersCount,
     highReportedRange,
     blocksRange,

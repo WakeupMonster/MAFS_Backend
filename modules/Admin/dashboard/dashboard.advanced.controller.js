@@ -55,7 +55,7 @@ exports.getAdvancedDashboardMetrics = async (req, res) => {
       userCountsFacet, profileCountsFacet, totalMatchesCount, reportsFacet,
       deepConvoAggCount, ghostedUsersCount, swipesFacet, matchesFacet,
       matches7dDaily, swipes7dDaily, heatmapAgg, revenueFacet, signupGenderFacet,
-      funnelCompletedProfiles, funnelSwipersCount,
+      funnelCompletedProfiles, funnelMatchesCount,
       funnelSubscribersCount, highReportedRange, blocksRange
     } = await queries.fetchDashboardData(
       { User, Profile, Match, Swipe, ChatMessage, Transaction, Report, Block },
@@ -247,8 +247,9 @@ exports.getAdvancedDashboardMetrics = async (req, res) => {
             { label: "App Installs", value: Math.round(rangeSignups * 1.2), dropOff: 0, color: "hsl(182 100% 88%)", isEstimated: true },
             { label: "Signups", value: rangeSignups, dropOff: Math.round(rangeSignups * 1.2) > 0 ? Math.max(-100, Math.min(0, -Math.round((1 - rangeSignups / Math.round(rangeSignups * 1.2)) * 100))) : 0, color: "hsl(182 85% 78%)" },
             { label: "Profile Complete", value: funnelCompletedProfiles, dropOff: rangeSignups > 0 ? Math.max(-100, Math.min(0, -Math.round((1 - funnelCompletedProfiles / rangeSignups) * 100))) : 0, color: "hsl(182 70% 68%)" },
-            { label: "First Swipe", value: funnelSwipersCount, dropOff: funnelCompletedProfiles > 0 ? Math.max(-100, Math.min(0, -Math.round((1 - funnelSwipersCount / funnelCompletedProfiles) * 100))) : 0, color: "hsl(182 60% 54%)" },
-            { label: "Subscribed", value: funnelSubscribersCount, dropOff: funnelSwipersCount > 0 ? Math.max(-100, Math.min(0, -Math.round((1 - funnelSubscribersCount / funnelSwipersCount) * 100))) : 0, color: "hsl(182 60% 45%)" },
+            // { label: "First Swipe", value: funnelSwipersCount, dropOff: funnelCompletedProfiles > 0 ? Math.max(-100, Math.min(0, -Math.round((1 - funnelSwipersCount / funnelCompletedProfiles) * 100))) : 0, color: "hsl(182 60% 54%)" },
+            { label: "First Match", value: funnelMatchesCount, dropOff: funnelCompletedProfiles > 0 ? Math.max(-100, Math.min(0, -Math.round((1 - funnelMatchesCount / funnelCompletedProfiles) * 100))) : 0, color: "hsl(182 60% 54%)" },
+            { label: "Subscribed", value: funnelSubscribersCount, dropOff: funnelMatchesCount > 0 ? Math.max(-100, Math.min(0, -Math.round((1 - funnelSubscribersCount / funnelMatchesCount) * 100))) : 0, color: "hsl(182 60% 45%)" },
           ],
         },
         performanceInsights: {
