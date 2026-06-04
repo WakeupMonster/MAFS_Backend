@@ -56,6 +56,8 @@ async function clearProfileCache(userId) {
       cache.del(`profile:${userId}`),
       cache.del(`profile:status:${userId}`),
       cache.del(`profile:static:${userId}`),
+      cache.del(`feed:${userId}`),
+      cache.del(`feed:exclude:${userId}`),
     ]);
   } catch (err) {
     console.log("Cache clear warning:", err.message);
