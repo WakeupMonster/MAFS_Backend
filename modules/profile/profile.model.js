@@ -91,9 +91,14 @@ const ProfileSchema = new mongoose.Schema(
         default: [], // ✅ BEST PRACTICE: Array ka default [] rakhein, null nahi.
       },
       relationshipGoal: { type: String, default: null }, // Stored as ID String
+      // globalVisibility: {
+      //   type: String,
+      //   enum: ["everyone", "matches_only", "nobody"],
+      //   default: "everyone",
+      // },
       globalVisibility: {
         type: String,
-        enum: ["everyone", "matches_only", "nobody"],
+        enum: ["everyone", "private"],
         default: "everyone",
       },
       filterRelationshipGoal: String,
