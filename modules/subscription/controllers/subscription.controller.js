@@ -136,7 +136,7 @@ const verifyPurchase = async (req, res, next) => {
         user.giveaway.isEligibleForFreeTrial = false;
         await user.save();
       }
-      
+
       // Note: Agar user eligible nahi tha (hacker bypass), tab bhi hum error THROW nahi kar rahe hain.
       // Apple ne purchase approve kar di hai, isliye hum quietly usko premium de denge taaki App reject na ho.
 
@@ -404,30 +404,43 @@ const getCatalog = async (req, res, next) => {
       success: true,
       message: "Catalog fetched",
       data: {
-        subscriptions: subscriptions.map((sub) => ({
-          ...sub.toObject(),
-          features,
-          allocations: {
-            likes: config.premiumLimits.swipesPerDay, // -1 = Unlimited
-            superKeens: config.premiumLimits.superKeensPerDay,
-            boosts: config.premiumLimits.boostsPerMonth,
-            rewinds: config.premiumLimits.rewindsPerDay, // -1 = Unlimited
-          },
-        })),
+        subscriptions: subscriptions.map((sub) => {
+          const subObj = sub.toObject();
+          delete subObj.badgeColor;
+          delete subObj.badgeText;
+          delete subObj.features;
+
+          return {
+            ...subObj,
+            allocations: {
+              likes: config.premiumLimits.swipesPerDay, // -1 = Unlimited
+              superKeens: config.premiumLimits.superKeensPerDay,
+              boosts: config.premiumLimits.boostsPerMonth,
+              rewinds: config.premiumLimits.rewindsPerDay, // -1 = Unlimited
+            },
+          };
+        }),
         consumables: {
           superKeens: consumables
             .filter((c) => c.consumableType === "SUPER_KEEN")
-            .map((c) => c.toObject()),
+            .map((c) => {
+              const cObj = c.toObject();
+              delete cObj.badgeColor;
+              delete cObj.badgeText;
+              delete cObj.features;
+              return cObj;
+            }),
           boosts: consumables
             .filter((c) => c.consumableType === "BOOST")
-            .map((c) => c.toObject()),
+            .map((c) => {
+              const cObj = c.toObject();
+              delete cObj.badgeColor;
+              delete cObj.badgeText;
+              delete cObj.features;
+              return cObj;
+            }),
         },
-        milestone: {
-          target: config.milestone.targetUserCount,
-          currentCount: config.milestone.currentCount,
-          isActive: config.milestone.isActive,
-        },
-        freeFeatures,
+        // freeFeatures,
         PremiumFeatures: allDynamicFeatures // Dynamic features with full metadata
       },
     });
@@ -1312,21 +1325,21 @@ const getAtRiskUsers = async (req, res, next) => {
     const totalPages = Math.ceil(total / limitNum);
 
     const enrichedUsers = await Promise.all(users.map(async u => ({
-        userId: u.userId,
-        plan: u.planType,
-        displayName: await productDisplayHelper.resolveDisplayName(u.productId, u.customDisplayName, u.source),
-        platform: u.platform,
-        retryCount: u.retryCount,
-        gracePeriodEndsAt: u.gracePeriodEndsAt,
-        daysRemaining: Math.max(
-          0,
-          Math.ceil(
-            (new Date(u.gracePeriodEndsAt) - new Date()) /
-            (1000 * 60 * 60 * 24),
-          ),
+      userId: u.userId,
+      plan: u.planType,
+      displayName: await productDisplayHelper.resolveDisplayName(u.productId, u.customDisplayName, u.source),
+      platform: u.platform,
+      retryCount: u.retryCount,
+      gracePeriodEndsAt: u.gracePeriodEndsAt,
+      daysRemaining: Math.max(
+        0,
+        Math.ceil(
+          (new Date(u.gracePeriodEndsAt) - new Date()) /
+          (1000 * 60 * 60 * 24),
         ),
-        startedAt: u.startedAt,
-      })));
+      ),
+      startedAt: u.startedAt,
+    })));
 
     return res.json({
       success: true,

@@ -67,7 +67,7 @@ class UsageService {
             this.configCacheExpires = Date.now() + (5 * 60 * 1000); // 5 min TTL
         }
 
-        const [config, activeSub, daily, weekly, monthly, wallet, boostTTL, user] = await Promise.all([
+        const [config, activeSub, daily, weekly, monthly, wallet, boostTTL, user, premium1MonthProduct] = await Promise.all([
             Promise.resolve(this.configCache),
             Subscription.findActiveByUser(userId).lean(),
             UserDailyUsage.findOne({ userId, dateKey: dateHelpers.getDateKey() }).lean(),
@@ -75,7 +75,8 @@ class UsageService {
             UserMonthlyUsage.findOne({ userId, monthKey: dateHelpers.getMonthKey() }).lean(),
             UserConsumableBalance.findOne({ userId }).lean(),
             cache.ttl(`boost:${userId}`), // Instantly gets the expiry timer from Redis
-            User.findById(userId).select("giveaway").lean()
+            User.findById(userId).select("giveaway").lean(),
+            Product.findOne({ productKey: 'premium_1month' }).lean()
         ]);
 
         const isPremium = !!activeSub;
@@ -188,24 +189,50 @@ class UsageService {
                     boosts: wallet?.boostsBalance || 0
                 },
 
-                premiumFeatures: {
-                    seeWhoLikedYou: isPremium && config.premiumFeatures.seeWhoLikedYou,
-                    passport: isPremium && config.premiumFeatures.passport,
-                    advancedFilters: isPremium && config.premiumFeatures.advancedFilters,
-                    noAds: isPremium && config.premiumFeatures.noAds
-                },
+                // premiumFeatures: {
+                //     seeWhoLikedYou: isPremium && config.premiumFeatures.seeWhoLikedYou,
+                //     passport: isPremium && config.premiumFeatures.passport,
+                //     advancedFilters: isPremium && config.premiumFeatures.advancedFilters,
+                //     noAds: isPremium && config.premiumFeatures.noAds
+                // },
 
                 // ➕ NEW: Dynamic Features array (Single Source of Truth)
                 PremiumFeatures: await featureService.getDynamicFeaturesForUser(userId, isPremium),
 
                 showAds: !isPremium || !config.premiumFeatures.noAds,
-                giveaway: user?.giveaway ? {
-                    isEligibleForFreeTrial: user.giveaway.isEligibleForFreeTrial || false,
-                    freeTrialDurationDays: user.giveaway.freeTrialDurationDays || 30,
-                    description: user.giveaway.description || "First 1000 users milestone",
-                    offerExpiresAt: user.giveaway.offerExpiresAt || null,
-                    claimedAt: user.giveaway.claimedAt || null
-                } : null
+                milestone: {
+                    target: config.milestone.targetUserCount,
+                    currentCount: config.milestone.currentCount,
+                    isActive: config.milestone.isActive,
+                    ...(user?.giveaway ? {
+                        isEligibleForFreeTrial: user.giveaway.isEligibleForFreeTrial || false,
+                        freeTrialDurationDays: user.giveaway.freeTrialDurationDays || 30,
+                        description: user.giveaway.description || "First 1000 users milestone",
+                        offerExpiresAt: user.giveaway.offerExpiresAt || null,
+                        claimedAt: user.giveaway.claimedAt || null
+                    } : {}),
+                    catalog: premium1MonthProduct ? (() => {
+                        const product = { ...premium1MonthProduct };
+                        delete product.badgeColor;
+                        delete product.badgeText;
+                        delete product.features;
+                        
+                        return {
+                            ...product,
+                            // Trial overrides for milestone
+                            appleProductId: "com.keenasmustard.premium.1month.trial",
+                            googleProductId: "com.keenasmustard.premium.1month",
+                            googleBasePlanId: "monthly-base",
+                            googleOfferToken: "free-trial-30-days",
+                            allocations: {
+                                likes: config.premiumLimits.swipesPerDay,
+                                superKeens: config.premiumLimits.superKeensPerDay,
+                                boosts: config.premiumLimits.boostsPerMonth,
+                                rewinds: config.premiumLimits.rewindsPerDay
+                            }
+                        };
+                    })() : null
+                }
             }
         };
 
