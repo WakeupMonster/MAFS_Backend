@@ -2,17 +2,17 @@ const Block = require("./user.block");
 
 // ✅ NEW: Ye function direction batata hai — kisne block kiya
 exports.isBlocked = async (currentUserId, otherUserId) => {
-  // Current user ne block kiya hai?
-  const blockedByMe = await Block.exists({
-    blockerId: currentUserId,
-    blockedId: otherUserId,
-  });
-
-  // Other user ne block kiya hai?
-  const blockedByThem = await Block.exists({
-    blockerId: otherUserId,
-    blockedId: currentUserId,
-  });
+  // Parallelize the block queries
+  const [blockedByMe, blockedByThem] = await Promise.all([
+    Block.exists({
+      blockerId: currentUserId,
+      blockedId: otherUserId,
+    }),
+    Block.exists({
+      blockerId: otherUserId,
+      blockedId: currentUserId,
+    })
+  ]);
 
   return {
     isBlocked: !!(blockedByMe || blockedByThem), // koi bhi block hai toh true

@@ -450,8 +450,10 @@ module.exports.getChatList = async (req, res) => {
   }
 };
 const { uploadStream } = require("../../upload/cloudinary.service");
+const crypto = require("crypto");
 
 module.exports.uploadChatMediaController = async (req, res) => {
+  const start = Date.now();
   try {
     const userId = req.user._id;
     const { matchId } = req.body; // Remove receiverId from body for security
@@ -465,7 +467,7 @@ module.exports.uploadChatMediaController = async (req, res) => {
     }
 
     // 1. Validate match and participants
-    const match = await Match.findById(matchId);
+    const match = await Match.findById(matchId).lean();
     if (!match) {
       return res.status(404).json({
         success: false,
@@ -495,44 +497,57 @@ module.exports.uploadChatMediaController = async (req, res) => {
       });
     }
 
-    // 4. 🔥 Upload all files to Cloudinary (Bypassed if load testing)
-    // Note: Middleware already checked per-type size limits
-    let media;
-    if (process.env.NODE_ENV === "test" || req.headers["x-bypass-cloudinary"] === "true") {
-      media = files.map((file) => ({
-        url: "https://res.cloudinary.com/demo/image/upload/sample.jpg",
-        publicId: "sample",
-        originalName: file.originalname || "test.jpg",
-        type: file.mimetype && file.mimetype.startsWith("video/") ? "video" : "image",
-      }));
-    } else {
-      media = await Promise.all(
-        files.map(async (file) => {
-          const result = await uploadStream(file.buffer, {
-            folder: `mafs/chat/${matchId}`,
-            resource_type: "auto",
-            transformation: [
-              // { quality: "auto:good" }
-              { quality: "auto", fetch_format: "auto" }
-            ],
-          });
+    // 4. 🔥 PREDICT URLS & RESPOND FAST (Background Upload)
+    const media = [];
+    const uploadTasks = [];
 
-          return {
-            url: result.secure_url,
-            publicId: result.public_id,
-            originalName: file.originalname,
-            type:
-              result.resource_type === "video"
-                ? "video"
-                : file.mimetype === "image/gif"
-                  ? "gif"
-                  : "image",
-          };
-        }),
-      );
+    const getExtension = (mimetype) => {
+      if (mimetype === "image/gif") return "gif";
+      if (mimetype.startsWith("video/")) return "mp4";
+      return "jpg"; 
+    };
+
+    if (process.env.NODE_ENV === "test" || req.headers["x-bypass-cloudinary"] === "true") {
+      files.forEach((file) => {
+        media.push({
+          url: "https://res.cloudinary.com/demo/image/upload/sample.jpg",
+          publicId: "sample",
+          originalName: file.originalname || "test.jpg",
+          type: file.mimetype && file.mimetype.startsWith("video/") ? "video" : "image",
+        });
+      });
+    } else {
+      files.forEach((file) => {
+        const randomStr = crypto.randomBytes(6).toString("hex");
+        const folder = `mafs/chat/${matchId}`;
+        const publicId = `${Date.now()}_${randomStr}`;
+        const fullPublicId = `${folder}/${publicId}`;
+        
+        const type = file.mimetype.startsWith("video/") ? "video" : file.mimetype === "image/gif" ? "gif" : "image";
+        const ext = getExtension(file.mimetype);
+        
+        const cloudName = process.env.CLOUDINARY_CLOUD_NAME;
+        // Construct predictable Cloudinary URL
+        const url = `https://res.cloudinary.com/${cloudName}/${type}/upload/${fullPublicId}.${ext}`;
+
+        media.push({
+          url,
+          publicId: fullPublicId,
+          originalName: file.originalname,
+          type
+        });
+
+        // Add to background task queue
+        uploadTasks.push({
+          buffer: file.buffer,
+          folder,
+          publicId,
+          resourceType: type === "video" ? "video" : "image", 
+        });
+      });
     }
 
-    // 5. 🔥 Save chat message in DB
+    // 5. 🔥 Save chat message in DB (Synchronous to return response fast)
     const message = await ChatMessage.create({
       matchId,
       sender: userId,
@@ -542,18 +557,18 @@ module.exports.uploadChatMediaController = async (req, res) => {
       status: "SENT",
     });
 
-    // 6. 🔥 VVIP: Match model update karo
-    await Match.findByIdAndUpdate(matchId, {
+    // 6. 🔥 VVIP: Match model update & Cache invalidation (Parallel)
+    Match.findByIdAndUpdate(matchId, {
       lastMessage: "📷 Media",
       lastMessageAt: new Date(),
       lastMessageBy: userId,
-    });
+    }).catch(err => console.error("Match update error:", err));
 
     if (redis) {
       Promise.all([
         redis.del(`chat:list:${userId.toString()}`),
         redis.del(`chat:list:${receiverId.toString()}`),
-      ]).catch((err) => console.error("Error clearing chat list cache in uploadChatMediaController:", err));
+      ]).catch((err) => console.error("Error clearing chat cache:", err));
     }
 
     const formattedMessage = {
@@ -570,17 +585,46 @@ module.exports.uploadChatMediaController = async (req, res) => {
         .toFormat("hh:mm a"),
     };
 
-    return res.json({
+    console.log(`[CHAT UPLOAD FAST RESP] Time: ${Date.now() - start}ms`);
+
+    // 🚀 RESPOND IMMEDIATELY TO FRONTEND
+    res.json({
       success: true,
       message: "Media message sent successfully",
       data: formattedMessage,
     });
+
+    // 🚀 BACKGROUND FIRE-AND-FORGET UPLOAD
+    if (uploadTasks.length > 0) {
+      (async () => {
+        try {
+          await Promise.all(
+            uploadTasks.map((task) =>
+              uploadStream(task.buffer, {
+                folder: task.folder,
+                public_id: task.publicId, // Set explicitly so URL matches
+                resource_type: task.resourceType,
+                transformation: [{ quality: "auto", fetch_format: "auto" }],
+              })
+            )
+          );
+          // console.log(`[BACKGROUND UPLOAD DONE] Match: ${matchId}`);
+        } catch (uploadErr) {
+          console.error(`[BACKGROUND UPLOAD ERROR] Match: ${matchId}`, uploadErr);
+          // Optional: Mark DB message as failed if needed later
+        }
+      })();
+    }
   } catch (err) {
     console.error("❌ uploadChatMediaController error:", err);
-    return res.status(500).json({
-      success: false,
-      message: err.message || "Failed to upload chat media",
-    });
+    // Use standard Express res inside try block, but since we might have sent res already if error occurs later
+    // we ensure not to send headers twice.
+    if (!res.headersSent) {
+      return res.status(500).json({
+        success: false,
+        message: err.message || "Failed to upload chat media",
+      });
+    }
   }
 };
 
