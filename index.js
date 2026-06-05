@@ -126,6 +126,23 @@ io.use(async (socket, next) => {
             isActive: true,
           },
           {
+            productKey: "premium_1month_trial",
+            type: "SUBSCRIPTION",
+            planType: "1_MONTH",
+            durationDays: 31,
+            displayName: "1 Month Free Trial",
+            subtitle: "Milestone Offer",
+            badge: "🎉 FREE",
+            displayPrice: "0.00",
+            currency: "AUD",
+            appleProductId: "com.keenasmustard.premium.1month.trial",
+            googleProductId: "com.keenasmustard.premium.1month",
+            googleBasePlanId: "monthly-base",
+            googleOfferToken: "free-trial-30-days",
+            sortOrder: 0,
+            isActive: true
+          },
+          {
             productKey: "premium_3month",
             type: "SUBSCRIPTION",
             planType: "3_MONTH",
@@ -224,6 +241,30 @@ io.use(async (socket, next) => {
           "items",
         );
       }
+
+      // Upsert milestone free trial product (ensures it exists even if DB already has products)
+      await Product.findOneAndUpdate(
+        { productKey: "premium_1month_trial" },
+        {
+          $setOnInsert: {
+            productKey: "premium_1month_trial",
+            type: "SUBSCRIPTION",
+            planType: "1_MONTH",
+            durationDays: 31,
+            displayName: "1 Month Free Trial",
+            subtitle: "Milestone Offer",
+            badge: "🎉 FREE",
+            displayPrice: "0.00",
+            currency: "AUD",
+            appleProductId: "com.keenasmustard.premium.1month.trial",
+            googleProductId: "com.keenasmustard.premium.1month",
+            sortOrder: 0,
+            isActive: true,
+          },
+        },
+        { upsert: true }
+      );
+      console.log("✅ [SEED] Milestone trial product ensured");
 
       // Ensure SubscriptionConfig singleton exists
       await SubscriptionConfig.getOrCreate();

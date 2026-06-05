@@ -29,6 +29,23 @@ const initialProducts = [
         isActive: true
     },
     {
+        productKey: "premium_1month_trial",
+        type: "SUBSCRIPTION",
+        planType: "1_MONTH",
+        durationDays: 31,
+        displayName: "1 Month Free Trial",
+        subtitle: "Milestone Offer",
+        badge: "🎉 FREE",
+        displayPrice: "0.00",
+        currency: "AUD",
+        appleProductId: "com.keenasmustard.premium.1month.trial",
+        googleProductId: "com.keenasmustard.premium.1month",
+        googleBasePlanId: "monthly-base",
+        googleOfferToken: "free-trial-30-days",
+        sortOrder: 0,
+        isActive: true
+    },
+    {
         productKey: "premium_3month",
         type: "SUBSCRIPTION",
         planType: "3_MONTH",

@@ -247,20 +247,28 @@ exports.getUserSubscriptionDetail = async (req, res, next) => {
     try {
         const { userId } = req.params;
 
-        const [user, profile, subscription, transactions, wallet] = await Promise.all([
+        const [user, profile, transactions, wallet] = await Promise.all([
             User.findById(userId).select("phone email role accountStatus").lean(),
             Profile.findOne({ userId }).select("fullName nickname photos").lean(),
-            Subscription.findOne({ userId }).sort({ createdAt: -1 }).lean(),
             // Return ALL transactions (not just 10)
             SubscriptionTransaction.find({ userId }).sort({ occurredAt: -1 }).lean(),
             UserConsumableBalance.findOne({ userId }).lean()
         ]);
 
+        // Prioritize finding an ACTIVE subscription. If none exists, get the latest one.
+        let subscription = await Subscription.findOne({ userId, status: "ACTIVE" }).sort({ expiresAt: -1 }).lean();
+        if (!subscription) {
+            subscription = await Subscription.findOne({ userId }).sort({ createdAt: -1 }).lean();
+        }
+
         // Fetch subscription history (all past subscriptions except the current one)
-        const subscriptionHistory = await Subscription.find({
+        const subHistoryQuery = {
             userId: userId,
             ...(subscription?._id ? { _id: { $ne: subscription._id } } : {})
-        }).sort({ createdAt: -1 }).lean();
+        };
+        console.log("DEBUG: subHistoryQuery =", subHistoryQuery);
+        const subscriptionHistory = await Subscription.find(subHistoryQuery).sort({ createdAt: -1 }).lean();
+        console.log("DEBUG: subscriptionHistory found =", subscriptionHistory.length);
 
         // Add displayName to subscription, history, and transactions
         const [enrichedSubscription, enrichedHistory, enrichedTransactions] = await Promise.all([
@@ -268,6 +276,18 @@ exports.getUserSubscriptionDetail = async (req, res, next) => {
             productDisplayHelper.enrichWithDisplayName(subscriptionHistory),
             productDisplayHelper.enrichWithDisplayName(transactions)
         ]);
+
+        // Fetch unified usage data from UsageService (same source as App's /status API)
+        const usageStatus = await UsageService.getUsageStatus(userId);
+
+        // Calculate total available (Quota Remaining + Wallet Balance)
+        const skRemaining = usageStatus?.data?.allocations?.superKeens?.remaining;
+        const walletSK = usageStatus?.data?.wallet?.superKeens || 0;
+        const totalSuperKeens = skRemaining === -1 ? -1 : (Math.max(0, skRemaining || 0) + walletSK);
+
+        const boostRemaining = usageStatus?.data?.allocations?.boosts?.remaining;
+        const walletBoosts = usageStatus?.data?.wallet?.boosts || 0;
+        const totalBoosts = boostRemaining === -1 ? -1 : (Math.max(0, boostRemaining || 0) + walletBoosts);
 
         return res.json({
             success: true,
@@ -282,7 +302,21 @@ exports.getUserSubscriptionDetail = async (req, res, next) => {
                 subscriptionHistory: enrichedHistory,
                 transactions: enrichedTransactions,
                 recentTransactions: enrichedTransactions, // Keep backward compatibility
-                wallet
+                wallet: {
+                    ...(wallet || {}),
+                    superKeensBalance: totalSuperKeens,
+                    boostsBalance: totalBoosts,
+                    details: {
+                        superKeens: {
+                            baseLimit: skRemaining === -1 ? "Unlimited" : (skRemaining || 0),
+                            granted: walletSK
+                        },
+                        boosts: {
+                            baseLimit: boostRemaining === -1 ? "Unlimited" : (boostRemaining || 0),
+                            granted: walletBoosts
+                        }
+                    }
+                }
             }
         });
     } catch (err) {

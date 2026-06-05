@@ -10,6 +10,7 @@ const {
   resolveDatePreset,
   mapNestedProfileUpdates,
 } = require("./user.management.helpers");
+const UsageService = require("../../subscription/services/usage.service");
 
 /*
 For Data Table & Search or filters:- 
@@ -461,6 +462,18 @@ module.exports.GETSingleUserDetails = async (req, res) => {
     const s = swipeStatsResult[0] || {};
     const pendingReports = reportsReceived.filter(r => r.status === "new").length;
 
+    // Fetch unified usage data directly from UsageService
+    const usageStatus = await UsageService.getUsageStatus(userId);
+    
+    // Calculate total available (Quota Remaining + Wallet Balance)
+    const skRemaining = usageStatus?.data?.allocations?.superKeens?.remaining;
+    const walletSK = usageStatus?.data?.wallet?.superKeens || 0;
+    const totalSuperKeens = skRemaining === -1 ? -1 : (Math.max(0, skRemaining || 0) + walletSK);
+
+    const boostRemaining = usageStatus?.data?.allocations?.boosts?.remaining;
+    const walletBoosts = usageStatus?.data?.wallet?.boosts || 0;
+    const totalBoosts = boostRemaining === -1 ? -1 : (Math.max(0, boostRemaining || 0) + walletBoosts);
+
     // 4. Construct exact payload
     const finalData = {
       _id: b._id,
@@ -531,8 +544,18 @@ module.exports.GETSingleUserDetails = async (req, res) => {
         platform: (b.currentSubscription && b.currentSubscription.platform) || (b.latestSubscription && b.latestSubscription.platform) || null,
         startedAt: (b.currentSubscription && b.currentSubscription.startedAt) || (b.latestSubscription && b.latestSubscription.startedAt) || null,
         expiresAt: (b.currentSubscription && b.currentSubscription.expiresAt) || (b.latestSubscription && b.latestSubscription.expiresAt) || null,
-        availableSuperKeens: b.consumableBalances ? b.consumableBalances.superKeensBalance : 0,
-        availableBoosts: b.consumableBalances ? b.consumableBalances.boostsBalance : 0,
+        availableSuperKeens: totalSuperKeens,
+        availableBoosts: totalBoosts,
+        details: {
+          superKeens: {
+              baseLimit: skRemaining === -1 ? "Unlimited" : (skRemaining || 0),
+              granted: walletSK
+          },
+          boosts: {
+              baseLimit: boostRemaining === -1 ? "Unlimited" : (boostRemaining || 0),
+              granted: walletBoosts
+          }
+        },
         isCurrentlyActive: (() => {
           const c = b.currentSubscription;
           if (!c) return false;
