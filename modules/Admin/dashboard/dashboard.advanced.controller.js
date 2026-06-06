@@ -157,6 +157,12 @@ exports.getAdvancedDashboardMetrics = async (req, res) => {
     const heatmapD = helpers.buildHeatmapData(heatmapAgg);
     const rangeSignups = mRS + fRS;
 
+    const signupsCount = rangeSignups;
+    const appInstallsCount = Math.round(signupsCount * 1.2);
+    const profileCompleteCount = Math.min(signupsCount, funnelCompletedProfiles);
+    const firstMatchCount = Math.min(profileCompleteCount, funnelMatchesCount);
+    const subscribedCount = Math.min(firstMatchCount, funnelSubscribersCount);
+
     return res.status(200).json({
       success: true,
       meta: { dateRange: { from: startDate.toISOString(), to: endDate.toISOString() }, preset, periodLabel, contextLabel },
@@ -244,12 +250,11 @@ exports.getAdvancedDashboardMetrics = async (req, res) => {
           insight: "Conversion funnel tracks user journey from signup to subscription.",
           stages: [
             // App Installs: estimated from signups (assumes ~83% install-to-signup conversion), isEstimated flag for frontend to display accordingly
-            { label: "App Installs", value: Math.round(rangeSignups * 1.2), dropOff: 0, color: "hsl(182 100% 88%)", isEstimated: true },
-            { label: "Signups", value: rangeSignups, dropOff: Math.round(rangeSignups * 1.2) > 0 ? Math.max(-100, Math.min(0, -Math.round((1 - rangeSignups / Math.round(rangeSignups * 1.2)) * 100))) : 0, color: "hsl(182 85% 78%)" },
-            { label: "Profile Complete", value: funnelCompletedProfiles, dropOff: rangeSignups > 0 ? Math.max(-100, Math.min(0, -Math.round((1 - funnelCompletedProfiles / rangeSignups) * 100))) : 0, color: "hsl(182 70% 68%)" },
-            // { label: "First Swipe", value: funnelSwipersCount, dropOff: funnelCompletedProfiles > 0 ? Math.max(-100, Math.min(0, -Math.round((1 - funnelSwipersCount / funnelCompletedProfiles) * 100))) : 0, color: "hsl(182 60% 54%)" },
-            { label: "First Match", value: funnelMatchesCount, dropOff: funnelCompletedProfiles > 0 ? Math.max(-100, Math.min(0, -Math.round((1 - funnelMatchesCount / funnelCompletedProfiles) * 100))) : 0, color: "hsl(182 60% 54%)" },
-            { label: "Subscribed", value: funnelSubscribersCount, dropOff: funnelMatchesCount > 0 ? Math.max(-100, Math.min(0, -Math.round((1 - funnelSubscribersCount / funnelMatchesCount) * 100))) : 0, color: "hsl(182 60% 45%)" },
+            { label: "App Installs", value: appInstallsCount, dropOff: 0, color: "hsl(182 100% 88%)", isEstimated: true },
+            { label: "Signups", value: signupsCount, dropOff: appInstallsCount > 0 ? Math.max(-100, Math.min(0, -Math.round((1 - signupsCount / appInstallsCount) * 100))) : 0, color: "hsl(182 85% 78%)" },
+            { label: "Profile Complete", value: profileCompleteCount, dropOff: signupsCount > 0 ? Math.max(-100, Math.min(0, -Math.round((1 - profileCompleteCount / signupsCount) * 100))) : 0, color: "hsl(182 70% 68%)" },
+            { label: "First Match", value: firstMatchCount, dropOff: profileCompleteCount > 0 ? Math.max(-100, Math.min(0, -Math.round((1 - firstMatchCount / profileCompleteCount) * 100))) : 0, color: "hsl(182 60% 54%)" },
+            { label: "Subscribed", value: subscribedCount, dropOff: firstMatchCount > 0 ? Math.max(-100, Math.min(0, -Math.round((1 - subscribedCount / firstMatchCount) * 100))) : 0, color: "hsl(182 60% 45%)" },
           ],
         },
         performanceInsights: {
