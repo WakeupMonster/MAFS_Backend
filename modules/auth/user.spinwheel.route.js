@@ -8,7 +8,7 @@ const { apiLimiter } = require("../../common/middlewares/apiLimiter");
 
 router.use(auth);
 
-router.post("/claim", apiLimiter("giveaway_claim", 3, 60), giveawayController.claimPrize); // 3 req / 1 min
+router.post("/claim", apiLimiter("giveaway_claim", 5, 60), giveawayController.claimPrize); // 5 req / 1 min
 router.get("/info", apiLimiter("giveaway_info", 20, 60), giveawayController.getGiveawayInfo); // 20 req / 1 min
 router.post("/info", allowAdmin, giveawayController.updateGiveawayInfo);
 router.get("/my-giveaways", apiLimiter("my_giveaways", 20, 60), giveawayController.getMyGiveaways); // 20 req / 1 min

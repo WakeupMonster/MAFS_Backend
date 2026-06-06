@@ -18,7 +18,7 @@ router.use(auth);
 
 router.patch(
   "/update",
-  // apiLimiter("profile_update", 40, 3600), // Max 30 profile updates per hour
+  apiLimiter("profile_update", 40, 300), // 40 req / 5 mins
   // validation.validateProfileUpdate,
   controller.updateProfile,
 );
@@ -41,17 +41,14 @@ router.patch(
 // router.patch("/", apiLimiter("update_preference", 20, 60), controllerDis.updatePreference);
 // router.post("/photos", apiLimiter("photo_upload", 10, 3600), uploadMiddleware.uploadPhotos, controller.uploadPhotos);
 router.patch("/", controllerDis.updatePreference);
-router.post("/photos", uploadMiddleware.uploadPhotos, controller.uploadPhotos);
+router.post("/photos", apiLimiter("photo_upload", 20, 300), uploadMiddleware.uploadPhotos, controller.uploadPhotos);
 
-// router.delete("/photos", apiLimiter("photo_delete", 10, 3600), controller.deletePhoto);
-// router.patch("/photos/reorder", apiLimiter("photo_reorder", 10, 3600), controller.reorderPhotos);
-
-router.delete("/photos", controller.deletePhoto);
-router.patch("/photos/reorder", controller.reorderPhotos);
+router.delete("/photos", apiLimiter("photo_delete", 20, 300), controller.deletePhoto);
+router.patch("/photos/reorder", apiLimiter("photo_reorder", 20, 300), controller.reorderPhotos);
 
 router.post(
   "/selfie",
-  // apiLimiter("selfie_upload", 5, 3600),
+  apiLimiter("selfie_upload", 5, 60), // 5 req / 1 min
   (req, res, next) => {
     uploadMiddleware.uploadSingle("selfie")(req, res, (err) => {
       if (err) {
@@ -65,7 +62,7 @@ router.post(
 
 router.post(
   "/id-document",
-  // apiLimiter("id_upload", 3, 3600),
+  apiLimiter("id_upload", 5, 60), // 5 req / 1 min
   uploadMiddleware.uploadFields,
   // validation.validateIDUpload,
   controller.uploadIDDocument,
@@ -88,7 +85,7 @@ router.get("/me", apiLimiter("profile_me", 30, 60), controller.getMyProfile);
 
 router.post("/bulk-add", masterController.bulkAddMasterData);
 
-router.get("/config", apiLimiter("app_config", 20, 60), masterController.getAppConfig);
+router.get("/config", apiLimiter("app_config", 30, 300), masterController.getAppConfig);
 
 router.get(
   "/:userId",
@@ -104,13 +101,13 @@ router.patch("/visibility", auth,
 
 router.get("/blocked/all", userAction.getBlockList);
 
-router.post("/block/:id", userAction.blockUser);
-router.delete("/unblock/:id", userAction.unblockUser);
+router.post("/block/:id", apiLimiter("block_user", 10, 300), userAction.blockUser);
+router.delete("/unblock/:id", apiLimiter("unblock_user", 10, 300), userAction.unblockUser);
 router.get("/block-list", userAction.getBlockList);
 
-// Reportt
+// Report
 router.post("/report/:id",
-  apiLimiter("visibility_update", 10, 60),
+  apiLimiter("report_user", 5, 600), // 5 req / 10 mins
   userAction.reportUser);
 
 

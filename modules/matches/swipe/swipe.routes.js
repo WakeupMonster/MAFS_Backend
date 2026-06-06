@@ -36,9 +36,9 @@ router.use(allowDating);
 
 router.get("/feed", validation.feed, controllerOld.getFeed);
 router.post("/action", validation.action, controllerOld.action);
-router.post("/unmatch", controllerOld.unmatchUser);
+router.post("/unmatch", apiLimiter("unmatch", 10, 300), controllerOld.unmatchUser); // 10 req / 5 mins
 router.get("/matches", controllerOld.getMatches);
-router.post("/undo", validation.undo, controllerOld.undo);
+router.post("/undo", apiLimiter("swipe_undo", 10, 60), validation.undo, controllerOld.undo); // 10 req / 1 min
 
 
 

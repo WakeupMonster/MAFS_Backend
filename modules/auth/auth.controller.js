@@ -333,7 +333,7 @@ module.exports.resendPhoneOtp = async (req, res) => {
       });
     }
 
-    const isLimited = await rateLimit(`resend:phone:${ip}`, 3, 60);
+    const isLimited = await rateLimit(`resend:phone:${ip}`, 10, 300);
     if (isLimited) {
       return res.status(429).json({
         success: false,
@@ -402,8 +402,8 @@ module.exports.resendEmailOtp = async (req, res) => {
     // 2. Rate limiting (Optional but good)
     const isLimited = await rateLimit(
       `resend:email:${getClientIp(req)}`,
-      3,
-      60,
+      10,
+      300,
     );
     if (isLimited) {
       return res.status(429).json({
