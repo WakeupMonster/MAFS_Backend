@@ -6,6 +6,8 @@ const redis = require("../../config/cache");
 const User = require("../auth/auth.model");
 const BlockedContact = require("../BlockedContact/blockedContacts.model");
 const Block = require("../profile/user.block");
+const { Match } = require("../matches/swipe/swipe.model");
+const Swipe = require("../matches/swipe/swipe.model");
 const { formatProfileResponse } = require("./profile.formatter");
 const UserSubscription = require("../auth/UserSubscription.model");
 const { formatPublictargetProfile } = require("./profile.userFormatter");
@@ -725,11 +727,23 @@ exports.getUserProfile = async (req, res) => {
       staticProfile = typeof staticProfile === "string" ? JSON.parse(staticProfile) : staticProfile;
     }
 
-    // 2. Get Viewer Data (Live)
-    const myProfile = await Profile.findOne({ userId: myId }).select("location").lean();
+    // 2. Get Viewer Data (Live) — match, swipe, distance are all dynamic
+    const [myProfile, matchRecord, swipeAction] = await Promise.all([
+      Profile.findOne({ userId: myId }).select("location").lean(),
+      Match.findOne({ users: { $all: [myId, userId] } }).lean(),
+      Swipe.findOne({ swiperId: myId, targetId: userId }).lean(),
+    ]);
 
-    // 3. Dynamic Overlay (Distance)
+    // 3. Dynamic Overlay (Distance + Match/Swipe status)
     const finalProfile = { ...staticProfile };
+
+    // 🔥 LIVE match & swipe status (never cached)
+    finalProfile.status = {
+      ...finalProfile.status,
+      isLiked: swipeAction?.action === "like",
+      isSuperLike: swipeAction?.action === "superlike",
+      isMatch: !!matchRecord,
+    };
 
     if (myProfile?.location?.coordinates && staticProfile.location?.coordinates) {
       const calculateDistance = (lat1, lon1, lat2, lon2) => {
