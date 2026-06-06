@@ -189,6 +189,7 @@ exports.updateProfile = async (req, res) => {
     }
 
     if (updateData.onboarding) {
+      console.log("=== /update API: onboarding data received ===", updateData.onboarding);
       const ob = updateData.onboarding;
       profile.onboarding = profile.onboarding || {};
       if (ob.isComplete !== undefined) profile.onboarding.isComplete = ob.isComplete;
@@ -317,12 +318,17 @@ exports.uploadPhotos = async (req, res) => {
       });
     });
 
-    //  if (!profile.onboarding.isComplete) {
-    //   const { nextstep, currentScreenSlug } = req.body;
-    //   profile.onboarding.nextstep = nextstep;
-    //   profile.onboarding.currentScreenSlug = currentScreenSlug;
-    //   profile.onboarding.updatedAt = new Date();
-    // }
+    const { nextstep, currentScreenSlug, isComplete } = req.body;
+    console.log("=== /photos API: onboarding data received ===", { nextstep, currentScreenSlug, isComplete });
+    if (nextstep || currentScreenSlug || isComplete !== undefined) {
+      profile.onboarding = profile.onboarding || {};
+      if (nextstep) profile.onboarding.nextstep = nextstep;
+      if (currentScreenSlug) profile.onboarding.currentScreenSlug = currentScreenSlug;
+      if (isComplete !== undefined) {
+        profile.onboarding.isComplete = isComplete === 'true' || isComplete === true;
+      }
+      profile.onboarding.updatedAt = new Date();
+    }
 
     await profile.save();
     const [data, masterMap] = await Promise.all([
@@ -590,14 +596,24 @@ exports.uploadSelfie = async (req, res) => {
       transformation: [{ width: 600, height: 600, crop: "fill" }]
     });
 
+    const { nextstep, currentScreenSlug, isComplete } = req.body;
+    console.log("=== /selfie API: onboarding data received ===", { nextstep, currentScreenSlug, isComplete });
+    let updateOps = {
+      "verification.selfieUrl": result.secure_url,
+      "verification.status": "pending"
+    };
+    if (nextstep) updateOps["onboarding.nextstep"] = nextstep;
+    if (currentScreenSlug) updateOps["onboarding.currentScreenSlug"] = currentScreenSlug;
+    if (isComplete !== undefined) {
+      updateOps["onboarding.isComplete"] = isComplete === 'true' || isComplete === true;
+    }
+    if (nextstep || currentScreenSlug || isComplete !== undefined) {
+      updateOps["onboarding.updatedAt"] = new Date();
+    }
+
     const profile = await Profile.findOneAndUpdate(
       { userId },
-      {
-        $set: {
-          "verification.selfieUrl": result.secure_url,
-          "verification.status": "pending"
-        }
-      },
+      { $set: updateOps },
       { new: true, upsert: true }
     );
     await clearProfileCache(userId);
@@ -622,15 +638,25 @@ exports.uploadIDDocument = async (req, res) => {
       folder: `mafs/users/${userId}/kyc`
     });
 
+    const { nextstep, currentScreenSlug, isComplete } = req.body;
+    console.log("=== /id-document API: onboarding data received ===", { nextstep, currentScreenSlug, isComplete });
+    let updateOps = {
+      "verification.docUrl": frontResult.secure_url,
+      "verification.status": "pending",
+      "verification.submittedAt": new Date()
+    };
+    if (nextstep) updateOps["onboarding.nextstep"] = nextstep;
+    if (currentScreenSlug) updateOps["onboarding.currentScreenSlug"] = currentScreenSlug;
+    if (isComplete !== undefined) {
+      updateOps["onboarding.isComplete"] = isComplete === 'true' || isComplete === true;
+    }
+    if (nextstep || currentScreenSlug || isComplete !== undefined) {
+      updateOps["onboarding.updatedAt"] = new Date();
+    }
+
     const profile = await Profile.findOneAndUpdate(
       { userId },
-      {
-        $set: {
-          "verification.docUrl": frontResult.secure_url,
-          "verification.status": "pending",
-          "verification.submittedAt": new Date()
-        }
-      },
+      { $set: updateOps },
       { new: true, upsert: true }
     );
     await clearProfileCache(userId);
@@ -639,7 +665,7 @@ exports.uploadIDDocument = async (req, res) => {
     res.status(200).json({
       success: true,
       submittedAt: profile.verification.submittedAt,
-      message: "ID document uploaded successfully"
+      message: "ID document uploaded successfully."
     });
   } catch (err) {
     res.status(500).json({ success: false, message: "ID upload failed" });
