@@ -188,13 +188,18 @@ exports.updateProfile = async (req, res) => {
           : [disc.showMeGender];
     }
 
-    if (updateData.onboarding) {
-      console.log("=== /update API: onboarding data received ===", updateData.onboarding);
-      const ob = updateData.onboarding;
+    if (updateData.onboarding || updateData.nextstep !== undefined || updateData.currentScreenSlug !== undefined || updateData.isComplete !== undefined) {
+      const ob = updateData.onboarding || {};
+      const nextstep = ob.nextstep !== undefined ? ob.nextstep : updateData.nextstep;
+      const currentScreenSlug = ob.currentScreenSlug !== undefined ? ob.currentScreenSlug : updateData.currentScreenSlug;
+      const isComplete = ob.isComplete !== undefined ? ob.isComplete : updateData.isComplete;
+      
+      console.log("=== /update API: onboarding data received ===", { nextstep, currentScreenSlug, isComplete });
+
       profile.onboarding = profile.onboarding || {};
-      if (ob.isComplete !== undefined) profile.onboarding.isComplete = ob.isComplete;
-      if (ob.nextstep !== undefined) profile.onboarding.nextstep = ob.nextstep;
-      if (ob.currentScreenSlug !== undefined) profile.onboarding.currentScreenSlug = ob.currentScreenSlug;
+      if (isComplete !== undefined) profile.onboarding.isComplete = isComplete;
+      if (nextstep !== undefined) profile.onboarding.nextstep = nextstep;
+      if (currentScreenSlug !== undefined) profile.onboarding.currentScreenSlug = currentScreenSlug;
       profile.onboarding.updatedAt = new Date();
     }
 
