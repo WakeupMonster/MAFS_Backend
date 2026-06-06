@@ -188,6 +188,15 @@ exports.updateProfile = async (req, res) => {
           : [disc.showMeGender];
     }
 
+    if (updateData.onboarding) {
+      const ob = updateData.onboarding;
+      profile.onboarding = profile.onboarding || {};
+      if (ob.isComplete !== undefined) profile.onboarding.isComplete = ob.isComplete;
+      if (ob.nextstep !== undefined) profile.onboarding.nextstep = ob.nextstep;
+      if (ob.currentScreenSlug !== undefined) profile.onboarding.currentScreenSlug = ob.currentScreenSlug;
+      profile.onboarding.updatedAt = new Date();
+    }
+
     profile.lastProfileUpdate = new Date();
     await profile.save();
 
