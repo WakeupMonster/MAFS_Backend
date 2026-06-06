@@ -439,7 +439,7 @@ module.exports.GETAllUsers = async (req, res) => {
 
       if (searchTrimmed) {
         const searchRegex = new RegExp(
-          searchTrimmed.replace(/[.*+?^${}()|[\\/]\\]/g, "\\$&"),
+          searchTrimmed.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"),
           "i",
         );
         const searchConditions = [

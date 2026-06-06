@@ -356,7 +356,7 @@ const getStatus = async (req, res, next) => {
 const getCatalog = async (req, res, next) => {
   try {
     const [products, config] = await Promise.all([
-      Product.find({ isActive: true }).sort({ sortOrder: 1 }),
+      Product.find({ isActive: true, productKey: { $ne: "premium_1month_trial" } }).sort({ sortOrder: 1 }),
       SubscriptionConfig.getOrCreate(),
     ]);
 
