@@ -117,7 +117,22 @@ exports.listSubscribers = async (req, res, next) => {
     try {
         const { page = 1, limit = 20, status, planType, platform, search } = req.query;
         const filter = {};
-        if (status) filter.status = status;
+        if (status) {
+            if (status === "EXPIRED") {
+                filter.$and = filter.$and || [];
+                filter.$and.push({
+                    $or: [
+                        { status: "EXPIRED" },
+                        { expiresAt: { $lte: new Date() } }
+                    ]
+                });
+            } else if (status === "ACTIVE") {
+                filter.status = "ACTIVE";
+                filter.expiresAt = { $gt: new Date() };
+            } else {
+                filter.status = status;
+            }
+        }
         if (planType) {
             const upperPlan = planType.toUpperCase();
             if (['1_MONTH', '1 MONTH', 'MONTHLY', 'ONE_MONTH', '1 MONTHS'].includes(upperPlan)) {
@@ -215,15 +230,16 @@ exports.listSubscribers = async (req, res, next) => {
         }));
 
         const now = new Date();
-        const [total, totalActive, totalRevoked] = await Promise.all([
+        const [total, totalActive, totalExpired, totalRevoked] = await Promise.all([
             Subscription.countDocuments(filter),
             Subscription.countDocuments({ status: "ACTIVE", expiresAt: { $gt: now } }),
             Subscription.countDocuments({
                 $or: [
-                    { status: { $ne: "ACTIVE" } },
+                    { status: "EXPIRED" },
                     { expiresAt: { $lte: now } }
                 ]
-            })
+            }),
+            Subscription.countDocuments({ status: "REVOKED" })
         ]);
 
         return res.json({
@@ -234,6 +250,7 @@ exports.listSubscribers = async (req, res, next) => {
                 limit: Number(limit),
                 totalPages: Math.ceil(total / limit),
                 totalActive,
+                totalExpired,
                 totalRevoked
             },
             data: enrichedSubs
