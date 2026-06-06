@@ -85,17 +85,20 @@ module.exports.contactSupport = async (req, res) => {
 
 module.exports.getAllTickets = async (req, res) => {
   try {
-    const { status, search, page = 1, limit = 10 } = req.query;
+    const { status, search, category, page = 1, limit = 10 } = req.query;
 
     // 1. Sanitize Pagination Params
     const pageNum = Math.max(1, parseInt(page) || 1);
     const limitNum = Math.min(100, Math.max(1, parseInt(limit) || 10));
     const skip = (pageNum - 1) * limitNum;
 
-    // 2. Initial Match (Status Filter)
+    // 2. Initial Match (Status & Category Filters)
     let matchQuery = {};
     if (status && status !== "") {
       matchQuery.status = status;
+    }
+    if (category && category !== "") {
+      matchQuery.category = category;
     }
 
     // 3. Search Query Logic

@@ -183,3 +183,10 @@
 {"level":"error","message":"[CRON] AutoRenew fallback check error:","service":"iap-service","timestamp":"2026-06-03 16:00:05"}
 {"level":"error","message":"[CRON] Failed events check error:","service":"iap-service","timestamp":"2026-06-03 16:00:05"}
 {"level":"error","message":"[CRON] Expire check error:","service":"iap-service","timestamp":"2026-06-03 16:00:05"}
+{"level":"error","message":"[CRON] Grace period check error:","service":"iap-service","timestamp":"2026-06-05 10:45:07"}
+{"level":"error","message":"[CRON] Expire check error:","service":"iap-service","timestamp":"2026-06-05 10:45:12"}
+{"level":"error","message":"[CRON] Cancelled expire check error:","service":"iap-service","timestamp":"2026-06-05 10:45:12"}
+{"level":"error","message":"[CRON] Grace period check error:","service":"iap-service","timestamp":"2026-06-05 10:50:05"}
+{"level":"error","message":"[CRON] Expire check error:","service":"iap-service","timestamp":"2026-06-05 10:50:10"}
+{"level":"error","message":"[CRON] Cancelled expire check error:","service":"iap-service","timestamp":"2026-06-05 10:50:10"}
+{"level":"error","message":"[CRON] Failed events check error:","service":"iap-service","timestamp":"2026-06-05 10:50:10"}

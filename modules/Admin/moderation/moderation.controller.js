@@ -129,7 +129,7 @@ module.exports.verifyUserProfile = async (req, res) => {
           userId,
           title: "Identity Verified! ✅",
           message:
-            "Congratulations! Your account has been verified. You can now access all features.",
+            "Congratulations! Your account has been verified. Please restart the app to access all features.",
           data: {
             type: NOTIFICATION_TYPES.KYC_VERIFIED,
             cta: { action: "NAVIGATE_HOME" },

@@ -93,7 +93,8 @@ const ProfileSchema = new mongoose.Schema(
       relationshipGoal: { type: String, default: null }, // Stored as ID String
       globalVisibility: {
         type: String,
-        enum: ["everyone", "matches_only", "nobody"],
+        // enum: ["everyone", "matches_only", "nobody"],
+        enum: ["everyone", "private"],
         default: "everyone",
       },
       filterRelationshipGoal: String,
