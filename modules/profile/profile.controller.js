@@ -323,7 +323,17 @@ exports.uploadPhotos = async (req, res) => {
       });
     });
 
-    const { nextstep, currentScreenSlug, isComplete } = req.body;
+    let { nextstep, currentScreenSlug, isComplete, onboarding } = req.body;
+    if (onboarding) {
+      try {
+        const ob = typeof onboarding === 'string' ? JSON.parse(onboarding) : onboarding;
+        if (ob.nextstep !== undefined) nextstep = ob.nextstep;
+        if (ob.currentScreenSlug !== undefined) currentScreenSlug = ob.currentScreenSlug;
+        if (ob.isComplete !== undefined) isComplete = ob.isComplete;
+      } catch (e) {
+        console.error("Failed to parse onboarding JSON from photos FormData");
+      }
+    }
     console.log("=== /photos API: onboarding data received ===", { nextstep, currentScreenSlug, isComplete });
     if (nextstep || currentScreenSlug || isComplete !== undefined) {
       profile.onboarding = profile.onboarding || {};
@@ -601,7 +611,17 @@ exports.uploadSelfie = async (req, res) => {
       transformation: [{ width: 600, height: 600, crop: "fill" }]
     });
 
-    const { nextstep, currentScreenSlug, isComplete } = req.body;
+    let { nextstep, currentScreenSlug, isComplete, onboarding } = req.body;
+    if (onboarding) {
+      try {
+        const ob = typeof onboarding === 'string' ? JSON.parse(onboarding) : onboarding;
+        if (ob.nextstep !== undefined) nextstep = ob.nextstep;
+        if (ob.currentScreenSlug !== undefined) currentScreenSlug = ob.currentScreenSlug;
+        if (ob.isComplete !== undefined) isComplete = ob.isComplete;
+      } catch (e) {
+        console.error("Failed to parse onboarding JSON from selfie FormData");
+      }
+    }
     console.log("=== /selfie API: onboarding data received ===", { nextstep, currentScreenSlug, isComplete });
     let updateOps = {
       "verification.selfieUrl": result.secure_url,
@@ -643,8 +663,19 @@ exports.uploadIDDocument = async (req, res) => {
       folder: `mafs/users/${userId}/kyc`
     });
 
-    const { nextstep, currentScreenSlug, isComplete } = req.body;
-    console.log("=== /id-document API: onboarding data received ===", { nextstep, currentScreenSlug, isComplete });
+    let { nextstep, currentScreenSlug, isComplete, onboarding } = req.body;
+    console.log("=== /id-document API FULL req.body ===", req.body);
+    if (onboarding) {
+      try {
+        const ob = typeof onboarding === 'string' ? JSON.parse(onboarding) : onboarding;
+        if (ob.nextstep !== undefined) nextstep = ob.nextstep;
+        if (ob.currentScreenSlug !== undefined) currentScreenSlug = ob.currentScreenSlug;
+        if (ob.isComplete !== undefined) isComplete = ob.isComplete;
+      } catch (e) {
+        console.error("Failed to parse onboarding JSON from id-document FormData");
+      }
+    }
+    console.log("=== /id-document API: onboarding data extracted ===", { nextstep, currentScreenSlug, isComplete });
     let updateOps = {
       "verification.docUrl": frontResult.secure_url,
       "verification.status": "pending",
