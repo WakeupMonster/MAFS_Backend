@@ -48,6 +48,27 @@ async function buildOnboardingResponse(req = {}, userId) {
     }
   }
 
+  let existingProfile = await Profile.findOne(
+    { userId },
+    { onboarding: 1, onboardingProgress: 1, verification: 1 }
+  ).lean();
+
+  // FORCE COMPLETE LOGIC: If step >= 11 and both URLs are present, it is ALWAYS complete.
+  let isForcedComplete = false;
+  if (
+    existingProfile &&
+    existingProfile.onboarding?.nextstep >= 11 &&
+    existingProfile.verification?.selfieUrl &&
+    existingProfile.verification?.docUrl
+  ) {
+    isForcedComplete = true;
+    if (!existingProfile.onboarding.isComplete) {
+      await Profile.updateOne({ userId }, { $set: { "onboarding.isComplete": true } });
+      existingProfile.onboarding.isComplete = true;
+    }
+    if (onboarding) onboarding.isComplete = true;
+  }
+
   // ❌ frontend ne kuch nahi bheja
   if (
     !onboarding ||
@@ -55,34 +76,19 @@ async function buildOnboardingResponse(req = {}, userId) {
     typeof onboarding.currentScreenSlug !== "string" ||
     typeof onboarding.isComplete !== "boolean"
   ) {
-    // DB se existing onboarding return karo
-    const profile = await Profile.findOne(
-      { userId },
-      { onboarding: 1, onboardingProgress: 1 }
-    ).lean();
-
     return (
-      profile?.onboarding || {
+      existingProfile?.onboarding || {
         nextstep: 1,
         currentScreenSlug: "email_verification",
         isComplete: false,
-        // totalCompletion: profile?.onboardingProgress?.totalCompletion || 0
       }
     );
   }
 
-
-
-  const existingProfile = await Profile.findOne(
-    { userId },
-    { onboarding: 1 }
-  ).lean();
-
-  if (existingProfile?.onboarding?.isComplete) {
+  if (existingProfile?.onboarding?.isComplete && !isForcedComplete) {
+    // Already complete, keep it complete
     return existingProfile.onboarding;
   }
-
-
 
   // ✅ VALID onboarding aaya hai → SAVE to DB
   const updatedProfile = await Profile.findOneAndUpdate(
@@ -91,6 +97,7 @@ async function buildOnboardingResponse(req = {}, userId) {
       $set: {
         onboarding: {
           ...onboarding,
+          isComplete: isForcedComplete ? true : onboarding.isComplete,
           updatedAt: new Date()
         }
       }
@@ -100,7 +107,6 @@ async function buildOnboardingResponse(req = {}, userId) {
 
   return {
     ...updatedProfile.onboarding,
-    // totalCompletion: updatedProfile.onboardingProgress?.totalCompletion || 0
   };
 }
 

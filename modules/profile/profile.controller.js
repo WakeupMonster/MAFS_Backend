@@ -197,10 +197,22 @@ exports.updateProfile = async (req, res) => {
       console.log("=== /update API: onboarding data received ===", { nextstep, currentScreenSlug, isComplete });
 
       profile.onboarding = profile.onboarding || {};
-      if (isComplete !== undefined) profile.onboarding.isComplete = isComplete;
+      if (isComplete !== undefined) {
+        let parsedIsComplete = isComplete;
+        if (typeof isComplete === 'string') parsedIsComplete = isComplete.toLowerCase() === 'true';
+        if (typeof isComplete === 'number') parsedIsComplete = isComplete === 1;
+        profile.onboarding.isComplete = parsedIsComplete;
+      }
       if (nextstep !== undefined) profile.onboarding.nextstep = nextstep;
       if (currentScreenSlug !== undefined) profile.onboarding.currentScreenSlug = currentScreenSlug;
       profile.onboarding.updatedAt = new Date();
+      
+      // FORCE COMPLETE LOGIC: Never allow false if 11 steps & URLs are present
+      if (profile.onboarding.nextstep >= 11 && profile.verification?.selfieUrl && profile.verification?.docUrl) {
+        profile.onboarding.isComplete = true;
+      }
+      
+      profile.markModified('onboarding');
     }
 
     profile.lastProfileUpdate = new Date();
