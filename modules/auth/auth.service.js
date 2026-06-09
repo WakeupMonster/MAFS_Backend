@@ -465,9 +465,19 @@ async function verifyEmailOtp(token, otp, req) {
   }
 
   // Email mark as verified
+  if (user.pendingEmail) {
+    // Clear unverified email from other users to avoid duplicate key error (legacy cleanup)
+    await User.updateMany(
+      { email: user.pendingEmail, isEmailVerified: false, _id: { $ne: user._id } },
+      { $unset: { email: 1 } }
+    );
+    user.email = user.pendingEmail;
+  }
+  
   user.isEmailVerified = true;
   user.emailOtp = undefined;
   user.emailOtpExpires = undefined;
+  user.pendingEmail = undefined;
   await user.save();
   const [profile, blockedContacts, blockedUser] = await Promise.all([
     profileModel.findOneAndUpdate(
@@ -504,12 +514,12 @@ async function sendEmailOtp(token, email) {
 
   // If email already used by another account
   const existing = await User.findOne({ email, _id: { $ne: user._id } });
-  if (existing) {
+  if (existing && existing.isEmailVerified) {
     throw new Error("Email already in use");
   }
 
-  // Save email to user
-  user.email = email;
+  // Save email to user as pending until verified
+  user.pendingEmail = email;
 
   // Generate and store OTP
   const otp = utils.generateOtp();
@@ -684,7 +694,7 @@ async function refreshAccessToken(refreshTokenRaw, req) {
   const [profile, blockedContacts, blockedUser] = await Promise.all([
     profileModel.findOneAndUpdate(
       { userId: user._id },
-      { $set: { "onboardingProgress.emailVerified": true } },
+      { $setOnInsert: { userId: user._id } },
       { upsert: true, new: true, lean: true },
     ),
     BlockedContact.find({ userId: user._id }).lean(),

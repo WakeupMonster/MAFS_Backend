@@ -48,6 +48,7 @@ const userSchema = new mongoose.Schema(
 
     // ============ EMAIL AUTHENTICATION ============
     email: { type: String, unique: true, sparse: true },
+    pendingEmail: { type: String },
     isEmailVerified: { type: Boolean, default: false },
     emailOtp: { type: String },
     emailOtpExpires: { type: Date },

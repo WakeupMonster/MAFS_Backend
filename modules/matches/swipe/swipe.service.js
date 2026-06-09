@@ -1,7 +1,6 @@
 /* eslint-disable no-unused-vars */
 /* eslint-disable no-dupe-keys */
 // Core swipe logic & Redis integration
-
 const Profile = require("../../profile/profile.model");
 const User = require("../../auth/auth.model");
 const Swipe = require("./swipe.model"); // may export Swipe and Match - adjust import
@@ -64,7 +63,6 @@ async function getFeedService(userId, limit, page, isRefresh = false) {
   // Feed is open to ALL users (even non-KYC). They can browse but cannot perform actions.
   // Only KYC-approved profiles will appear in the feed (enforced via queryFilters below).
   // If user has no location, $near filter is simply skipped (line 154 handles this).
-
   // 2. Fetch Seen Profiles from Redis (to avoid repeats in session)
   let seenProfiles = [];
   if (redis) {
@@ -216,7 +214,6 @@ async function getFeedService(userId, limit, page, isRefresh = false) {
     "verification.status": "approved",
     "discovery.globalVisibility": "everyone",
   };
-
   // "everyone" means show ALL genders — skip gender filter in that case
   if (
     discovery.showMeGender?.length &&

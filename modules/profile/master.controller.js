@@ -43,7 +43,7 @@ const { getFormattedAdsConfig } = require("../AppConfiguration/adsConfig.control
 
 module.exports.getAppConfig = async (req, res) => {
   try {
-    const allItems = await MasterData.find().lean();
+    const allItems = await MasterData.find().sort({ order: 1 }).lean();
 
     // 1. Grouping Logic
     const groupedData = allItems.reduce((acc, item) => {
@@ -170,6 +170,12 @@ module.exports.bulkAddMasterData = async (req, res) => {
     if (!items || !Array.isArray(items)) {
       return res.status(400).json({ success: false, message: "Invalid data format" });
     }
+
+    // Auto-assign order from array index if not provided
+    items = items.map((item, index) => ({
+      ...item,
+      order: item.order !== undefined ? item.order : index
+    }));
 
     // "bulkWrite" use karna best hai production mein speed ke liye
     const operations = items.map((item) => ({
