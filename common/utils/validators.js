@@ -61,9 +61,9 @@ const validateDiscoveryFilters = (req, res, next) => {
     if (typeof discoveryFilters.globalVisibility !== "string") {
       return sendError(res, "globalVisibility must be a string.");
     }
-    const validVisibility = ["everyone", "matches_only", "nobody"];
+    const validVisibility = ["everyone", "private"];
     if (!validVisibility.includes(discoveryFilters.globalVisibility)) {
-      return sendError(res, "globalVisibility must be one of: everyone, matches_only, nobody.");
+      return sendError(res, "globalVisibility must be one of: everyone, private");
     }
   }
 

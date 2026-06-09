@@ -14,37 +14,17 @@ const refreshLimiter = apiLimiter("token_refresh", 10, 60); // 10 req / 1 min
 router.post("/phone", validation.validateSendPhoneOtp, otpSendLimiter, controller.sendOtp);
 router.post("/verify", otpVerifyLimiter, controller.verifyOtp);
 
-router.post(
-  "/phonetest",
-  validation.validateSendPhoneOtp,
-  otpSendLimiter,
-  controller.sendTestOtp,
-);
+router.post("/phonetest", validation.validateSendPhoneOtp, otpSendLimiter, controller.sendTestOtp );
 router.post("/verifytestotp", otpVerifyLimiter, controller.verifyTestOtp);
 
-router.post(
-  "/register/email",
-  validation.validateRegisterEmail,
-  otpSendLimiter,
-  controller.registerEmail,
-);
+router.post("/register/email", validation.validateRegisterEmail, otpSendLimiter, controller.registerEmail );
 router.post("/verify/email", otpVerifyLimiter, controller.verifyEmail);
 
-router.post(
-  "/refresh",
-  validation.validateRefreshToken,
-  refreshLimiter,
-  controller.refreshToken,
-);
+router.post("/refresh", validation.validateRefreshToken, refreshLimiter, controller.refreshToken );
 router.post("/logout", controller.logout);
 
 router.post("/resend/phone", otpSendLimiter, controller.sendTestOtp);
-router.post(
-  "/resend/email",
-  validation.validateRegisterEmail,
-  otpSendLimiter,
-  controller.resendEmailOtp,
-);
+router.post("/resend/email", validation.validateRegisterEmail, otpSendLimiter, controller.resendEmailOtp );
 
 router.use("/social", socialRoutes);
 
