@@ -238,7 +238,6 @@ module.exports.loginSendOtp = async (req, res) => {
     });
   }
 };
-
 module.exports.loginVerify = async (req, res) => {
   try {
     const { phone, otp } = req.body;

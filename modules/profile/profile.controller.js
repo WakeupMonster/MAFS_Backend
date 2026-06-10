@@ -861,7 +861,7 @@ exports.getUserProfile = async (req, res) => {
 
 exports.updateVisibility = async (req, res) => {
   try {
-    const { visibility } = req.body; // everyone, matches_only, nobody
+    const { visibility } = req.body; // everyone, private
     const profile = await Profile.findOneAndUpdate(
       { userId: req.user._id },
       { "discovery.globalVisibility": visibility },

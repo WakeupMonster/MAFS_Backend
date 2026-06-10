@@ -107,7 +107,7 @@ exports.deleteAccount = async (req, res) => {
         { userId },
         {
           $set: {
-            "discovery.globalVisibility": "nobody",
+            "discovery.globalVisibility": "private",
           },
         }
       ),
@@ -211,7 +211,7 @@ exports.markAsMarried = async (req, res) => {
       {
         isDiscoverable: false,
         canAccessSwipe: false,
-        // profile.discovery.globalVisibility: "nobody"
+        // profile.discovery.globalVisibility: "private"
       }
     );
 
@@ -261,7 +261,7 @@ exports.deactivateAccount = async (req, res) => {
       {
         $set: {
           // Hide profile from discovery
-          "discovery.globalVisibility": "nobody",
+          "discovery.globalVisibility": "private",
         },
       }
     );

@@ -83,7 +83,7 @@ const discoverySchema = Joi.object({
   relationshipGoal: Joi.string().label("Relationship Goal"),
 
   globalVisibility: Joi.string()
-    .valid("everyone", "matches_only", "nobody")
+    .valid("everyone", "private")
     .label("Profile Visibility"),
 
   filterRelationshipGoal: Joi.string().label("Filter Relationship Goal"),

@@ -258,8 +258,16 @@ const ProfileSchema = new mongoose.Schema(
 
 ProfileSchema.index({ location: "2dsphere" });
 
-ProfileSchema.pre("save", function (next) {
+ProfileSchema.pre("validate", function (next) {
   const profile = this;
+
+  // Sanitize discovery.globalVisibility to fit ["everyone", "private"]
+  if (profile.discovery && profile.discovery.globalVisibility) {
+    if (!["everyone", "private"].includes(profile.discovery.globalVisibility)) {
+      profile.discovery.globalVisibility = "private";
+    }
+  }
+
   const attr = profile.attributes || {};
 
   /*

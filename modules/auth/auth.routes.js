@@ -15,28 +15,13 @@ const resendLimiter = apiLimiter("otp_resend", 10, 300); // 10 req / 5 mins
 router.post("/phone", validation.validateSendPhoneOtp, otpSendLimiter, controller.sendOtp);
 router.post("/verify", otpVerifyLimiter, controller.verifyOtp);
 
-router.post(
-  "/phonetest",
-  validation.validateSendPhoneOtp,
-  otpSendLimiter,
-  controller.sendTestOtp,
-);
+router.post("/phonetest", validation.validateSendPhoneOtp, otpSendLimiter, controller.sendTestOtp);
 router.post("/verifytestotp", otpVerifyLimiter, controller.verifyTestOtp);
 
-router.post(
-  "/register/email",
-  validation.validateRegisterEmail,
-  otpSendLimiter,
-  controller.registerEmail,
-);
+router.post("/register/email", validation.validateRegisterEmail, otpSendLimiter, controller.registerEmail);
 router.post("/verify/email", otpVerifyLimiter, controller.verifyEmail);
 
-router.post(
-  "/refresh",
-  validation.validateRefreshToken,
-  refreshLimiter,
-  controller.refreshToken,
-);
+router.post("/refresh", validation.validateRefreshToken, refreshLimiter, controller.refreshToken);
 router.post("/logout", controller.logout);
 
 router.post("/resend/phone", resendLimiter, controller.sendTestOtp);
