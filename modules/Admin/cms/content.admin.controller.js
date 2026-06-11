@@ -617,7 +617,7 @@ module.exports.deleteTermCondtion = async (req, res) => {
       }));
 
     // 3️⃣ Clear cache
-    await redis.del("terms_condition:list");
+    await redis.del("terms_conditions:list"); // Fix: was "terms_condition:list" (missing 's')
 
     return res.json({
       success: true,
