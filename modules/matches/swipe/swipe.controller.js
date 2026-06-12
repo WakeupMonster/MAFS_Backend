@@ -6,6 +6,7 @@ const service = require("./swipe.service");
 const Swipe = require("./swipe.model");
 const redis = require("../../../config/cache");
 const Profile = require("../../profile/profile.model");
+const ChatMessage = require("../chat/chat.message.model");
 
 module.exports.getFeed = async (req, res) => {
   try {
@@ -391,8 +392,13 @@ exports.undo = async (req, res) => {
   try {
     const userId = req.user._id;
 
-    // 1️⃣ Find last swipe first to avoid wasting quota if no swipe exists
-    const lastSwipe = await Swipe.findOne({ swiperId: userId })
+    const { targetId: requestedTargetId } = req.body;
+
+    // 1️⃣ Find the specific swipe to undo
+    const lastSwipe = await Swipe.findOne({ 
+      swiperId: userId,
+      targetId: requestedTargetId
+    })
       .sort({ createdAt: -1 })
       .lean();
 
@@ -418,6 +424,7 @@ exports.undo = async (req, res) => {
 
     const { targetId, action } = lastSwipe;
     const undone = { targetId, action };
+    let matchDissolved = false;
 
     // 3️⃣ Conditional transaction — only when match might exist
     if (action === "like" || action === "superlike") {
@@ -426,23 +433,23 @@ exports.undo = async (req, res) => {
       }).lean();
 
       if (match) {
-        // Transaction needed — deleting match + swipes atomically
+        matchDissolved = true;
+        // Transaction needed — deleting match + rewinding user's swipe atomically
         const session = await mongoose.startSession();
         try {
           await session.withTransaction(async () => {
             await Match.deleteOne({ _id: match._id }).session(session);
-            await Swipe.deleteMany({
-              $or: [
-                { swiperId: userId, targetId },
-                { swiperId: targetId, targetId: userId },
-              ],
-            }).session(session);
+            // Only delete the rewinding user's swipe — preserve the other user's
+            // original like/superlike so it reappears in Keens/Super Keens tab
+            await Swipe.deleteOne({ swiperId: userId, targetId }).session(session);
+            // Clean up orphaned chat messages for the dissolved match
+            await ChatMessage.deleteMany({ matchId: match._id }).session(session);
           });
         } finally {
           await session.endSession();
         }
 
-        // Clear ALL caches for both users
+        // Clear ALL caches for both users (feed, exclude, matches, AND chat lists)
         if (redis) {
           await Promise.all([
             redis.del(`feed:${userId.toString()}`),
@@ -451,6 +458,8 @@ exports.undo = async (req, res) => {
             redis.del(`feed:exclude:${targetId.toString()}`),
             redis.del(`matches:${userId}`),
             redis.del(`matches:${targetId}`),
+            redis.del(`chat:list:${userId.toString()}`),
+            redis.del(`chat:list:${targetId.toString()}`),
           ]);
         }
       } else {
@@ -482,6 +491,7 @@ exports.undo = async (req, res) => {
       message: "Swipe undone successfully",
       data: {
         undoneAction: undone,
+        matchDissolved,
         isPremium: status.data.isPremium,
         showAds: status.data.showAds,
         premiumFeatures: status.data.premiumFeatures,

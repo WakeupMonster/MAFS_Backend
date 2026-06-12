@@ -193,6 +193,52 @@ class NotificationService {
     }
   }
 
+  // Send a super-like notification (distinct from regular like)
+  async sendSuperLikeNotification(senderId, receiverId) {
+    try {
+      const [senderProfile, receiver] = await Promise.all([
+        Profile.findOne({ userId: senderId }).select("nickname photos"),
+        User.findById(receiverId).select("fcmTokens notificationSettings"),
+      ]);
+
+      // Check if receiver wants to receive like notifications
+      if (
+        receiver.notificationSettings?.push === false ||
+        receiver.notificationSettings?.likes === false
+      ) {
+        console.log(`🚫 Super-like notification skipped for user ${receiverId}: Disabled likes/push settings.`);
+        return;
+      }
+
+      if (!receiver?.fcmTokens?.length) {
+        console.log(`⚠️ Super-like notification skipped for user ${receiverId}: No FCM tokens found.`);
+        return;
+      }
+
+      const senderPhoto = senderProfile?.photos?.[0]?.url || null;
+      const senderName = senderProfile?.nickname || "Someone";
+
+      await this._executePush(
+        receiverId,
+        receiver.fcmTokens,
+        {
+          title: "You got a Super Keen! ⭐",
+          body: `${senderName} super liked your profile!`,
+          imageUrl: senderPhoto,
+        },
+        {
+          type: NOTIFICATION_TYPES.NEW_SUPER_LIKE,
+          senderId: senderId.toString(),
+          isSuperLike: "true",
+          cta: JSON.stringify({ action: "OPEN_SUPER_LIKES" }),
+        },
+      );
+    } catch (error) {
+      console.error("Error in sendSuperLikeNotification:", error);
+      throw error;
+    }
+  }
+
   async sendGiveawayWinnerNotification(userId, prizeTitle) {
     try {
       const user = await User.findById(userId).select(

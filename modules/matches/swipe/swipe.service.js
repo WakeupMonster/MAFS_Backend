@@ -891,7 +891,12 @@ async function doSwipe(swiperId, targetId, action) {
         wallet: status.data.wallet,
       },
     };
-    if (action === "like" || action === "superlike") {
+    if (action === "superlike") {
+      addNotificationJob(NOTIFICATION_TYPES.NEW_SUPER_LIKE, {
+        senderId: swiperId,
+        receiverId: targetId,
+      });
+    } else if (action === "like") {
       addNotificationJob(NOTIFICATION_TYPES.NEW_LIKE, {
         senderId: swiperId,
         receiverId: targetId,

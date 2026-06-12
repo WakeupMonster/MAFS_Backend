@@ -62,6 +62,9 @@ const worker = new Worker('notification-queue', async (job) => {
             case NOTIFICATION_TYPES.NEW_LIKE:
                 await notificationService.sendLikeNotification(data.senderId, data.receiverId);
                 break;
+            case NOTIFICATION_TYPES.NEW_SUPER_LIKE:
+                await notificationService.sendSuperLikeNotification(data.senderId, data.receiverId);
+                break;
             case NOTIFICATION_TYPES.GIVEAWAY_WINNER:
                 await notificationService.sendGiveawayWinnerNotification(data.userId, data.prizeTitle);
                 break;

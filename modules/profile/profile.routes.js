@@ -110,6 +110,5 @@ router.post("/report/:id",
   apiLimiter("report_user", 5, 600), // 5 req / 10 mins
   userAction.reportUser);
 
-
 router.post("/resetData", controller.resetTestData);
 module.exports = router;
