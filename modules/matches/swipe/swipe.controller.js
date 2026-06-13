@@ -409,7 +409,30 @@ exports.undo = async (req, res) => {
       });
     }
 
-    // 2️⃣ REWIND QUOTA CHECK — AFTER verifying swipe exists
+    const { targetId, action } = lastSwipe;
+    const undone = { targetId, action };
+    let matchDissolved = false;
+
+    // 2️⃣ Check if Match has Activity (for like/superlike)
+    let match = null;
+    if (action === "like" || action === "superlike") {
+      match = await Match.findOne({
+        users: { $all: [userId, targetId] },
+      }).lean();
+
+      if (match) {
+        const messagesCount = await ChatMessage.countDocuments({ matchId: match._id });
+        if (messagesCount > 0) {
+          return res.status(409).json({
+            success: false,
+            code: "MATCH_HAS_ACTIVITY",
+            message: "Already matched"
+          });
+        }
+      }
+    }
+
+    // 3️⃣ REWIND QUOTA CHECK — AFTER verifying swipe exists and match has no activity
     try {
       await UsageService.useItem(userId, 'REWIND');
     } catch (error) {
@@ -422,16 +445,8 @@ exports.undo = async (req, res) => {
       throw error;
     }
 
-    const { targetId, action } = lastSwipe;
-    const undone = { targetId, action };
-    let matchDissolved = false;
-
-    // 3️⃣ Conditional transaction — only when match might exist
+    // 4️⃣ Conditional transaction — only when match might exist
     if (action === "like" || action === "superlike") {
-      const match = await Match.findOne({
-        users: { $all: [userId, targetId] },
-      }).lean();
-
       if (match) {
         matchDissolved = true;
         // Transaction needed — deleting match + rewinding user's swipe atomically
@@ -448,6 +463,14 @@ exports.undo = async (req, res) => {
         } finally {
           await session.endSession();
         }
+
+        // Real-time Event (CRITICAL): Emit a socket event targeting userB
+        const chatEvents = require("../../../events/chat.events");
+        chatEvents.emit("match_deleted", {
+          matchId: match._id,
+          userId1: userId.toString(),
+          userId2: targetId.toString(),
+        });
 
         // Clear ALL caches for both users (feed, exclude, matches, AND chat lists)
         if (redis) {
@@ -472,6 +495,8 @@ exports.undo = async (req, res) => {
           ]);
         }
       }
+
+      // No refund logic here as per client request
     } else {
       // "pass" undo — simplest case, no transaction, no match check
       await Swipe.deleteOne({ _id: lastSwipe._id });
@@ -483,12 +508,12 @@ exports.undo = async (req, res) => {
       }
     }
 
-    // 4️⃣ Usage status (served from Redis cache via FIX 6A)
+    // 5️⃣ Usage status (served from Redis cache via FIX 6A)
     const status = await UsageService.getUsageStatus(userId);
 
     return res.json({
       success: true,
-      message: "Swipe undone successfully",
+      message: "Swipe undone successfully. Consumables are not refunded.",
       data: {
         undoneAction: undone,
         matchDissolved,
