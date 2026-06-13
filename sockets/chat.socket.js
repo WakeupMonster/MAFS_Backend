@@ -16,6 +16,72 @@ module.exports = function chatSocket(io, redisClient) {
     });
     console.log(`🔌 Socket: match_deleted emitted to users of match ${matchId}`);
   });
+
+  chatEvents.on("user_blocked", ({ matchId, blockerId, blockedId }) => {
+    io.to(`user:${blockedId}`).emit("chat_error", {
+      type: "BLOCKED",
+      matchId,
+      message: "You have been blocked by this user",
+      blockedBy: blockerId,
+      isBlockedByMe: false, // Because they are the one getting blocked
+    });
+    console.log(`🔌 Socket: user_blocked emitted to blocked user ${blockedId} for match ${matchId}`);
+  });
+
+  chatEvents.on("user_unblocked", ({ matchId, unblockerId, unblockedId }) => {
+    io.to(`user:${unblockedId}`).emit("user_unblocked", {
+      matchId,
+      unblockedBy: unblockerId
+    });
+    console.log(`🔌 Socket: user_unblocked emitted to unblocked user ${unblockedId} for match ${matchId}`);
+  });
+
+  chatEvents.on("media_upload_complete", async ({ matchId, receiverId, messageId }) => {
+    try {
+      const msg = await ChatMessage.findById(messageId).lean();
+      if (!msg) return;
+      
+      const lastMessagePreview = msg.media && msg.media.length > 0 ? "📷 Media" : msg.text;
+
+      io.to(`chat:${matchId}`).emit("new_message", msg);
+      io.to(`user:${receiverId}`).emit("chat_list_update", {
+        matchId,
+        lastMessage: lastMessagePreview,
+        lastMessageAt: msg.createdAt,
+        from: msg.sender,
+      });
+
+      // 📱 Push notification for media messages (moved here from send_message handler)
+      try {
+        const activeRoom = await redisClient.get(`user:active_room:${receiverId}`);
+        const isReceiverWatchingChat = activeRoom === matchId;
+
+        if (!isReceiverWatchingChat) {
+          await addNotificationJob(NOTIFICATION_TYPES.NEW_MESSAGE, {
+            senderId: msg.sender.toString(),
+            receiverId: receiverId.toString(),
+            messageText: lastMessagePreview,
+          });
+        }
+      } catch (notifErr) {
+        console.error("❌ Media push notification error:", notifErr);
+      }
+
+      console.log(`🔌 Socket: media_upload_complete emitted for match ${matchId}`);
+    } catch (err) {
+      console.error("Socket media_upload_complete error:", err);
+    }
+  });
+
+  chatEvents.on("media_upload_failed", ({ matchId, senderId, clientMessageId, error }) => {
+    io.to(`user:${senderId}`).emit("chat_error", {
+      type: "MEDIA_UPLOAD_FAILED",
+      matchId,
+      clientMessageId,
+      message: error || "Failed to upload media"
+    });
+    console.log(`🔌 Socket: media_upload_failed emitted to sender ${senderId}`);
+  });
   io.on("connection", async (socket) => {
     const currentUserId = socket.user._id.toString();
 
@@ -332,32 +398,41 @@ module.exports = function chatSocket(io, redisClient) {
           const lastMessagePreview =
             msg.media && msg.media.length > 0 ? "📷 Media" : msg.text;
 
-          /* 
-           * Update conversation metadata (🚀 Arena AI Optimization: ASYNC)
-           * Don't wait for DB update to finish before emitting the message.
+          /*
+           * 🔥 BACKWARD COMPAT: For media messages, the actual broadcast is now
+           * handled by media_upload_complete (after Cloudinary finishes).
+           * Old clients still emit send_message type:"media" — we just ACK them
+           * without broadcasting, so they don't break AND we avoid double-send.
+           * Text messages continue to broadcast from here as before.
            */
-          setImmediate(async () => {
-            try {
-              await Match.findByIdAndUpdate(matchId, {
-                lastMessage: lastMessagePreview,
-                lastMessageAt: msg.createdAt,
-                lastMessageBy: currentUserId,
-              });
-            } catch (err) {
-              console.error("❌ Async match update error:", err);
-            }
-          });
+          if (type !== "media") {
+            /* 
+             * Update conversation metadata (🚀 Arena AI Optimization: ASYNC)
+             * Don't wait for DB update to finish before emitting the message.
+             */
+            setImmediate(async () => {
+              try {
+                await Match.findByIdAndUpdate(matchId, {
+                  lastMessage: lastMessagePreview,
+                  lastMessageAt: msg.createdAt,
+                  lastMessageBy: currentUserId,
+                });
+              } catch (err) {
+                console.error("❌ Async match update error:", err);
+              }
+            });
 
-          /* Emit message to chat room (dono users ko milega agar room mein hain) */
-          io.to(`chat:${matchId}`).emit("new_message", msg);
+            /* Emit message to chat room (dono users ko milega agar room mein hain) */
+            io.to(`chat:${matchId}`).emit("new_message", msg);
 
-          /* Chat list reorder for receiver (chahe kisi bhi screen pe ho) */
-          io.to(`user:${receiverId}`).emit("chat_list_update", {
-            matchId,
-            lastMessage: lastMessagePreview,
-            lastMessageAt: msg.createdAt,
-            from: currentUserId,
-          });
+            /* Chat list reorder for receiver (chahe kisi bhi screen pe ho) */
+            io.to(`user:${receiverId}`).emit("chat_list_update", {
+              matchId,
+              lastMessage: lastMessagePreview,
+              lastMessageAt: msg.createdAt,
+              from: currentUserId,
+            });
+          }
 
           /*
            * ACK to sender: Flutter ko turant confirmation milti hai ki
@@ -376,43 +451,50 @@ module.exports = function chatSocket(io, redisClient) {
           }
 
           /*
-           * Delivery check (🚀 Arena AI Optimization: Removed heavy DB write)
-           * Instead of updating every message in DB on delivery, we rely on 
-           * the receiver's 'join_chat' or 'messages_read' to batch update.
-           * We only notify the sender that the user is online.
+           * 🔥 BACKWARD COMPAT: For media messages, delivery check and push
+           * notification are handled by media_upload_complete (after Cloudinary finishes).
+           * Old clients emitting send_message type:"media" won't trigger premature notifications.
            */
-          try {
-            const receiverOnline = await redisClient.exists(
-              `user:online:${receiverId}`
-            );
+          if (type !== "media") {
+            /*
+             * Delivery check (🚀 Arena AI Optimization: Removed heavy DB write)
+             * Instead of updating every message in DB on delivery, we rely on 
+             * the receiver's 'join_chat' or 'messages_read' to batch update.
+             * We only notify the sender that the user is online.
+             */
+            try {
+              const receiverOnline = await redisClient.exists(
+                `user:online:${receiverId}`
+              );
 
-            if (receiverOnline) {
-              socket.emit("message_delivered", {
-                messageId: msg._id,
-                matchId,
-              });
+              if (receiverOnline) {
+                socket.emit("message_delivered", {
+                  messageId: msg._id,
+                  matchId,
+                });
+              }
+            } catch (redisErr) {
+              console.error("❌ Redis delivery check error:", redisErr);
             }
-          } catch (redisErr) {
-            console.error("❌ Redis delivery check error:", redisErr);
-          }
 
-          /* Push notification (background worker) */
-          try {
-            // 🧠 PRESENCE CHECK (🚀 Arena AI Optimization: Redis instead of fetchSockets)
-            // Check if receiver is actively watching this specific chat room
-            const activeRoom = await redisClient.get(`user:active_room:${receiverId}`);
-            const isReceiverWatchingChat = activeRoom === matchId;
+            /* Push notification (background worker) */
+            try {
+              // 🧠 PRESENCE CHECK (🚀 Arena AI Optimization: Redis instead of fetchSockets)
+              // Check if receiver is actively watching this specific chat room
+              const activeRoom = await redisClient.get(`user:active_room:${receiverId}`);
+              const isReceiverWatchingChat = activeRoom === matchId;
 
-            if (!isReceiverWatchingChat) {
-              // 📱 User is NOT on the chat screen -> SEND PUSH
-              await addNotificationJob(NOTIFICATION_TYPES.NEW_MESSAGE, {
-                senderId: currentUserId,
-                receiverId: receiverId.toString(),
-                messageText: lastMessagePreview,
-              });
+              if (!isReceiverWatchingChat) {
+                // 📱 User is NOT on the chat screen -> SEND PUSH
+                await addNotificationJob(NOTIFICATION_TYPES.NEW_MESSAGE, {
+                  senderId: currentUserId,
+                  receiverId: receiverId.toString(),
+                  messageText: lastMessagePreview,
+                });
+              }
+            } catch (notifErr) {
+              console.error("❌ Notification queue error:", notifErr);
             }
-          } catch (notifErr) {
-            console.error("❌ Notification queue error:", notifErr);
           }
         } catch (err) {
           console.error("❌ send_message error:", err);

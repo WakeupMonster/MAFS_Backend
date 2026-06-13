@@ -5,6 +5,7 @@ const { isBlocked } = require("../../profile/block.service");
 const { DateTime } = require("luxon");
 const redis = require("../../../config/cache");
 const Profile = require("../../../modules/profile/profile.model");
+const chatEvents = require("../../../events/chat.events");
 
 // 1. SEND MESSAGE (Sabse important jo missing tha)
 module.exports.sendMessage = async (req, res) => {
@@ -121,15 +122,8 @@ module.exports.getChatMessages = async (req, res) => {
 
     // If blocked, but ONLY by them (I didn't block them), deny access.
     // If I blocked them (blockedByMe = true), allow me to read my own history.
-    if (blockStatus.isBlocked && !blockStatus.blockedByMe) {
-      return res.status(403).json({
-        success: false,
-        message: "You cannot view messages",
-        errorType: "BLOCKED", // ✅ NEW
-        isBlockedByMe: blockStatus.blockedByMe, // ✅ NEW — frontend needs this
-        blockedBy: blockStatus.blockedBy,
-      });
-    }
+    // 🔥 NEW FIX: DO NOT return 403 error. Return history so user can see it, but flag as blocked.
+    // We will pass these flags in the final response below.
 
     const messages = await ChatMessage.find({
       matchId,
@@ -159,6 +153,9 @@ module.exports.getChatMessages = async (req, res) => {
     return res.json({
       success: true,
       data: formattedMessages,
+      isBlocked: blockStatus.isBlocked,
+      isBlockedByMe: blockStatus.blockedByMe,
+      isBlockedByThem: blockStatus.isBlocked && !blockStatus.blockedByMe,
     });
   } catch (err) {
     res.status(500).json({ success: false, message: "Server error" });
@@ -609,9 +606,23 @@ module.exports.uploadChatMediaController = async (req, res) => {
             )
           );
           // console.log(`[BACKGROUND UPLOAD DONE] Match: ${matchId}`);
+          
+          // 🔥 NEW: Broadcast new_message since frontend won't emit send_message for media
+          chatEvents.emit("media_upload_complete", {
+             matchId,
+             receiverId,
+             messageId: message._id
+          });
         } catch (uploadErr) {
           console.error(`[BACKGROUND UPLOAD ERROR] Match: ${matchId}`, uploadErr);
-          // Optional: Mark DB message as failed if needed later
+          
+          // 🔥 NEW: Emit failure back to sender
+          chatEvents.emit("media_upload_failed", {
+             matchId,
+             senderId: userId,
+             clientMessageId: req.body.clientMessageId,
+             error: uploadErr.message
+          });
         }
       })();
     }

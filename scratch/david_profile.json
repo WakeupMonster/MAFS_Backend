@@ -1,0 +1,176 @@
+{
+  "success": true,
+  "message": "Profile fetched successfull..",
+  "data": {
+    "user": {
+      "account": {
+        "phoneNumber": "+61479000000",
+        "email": "satip84134@fixscal.com",
+        "status": "active",
+        "banDetails": {
+          "isBanned": false,
+          "reason": null,
+          "bannedBy": null,
+          "bannedAt": null
+        },
+        "suspensionDetails": {
+          "isSuspended": false,
+          "reason": null,
+          "suspendedAt": null,
+          "suspendUntil": null
+        },
+        "deactivationDetails": {
+          "isDeactivated": false,
+          "reason": null,
+          "deactivatedAt": null
+        },
+        "deletionDetails": {
+          "isScheduledForDeletion": false,
+          "reason": null,
+          "scheduledAt": null,
+          "deletionDate": null,
+          "daysRemaining": null
+        }
+      },
+      "profile": {
+        "id": "6a295aaef364d04fa257f3c1",
+        "nickname": "David Cummins",
+        "dob": "1998-06-10",
+        "age": 28,
+        "gender": "non-binary",
+        "height": null,
+        "about": null,
+        "jobTitle": null,
+        "livingIn": null,
+        "company": null,
+        "school": null,
+        "totalCompletion": 31,
+        "completionBreakdown": {
+          "photos": 15,
+          "basicInfo": 10,
+          "careerAndEducation": 0,
+          "basics": 0,
+          "lifestyle": 0,
+          "preferences": 4,
+          "verification": 2
+        }
+      },
+      "attributes": {
+        "zodiac": null,
+        "education": null,
+        "familyPlans": null,
+        "personalityType": null,
+        "communicationStyle": null,
+        "loveStyle": null,
+        "pets": null,
+        "drinking": null,
+        "smoking": null,
+        "workout": null,
+        "dietary": null,
+        "sleeping": null,
+        "socialMedia": null,
+        "languages": [],
+        "interests": [
+          "motor-racing",
+          "ghost-hunting",
+          "geocaching"
+        ],
+        "music": [],
+        "movies": [],
+        "books": [],
+        "travel": [],
+        "religion": null
+      },
+      "discovery": {
+        "distanceRange": 500,
+        "ageRange": {
+          "min": 18,
+          "max": 60
+        },
+        "showMeGender": [
+          "men"
+        ],
+        "relationshipGoal": "exploration",
+        "globalVisibility": "everyone"
+      },
+      "discoveryFilters": {
+        "interest": [],
+        "relationshipGoal": null,
+        "advancedFilters": {
+          "zodiac": [],
+          "education": [],
+          "pets": [],
+          "drinking": [],
+          "smoking": [],
+          "familyPlans": [],
+          "personalityType": [],
+          "communicationStyle": [],
+          "loveStyle": [],
+          "workout": [],
+          "dietary": [],
+          "socialMedia": [],
+          "sleeping": []
+        }
+      },
+      "location": {
+        "type": "Point",
+        "coordinates": [
+          75.8938127,
+          22.753224
+        ],
+        "city": "Indore",
+        "country": "India",
+        "full_address": "3/8, Ward 10, Indore, Madhya Pradesh, India"
+      },
+      "photos": [
+        {
+          "id": "6a295b41f364d04fa257f4e2",
+          "url": "https://res.cloudinary.com/dew7qscdq/image/upload/v1781095232/mafs/users/6a295aaef364d04fa257f3c1/photos/hxwypmhrfk05rolxlblp.jpg",
+          "publicId": "mafs/users/6a295aaef364d04fa257f3c1/photos/hxwypmhrfk05rolxlblp",
+          "order": 1
+        },
+        {
+          "id": "6a295b41f364d04fa257f4e3",
+          "url": "https://res.cloudinary.com/dew7qscdq/image/upload/v1781095232/mafs/users/6a295aaef364d04fa257f3c1/photos/ekpoxz9nrvos7fr0jps4.jpg",
+          "publicId": "mafs/users/6a295aaef364d04fa257f3c1/photos/ekpoxz9nrvos7fr0jps4",
+          "order": 2
+        },
+        {
+          "id": "6a295b41f364d04fa257f4e4",
+          "url": "https://res.cloudinary.com/dew7qscdq/image/upload/v1781095232/mafs/users/6a295aaef364d04fa257f3c1/photos/zcmbzfuf6ljoyn5tw4eu.jpg",
+          "publicId": "mafs/users/6a295aaef364d04fa257f3c1/photos/zcmbzfuf6ljoyn5tw4eu",
+          "order": 3
+        }
+      ],
+      "verification": {
+        "status": "approved",
+        "selfieUrl": "https://res.cloudinary.com/dew7qscdq/image/upload/v1781095272/mafs/users/6a295aaef364d04fa257f3c1/kyc/szvihntom4pwfwmihdib.jpg",
+        "docUrl": "https://res.cloudinary.com/dew7qscdq/image/upload/v1781095280/mafs/users/6a295aaef364d04fa257f3c1/kyc/y6je59zxgxmfu0hpz0dc.jpg",
+        "rejectionReason": null,
+        "submittedAt": "2026-06-10T12:41:20.592Z",
+        "verifiedAt": "2026-06-11T10:40:13.343Z"
+      },
+      "settings": {
+        "notifications": {
+          "push": true,
+          "email": false,
+          "matches": true,
+          "messages": true,
+          "likes": true
+        },
+        "blockedContacts": [],
+        "blockedUsers": []
+      },
+      "createdAt": "2026-06-10T12:38:06.073Z",
+      "updatedAt": "2026-06-13T06:28:50.236Z",
+      "isPhoneVerified": true,
+      "isEmailVerified": true,
+      "onboarding": {
+        "nextstep": 11,
+        "currentScreenSlug": "document_verification_screen",
+        "isComplete": true,
+        "updatedAt": "2026-06-10T12:41:20.592Z"
+      }
+    }
+  }
+}

@@ -41,8 +41,6 @@ router.get("/matches", controllerOld.getMatches);
 router.post("/undo", apiLimiter("swipe_undo", 10, 60), validation.undo, controllerOld.undo); // 10 req / 1 min
 
 
-
-
 // CREATE block or report
 // router.post("/action", controller.action);
 

@@ -189,6 +189,8 @@ const Profile = require("./profile.model");
 const User = require("../auth/auth.model");
 const redis = require("../../config/cache");
 const adminEvents = require("../../events/admin.events");
+const { Match } = require("../matches/swipe/swipe.model");
+const chatEvents = require("../../events/chat.events");
 
 // ─────────────────────────────────────────
 // Helper: Cache clear karo properly
@@ -231,6 +233,18 @@ module.exports.blockUser = async (req, res) => {
 
     // ✅ Clear both users feed cache
     await clearFeedCache(userId, targetId);
+
+    // 🔥 Emit real-time chat_error (BLOCKED) so receiver UI updates
+    const match = await Match.findOne({ users: { $all: [userId, targetId] } }).lean();
+    if (match) {
+        chatEvents.emit("user_blocked", { matchId: match._id.toString(), blockerId: userId.toString(), blockedId: targetId.toString() });
+    }
+
+    // ✅ Clear socket block cache so next send_message is rejected immediately
+    if (redis) {
+        await redis.del(`block:${userId.toString()}:${targetId.toString()}`);
+        await redis.del(`block:${targetId.toString()}:${userId.toString()}`);
+    }
 
     return res.status(200).json({
       success: true,
@@ -408,6 +422,18 @@ module.exports.unblockUser = async (req, res) => {
 
     // ✅ Clear cache properly
     await clearFeedCache(userId, req.params.id);
+
+    // ✅ Clear socket block cache
+    if (redis) {
+        await redis.del(`block:${userId.toString()}:${req.params.id.toString()}`);
+        await redis.del(`block:${req.params.id.toString()}:${userId.toString()}`);
+    }
+
+    // 🔥 Emit real-time user_unblocked
+    const match = await Match.findOne({ users: { $all: [userId, req.params.id] } }).lean();
+    if (match) {
+        chatEvents.emit("user_unblocked", { matchId: match._id.toString(), unblockerId: userId.toString(), unblockedId: req.params.id.toString() });
+    }
 
     return res.status(200).json({
       success: true,
