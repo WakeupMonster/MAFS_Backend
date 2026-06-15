@@ -16,12 +16,12 @@ const productDisplayHelper = require("../utils/productDisplayHelper");
  * Implements the "Two-Bucket" system (Free Quota vs. Wallet) with AEST timezone compliance.
  */
 
-
 class UsageService {
     constructor() {
         this.configCache = null;
         this.configCacheExpires = 0;
     }
+
 
     async useItem(userId, type) {
         if (!this.configCache || Date.now() > this.configCacheExpires) {
@@ -55,20 +55,9 @@ class UsageService {
     async getUsageStatus(userId) {
         const cache = require("../../../config/cache");
 
-        // Short-lived cache to prevent repeated calls within same swipe flow
-        const STATUS_CACHE_KEY = `usage:status:${userId}`;
-        try {
-            const cached = await cache.get(STATUS_CACHE_KEY);
-            if (cached) return JSON.parse(cached);
-        } catch (e) { /* ignore cache miss */ }
-
-        if (!this.configCache || Date.now() > this.configCacheExpires) {
-            this.configCache = await SubscriptionConfig.getOrCreate();
-            this.configCacheExpires = Date.now() + (5 * 60 * 1000); // 5 min TTL
-        }
-
+        // Direct DB read every time — same as catalog API, ensures instant admin updates
         const [config, activeSub, daily, weekly, monthly, wallet, boostTTL, user, premium1MonthProduct] = await Promise.all([
-            Promise.resolve(this.configCache),
+            SubscriptionConfig.getOrCreate(),
             Subscription.findActiveByUser(userId).lean(),
             UserDailyUsage.findOne({ userId, dateKey: dateHelpers.getDateKey() }).lean(),
             UserWeeklyUsage.findOne({ userId, weekKey: dateHelpers.getWeekKey() }).lean(),
@@ -216,7 +205,7 @@ class UsageService {
                         delete product.badgeColor;
                         delete product.badgeText;
                         delete product.features;
-                        
+
                         return {
                             ...product,
                             // Trial overrides for milestone
@@ -236,10 +225,7 @@ class UsageService {
             }
         };
 
-        // Cache result for 10 seconds to avoid repeated calls
-        try {
-            await cache.set(STATUS_CACHE_KEY, JSON.stringify(statusResult), { EX: 10 });
-        } catch (e) { /* ignore cache error */ }
+
 
         return statusResult;
     }

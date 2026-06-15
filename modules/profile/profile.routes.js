@@ -95,7 +95,7 @@ router.get(
 );
 
 router.patch("/visibility", auth,
-  apiLimiter("visibility_update", 10, 60),
+  apiLimiter("visibility_update", 10, 300),
   controller.updateVisibility);
 
 

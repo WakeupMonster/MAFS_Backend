@@ -41,7 +41,10 @@ module.exports = function chatSocket(io, redisClient) {
       const msg = await ChatMessage.findById(messageId).lean();
       if (!msg) return;
       
-      const lastMessagePreview = msg.media && msg.media.length > 0 ? "📷 Media" : msg.text;
+      const isGifUrl = (text) => text && (text.match(/^https?:\/\/.*\.gif\b/i) || text.match(/^https?:\/\/(media\.tenor\.com|media\.giphy\.com)/i));
+      const lastMessagePreview = msg.media && msg.media.length > 0 
+        ? (msg.media[0].type === "gif" ? "📷 GIF" : "📷 Media") 
+        : (isGifUrl(msg.text) ? "📷 GIF" : msg.text);
 
       io.to(`chat:${matchId}`).emit("new_message", msg);
       io.to(`user:${receiverId}`).emit("chat_list_update", {
@@ -395,8 +398,10 @@ module.exports = function chatSocket(io, redisClient) {
            * text ke liye actual text.
            * Upload API Match.lastMessage update NAHI karti — yahan karna zaroori hai.
            */
-          const lastMessagePreview =
-            msg.media && msg.media.length > 0 ? "📷 Media" : msg.text;
+          const isGifUrl = (text) => text && (text.match(/^https?:\/\/.*\.gif\b/i) || text.match(/^https?:\/\/(media\.tenor\.com|media\.giphy\.com)/i));
+          const lastMessagePreview = msg.media && msg.media.length > 0 
+            ? (msg.media[0].type === "gif" ? "📷 GIF" : "📷 Media") 
+            : (isGifUrl(msg.text) ? "📷 GIF" : msg.text);
 
           /*
            * 🔥 BACKWARD COMPAT: For media messages, the actual broadcast is now

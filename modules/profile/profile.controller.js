@@ -314,7 +314,7 @@ exports.uploadPhotos = async (req, res) => {
       uploadStream(file.buffer, {
         folder: `mafs/users/${userId}/photos`,
         transformation: [
-          { width: 1080, height: 1350, crop: "fill", quality: "auto:good" },
+          { width: 1080, height: 1350, crop: "fill", quality: 80 },
         ],
       }),
     );

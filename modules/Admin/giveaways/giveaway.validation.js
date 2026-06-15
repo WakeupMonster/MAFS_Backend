@@ -8,7 +8,7 @@ module.exports = {
       value: Joi.number().positive().when("type", { is: "GIFT_CARD", then: Joi.required(), otherwise: Joi.optional() }),
       // planType: Joi.string().when("type", { is: "FREE_PREMIUM", then: Joi.required(), otherwise: Joi.optional() }),
       description: Joi.string().allow("", null),
-      spinWheelLabel: Joi.string().required(),
+      spinWheelLabel: Joi.string().max(10).required(),
       // durationInDays: Joi.number().when("type", { is: "FREE_PREMIUM", then: Joi.required(), otherwise: Joi.optional() }),
       giftCardExpiryDate: Joi.date().allow(null, "")
     })
@@ -20,7 +20,7 @@ module.exports = {
       type: Joi.string().valid("GIFT_CARD"),
       value: Joi.number().positive(),
       description: Joi.string().allow("", null),
-      spinWheelLabel: Joi.string(),
+      spinWheelLabel: Joi.string().max(10),
       durationInDays: Joi.number().allow(null),
       planType: Joi.string().allow(null, ""),
       giftCardExpiryDate: Joi.date().allow(null, ""),

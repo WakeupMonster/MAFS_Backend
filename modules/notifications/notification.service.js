@@ -56,7 +56,8 @@ class NotificationService {
       }
       // &&
       //   user1.notificationSettings?.push !== false
-      // Send notification to user1
+      // Send notification to user1 (Commented out because user1 is currently swiping and sees the match screen)
+      /*
       if (
         user1.fcmTokens &&
         user1.fcmTokens.length > 0 &&
@@ -77,6 +78,7 @@ class NotificationService {
           },
         );
       }
+      */
 
       // Send notification to user2
       if (

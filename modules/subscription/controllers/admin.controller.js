@@ -208,7 +208,8 @@ exports.listSubscribers = async (req, res, next) => {
         // 5. Response ko enrich karo aur structure saaf karo
         const enrichedSubs = await Promise.all(subscriptions.map(async (sub) => {
             const userProfile = sub.userId ? profileMap[sub.userId._id.toString()] : null;
-            const isActuallyExpired = sub.expiresAt && new Date(sub.expiresAt) < new Date();
+            const hasAccess = Subscription.hasPremiumAccess(sub);
+            const isActuallyExpired = !hasAccess;
             const displayName = await productDisplayHelper.resolveDisplayName(sub.productId, sub.customDisplayName, sub.source);
 
             const responseObj = {
@@ -220,6 +221,7 @@ exports.listSubscribers = async (req, res, next) => {
                     photo: userProfile?.photos?.[0]?.url || null
                 },
                 ...sub,
+                status: (sub.status === 'ACTIVE' && !hasAccess) ? 'EXPIRED' : sub.status,
                 displayName,
                 isExpired: isActuallyExpired,
             };
@@ -273,9 +275,14 @@ exports.getUserSubscriptionDetail = async (req, res, next) => {
         ]);
 
         // Prioritize finding an ACTIVE subscription. If none exists, get the latest one.
-        let subscription = await Subscription.findOne({ userId, status: "ACTIVE" }).sort({ expiresAt: -1 }).lean();
+        let subscription = await Subscription.findActiveByUser(userId).lean();
         if (!subscription) {
             subscription = await Subscription.findOne({ userId }).sort({ createdAt: -1 }).lean();
+        }
+
+        // App logic override for delayed webhooks/cron
+        if (subscription && subscription.status === 'ACTIVE' && !Subscription.hasPremiumAccess(subscription)) {
+            subscription.status = 'EXPIRED';
         }
 
         // Fetch subscription history (all past subscriptions except the current one)
