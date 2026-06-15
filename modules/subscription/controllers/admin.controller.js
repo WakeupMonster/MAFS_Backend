@@ -129,7 +129,7 @@ exports.listSubscribers = async (req, res, next) => {
             } else if (status === "ACTIVE") {
                 filter.status = "ACTIVE";
                 filter.expiresAt = { $gt: new Date() };
-            } else {
+            } else {    
                 filter.status = status;
             }
         }

@@ -44,7 +44,7 @@ router.patch("/", controllerDis.updatePreference);
 router.post("/photos", apiLimiter("photo_upload", 20, 300), uploadMiddleware.uploadPhotos, controller.uploadPhotos);
 
 router.delete("/photos", apiLimiter("photo_delete", 20, 300), controller.deletePhoto);
-router.patch("/photos/reorder", apiLimiter("photo_reorder", 20, 300), controller.reorderPhotos);
+router.patch("/photos/reorder", apiLimiter("photo_reorder", 40, 300), controller.reorderPhotos);
 
 router.post(
   "/selfie",
