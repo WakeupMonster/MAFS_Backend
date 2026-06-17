@@ -11,6 +11,7 @@ const Block = require("../../../modules/profile/user.block");
 const Report = require("../../../modules/profile/user.report");
 const redis = require("../../../config/cache");
 const BlockedContact = require("../../BlockedContact/blockedContacts.model");
+const { generatePhoneHashes } = require("../../../common/utils/phone.util");
 const { canUserAccessFeed } = require("../../../common/utils/profileAccess");
 const { addNotificationJob } = require("../../../queues/notification.queue");
 const { NOTIFICATION_TYPES } = require("../../notifications/notification.enums");
@@ -163,15 +164,34 @@ async function getFeedService(userId, limit, page, isRefresh = false) {
 
     receivedSuperlikes = rcvdSuperlikes;
 
-    const blockedPhoneHashes = await BlockedContact.find({ userId }).distinct(
-      "blockedPhoneHash",
-    );
+    // Contact block exclusion: generate ALL possible phone hashes for format-agnostic matching
+    const blockedContacts = await BlockedContact.find({ userId }).select("blockedPhone blockedPhoneHash").lean();
     let blockedByContactUserIds = [];
-    if (blockedPhoneHashes.length) {
-      const users = await User.find({
-        phoneHash: { $in: blockedPhoneHashes },
-      }).distinct("_id");
-      blockedByContactUserIds = users.map((id) => id.toString());
+    if (blockedContacts.length) {
+      let allBlockedHashes = [];
+      for (const bc of blockedContacts) {
+        if (bc.blockedPhone) {
+          allBlockedHashes.push(...generatePhoneHashes(bc.blockedPhone));
+        } else {
+          allBlockedHashes.push(bc.blockedPhoneHash);
+        }
+      }
+      if (allBlockedHashes.length) {
+        const users = await User.find({
+          phoneHash: { $in: allBlockedHashes },
+        }).distinct("_id");
+        blockedByContactUserIds = users.map((id) => id.toString());
+      }
+    }
+
+    // Mutual Exclusion: If my phone is blocked by someone, exclude them from my feed
+    // Use generatePhoneHashes for format-agnostic matching (consistent with getKeenData)
+    const myUser = await User.findById(userId).select("phone phoneHash").lean();
+    let usersWhoBlockedMyContact = [];
+    if (myUser && (myUser.phone || myUser.phoneHash)) {
+      const myHashes = myUser.phone ? generatePhoneHashes(myUser.phone) : [myUser.phoneHash];
+      const blockedMeDocs = await BlockedContact.find({ blockedPhoneHash: { $in: myHashes } }).distinct("userId");
+      usersWhoBlockedMyContact = blockedMeDocs.map(id => id.toString());
     }
 
     // Use Set for O(1) lookups instead of Array.includes O(n)
@@ -182,6 +202,7 @@ async function getFeedService(userId, limit, page, isRefresh = false) {
       ...blockedMe.map((id) => id.toString()),
       ...myReports.map((id) => id.toString()),
       ...blockedByContactUserIds,
+      ...usersWhoBlockedMyContact,
       ...nonActiveUserIds,
       userId.toString(),
     ]);
@@ -199,13 +220,11 @@ async function getFeedService(userId, limit, page, isRefresh = false) {
     }
   }
 
-  // Cap exclusion list to prevent $nin degradation on large arrays
-  const MAX_EXCLUDE = 500;
   const rawExclude =
     page === 1
       ? [...new Set([...baseExcludeSet, ...seenProfiles])]
       : [...baseExcludeSet];
-  excludeIds = rawExclude.slice(0, MAX_EXCLUDE);
+  excludeIds = rawExclude;
 
   // 5. Build Final Query Filters
   const queryFilters = {

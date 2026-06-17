@@ -224,12 +224,17 @@ module.exports.blockUser = async (req, res) => {
       });
     }
 
-    // ✅ findOneAndUpdate with upsert — no duplicate error
-    await Block.findOneAndUpdate(
-      { blockerId: userId, blockedId: targetId },
-      { blockerId: userId, blockedId: targetId },
-      { upsert: true, new: true }
-    );
+    // Check if already blocked
+    const existingBlock = await Block.findOne({ blockerId: userId, blockedId: targetId }).lean();
+    if (existingBlock) {
+      return res.status(200).json({
+        success: true,
+        message: "User already blocked"
+      });
+    }
+
+    // ✅ Create block record
+    await Block.create({ blockerId: userId, blockedId: targetId });
 
     // ✅ Clear both users feed cache
     await clearFeedCache(userId, targetId);
@@ -237,13 +242,13 @@ module.exports.blockUser = async (req, res) => {
     // 🔥 Emit real-time chat_error (BLOCKED) so receiver UI updates
     const match = await Match.findOne({ users: { $all: [userId, targetId] } }).lean();
     if (match) {
-        chatEvents.emit("user_blocked", { matchId: match._id.toString(), blockerId: userId.toString(), blockedId: targetId.toString() });
+      chatEvents.emit("user_blocked", { matchId: match._id.toString(), blockerId: userId.toString(), blockedId: targetId.toString() });
     }
 
     // ✅ Clear socket block cache so next send_message is rejected immediately
     if (redis) {
-        await redis.del(`block:${userId.toString()}:${targetId.toString()}`);
-        await redis.del(`block:${targetId.toString()}:${userId.toString()}`);
+      await redis.del(`block:${userId.toString()}:${targetId.toString()}`);
+      await redis.del(`block:${targetId.toString()}:${userId.toString()}`);
     }
 
     return res.status(200).json({
@@ -392,7 +397,7 @@ exports.getBlockList = async (req, res) => {
         : null,
       image: p.photos?.[0]?.url || "",
     }));
-    
+
     return res.status(200).json({
       success: true,
       count: formattedData.length,
@@ -415,24 +420,34 @@ exports.getBlockList = async (req, res) => {
 module.exports.unblockUser = async (req, res) => {
   const userId = req.user._id;
   try {
-    await Block.deleteOne({
+    const result = await Block.deleteOne({
       blockerId: userId,
       blockedId: req.params.id,
     });
 
+    if (result.deletedCount === 0) {
+      return res.status(200).json({
+        success: true,
+        message: "User already unblocked"
+      });
+    }
+
     // ✅ Clear cache properly
     await clearFeedCache(userId, req.params.id);
 
-    // ✅ Clear socket block cache
+    // ✅ Clear socket block cache & remove from seen profiles so they reappear in feed
     if (redis) {
-        await redis.del(`block:${userId.toString()}:${req.params.id.toString()}`);
-        await redis.del(`block:${req.params.id.toString()}:${userId.toString()}`);
+      await redis.del(`block:${userId.toString()}:${req.params.id.toString()}`);
+      await redis.del(`block:${req.params.id.toString()}:${userId.toString()}`);
+
+      // 🔥 Remove from seen profiles so they can appear in feed immediately
+      await redis.sRem(`feed:seen:${userId.toString()}`, req.params.id.toString());
     }
 
     // 🔥 Emit real-time user_unblocked
     const match = await Match.findOne({ users: { $all: [userId, req.params.id] } }).lean();
     if (match) {
-        chatEvents.emit("user_unblocked", { matchId: match._id.toString(), unblockerId: userId.toString(), unblockedId: req.params.id.toString() });
+      chatEvents.emit("user_unblocked", { matchId: match._id.toString(), unblockerId: userId.toString(), unblockedId: req.params.id.toString() });
     }
 
     return res.status(200).json({

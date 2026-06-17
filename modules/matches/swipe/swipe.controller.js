@@ -7,6 +7,11 @@ const Swipe = require("./swipe.model");
 const redis = require("../../../config/cache");
 const Profile = require("../../profile/profile.model");
 const ChatMessage = require("../chat/chat.message.model");
+const Block = require("../../profile/user.block");
+const Report = require("../../profile/user.report");
+const BlockedContact = require("../../BlockedContact/blockedContacts.model");
+const User = require("../../auth/auth.model");
+const { generatePhoneHashes } = require("../../../common/utils/phone.util");
 
 module.exports.getFeed = async (req, res) => {
   try {
@@ -306,8 +311,42 @@ module.exports.getKeenData = async (req, res, actionType) => {
         )
     ]);
 
+    let excludeIds = [...mySwipedIds, ...matchedUserIds];
 
-    const excludeIds = [...mySwipedIds, ...matchedUserIds];
+    // ✅ Inline exclusion for Keen/SuperKeen: blocks, reports, contact blocks
+    const [myBlocked, blockedMe, myReports] = await Promise.all([
+      Block.find({ blockerId: userId }).distinct("blockedId"),
+      Block.find({ blockedId: userId }).distinct("blockerId"),
+      Report.find({ reporterId: userId }).distinct("reportedId"),
+    ]);
+    excludeIds.push(
+      ...myBlocked.map(id => id.toString()),
+      ...blockedMe.map(id => id.toString()),
+      ...myReports.map(id => id.toString())
+    );
+
+    // Contact block exclusion: users whose phone I blocked
+    const blockedContacts = await BlockedContact.find({ userId }).select("blockedPhone").lean();
+    if (blockedContacts.length) {
+      let allBlockedHashes = [];
+      for (const bc of blockedContacts) {
+        if (bc.blockedPhone) {
+          allBlockedHashes.push(...generatePhoneHashes(bc.blockedPhone));
+        }
+      }
+      if (allBlockedHashes.length) {
+        const blockedUsers = await User.find({ phoneHash: { $in: allBlockedHashes } }).distinct("_id");
+        excludeIds.push(...blockedUsers.map(id => id.toString()));
+      }
+    }
+
+    // Mutual contact block: users who blocked MY phone number
+    const myUser = await User.findById(userId).select("phone phoneHash").lean();
+    if (myUser && (myUser.phone || myUser.phoneHash)) {
+      const myHashes = myUser.phone ? generatePhoneHashes(myUser.phone) : [myUser.phoneHash];
+      const usersWhoBlockedMe = await BlockedContact.find({ blockedPhoneHash: { $in: myHashes } }).distinct("userId");
+      excludeIds.push(...usersWhoBlockedMe.map(id => id.toString()));
+    }
 
     // 2. Swipes dhundna (Populate ko Profile collection par point kar rahe hain)
     const keens = await Swipe.find({

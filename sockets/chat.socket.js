@@ -64,6 +64,8 @@ module.exports = function chatSocket(io, redisClient) {
             senderId: msg.sender.toString(),
             receiverId: receiverId.toString(),
             messageText: lastMessagePreview,
+            matchId: matchId,
+            messageId: msg._id.toString(),
           });
         }
       } catch (notifErr) {
@@ -495,6 +497,8 @@ module.exports = function chatSocket(io, redisClient) {
                   senderId: currentUserId,
                   receiverId: receiverId.toString(),
                   messageText: lastMessagePreview,
+                  matchId: matchId,
+                  messageId: msg._id.toString(),
                 });
               }
             } catch (notifErr) {

@@ -92,7 +92,7 @@ class NotificationService {
           user2.fcmTokens,
           {
             title: "It's a match! 🔥",
-            body: `You and ${name1} have liked each other. Start a conversation now!`,
+            body: `You and ${name1} are both Keen! Start a conversation now!`,
           },
           {
             type: NOTIFICATION_TYPES.NEW_MATCH,
@@ -110,7 +110,7 @@ class NotificationService {
   }
 
   // Send a new message notification
-  async sendNewMessageNotification(senderId, receiverId, messageText) {
+  async sendNewMessageNotification(senderId, receiverId, messageText, matchId, messageId) {
     try {
       const [senderProfile, receiver] = await Promise.all([
         Profile.findOne({ userId: senderId }).select("nickname"),
@@ -127,6 +127,16 @@ class NotificationService {
 
       const senderName = senderProfile?.nickname || "Someone";
 
+      const data = {
+        type: NOTIFICATION_TYPES.NEW_MESSAGE,
+        senderId: senderId.toString(),
+        cta: JSON.stringify({ action: "OPEN_CHAT" }),
+      };
+
+      // Include matchId for deep-linking to exact conversation
+      if (matchId) data.matchId = matchId.toString();
+      if (messageId) data.messageId = messageId.toString();
+
       await this._executePush(
         receiverId,
         receiver.fcmTokens,
@@ -137,12 +147,7 @@ class NotificationService {
               ? `${messageText.substring(0, 100)}...`
               : messageText,
         },
-        {
-          type: NOTIFICATION_TYPES.NEW_MESSAGE,
-          senderId: senderId.toString(),
-          conversationId: [senderId, receiverId].sort().join("_"),
-          cta: JSON.stringify({ action: "OPEN_CHAT" }),
-        },
+        data,
       );
     } catch (error) {
       console.error("Error in sendNewMessageNotification:", error);
@@ -179,8 +184,8 @@ class NotificationService {
         receiverId,
         receiver.fcmTokens,
         {
-          title: "New like! 💖",
-          body: `${senderName} liked your profile`,
+          title: "Someone is Keen on you! 💜",
+          body: `${senderName} is Keen on your profile!`,
           imageUrl: senderPhoto,
         },
         {
@@ -225,7 +230,7 @@ class NotificationService {
         receiver.fcmTokens,
         {
           title: "You got a Super Keen! ⭐",
-          body: `${senderName} super liked your profile!`,
+          body: `${senderName} sent you a Super Keen!`,
           imageUrl: senderPhoto,
         },
         {
