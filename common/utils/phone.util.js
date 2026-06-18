@@ -48,9 +48,11 @@ function generatePhoneHashes(phone) {
   if (digitsOnly.length > 10) {
     const last10 = digitsOnly.slice(-10);
     hashes.add(hashPhone(`+91${last10}`));
+    hashes.add(hashPhone(`+${last10}`)); // Fallback for 10-digit blocked without country code
     
     const last9 = digitsOnly.slice(-9);
     hashes.add(hashPhone(`+61${last9}`));
+    hashes.add(hashPhone(`+${last9}`)); // Fallback for 9-digit blocked without country code
   }
 
   return Array.from(hashes);
