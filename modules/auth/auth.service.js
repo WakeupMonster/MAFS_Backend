@@ -49,7 +49,7 @@ async function verifyPhoneOtpUnified(phone, otp, req) {
   const normalizedPhone = normalizePhone(phone);
   if (!normalizedPhone) throw new Error("Invalid phone number");
 
-  const TEST_PHONE = "+61800000000";
+  const TEST_PHONE = "+61424200000";
   const isPlayStoreReview = normalizedPhone === TEST_PHONE && otp === "123456";
 
   let isValidOtp = false;
@@ -82,7 +82,7 @@ async function verifyPhoneOtpUnified(phone, otp, req) {
   // Old code (3 roundtrips) commented out below for reference.
   const refreshTokenRaw = utils.generateRefreshToken();
   const refreshHash = utils.hashToken(refreshTokenRaw);
-  const isPlayStoreExpiry = normalizedPhone === "+61800000000";
+  const isPlayStoreExpiry = normalizedPhone === "+61424200000";
   const expiresAt = new Date(
     Date.now() +
     (isPlayStoreExpiry
@@ -226,7 +226,7 @@ async function verifyPhoneTestOtpUnified(phone, otp, req) {
   const normalizedPhone = normalizePhone(phone);
   if (!normalizedPhone) throw new Error("Invalid phone number");
 
-  const TEST_PHONE = "+61800000000";
+  const TEST_PHONE = "+61424200000";
   const isPlayStoreReview = normalizedPhone === TEST_PHONE && otp === "123456";
 
   // 2️⃣ Redis OTP check
@@ -281,7 +281,7 @@ async function verifyPhoneTestOtpUnified(phone, otp, req) {
   const accessToken = utils.generateAccessToken(user);
   const refreshTokenRaw = utils.generateRefreshToken();
   const refreshHash = utils.hashToken(refreshTokenRaw);
-  const isPlayStoreExpiry = normalizedPhone === "+61800000000";
+  const isPlayStoreExpiry = normalizedPhone === "+61424200000";
   const expiresAt = new Date(
     Date.now() +
     (isPlayStoreExpiry
@@ -455,7 +455,7 @@ async function verifyEmailOtp(token, otp, req) {
   if (!user) throw new Error("User not found");
 
   const isPlayStoreReview =
-    user.email === "test@keenasmustard.com" && otp === "123456";
+    (user.email === "test@keenasmustard.com" || user.pendingEmail === "test@keenasmustard.com") && otp === "123456";
 
   if (!isPlayStoreReview) {
     if (!user.emailOtp || !user.emailOtpExpires)
@@ -544,7 +544,7 @@ async function sendEmailOtp(token, email) {
 async function loginSendOtp(phone, ip) {
   if (!phone) throw new Error("Phone is required");
 
-  if (phone === "+61800000000") {
+  if (phone === "+61424200000") {
     return { ok: true, isMocked: true };
   }
 
@@ -594,7 +594,7 @@ async function loginSendOtp(phone, ip) {
 async function loginVerifyOtp(phone, otp) {
   if (!phone || !otp) throw new Error("Phone and OTP required");
 
-  const TEST_PHONE = "+61800000000";
+  const TEST_PHONE = "+61424200000";
   const isPlayStoreReview = phone === TEST_PHONE && otp === "123456";
 
   const redisKey = `login:${phone}`;
@@ -755,7 +755,7 @@ async function sendPhoneOtpTest(phone, testMode = false) {
 
   // Generate OTP
   let otp;
-  if (normalizedPhone === "+61800000000") {
+  if (normalizedPhone === "+61424200000") {
     otp = "123456";
   } else {
     otp = utils.generateOtp();

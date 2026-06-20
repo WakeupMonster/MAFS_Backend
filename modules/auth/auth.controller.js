@@ -57,7 +57,7 @@ module.exports.sendOtp = async (req, res, next) => {
 
     await user.save();
 
-    const TEST_PHONE = "+61800000000";
+    const TEST_PHONE = "+61424200000";
     if (normalizedPhone === TEST_PHONE) {
       return res.json({
         success: true,
@@ -324,7 +324,7 @@ module.exports.resendPhoneOtp = async (req, res) => {
       throw new AppError("PHONE_REQUIRED", "Phone number is required", 400);
     }
 
-    const TEST_PHONE = "+61800000000";
+    const TEST_PHONE = "+61424200000";
     if (phone === TEST_PHONE) {
       return res.json({
         success: true,
