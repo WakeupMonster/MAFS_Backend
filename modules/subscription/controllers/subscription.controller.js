@@ -14,7 +14,7 @@ const productDisplayHelper = require("../utils/productDisplayHelper");
 
 const verifyPurchase = async (req, res, next) => {
   try {
-    const { platform, productId, transactionId, purchaseToken } = req.body;
+    const { platform, productId, transactionId, purchaseToken, environment, isSandbox } = req.body;
     const userId = req.user._id;
 
     let purchaseData;
@@ -69,6 +69,8 @@ const verifyPurchase = async (req, res, next) => {
         transactionId: result.transactionId,
         purchaseDate: result.purchaseDate,
         expiresDate: result.expiresDate,
+        environment: environment || result.environment,
+        isSandbox: isSandbox,
       };
     } else if (platform === "android") {
       // Step 1: Query the product to determine if it's a subscription or consumable
@@ -92,9 +94,12 @@ const verifyPurchase = async (req, res, next) => {
           platform: "android",
           productId: productId,
           purchaseToken: purchaseToken,
+          transactionId: result.orderId || transactionId,
           orderId: result.orderId,
           purchaseDate: parseInt(result.purchaseTimeMillis) || Date.now(),
           expiresDate: null, // Consumables have no expiry
+          environment: environment || (result.orderId?.includes("MOCK") ? "sandbox" : "production"),
+          isSandbox: isSandbox !== undefined ? isSandbox : (result.orderId?.includes("MOCK") || false),
         };
 
         // Acknowledge one-time purchase
@@ -111,9 +116,12 @@ const verifyPurchase = async (req, res, next) => {
           platform: "android",
           productId: productId,
           purchaseToken: purchaseToken,
+          transactionId: result.orderId || transactionId,
           orderId: result.orderId,
           purchaseDate: parseInt(result.startTimeMillis),
           expiresDate: parseInt(result.expiryTimeMillis),
+          environment: environment || (result.orderId?.includes("MOCK") ? "sandbox" : "production"),
+          isSandbox: isSandbox !== undefined ? isSandbox : (result.orderId?.includes("MOCK") || false),
         };
 
         console.log("📍 Step: Acknowledging purchase...");
@@ -258,6 +266,8 @@ const restorePurchases = async (req, res, next) => {
             transactionId: result.transactionId,
             purchaseDate: result.purchaseDate,
             expiresDate: result.expiresDate,
+            environment: item.environment || result.environment,
+            isSandbox: item.isSandbox,
           };
         } else {
           // Android restore routing based on product type
@@ -279,9 +289,12 @@ const restorePurchases = async (req, res, next) => {
               platform: "android",
               productId: item.productId,
               purchaseToken: item.purchaseToken,
+              transactionId: result.orderId || item.transactionId,
               orderId: result.orderId,
               purchaseDate: parseInt(result.purchaseTimeMillis) || Date.now(),
               expiresDate: null,
+              environment: item.environment || (result.orderId?.includes("MOCK") ? "sandbox" : "production"),
+              isSandbox: item.isSandbox !== undefined ? item.isSandbox : (result.orderId?.includes("MOCK") || false),
             };
           } else {
             const result = await googleService.verifySubscription(
@@ -293,9 +306,12 @@ const restorePurchases = async (req, res, next) => {
               platform: "android",
               productId: item.productId,
               purchaseToken: item.purchaseToken,
+              transactionId: result.orderId || item.transactionId,
               orderId: result.orderId,
               purchaseDate: parseInt(result.startTimeMillis),
               expiresDate: parseInt(result.expiryTimeMillis),
+              environment: item.environment || (result.orderId?.includes("MOCK") ? "sandbox" : "production"),
+              isSandbox: item.isSandbox !== undefined ? item.isSandbox : (result.orderId?.includes("MOCK") || false),
             };
           }
         }
