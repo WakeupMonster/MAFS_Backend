@@ -25,7 +25,7 @@ const cron = require("node-cron");
 const runGiveawayJob = require("./giveaway.worker");
 
 // Safe Timezone check
-let CURRENT_TZ = process.env.APP_TIMEZONE || "Australia/Sydney";
+let CURRENT_TZ = (process.env.APP_TIMEZONE || "Australia/Sydney").replace(/^"|"$/g, '');
 try {
   Intl.DateTimeFormat(undefined, { timeZone: CURRENT_TZ });
 } catch (e) {

@@ -75,3 +75,39 @@
 {"level":"info","message":"[CRON] Subscription cron jobs initialized (v3 - Grace Period & Billing Retry Support)","service":"iap-service","timestamp":"2026-07-28 16:07:52"}
 {"level":"info","message":"🧪 [DEV] Dev tools routes registered at /api/v1/dev/*","service":"iap-service","timestamp":"2026-07-28 16:07:55"}
 {"level":"error","message":"[CRON] Grace period check error:","service":"iap-service","timestamp":"2026-07-28 16:30:19"}
+{"level":"debug","message":"Skipping Google webhook verification (dev mode)","service":"iap-service","timestamp":"2026-07-28 16:56:23"}
+{"level":"info","message":"Google webhook - not a subscription or product event","service":"iap-service","timestamp":"2026-07-28 16:56:23"}
+{"level":"debug","message":"Skipping Google webhook verification (dev mode)","service":"iap-service","timestamp":"2026-07-28 17:15:49"}
+{"level":"error","message":"Google webhook process error:","service":"iap-service","timestamp":"2026-07-28 17:15:54"}
+{"level":"debug","message":"Skipping Google webhook verification (dev mode)","service":"iap-service","timestamp":"2026-07-28 17:20:55"}
+{"level":"error","message":"Google webhook process error:","service":"iap-service","timestamp":"2026-07-28 17:20:56"}
+{"level":"debug","message":"Skipping Google webhook verification (dev mode)","service":"iap-service","timestamp":"2026-07-28 17:25:54"}
+{"level":"error","message":"Google webhook process error:","service":"iap-service","timestamp":"2026-07-28 17:25:55"}
+{"level":"debug","message":"Skipping Google webhook verification (dev mode)","service":"iap-service","timestamp":"2026-07-28 17:31:52"}
+{"level":"error","message":"Google webhook process error:","service":"iap-service","timestamp":"2026-07-28 17:31:53"}
+{"level":"info","message":"Profile subscription synced","service":"iap-service","timestamp":"2026-07-28 17:33:50","userId":"6a3670ec5766a4e39a1b9fe0"}
+{"level":"info","message":"Subscription updated","service":"iap-service","subscriptionId":"6a689aa93ba7ddb2d4fcf76b","timestamp":"2026-07-28 17:33:50","userId":"6a3670ec5766a4e39a1b9fe0"}
+{"level":"debug","message":"Skipping Google webhook verification (dev mode)","service":"iap-service","timestamp":"2026-07-28 17:35:55"}
+{"level":"error","message":"Google webhook process error:","service":"iap-service","timestamp":"2026-07-28 17:35:55"}
+{"level":"debug","message":"Skipping Google webhook verification (dev mode)","service":"iap-service","timestamp":"2026-07-28 17:40:55"}
+{"level":"error","message":"Google webhook process error:","service":"iap-service","timestamp":"2026-07-28 17:40:56"}
+{"level":"debug","message":"Skipping Google webhook verification (dev mode)","service":"iap-service","timestamp":"2026-07-28 17:45:54"}
+{"level":"error","message":"Google webhook process error:","service":"iap-service","timestamp":"2026-07-28 17:45:54"}
+{"level":"info","message":"[CRON] Subscription cron jobs initialized (v3 - Grace Period & Billing Retry Support)","service":"iap-service","timestamp":"2026-07-28 17:49:01"}
+{"level":"info","message":"🧪 [DEV] Dev tools routes registered at /api/v1/dev/*","service":"iap-service","timestamp":"2026-07-28 17:49:05"}
+{"level":"debug","message":"Skipping Google webhook verification (dev mode)","service":"iap-service","timestamp":"2026-07-28 17:50:53"}
+{"level":"debug","message":"Skipping Google webhook verification (dev mode)","service":"iap-service","timestamp":"2026-07-28 17:50:59"}
+{"level":"error","message":"Google webhook process error:","service":"iap-service","timestamp":"2026-07-28 17:51:00"}
+{"level":"error","message":"Google webhook process error:","service":"iap-service","timestamp":"2026-07-28 17:51:00"}
+{"level":"info","message":"Profile subscription synced","service":"iap-service","timestamp":"2026-07-28 17:54:32","userId":"6a3312282bcd6f672b429b3b"}
+{"level":"info","message":"Subscription updated","service":"iap-service","subscriptionId":"6a6896753ba7ddb2d4fcf764","timestamp":"2026-07-28 17:54:32","userId":"6a3312282bcd6f672b429b3b"}
+{"level":"debug","message":"Skipping Google webhook verification (dev mode)","service":"iap-service","timestamp":"2026-07-28 17:58:40"}
+{"level":"error","message":"Google webhook process error:","service":"iap-service","timestamp":"2026-07-28 17:58:41"}
+{"level":"debug","message":"Skipping Google webhook verification (dev mode)","service":"iap-service","timestamp":"2026-07-28 18:03:45"}
+{"level":"error","message":"Google webhook process error:","service":"iap-service","timestamp":"2026-07-28 18:03:46"}
+{"level":"debug","message":"Skipping Google webhook verification (dev mode)","service":"iap-service","timestamp":"2026-07-28 18:08:44"}
+{"level":"error","message":"Google webhook process error:","service":"iap-service","timestamp":"2026-07-28 18:08:46"}
+{"level":"debug","message":"Skipping Google webhook verification (dev mode)","service":"iap-service","timestamp":"2026-07-28 18:13:46"}
+{"level":"error","message":"Google webhook process error:","service":"iap-service","timestamp":"2026-07-28 18:13:47"}
+{"level":"info","message":"[CRON] Subscription cron jobs initialized (v3 - Grace Period & Billing Retry Support)","service":"iap-service","timestamp":"2026-07-28 18:23:36"}
+{"level":"info","message":"🧪 [DEV] Dev tools routes registered at /api/v1/dev/*","service":"iap-service","timestamp":"2026-07-28 18:23:40"}
