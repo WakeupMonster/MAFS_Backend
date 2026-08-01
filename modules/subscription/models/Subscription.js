@@ -127,6 +127,7 @@ SubscriptionSchema.index({ expiresAt: 1, status: 1 });
 // Added for Dashboard Performance
 SubscriptionSchema.index({ status: 1 });
 SubscriptionSchema.index({ createdAt: 1 });
+SubscriptionSchema.index({ cancelledAt: 1 });
 
 SubscriptionSchema.pre("save", function (next) {
   if (this.isModified("status") && !this.isNew) {

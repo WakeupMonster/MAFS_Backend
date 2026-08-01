@@ -5,6 +5,7 @@ const { updateUserSchema } = require("./user.management.validation");
 const { stringify } = require("csv-stringify");
 const { destroy } = require("../../upload/cloudinary.service");
 const { calculateAge } = require("../../../common/utils/calculate.age");
+const { APP_TZ, startOfDay, endOfDay, startOfYesterday, endOfYesterday } = require("../../../common/utils/time");
 const {
   getSafeAgePipeline,
   resolveDatePreset,
@@ -384,20 +385,14 @@ module.exports.GETAllUsers = async (req, res) => {
       if (from && to) {
         baseMatch.createdAt = { $gte: new Date(from), $lte: new Date(to) };
       } else if (preset) {
-        // IMPORTANT: Do NOT use now.setHours() — it mutates the Date object.
-        // Create fresh Date instances for each boundary to avoid corruption.
+        // Calendar-day presets ("today"/"yesterday") are resolved against
+        // Australia/Sydney (APP_TZ), not server-local/UTC time — see common/utils/time.js.
         const now = new Date();
 
         if (preset === "today") {
-          const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0);
-          const endOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999);
-          baseMatch.createdAt = { $gte: startOfToday, $lte: endOfToday };
+          baseMatch.createdAt = { $gte: startOfDay(now), $lte: endOfDay(now) };
         } else if (preset === "yesterday") {
-          const y = new Date(now);
-          y.setDate(y.getDate() - 1);
-          const startOfYesterday = new Date(y.getFullYear(), y.getMonth(), y.getDate(), 0, 0, 0, 0);
-          const endOfYesterday = new Date(y.getFullYear(), y.getMonth(), y.getDate(), 23, 59, 59, 999);
-          baseMatch.createdAt = { $gte: startOfYesterday, $lte: endOfYesterday };
+          baseMatch.createdAt = { $gte: startOfYesterday(), $lte: endOfYesterday() };
         } else if (preset === "last7") {
           const start = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
           baseMatch.createdAt = { $gte: start, $lte: now };
@@ -923,10 +918,13 @@ module.exports.GETSingleUserDetails = async (req, res) => {
       await User.findByIdAndUpdate(userId, {
         $push: {
           auditLogs: {
-            action: "view_profile",
-            reason: "Admin viewed profile details",
-            actedBy: req.user?._id,
-            actedAt: new Date(),
+            $each: [{
+              action: "view_profile",
+              reason: "Admin viewed profile details",
+              actedBy: req.user?._id,
+              actedAt: new Date(),
+            }],
+            $slice: -100,  // Keep only the 100 most recent audit logs
           },
         },
       });
@@ -1065,6 +1063,7 @@ module.exports.UPDATESingleUserDetail = async (req, res) => {
         ],
       },
     });
+    if (user.auditLogs.length > 100) user.auditLogs = user.auditLogs.slice(-100);
     await user.save({ session });
 
     const response = {
@@ -1156,6 +1155,7 @@ module.exports.UPDATEUserStatus = async (req, res) => {
       actedBy: req.user?._id,
       actedAt: new Date(),
     });
+    if (user.auditLogs.length > 100) user.auditLogs = user.auditLogs.slice(-100);
     await user.save();
 
     return res.status(200).json({
@@ -1218,6 +1218,7 @@ module.exports.DELETEPhoto = async (req, res) => {
         actedAt: new Date(),
         details: { publicId },
       });
+      if (userObj.auditLogs.length > 100) userObj.auditLogs = userObj.auditLogs.slice(-100);
       await userObj.save();
     }
 
@@ -1274,8 +1275,8 @@ module.exports.streamUsersExport = async (req, res) => {
     // ✅ FIX 1: Helper function for consistent date formatting
     const formatDate = (d) => {
       if (!d) return "";
-      return new Date(d).toLocaleString("en-IN", {
-        timeZone: "Asia/Kolkata",
+      return new Date(d).toLocaleString("en-AU", {
+        timeZone: APP_TZ,
         day: "2-digit",
         month: "short",
         year: "numeric",

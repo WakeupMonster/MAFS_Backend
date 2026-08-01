@@ -7,6 +7,7 @@
  *   2. Centralized date-preset resolution
  *   3. Null-safe nested profile update mapping
  */
+const { startOfDay, endOfDay, startOfYesterday, endOfYesterday } = require("../../../common/utils/time");
 
 /**
  * Returns MongoDB aggregation $addFields stage that safely calculates
@@ -65,28 +66,20 @@ function getSafeAgePipeline() {
 function resolveDatePreset(preset, from, to) {
   const now = new Date();
 
+  // Calendar-day boundaries below are resolved against Australia/Sydney
+  // (APP_TZ), not server-local/UTC time — see common/utils/time.js.
   if (from && to) {
-    const startDate = new Date(from);
-    startDate.setHours(0, 0, 0, 0);
-    const endDate = new Date(to);
-    endDate.setHours(23, 59, 59, 999);
-    return { startDate, endDate };
+    return { startDate: startOfDay(from), endDate: endOfDay(to) };
   }
 
   if (!preset) return {};
 
   switch (preset) {
     case "today": {
-      const startDate = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0);
-      const endDate = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999);
-      return { startDate, endDate };
+      return { startDate: startOfDay(now), endDate: endOfDay(now) };
     }
     case "yesterday": {
-      const y = new Date(now);
-      y.setDate(y.getDate() - 1);
-      const startDate = new Date(y.getFullYear(), y.getMonth(), y.getDate(), 0, 0, 0, 0);
-      const endDate = new Date(y.getFullYear(), y.getMonth(), y.getDate(), 23, 59, 59, 999);
-      return { startDate, endDate };
+      return { startDate: startOfYesterday(), endDate: endOfYesterday() };
     }
     case "last7": {
       const startDate = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
@@ -103,9 +96,7 @@ function resolveDatePreset(preset, from, to) {
     case "custom": {
       // Custom with only `from` — open-ended range
       if (from) {
-        const startDate = new Date(from);
-        startDate.setHours(0, 0, 0, 0);
-        return { startDate };
+        return { startDate: startOfDay(from) };
       }
       return {};
     }

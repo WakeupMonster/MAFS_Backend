@@ -8,7 +8,6 @@ const {
 
 const { Match } = require("../../../modules/matches/swipe/swipe.model");
 const Swipe = require("../../../modules/matches/swipe/swipe.model");
-const Message = require("../../../modules/matches/chat/chat.message.model");
 const ChatRoom = require("../../matches/chat/chat.room.model");
 const redis = require("../../../config/cache");
 const getFormattedUser = require("../../../common/utils/getFormattedUser");
@@ -141,17 +140,38 @@ exports.permanentDeleteAccounts = async () => {
   try {
     const now = new Date();
 
+    // Eligibility is based on the 30-day grace period ending (deletionDate),
+    // not the moment the user originally requested deletion (scheduledAt) —
+    // using scheduledAt here was permanently deleting accounts almost
+    // immediately instead of after the full 30-day grace period.
+    // Capped so one cron run can't ever try to process an unbounded batch —
+    // any remainder is simply picked up on the next run (still same day).
+    const BATCH_SAFETY_CAP = 5000;
     const users = await User.find({
       "deletionDetails.isScheduledForDeletion": true,
-      "deletionDetails.scheduledAt": { $lt: now },
-    }).select("_id");
+      "deletionDetails.deletionDate": { $lt: now },
+    }).select("_id").limit(BATCH_SAFETY_CAP);
 
     if (!users.length) {
       console.log("No accounts to permanently delete");
       return;
     }
 
-    const userIds = users.map((u) => u._id);
+    // Re-check eligibility immediately before the destructive delete so a
+    // user who calls restoreAccount() in the gap between the query above
+    // and this point isn't deleted anyway.
+    const stillEligible = await User.find({
+      _id: { $in: users.map((u) => u._id) },
+      "deletionDetails.isScheduledForDeletion": true,
+      "deletionDetails.deletionDate": { $lt: now },
+    }).select("_id");
+
+    if (!stillEligible.length) {
+      console.log("No accounts to permanently delete (all restored before deletion)");
+      return;
+    }
+
+    const userIds = stillEligible.map((u) => u._id);
 
     console.log("Permanent deleting users:", userIds);
 
@@ -168,9 +188,9 @@ exports.permanentDeleteAccounts = async () => {
         participants: { $in: userIds },
       }),
 
-      Message.deleteMany({
-        senderId: { $in: userIds },
-      }),
+      // Intentionally NOT deleting Message docs on permanent account deletion —
+      // product requirement (frontend) is that chat messages must survive even
+      // after a participant's account is permanently deleted.
 
       Profile.deleteMany({
         userId: { $in: userIds },
@@ -181,16 +201,21 @@ exports.permanentDeleteAccounts = async () => {
       }),
     ]);
 
-    // clear redis cache
-    await Promise.all(
-      userIds.map((id) =>
-        Promise.all([
-          redis?.del(`feed:${id}`),
-          redis?.del(`user:online:${id}`),
-          redis?.del(`socket:${id}`),
-        ])
-      )
-    );
+    // Clear redis cache in chunks instead of firing 3×N concurrent commands
+    // at once for the whole batch.
+    const REDIS_CLEANUP_CHUNK_SIZE = 200;
+    for (let i = 0; i < userIds.length; i += REDIS_CLEANUP_CHUNK_SIZE) {
+      const chunk = userIds.slice(i, i + REDIS_CLEANUP_CHUNK_SIZE);
+      await Promise.all(
+        chunk.map((id) =>
+          Promise.all([
+            redis?.del(`feed:${id}`),
+            redis?.del(`user:online:${id}`),
+            redis?.del(`socket:${id}`),
+          ])
+        )
+      );
+    }
 
     console.log("Permanent delete completed");
   } catch (error) {
@@ -294,7 +319,7 @@ exports.deactivateAccount = async (req, res) => {
       ? redis.del(`feed:${userId.toString()}`)
       : Promise.resolve();
 
-    const invalidateFeedPromise = invalidateUserFeedCache();
+    const invalidateFeedPromise = invalidateUserFeedCache(userId);
 
     // Execute ALL in parallel (FAST ⚡)
     await Promise.all([
@@ -370,7 +395,7 @@ exports.reactivateAccount = async (req, res) => {
       ? redis.del(`feed:${userId.toString()}`)
       : Promise.resolve();
 
-    const invalidateFeedPromise = invalidateUserFeedCache();
+    const invalidateFeedPromise = invalidateUserFeedCache(userId);
 
     await Promise.all([
       profileUpdatePromise,

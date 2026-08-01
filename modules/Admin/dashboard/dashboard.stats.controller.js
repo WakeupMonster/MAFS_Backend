@@ -3,6 +3,7 @@ const Profile = require("../../profile/profile.model");
 const Report = require("../../profile/user.report");
 const SupportTicket = require("../../AppConfiguration/contactSupport/supportTicket.model");
 const GiveawayWinHistory = require("../../../modules/Admin/giveaways/giveawayWinHistory.model");
+const { startOfDay } = require("../../../common/utils/time");
 
 exports.getKpiOverview = async (req, res) => {
   try {
@@ -13,8 +14,8 @@ exports.getKpiOverview = async (req, res) => {
 
     let chartStartDate = startDate;
     if (preset === "today" || preset === "yesterday") {
-      chartStartDate = new Date(endDate.getTime() - 6 * 24 * 60 * 60 * 1000);
-      chartStartDate.setHours(0, 0, 0, 0);
+      // Calendar-day boundary resolved against Australia/Sydney (APP_TZ) — see common/utils/time.js.
+      chartStartDate = startOfDay(new Date(endDate.getTime() - 6 * 24 * 60 * 60 * 1000));
     }
 
     const [

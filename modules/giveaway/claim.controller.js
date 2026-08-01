@@ -67,30 +67,46 @@ module.exports.claimPrize = async (req, res) => {
     const prizeDetails = await Prize.findById(winHistory.prizeId).select("type").lean();
 
     /**
-     * Claim prize (LOCK)
+     * Claim prize (LOCK) — atomic conditional update instead of a separate
+     * findOne + save. `query` still requires `claimedAt: null` (unless the
+     * test-user bypass removed it above), so if two requests race for the
+     * same win, only the first update can match and succeed; the loser gets
+     * `updated === null` back instead of silently overwriting the claim.
      */
-    winHistory.claimedAt = new Date();
-    winHistory.claimEmail = claimEmail.toLowerCase().trim();
-
     // 🔒 If user has active store sub and won Premium, put in QUEUE
     // if (activeStoreSub && prizeDetails?.type === "FREE_PREMIUM") {
-    //   winHistory.deliveryStatus = "QUEUED";
-    //   winHistory.queueReason = "User has an active Apple/Google subscription.";
+    //   deliveryStatus = "QUEUED";
+    //   queueReason = "User has an active Apple/Google subscription.";
     // } else {
-    //   winHistory.deliveryStatus = "PENDING";
+    //   deliveryStatus = "PENDING";
     // }
 
-    winHistory.deliveryStatus = "REVEALED";
+    const updated = await GiveawayWinHistory.findOneAndUpdate(
+      query,
+      {
+        $set: {
+          claimedAt: new Date(),
+          claimEmail: claimEmail.toLowerCase().trim(),
+          deliveryStatus: "REVEALED",
+        },
+      },
+      { new: true }
+    );
 
-    await winHistory.save();
+    if (!updated) {
+      return res.status(409).json({
+        success: false,
+        message: "This prize has already been claimed",
+      });
+    }
 
     return res.json({
       success: true,
       message: "Prize claimed successfully",
       data: {
-        claimedAt: winHistory.claimedAt,
-        deliveryStatus: winHistory.deliveryStatus,
-        claimEmail: winHistory.claimEmail
+        claimedAt: updated.claimedAt,
+        deliveryStatus: updated.deliveryStatus,
+        claimEmail: updated.claimEmail
       },
     });
   } catch (error) {
@@ -191,16 +207,45 @@ module.exports.updateGiveawayInfo = async (req, res) => {
 module.exports.getMyGiveaways = async (req, res) => {
   try {
     const userId = req.user._id;
+    const page = req.query.page ? parseInt(req.query.page) : null;
+    const limit = req.query.limit ? parseInt(req.query.limit) : 10;
 
-    // 1️⃣ Fetch all win histories for the user
-    // Populate prize and campaign details
-    const winHistories = await GiveawayWinHistory.find({ userId: userId })
+    // 1️⃣ Always fetch unclaimed/pending wins for spinConfig (lightweight query)
+    const unclaimedWin = await GiveawayWinHistory.findOne({
+      userId,
+      deliveryStatus: { $in: ["PENDING", "REVEALED"] }
+    })
       .populate("prizeId", "title value type description spinWheelLabel supportiveItems")
-      .populate("campaignId", "title date drawStatus")
-      .sort({ createdAt: -1 })
       .lean();
 
-    // 2️⃣ Format giveaway history
+    // 2️⃣ Build history query
+    let winHistories;
+    let total = 0;
+
+    if (page !== null) {
+      // Paginated path
+      const skip = (page - 1) * limit;
+      [total, winHistories] = await Promise.all([
+        GiveawayWinHistory.countDocuments({ userId }),
+        GiveawayWinHistory.find({ userId })
+          .populate("prizeId", "title value type description spinWheelLabel supportiveItems")
+          .populate("campaignId", "title date drawStatus")
+          .sort({ createdAt: -1 })
+          .skip(skip)
+          .limit(limit)
+          .lean()
+      ]);
+    } else {
+      // Legacy path (no pagination — existing frontend won't break)
+      winHistories = await GiveawayWinHistory.find({ userId })
+        .populate("prizeId", "title value type description spinWheelLabel supportiveItems")
+        .populate("campaignId", "title date drawStatus")
+        .sort({ createdAt: -1 })
+        .lean();
+      total = winHistories.length;
+    }
+
+    // 3️⃣ Format giveaway history
     const formattedHistory = winHistories.map(win => {
       const isDelivered = win.deliveryStatus === "DELIVERED";
 
@@ -229,12 +274,8 @@ module.exports.getMyGiveaways = async (req, res) => {
       };
     });
 
-    // 3️⃣ Identify if there's an unclaimed win to provide spin configuration
-    // const unclaimedWin = winHistories.find(win => !win.claimedAt);
-    const unclaimedWin = winHistories.find(win => win.deliveryStatus === "PENDING" || win.deliveryStatus === "REVEALED");
-
+    // 4️⃣ Spin config from the dedicated unclaimed query
     let spinConfig = {
-      // available: true,
       showSpin: false
     };
 
@@ -278,15 +319,27 @@ module.exports.getMyGiveaways = async (req, res) => {
       };
     }
 
-    return res.status(200).json({
+    const response = {
       success: true,
       message: "Giveaway data fetched successfully",
-      totalWins: winHistories.length,
+      totalWins: total,
       data: {
         history: formattedHistory,
         spinConfig: spinConfig
       }
-    });
+    };
+
+    // Add pagination metadata only when paginated
+    if (page !== null) {
+      response.pagination = {
+        totalItems: total,
+        page,
+        limit,
+        totalPages: Math.ceil(total / limit)
+      };
+    }
+
+    return res.status(200).json(response);
   } catch (error) {
     console.error("Get my giveaways error:", error);
     return res.status(500).json({

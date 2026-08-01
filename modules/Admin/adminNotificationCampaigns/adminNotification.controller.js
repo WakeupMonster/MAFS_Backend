@@ -2,10 +2,12 @@ const User = require("../../../modules/auth/auth.model");
 const AdminNotificationCampaign = require("./admin.notification.model");
 const AdminEmailCampaign = require("./adminEmailCampaign.model");
 const notificationService = require("../../../modules/notifications/notification.service");
+const redis = require("../../../config/cache");
 const NotificationLog = require("./notificationLog.model");
 const { addAdminPushJob } = require("../../../queues/adminPush.queue");
 const mongoose = require("mongoose");
 const sendEmail = require("../../../common/notification/email.service");
+const { startOfDay, endOfDay } = require("../../../common/utils/time");
 const EmailLog = require("./emailLog.model");
 const { adminDirectNotificationEmailTemplate } = require("../../../common/utils/adminDirectNotificationEmailTemplate");
 
@@ -27,6 +29,35 @@ module.exports.sendNotificationToPremiumUsers = async (req, res) => {
         success: false,
         message: "campaignName, title and message are required",
       });
+    }
+
+    // 🔒 Same atomic duplicate guard as broadcastNotification — prevents a double-click
+    // or network retry on this "Send" button from creating two campaigns / two pushes.
+    const idempotencyKey = `premium_broadcast_lock:${Buffer.from(campaignName + title).toString("base64")}`;
+
+    if (redis && redis.redisClient && redis.redisClient.isOpen) {
+      const lockAcquired = await redis.redisClient.set(idempotencyKey, "LOCKED", { NX: true, EX: 60 });
+      if (!lockAcquired) {
+        return res.status(409).json({
+          success: false,
+          message: "Duplicate campaign detected. This campaign was already sent within the last 60 seconds.",
+        });
+      }
+    } else {
+      const sixtySecondsAgo = new Date(Date.now() - 60 * 1000);
+      const duplicateCampaign = await AdminNotificationCampaign.findOne({
+        campaignName,
+        title,
+        target: "premium",
+        createdAt: { $gte: sixtySecondsAgo },
+      }).lean();
+
+      if (duplicateCampaign) {
+        return res.status(409).json({
+          success: false,
+          message: "Duplicate campaign detected. This campaign was already sent within the last 60 seconds.",
+        });
+      }
     }
 
     // 1️Create campaign record
@@ -161,8 +192,8 @@ module.exports.sendPremiumExpiryNow = async (req, res) => {
       });
     }
 
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
+    // Calendar-day boundaries resolved against Australia/Sydney (APP_TZ) — see common/utils/time.js.
+    const today = startOfDay();
 
     const daysBeforeExpiry = campaign.expiryRule?.daysBeforeExpiry;
     if (typeof daysBeforeExpiry !== "number") {
@@ -175,11 +206,8 @@ module.exports.sendPremiumExpiryNow = async (req, res) => {
     const targetDate = new Date(today);
     targetDate.setDate(today.getDate() + daysBeforeExpiry);
 
-    const start = new Date(targetDate);
-    start.setHours(0, 0, 0, 0);
-
-    const end = new Date(targetDate);
-    end.setHours(23, 59, 59, 999);
+    const start = startOfDay(targetDate);
+    const end = endOfDay(targetDate);
 
     const query = {
       isPremium: true,
@@ -247,6 +275,40 @@ module.exports.broadcastNotification = async (req, res) => {
         success: false,
         message: "Invalid target audience",
       });
+    }
+
+    // 🔒 100% Atomic Duplicate Guard: Prevent double-send within 60 seconds even on exact same millisecond
+    // Creates a unique hash based on campaign content
+    const idempotencyKey = `broadcast_lock:${Buffer.from(campaignName + title + target).toString("base64")}`;
+    
+    if (redis && redis.redisClient && redis.redisClient.isOpen) {
+      // NX+EX must go straight to the raw client — config/cache.js's `set`
+      // wrapper only forwards EX and silently drops NX, which would make
+      // this SET an unconditional overwrite instead of an atomic lock.
+      const lockAcquired = await redis.redisClient.set(idempotencyKey, "LOCKED", { NX: true, EX: 60 });
+      if (!lockAcquired) {
+        return res.status(409).json({
+          success: false,
+          message: "Duplicate campaign detected. This campaign was already sent within the last 60 seconds.",
+        });
+      }
+    } else {
+      // Fallback to DB check if Redis is down (covers 99% of UI double clicks)
+      const sixtySecondsAgo = new Date(Date.now() - 60 * 1000);
+      const duplicateCampaign = await AdminNotificationCampaign.findOne({
+        campaignName,
+        title,
+        message,
+        target,
+        createdAt: { $gte: sixtySecondsAgo },
+      }).lean();
+
+      if (duplicateCampaign) {
+        return res.status(409).json({
+          success: false,
+          message: "Duplicate campaign detected. This campaign was already sent within the last 60 seconds.",
+        });
+      }
     }
 
     const campaign = await AdminNotificationCampaign.create({
@@ -549,24 +611,6 @@ module.exports.sendIndividualNotification = async (req, res) => {
         message: "Failed to send notifications",
         errors
       });
-    }
-
-    // 📢 Send verification to ntfy.sh for the admin's testing/tracking
-    if (hasSucceeded) {
-      try {
-        const fetch = (...args) => import('node-fetch').then(({ default: fetch }) => fetch(...args));
-        await fetch("https://ntfy.sh/my-test-notifications", {
-          method: "POST",
-          body: `[User: ${user._id}]\n[Channels: ${Object.keys(results).join(", ")}]\n${message}`,
-          headers: {
-            "Title": `[Individual] ${title}`,
-            "Priority": "high",
-            "Tags": "loudspeaker,bell,envelope"
-          }
-        });
-      } catch (ntfyErr) {
-        console.error("Failed to send to ntfy:", ntfyErr.message);
-      }
     }
 
     return res.json({

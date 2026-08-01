@@ -3,6 +3,7 @@ const ChatMessage = require("./chat.message.model");
 const { Match } = require("../swipe/swipe.model");
 const { isBlocked } = require("../../profile/block.service");
 const { DateTime } = require("luxon");
+const { APP_TZ } = require("../../../common/utils/time");
 const redis = require("../../../config/cache");
 const Profile = require("../../../modules/profile/profile.model");
 const chatEvents = require("../../../events/chat.events");
@@ -67,10 +68,10 @@ module.exports.sendMessage = async (req, res) => {
       isMine: true,
       status: "sent",
       sentAt: DateTime.fromJSDate(new Date(newMessage.createdAt))
-        .setZone("Asia/Kolkata")
+        .setZone(APP_TZ)
         .toString(),
       sentAtFormatted: DateTime.fromJSDate(new Date(newMessage.createdAt))
-        .setZone("Asia/Kolkata")
+        .setZone(APP_TZ)
         .toFormat("hh:mm a"),
     };
 
@@ -90,7 +91,8 @@ module.exports.getChatMessages = async (req, res) => {
     // const { matchId } = req.query;
     const { matchId } = req.params;
 
-    const { page = 1, limit = 20 } = req.query;
+    const { page = 1 } = req.query;
+    const limit = Math.min(parseInt(req.query.limit) || 20, 100);
 
     const match = await Match.findById(matchId).lean();
     if (!match) {
@@ -142,10 +144,10 @@ module.exports.getChatMessages = async (req, res) => {
       status: msg.readAt ? "read" : msg.deliveredAt ? "delivered" : "sent",
 
       sentAt: DateTime.fromJSDate(new Date(msg.createdAt))
-        .setZone("Asia/Kolkata")
+        .setZone(APP_TZ)
         .toString(),
       sentAtFormatted: DateTime.fromJSDate(new Date(msg.createdAt))
-        .setZone("Asia/Kolkata")
+        .setZone(APP_TZ)
         .toFormat("hh:mm a"),
     }));
 
@@ -284,9 +286,14 @@ module.exports.getChatList = async (req, res) => {
   const startTime = Date.now();
   const userId = req.user._id;
   const CHAT_LIST_KEY = `chat:list:${userId.toString()}`;
+  // Optional, backward-compatible pagination. Existing invalidation call sites (redis.del on
+  // CHAT_LIST_KEY across the codebase) only ever target the unpaginated key, so paginated
+  // requests deliberately skip the cache entirely rather than needing those sites updated too.
+  const page = req.query.page ? parseInt(req.query.page) : null;
+  const limit = page !== null ? Math.min(parseInt(req.query.limit) || 20, 100) : null;
   console.log(`[CHAT LIST START] User: ${userId} requesting chat list`);
   try {
-    if (redis) {
+    if (redis && page === null) {
       try {
         const cached = await redis.get(CHAT_LIST_KEY);
         if (cached) {
@@ -301,15 +308,17 @@ module.exports.getChatList = async (req, res) => {
 
     // 1️⃣ Fetch matches sorted by priority: Last Message OR New Match (TOP REORDER BASE)
     const matchesTimeStart = Date.now();
-    const matches = await Match.find({
+    let matchesQuery = Match.find({
       users: userId,
-    })
-      .sort({ lastMessageAt: -1, matchedAt: -1 })
-      .lean();
+    }).sort({ lastMessageAt: -1, matchedAt: -1 });
+    if (page !== null) {
+      matchesQuery = matchesQuery.skip((page - 1) * limit).limit(limit);
+    }
+    const matches = await matchesQuery.lean();
     const matchesTimeTaken = Date.now() - matchesTimeStart;
 
     if (!matches || matches.length === 0) {
-      if (redis) {
+      if (redis && page === null) {
         try {
           await redis.set(CHAT_LIST_KEY, JSON.stringify([]), { EX: 15 });
         } catch (err) {
@@ -411,7 +420,7 @@ module.exports.getChatList = async (req, res) => {
               time: match.lastMessageAt,
               formattedTime: match.lastMessageAt
                 ? DateTime.fromJSDate(new Date(match.lastMessageAt))
-                    .setZone("Asia/Kolkata")
+                    .setZone(APP_TZ)
                     .toFormat("hh:mm a")
                 : null,
             }
@@ -426,7 +435,7 @@ module.exports.getChatList = async (req, res) => {
       `[CHAT LIST END] User: ${userId} | Matches: ${matches.length} | Time: ${totalTime}ms (MatchFind: ${matchesTimeTaken}ms, ProfileFind: ${profilesTimeTaken}ms, UnreadAggr: ${unreadTimeTaken}ms, RedisOnline: ${redisTimeTaken}ms)`
     );
 
-    if (redis) {
+    if (redis && page === null) {
       try {
         await redis.set(CHAT_LIST_KEY, JSON.stringify(chatList), { EX: 15 });
       } catch (err) {
@@ -524,8 +533,13 @@ module.exports.uploadChatMediaController = async (req, res) => {
         const ext = getExtension(file.mimetype);
         
         const cloudName = process.env.CLOUDINARY_CLOUD_NAME;
-        // Construct predictable Cloudinary URL
-        const url = `https://res.cloudinary.com/${cloudName}/${type}/upload/${fullPublicId}.${ext}`;
+        // Construct predictable Cloudinary URL. Must use the Cloudinary
+        // resource-type segment (image/video/raw) here, not the display
+        // `type` — Cloudinary has no "gif" resource type, so a GIF's URL
+        // was previously built as .../gif/upload/... which 404s even
+        // though the file itself uploads fine under resource_type:"image".
+        const cloudinaryResourceType = type === "video" ? "video" : "image";
+        const url = `https://res.cloudinary.com/${cloudName}/${cloudinaryResourceType}/upload/${fullPublicId}.${ext}`;
 
         media.push({
           url,
@@ -539,7 +553,7 @@ module.exports.uploadChatMediaController = async (req, res) => {
           buffer: file.buffer,
           folder,
           publicId,
-          resourceType: type === "video" ? "video" : "image", 
+          resourceType: cloudinaryResourceType,
         });
       });
     }
@@ -575,10 +589,10 @@ module.exports.uploadChatMediaController = async (req, res) => {
       isMine: true,
       status: "sent",
       sentAt: DateTime.fromJSDate(new Date(message.createdAt))
-        .setZone("Asia/Kolkata")
+        .setZone(APP_TZ)
         .toString(),
       sentAtFormatted: DateTime.fromJSDate(new Date(message.createdAt))
-        .setZone("Asia/Kolkata")
+        .setZone(APP_TZ)
         .toFormat("hh:mm a"),
     };
 

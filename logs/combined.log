@@ -111,3 +111,10 @@
 {"level":"error","message":"Google webhook process error:","service":"iap-service","timestamp":"2026-07-28 18:13:47"}
 {"level":"info","message":"[CRON] Subscription cron jobs initialized (v3 - Grace Period & Billing Retry Support)","service":"iap-service","timestamp":"2026-07-28 18:23:36"}
 {"level":"info","message":"🧪 [DEV] Dev tools routes registered at /api/v1/dev/*","service":"iap-service","timestamp":"2026-07-28 18:23:40"}
+{"level":"info","message":"[CRON] Subscription cron jobs initialized (v3 - Grace Period & Billing Retry Support)","service":"iap-service","timestamp":"2026-07-29 10:11:07"}
+{"level":"info","message":"🧪 [DEV] Dev tools routes registered at /api/v1/dev/*","service":"iap-service","timestamp":"2026-07-29 10:11:10"}
+{"level":"info","message":"[CRON] Subscription cron jobs initialized (v3 - Grace Period & Billing Retry Support)","service":"iap-service","timestamp":"2026-07-30 16:05:17"}
+{"level":"info","message":"🧪 [DEV] Dev tools routes registered at /api/v1/dev/*","service":"iap-service","timestamp":"2026-07-30 16:05:20"}
+{"level":"warn","message":"Failed to restore item bad_product: Simulated verification failure for bad_product","service":"iap-service","timestamp":"2026-07-31 19:03:46"}
+{"level":"info","message":"[CRON] Subscription cron jobs initialized (v3 - Grace Period & Billing Retry Support)","service":"iap-service","timestamp":"2026-08-01 11:34:00"}
+{"level":"info","message":"🧪 [DEV] Dev tools routes registered at /api/v1/dev/*","service":"iap-service","timestamp":"2026-08-01 11:34:04"}

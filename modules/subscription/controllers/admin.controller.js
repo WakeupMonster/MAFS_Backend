@@ -1,5 +1,6 @@
 /* eslint-disable no-unused-vars */
 const mongoose = require("mongoose");
+const { startOfDay, endOfDay, startOfYesterday, endOfYesterday } = require("../../../common/utils/time");
 const SubscriptionConfig = require("../models_v3/SubscriptionConfig");
 const Product = require("../models_v3/Product");
 const Subscription = require("../models/Subscription"); // Base subscription records
@@ -607,8 +608,9 @@ exports.getDashboardStats = async (req, res, next) => {
         // timeFilter - recent.
 
         const now = new Date();
-        const startOfToday = new Date();
-        startOfToday.setHours(0, 0, 0, 0);
+        // Calendar-day boundaries are resolved against Australia/Sydney
+        // (APP_TZ), not server-local/UTC time — see common/utils/time.js.
+        const startOfToday = startOfDay(now);
 
         const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
         const startOfLastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
@@ -628,12 +630,8 @@ exports.getDashboardStats = async (req, res, next) => {
             if (timeFilter === 'today' || timeFilter === 'daily' || timeFilter === '1') {
                 startDate = startOfToday;
             } else if (timeFilter === 'yesterday') {
-                const yesterday = new Date(now);
-                yesterday.setDate(yesterday.getDate() - 1);
-                yesterday.setHours(0, 0, 0, 0);
-                startDate = yesterday;
-                endDate = new Date(yesterday);
-                endDate.setHours(23, 59, 59, 999);
+                startDate = startOfYesterday();
+                endDate = endOfYesterday();
             } else if (timeFilter === 'weekly' || timeFilter === 'last7' || timeFilter === '7') {
                 startDate = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
             } else if (timeFilter === 'last15' || timeFilter === '15') {

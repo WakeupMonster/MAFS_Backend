@@ -4,7 +4,7 @@ module.exports.rateLimit = (action, limit, windowSeconds) => {
   return async (req, res, next) => {
     console.log("ratemiddle");
     try {
-      if (!redis || !redis.isOpen) {
+      if (!redis || !redis.redisClient || !redis.redisClient.isOpen) {
         // Redis down → allow request (fail open)
         return next();
       }

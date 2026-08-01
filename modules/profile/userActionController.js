@@ -191,6 +191,7 @@ const redis = require("../../config/cache");
 const adminEvents = require("../../events/admin.events");
 const { Match } = require("../matches/swipe/swipe.model");
 const chatEvents = require("../../events/chat.events");
+const { calculateAge } = require("../../common/utils/calculate.age");
 
 // ─────────────────────────────────────────
 // Helper: Cache clear karo properly
@@ -392,9 +393,7 @@ exports.getBlockList = async (req, res) => {
     const formattedData = profiles.map((p) => ({
       id: p.userId,
       name: p.nickname || "User",
-      age: p.dob
-        ? Math.floor((Date.now() - new Date(p.dob)) / 31557600000)
-        : null,
+      age: p.dob ? calculateAge(p.dob) : null,
       image: p.photos?.[0]?.url || "",
     }));
 

@@ -3,6 +3,7 @@ const axios = require("axios");
 const User = require("../../auth/auth.model");
 const Profile = require("../../profile/profile.model");
 const FakeProfileCity = require("./fakeProfileCity.model");
+const { calculateAge } = require("../../../common/utils/calculate.age");
 const {
   AU_CITIES,
   INTERESTS_POOL,
@@ -36,12 +37,6 @@ const resolveCity = async (cityName) => {
   }
 
   throw new Error(`City "${cityName}" is not available. Please add it first via City Management.`);
-};
-
-const calculateAge = (dob) => {
-  const diff = Date.now() - new Date(dob).getTime();
-  const ageDate = new Date(diff);
-  return Math.abs(ageDate.getUTCFullYear() - 1970);
 };
 
 const bulkCreateFakeProfiles = async ({
@@ -253,153 +248,92 @@ const listFakeProfiles = async ({
   sortOrder,
   isPremium,
 }) => {
-  // ── 1. Build User query ──
-  const userQuery = { isFake: true };
-  if (batchId) userQuery["fakeProfileMeta.batchId"] = batchId;
-  if (status && status !== "all") userQuery.accountStatus = status;
+  const matchUser = { isFake: true };
+  if (batchId) matchUser["fakeProfileMeta.batchId"] = batchId;
+  if (status && status !== "all") matchUser.accountStatus = status;
   if (isPremium !== undefined && isPremium !== null) {
-    userQuery.isPremium = isPremium === "true" || isPremium === true;
+    matchUser.isPremium = isPremium === "true" || isPremium === true;
   }
 
-  // ── 2. Handle search & profile-level filters ──
-  // If search, city, or gender filter is provided, we first query Profile collection
-  // to get matching userIds, then intersect with User query
-  let profileFilterUserIds = null;
+  const pipeline = [
+    { $match: matchUser },
+    {
+      $lookup: {
+        from: "profiles",
+        localField: "_id",
+        foreignField: "userId",
+        as: "profile"
+      }
+    },
+    { $unwind: { path: "$profile", preserveNullAndEmptyArrays: true } }
+  ];
 
-  const needsProfileFilter =
-    (search && search.trim()) ||
-    (gender && gender !== "all") ||
-    (city && city !== "all");
+  const profileMatch = {};
+  if (gender && gender !== "all") profileMatch["profile.gender"] = gender;
+  if (city && city !== "all") profileMatch["profile.location.city"] = city;
 
-  if (needsProfileFilter) {
-    const profileQuery = {};
-
-    // Gender filter on Profile
-    if (gender && gender !== "all") {
-      profileQuery.gender = gender;
-    }
-
-    // City filter on Profile
-    if (city && city !== "all") {
-      profileQuery["location.city"] = city;
-    }
-
-    // Search: nickname (on Profile) + email/phone (on User)
-    if (search && search.trim()) {
-      const searchRegex = new RegExp(search.trim(), "i");
-
-      // Search in User model (email, phone)
-      const matchedUsers = await User.find({
-        isFake: true,
-        $or: [{ email: searchRegex }, { phone: searchRegex }],
-      })
-        .select("_id")
-        .lean();
-      const userMatchedIds = matchedUsers.map((u) => u._id);
-
-      // Search in Profile model (nickname, city)
-      profileQuery.$or = [
-        { nickname: searchRegex },
-        { "location.city": searchRegex },
-        { userId: { $in: userMatchedIds } },
-      ];
-    }
-
-    const matchedProfiles = await Profile.find(profileQuery)
-      .select("userId")
-      .lean();
-    profileFilterUserIds = matchedProfiles.map((p) => p.userId);
-
-    // Intersect: only users whose _id is in profileFilterUserIds
-    userQuery._id = { $in: profileFilterUserIds };
+  if (search && search.trim()) {
+    const searchRegex = new RegExp(search.trim(), "i");
+    profileMatch.$or = [
+      { "profile.nickname": searchRegex },
+      { "profile.location.city": searchRegex },
+      { email: searchRegex },
+      { phone: searchRegex }
+    ];
   }
 
-  // ── 3. Sorting ──
-  // For User-level sorts (createdAt, accountStatus) — sort directly
-  // For Profile-level sorts (nickname, gender, city) — we fetch, join, then sort in-memory
-  const userLevelSorts = ["createdAt", "accountStatus"];
-  const isUserLevelSort = userLevelSorts.includes(sortBy);
-
-  // Count total matching documents (for pagination metadata)
-  const total = await User.countDocuments(userQuery);
-
-  let users;
-  if (isUserLevelSort) {
-    // Direct DB sort + paginate
-    const sortObj = { [sortBy]: sortOrder === "asc" ? 1 : -1 };
-    users = await User.find(userQuery)
-      .sort(sortObj)
-      .skip((page - 1) * limit)
-      .limit(limit)
-      .lean();
-  } else {
-    // For profile-level sorting, fetch all matching users first
-    users = await User.find(userQuery).lean();
+  if (Object.keys(profileMatch).length > 0) {
+    pipeline.push({ $match: profileMatch });
   }
 
-  // ── 4. Fetch profiles for matched users ──
-  const userIds = users.map((u) => u._id);
-  const profiles = await Profile.find({ userId: { $in: userIds } }).lean();
+  let sortField = "createdAt";
+  if (sortBy === "nickname") sortField = "profile.nickname";
+  else if (sortBy === "gender") sortField = "profile.gender";
+  else if (sortBy === "city") sortField = "profile.location.city";
+  else if (sortBy === "accountStatus") sortField = "accountStatus";
 
-  // Create profile lookup map
-  const profileMap = {};
-  profiles.forEach((p) => {
-    profileMap[p.userId.toString()] = p;
+  const sortMultiplier = sortOrder === "asc" ? 1 : -1;
+  const sortObj = { [sortField]: sortMultiplier, "_id": -1 };
+
+  pipeline.push({ $sort: sortObj });
+
+  const skip = (page - 1) * limit;
+  pipeline.push({
+    $facet: {
+      metadata: [{ $count: "total" }],
+      data: [
+        { $skip: skip },
+        { $limit: limit },
+        {
+          $project: {
+            user: "$$ROOT",
+            profile: "$profile"
+          }
+        }
+      ]
+    }
   });
 
-  // ── 5. Join users + profiles ──
-  let combined = users.map((user) => ({
-    user,
-    profile: profileMap[user._id.toString()] || null,
-  }));
+  const [aggResult] = await User.aggregate(pipeline);
+  const total = aggResult.metadata[0]?.total || 0;
+  
+  const combined = aggResult.data.map(item => {
+    const p = item.profile;
+    delete item.user.profile;
+    return {
+      user: item.user,
+      profile: p || null
+    };
+  });
 
-  // ── 6. Profile-level sorting (in-memory) ──
-  if (!isUserLevelSort) {
-    const sortMultiplier = sortOrder === "asc" ? 1 : -1;
-
-    combined.sort((a, b) => {
-      let valA, valB;
-
-      switch (sortBy) {
-        case "nickname":
-          valA = (a.profile?.nickname || "").toLowerCase();
-          valB = (b.profile?.nickname || "").toLowerCase();
-          break;
-        case "gender":
-          valA = (a.profile?.gender || "").toLowerCase();
-          valB = (b.profile?.gender || "").toLowerCase();
-          break;
-        case "city":
-          valA = (a.profile?.location?.city || "").toLowerCase();
-          valB = (b.profile?.location?.city || "").toLowerCase();
-          break;
-        default:
-          valA = a.user.createdAt;
-          valB = b.user.createdAt;
-      }
-
-      if (valA < valB) return -1 * sortMultiplier;
-      if (valA > valB) return 1 * sortMultiplier;
-      return 0;
-    });
-
-    // Manual pagination for in-memory sort
-    const startIndex = (page - 1) * limit;
-    combined = combined.slice(startIndex, startIndex + limit);
-  }
-
-  // ── 7. Calculate additional stats (KPIs) ──
   const fakeUserIds = await User.find({ isFake: true }).distinct("_id");
-  const [activeTotal, deactivatedTotal, menCount, womenCount] =
-    await Promise.all([
-      User.countDocuments({ isFake: true, accountStatus: "active" }),
-      User.countDocuments({ isFake: true, accountStatus: "deactivated" }),
-      Profile.countDocuments({ gender: "men", userId: { $in: fakeUserIds } }),
-      Profile.countDocuments({ gender: "women", userId: { $in: fakeUserIds } }),
-    ]);
+  const [activeTotal, deactivatedTotal, menCount, womenCount] = await Promise.all([
+    User.countDocuments({ isFake: true, accountStatus: "active" }),
+    User.countDocuments({ isFake: true, accountStatus: "deactivated" }),
+    Profile.countDocuments({ gender: "men", userId: { $in: fakeUserIds } }),
+    Profile.countDocuments({ gender: "women", userId: { $in: fakeUserIds } }),
+  ]);
   const totalAll = fakeUserIds.length;
-
-  // ── 8. Calculate pagination metadata ──
   const totalPages = Math.ceil(total / limit);
 
   return {

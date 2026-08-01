@@ -1,13 +1,13 @@
+// Single source of truth for age calculation — delegates to the shared
+// Australia/Sydney-aware calendar math in common/utils/time.js so every
+// caller of `calculateAge` reports the same age, computed the same way.
+const { calculateAge: calculateAgeAU } = require("./time");
+
 const calculateAge = (dob) => {
   if (!dob) return null;
   const birthDate = new Date(dob);
   if (isNaN(birthDate.getTime())) return null; // ✅ Handle invalid dates
-
-  const today = new Date();
-  let age = today.getFullYear() - birthDate.getFullYear();
-  const m = today.getMonth() - birthDate.getMonth();
-  if (m < 0 || (m === 0 && today.getDate() < birthDate.getDate())) age--;
-  return age;
+  return calculateAgeAU(dob);
 };
 
 module.exports = { calculateAge };

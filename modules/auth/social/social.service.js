@@ -198,6 +198,12 @@ async function findOrCreateSocialUser(provider, providerUserInfo) {
     return { user, isNewUser: true };
   } catch (error) {
     console.error("❌ Error in findOrCreateSocialUser:", error.message);
+    // A unique-index conflict here means two near-simultaneous requests (e.g. a
+    // double-tap on "Sign in with Google") both tried to link/create the same
+    // provider id — a friendly message instead of leaking the raw Mongo error.
+    if (error.code === 11000) {
+      throw new Error("This account is already linked to another user. Please try logging in again.");
+    }
     throw new Error(`Failed to process user: ${error.message}`);
   }
 }

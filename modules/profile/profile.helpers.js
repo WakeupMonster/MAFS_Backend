@@ -1,10 +1,9 @@
 // modules/profile/profile.helpers.js
 
-function calculateAge(dob) {
-  if (!dob) return null;
-  const diff = Date.now() - new Date(dob).getTime();
-  return Math.floor(diff / (1000 * 60 * 60 * 24 * 365.25));
-}
+// Delegates to the single shared, Australia/Sydney-aware age calculation
+// in common/utils/calculate.age.js — was previously a separate fixed-ms-divisor
+// implementation that could disagree by a year with the rest of the app.
+const { calculateAge } = require("../../common/utils/calculate.age");
 
 function calculateCompletion(profile) {
   const fields = [

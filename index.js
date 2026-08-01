@@ -46,6 +46,7 @@ try {
 
 require("./workers/notification.worker");
 require("./workers/adminPush.worker");
+require("./workers/sms.worker");
 
 const io = new Server(http, {
   cors: {

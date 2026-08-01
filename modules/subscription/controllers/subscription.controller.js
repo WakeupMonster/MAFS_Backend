@@ -1,6 +1,7 @@
 const appleService = require("../services/apple.service");
 const googleService = require("../services/google.service");
 const mongoose = require("mongoose");
+const { startOfDay } = require("../../../common/utils/time");
 const subscriptionService = require("../services/subscription.service");
 const logger = require("../utils/logger");
 const Subscription = require("../../../modules/subscription/models/Subscription");
@@ -247,10 +248,15 @@ const restorePurchases = async (req, res, next) => {
   try {
     const { platform, purchases } = req.body;
     const userId = req.user._id;
-    const restoredItems = [];
 
-    for (const item of purchases) {
-      try {
+    // Each item is verified against Apple/Google (an external API call) then written via
+    // subscriptionService.handlePurchase(), which is already safe under concurrency —
+    // consumables use an idempotency-keyed atomic $inc, subscriptions use an atomic upsert
+    // keyed on originalTransactionId/purchaseToken. Running items in parallel instead of
+    // one-at-a-time cuts restore time roughly proportional to purchase count, with each
+    // item's success/failure kept fully independent (same as the original per-item try/catch).
+    const settled = await Promise.allSettled(
+      purchases.map(async (item) => {
         let purchaseData;
 
         if (platform === "ios") {
@@ -319,16 +325,24 @@ const restorePurchases = async (req, res, next) => {
         const result = await subscriptionService.handlePurchase(purchaseData);
 
         if (result.type === "SUBSCRIPTION") {
-          restoredItems.push({
+          return {
             productId: item.productId,
             status: result.subscription.status,
             expiresAt: result.subscription.expiresAt,
-          });
+          };
         }
-      } catch (err) {
-        logger.warn(`Failed to restore item ${item.productId}: ${err.message}`);
+        return null;
+      }),
+    );
+
+    const restoredItems = [];
+    settled.forEach((outcome, idx) => {
+      if (outcome.status === "fulfilled") {
+        if (outcome.value) restoredItems.push(outcome.value);
+      } else {
+        logger.warn(`Failed to restore item ${purchases[idx]?.productId}: ${outcome.reason?.message}`);
       }
-    }
+    });
 
     // v3: Fetch full status after restoration
     const fullStatus = await UsageService.getUsageStatus(userId);
@@ -551,8 +565,9 @@ const getStats = async (req, res, next) => {
 
     const totalSubscribers = await Subscription.countDocuments();
 
-    const todayStart = new Date();
-    todayStart.setHours(0, 0, 0, 0);
+    // Calendar-day boundary resolved against Australia/Sydney (APP_TZ),
+    // not server-local/UTC time — see common/utils/time.js.
+    const todayStart = startOfDay();
 
     const todayNew = await Subscription.countDocuments({
       createdAt: { $gte: todayStart },
@@ -1094,8 +1109,8 @@ const getRevenueAnalytics = async (req, res, next) => {
     } else {
       switch (period) {
         case "today":
-          start = new Date();
-          start.setHours(0, 0, 0, 0);
+          // Calendar-day boundary resolved against Australia/Sydney (APP_TZ) — see common/utils/time.js.
+          start = startOfDay();
           break;
         case "week":
           start = new Date();

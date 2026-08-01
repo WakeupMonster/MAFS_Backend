@@ -169,10 +169,13 @@ async function verifyPhoneOtpUnified(phone, otp, req) {
     Block.find({ blockerId: user._id }).lean(),
   ]);
 
-  let subData = await UserSubscription.findOne({ userId: user._id });
-  if (!subData) {
-    subData = await UserSubscription.create({ userId: user._id });
-  }
+  // Atomic upsert instead of findOne-then-create — closes the same
+  // check-then-act race pattern already fixed on SubscriptionConfig.getOrCreate().
+  let subData = await UserSubscription.findOneAndUpdate(
+    { userId: user._id },
+    { $setOnInsert: { userId: user._id } },
+    { upsert: true, new: true, setDefaultsOnInsert: true },
+  );
   subData.resetIfNeeded();
 
   // ➕ Initiative 3: First 1000 Users Milestone Eligibility
@@ -533,10 +536,13 @@ async function sendEmailOtp(token, email) {
     return { ok: true };
   }
 
-  // Send email with OTP
+  // Fire-and-forget: OTP is already saved to the user doc above, so verification doesn't
+  // depend on this SMTP call finishing — no need to block the request/response on it.
   const subject = "Your verification code";
   const html = emailOtpEmailTemplate(otp);
-  await utils.sendEmail(email, subject, html);
+  utils.sendEmail(email, subject, html).catch((err) => {
+    console.error("Failed to send email OTP to", email, ":", err.message);
+  });
 
   return { ok: true };
 }

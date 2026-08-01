@@ -4,7 +4,7 @@ const EmailLogSchema = new mongoose.Schema(
   {
     userId: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
     email: String,
-    campaignId: { type: mongoose.Schema.Types.ObjectId },
+    campaignId: { type: mongoose.Schema.Types.ObjectId, index: true },
     status: {
       type: String,
       enum: ["sent", "failed", "skipped"]

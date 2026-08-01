@@ -2,11 +2,13 @@ const AdminNotificationCampaign = require("../../modules/Admin/adminNotification
 const User = require("../../modules/auth/auth.model");
 const Subscription = require("../../modules/subscription/models/Subscription");
 const notificationService = require("../../modules/notifications/notification.service");
+const { startOfDay, endOfDay, isSameAppDay } = require("../../common/utils/time");
 
 module.exports = async function runPremiumExpiryReminderJob() {
     try {
-        const today = new Date();
-        today.setHours(0, 0, 0, 0);
+        // Calendar-day boundary resolved against Australia/Sydney (APP_TZ),
+        // not server-local/UTC time — see common/utils/time.js.
+        const today = startOfDay();
 
         const campaigns = await AdminNotificationCampaign.find({
             target: "premium_expiry",
@@ -26,10 +28,10 @@ module.exports = async function runPremiumExpiryReminderJob() {
 
             if (stages.length === 0) continue;
 
-            // Duplicate protection (same day)
+            // Duplicate protection (same day, Australia/Sydney calendar)
             if (
                 campaign.lastRunAt &&
-                new Date(campaign.lastRunAt).toDateString() === today.toDateString()
+                isSameAppDay(campaign.lastRunAt, today)
             ) {
                 continue;
             }
@@ -45,11 +47,8 @@ module.exports = async function runPremiumExpiryReminderJob() {
                 const targetDate = new Date(today);
                 targetDate.setDate(today.getDate() + targetDays);
 
-                const start = new Date(targetDate);
-                start.setHours(0, 0, 0, 0);
-
-                const end = new Date(targetDate);
-                end.setHours(23, 59, 59, 999);
+                const start = startOfDay(targetDate);
+                const end = endOfDay(targetDate);
 
                 const subQuery = {
                     status: { $in: ["ACTIVE", "CANCELLED"] },
@@ -85,14 +84,12 @@ module.exports = async function runPremiumExpiryReminderJob() {
                 for (const sub of subscriptions) {
                     if (!validUserIds.has(sub.userId.toString())) continue;
 
-                    const now = new Date();
-                    now.setHours(0, 0, 0, 0);
-                    const exp = new Date(sub.expiresAt);
-                    exp.setHours(0, 0, 0, 0);
-                    
+                    const nowStart = startOfDay();
+                    const expStart = startOfDay(sub.expiresAt);
+
                     const daysLeft = Math.max(
                         0,
-                        Math.round((exp - now) / (1000 * 60 * 60 * 24))
+                        Math.round((expStart - nowStart) / (1000 * 60 * 60 * 24))
                     );
 
                     let baseMessage = stage.customMessage || campaign.message;

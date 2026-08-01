@@ -102,6 +102,7 @@ module.exports.verifyUserProfile = async (req, res) => {
           isReApprove: isReApprove,
         },
       });
+      if (user.auditLogs.length > 100) user.auditLogs = user.auditLogs.slice(-100);
       await user.save();
     }
 
@@ -223,6 +224,7 @@ module.exports.banUser = async (req, res) => {
       actedAt: new Date(),
       details: { category: category || "General" },
     });
+    if (user.auditLogs.length > 100) user.auditLogs = user.auditLogs.slice(-100);
     await user.save();
 
     // Invalidate caches
@@ -293,6 +295,7 @@ module.exports.unbanUser = async (req, res) => {
       actedAt: new Date(),
       details: { category: category || "Administrative" },
     });
+    if (user.auditLogs.length > 100) user.auditLogs = user.auditLogs.slice(-100);
     await user.save();
 
     // Invalidate caches
@@ -386,6 +389,7 @@ module.exports.suspendUser = async (req, res) => {
       actedAt: new Date(),
       details: { durationHours, suspendUntil },
     });
+    if (user.auditLogs.length > 100) user.auditLogs = user.auditLogs.slice(-100);
     await user.save();
 
     // Cache invalidation
@@ -456,6 +460,7 @@ module.exports.unsuspendUser = async (req, res) => {
       actedAt: new Date(),
       details: { category: category || "Administrative" },
     });
+    if (user.auditLogs.length > 100) user.auditLogs = user.auditLogs.slice(-100);
     await user.save(); // Cache invalidation
 
     if (redis) {

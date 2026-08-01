@@ -15,7 +15,6 @@ dayjs.extend(utc);
 dayjs.extend(timezone);
 
 const CURRENT_TZ = (process.env.GIVEAWAY_TIMEZONE || "Australia/Sydney").replace(/^"|"$/g, '');
-const IST_TZ = "Asia/Kolkata";
 
 module.exports = async function runGiveawayWorker() {
   console.log("🎯 Giveaway worker started at:", new Date().toISOString());

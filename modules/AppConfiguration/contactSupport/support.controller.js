@@ -494,11 +494,11 @@ module.exports.replyToTicket = async (req, res) => {
         reply,
         attachmentsHtml,
       });
-      try {
-        await sendEmail(ticket.userId.email, emailSubject, emailHtml);
-      } catch (emailErr) {
+      
+      // 🚀 Fire and forget: don't block the admin API response
+      sendEmail(ticket.userId.email, emailSubject, emailHtml).catch(emailErr => {
         console.error("Email sending failed for ticket reply:", emailErr);
-      }
+      });
     }
 
     return res.json({

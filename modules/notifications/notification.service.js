@@ -6,8 +6,26 @@ const User = require("../../modules/auth/auth.model");
 const Profile = require("../../modules/profile/profile.model");
 const NotificationLog = require("../../modules/Admin/adminNotificationCampaigns/notificationLog.model");
 const { NOTIFICATION_TYPES } = require("./notification.enums");
+const redis = require("../../config/cache");
 
 class NotificationService {
+  // RACE FIX: NEW_MATCH/NEW_MESSAGE/NEW_LIKE/NEW_SUPER_LIKE jobs run through BullMQ with
+  // attempts:3 + exponential backoff (see queues/notification.queue.js). If a push call
+  // "fails" ambiguously (e.g. network timeout after FCM already accepted it), BullMQ retries
+  // the whole job, which would otherwise re-send the exact same push to the same device.
+  // This is a short-TTL guard (NX) so a retry of the SAME logical notification within the
+  // retry window is skipped, while a genuinely new notification later still goes through.
+  async _isDuplicateSend(dedupeKey) {
+    if (!redis || !redis.redisClient || !redis.redisClient.isOpen) return false; // fail-open if redis is down
+    try {
+      const acquired = await redis.redisClient.set(dedupeKey, "1", { NX: true, EX: 60 });
+      return !acquired;
+    } catch (err) {
+      console.error("Notification dedupe check failed:", err.message);
+      return false; // fail-open — never block a real notification because of a redis hiccup
+    }
+  }
+
   async _executePush(userId, tokensObj, notification, data) {
     if (!tokensObj || tokensObj.length === 0) return;
 
@@ -85,7 +103,8 @@ class NotificationService {
         user2.fcmTokens &&
         user2.fcmTokens.length > 0 &&
         user2.notificationSettings?.matches !== false &&
-        user2.notificationSettings?.push !== false
+        user2.notificationSettings?.push !== false &&
+        !(await this._isDuplicateSend(`notif:dedupe:NEW_MATCH:${userId2}:${userId1}`))
       ) {
         await this._executePush(
           user2._id,
@@ -124,6 +143,12 @@ class NotificationService {
         return;
       }
       if (!receiver?.fcmTokens?.length) return;
+
+      // Only messageId is precise enough for dedupe (senderId+receiverId repeats every message).
+      // If it's ever missing, skip dedupe rather than risk wrongly suppressing a real message.
+      if (messageId && (await this._isDuplicateSend(`notif:dedupe:NEW_MESSAGE:${messageId}`))) {
+        return;
+      }
 
       const senderName = senderProfile?.nickname || "Someone";
 
@@ -177,6 +202,10 @@ class NotificationService {
         return;
       }
 
+      if (await this._isDuplicateSend(`notif:dedupe:NEW_LIKE:${receiverId}:${senderId}`)) {
+        return;
+      }
+
       const senderPhoto = senderProfile?.photos?.[0]?.url || null;
       const senderName = senderProfile?.nickname || "Someone";
 
@@ -219,6 +248,10 @@ class NotificationService {
 
       if (!receiver?.fcmTokens?.length) {
         console.log(`⚠️ Super-like notification skipped for user ${receiverId}: No FCM tokens found.`);
+        return;
+      }
+
+      if (await this._isDuplicateSend(`notif:dedupe:NEW_SUPER_LIKE:${receiverId}:${senderId}`)) {
         return;
       }
 
@@ -349,23 +382,6 @@ class NotificationService {
           ...data.extra,
         },
       );
-
-      // 📢 Send to ntfy.sh for admin verification (if enabled or for testing)
-      try {
-        // Encode Title using RFC 2047 to support emojis in HTTP Headers
-        const encodedTitle = title ? `=?UTF-8?B?${Buffer.from(title).toString('base64')}?=` : '';
-        await fetch("https://ntfy.sh/my-test-notifications", {
-          method: "POST",
-          body: `[User: ${userId}]\n${message}`,
-          headers: {
-            "Title": encodedTitle,
-            "Priority": "high",
-            "Tags": "loudspeaker,bell"
-          }
-        });
-      } catch (ntfyErr) {
-        console.error("Failed to send to ntfy:", ntfyErr);
-      }
 
       await NotificationLog.create({
         userId,

@@ -24,26 +24,13 @@
 const redis = require("../../config/cache");
 
 /**
- * Invalidate ALL feed caches
+ * Invalidate a specific user's feed cache
  * Used for deactivate/reactivate
  */
-module.exports.invalidateUserFeedCache = async () => {
-  if (!redis || !redis.isOpen) return;
+module.exports.invalidateUserFeedCache = async (userId) => {
+  if (!redis || !redis.redisClient || !redis.redisClient.isOpen || !userId) return;
 
-  let cursor = "0";
-
-  do {
-    const reply = await redis.scan(cursor, {
-      MATCH: "feed:*",
-      COUNT: 100
-    });
-
-    cursor = reply.cursor;
-    const keys = reply.keys;
-
-    if (keys.length) {
-      await redis.del(keys);
-      console.log("🧹 FEED CACHE CLEARED:", keys.length);
-    }
-  } while (cursor !== "0");
+  const key = `feed:${userId.toString()}`;
+  await redis.del(key);
+  console.log("🧹 FEED CACHE CLEARED:", key);
 };

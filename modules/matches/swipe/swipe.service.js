@@ -5,6 +5,7 @@ const Profile = require("../../profile/profile.model");
 const User = require("../../auth/auth.model");
 const Swipe = require("./swipe.model"); // may export Swipe and Match - adjust import
 const { Match } = require("./swipe.model");
+const { calculateAge: calculateAgeShared } = require("../../../common/utils/calculate.age");
 const mongoose = require("mongoose");
 // const userActionsModel = require("./BlockReport/userActions.model");
 const Block = require("../../../modules/profile/user.block");
@@ -36,6 +37,8 @@ function calculateDistance(lat1, lon1, lat2, lon2) {
 async function getFeedService(userId, limit, page, isRefresh = false) {
   const CACHE_KEY = `feed:${userId.toString()}`;
   const SEEN_KEY = `feed:seen:${userId.toString()}`;
+  const EXCLUDE_KEY = `feed:exclude:${userId.toString()}`;
+  const EXCLUDE_TTL = 300; // 5 minutes — exclusion list doesn't change frequently
   const CACHE_TTL = 3;
   const SEEN_TTL = 60 * 60 * 24;
   const skip = (page - 1) * limit;
@@ -96,9 +99,7 @@ async function getFeedService(userId, limit, page, isRefresh = false) {
   }
 
   // 4. Gather Exclusion IDs — CACHED for 60 seconds to avoid 8 DB queries per request
-  const EXCLUDE_KEY = `feed:exclude:${userId.toString()}`;
-  const EXCLUDE_TTL = 300; // 5 minutes — exclusion list doesn't change frequently
-
+  // (EXCLUDE_KEY/EXCLUDE_TTL declared near the top of this function now)
   let baseExcludeSet;
   let receivedSuperlikes = [];
   let excludeIds = [];
@@ -629,10 +630,12 @@ async function getFeedService(userId, limit, page, isRefresh = false) {
     // userQuota: status.data
   };
 }
+// Delegates to the shared, Australia/Sydney-aware age calculation
+// (common/utils/calculate.age.js); kept the 0-for-missing-dob fallback
+// to preserve this function's existing call contract.
 function calculateAge(dob) {
   if (!dob) return 0;
-  const diff = Date.now() - new Date(dob).getTime();
-  return Math.floor(diff / 31557600000); // Years in ms
+  return calculateAgeShared(dob);
 }
 
 async function removeUserFromFeedCache(userId, targetIdToRemove) {
@@ -826,17 +829,38 @@ async function doSwipe(swiperId, targetId, action) {
         const sortedUsers = [swiperId.toString(), targetId.toString()].sort();
         const userIds = sortedUsers.map(id => new mongoose.Types.ObjectId(id));
 
-        [matchDoc] = await Match.create(
-          [
-            {
-              users: userIds,
-              status: "matched",
-              lastMessageAt: new Date(),
-            },
-          ],
-          { session },
-        );
-        isMatch = true;
+        try {
+          [matchDoc] = await Match.create(
+            [
+              {
+                users: userIds,
+                status: "matched",
+                lastMessageAt: new Date(),
+              },
+            ],
+            { session },
+          );
+          isMatch = true;
+        } catch (matchErr) {
+          // RACE FIX: if BOTH users like each other at (almost) the same moment, both
+          // transactions can reach this point. The users.0/users.1 unique index on Match
+          // lets only one of them actually insert the match doc — the other hits E11000
+          // here. Without this catch, that error propagates up and aborts the WHOLE
+          // transaction, silently rolling back the Swipe this user just made (even though
+          // it was perfectly valid) while telling them "Already swiped". Since the match
+          // genuinely exists (the other side just created it), we fetch it instead so this
+          // user still gets their swipe recorded and their own "It's a match!" response.
+          const isMatchConflict =
+            matchErr.code === 11000 &&
+            matchErr.keyPattern &&
+            Object.prototype.hasOwnProperty.call(matchErr.keyPattern, "users.0");
+          if (isMatchConflict) {
+            matchDoc = await Match.findOne({ users: { $all: userIds } }).session(session);
+            isMatch = !!matchDoc;
+          } else {
+            throw matchErr;
+          }
+        }
       }
     });
   } catch (err) {

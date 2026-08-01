@@ -43,7 +43,21 @@ const { getFormattedAdsConfig } = require("../AppConfiguration/adsConfig.control
 
 module.exports.getAppConfig = async (req, res) => {
   try {
-    const allItems = await MasterData.find().sort({ order: 1 }).lean();
+    const SubscriptionConfig = require("../subscription/models_v3/SubscriptionConfig");
+
+    const [allItems, versionConfig, generalSettings, subConfig, adsConfig] = await Promise.all([
+      MasterData.find().sort({ order: 1 }).lean(),
+      AppSettings.findOne({ key: "app_version_config" }).lean(),
+      AppSettings.findOne({ key: "general" }).lean(),
+      SubscriptionConfig.getOrCreate(),
+      getFormattedAdsConfig().catch((err) => {
+        console.error("Ads config fetch error in getAppConfig:", err);
+        return {
+          android: { app_open: { id: "", active: false }, interstitial: { id: "", active: false }, native: { id: "", active: false } },
+          ios: { app_open: { id: "", active: false }, interstitial: { id: "", active: false }, native: { id: "", active: false } }
+        };
+      }),
+    ]);
 
     // 1. Grouping Logic
     const groupedData = allItems.reduce((acc, item) => {
@@ -77,10 +91,7 @@ module.exports.getAppConfig = async (req, res) => {
       age: { min: 18, max: 60 }
     };
 
-    // 3. Fetch Version and Store Links from AppSettings
-    const versionConfig = await AppSettings.findOne({ key: "app_version_config" }).lean();
-    const generalSettings = await AppSettings.findOne({ key: "general" }).lean();
-
+    // 3. Version and Store Links from AppSettings (fetched above in Promise.all)
     const version = versionConfig?.value || {
       ios: {
         minSupported: "1.0.0",
@@ -101,9 +112,7 @@ module.exports.getAppConfig = async (req, res) => {
       android: generalSettings?.value?.playStoreUrl || "https://play.google.com/store"
     };
 
-    // 4. Fetch Dynamic Premium Features
-    const SubscriptionConfig = require("../subscription/models_v3/SubscriptionConfig");
-    const subConfig = await SubscriptionConfig.getOrCreate();
+    // 4. Dynamic Premium Features (subConfig fetched above in Promise.all)
     const premiumFeatures = subConfig.dynamicFeatures ? subConfig.dynamicFeatures.map(feature => ({
       key: feature.key,
       name: feature.name,
@@ -114,18 +123,7 @@ module.exports.getAppConfig = async (req, res) => {
       enabled: false // Default for config API. Actual status is provided via /subscription/status
     })) : [];
 
-    // 5. Fetch Ads Configuration
-    let adsConfig = {};
-    try {
-      adsConfig = await getFormattedAdsConfig();
-    } catch (err) {
-      console.error("Ads config fetch error in getAppConfig:", err);
-      // Fallback to empty/default structure if it fails
-      adsConfig = {
-        android: { app_open: { id: "", active: false }, interstitial: { id: "", active: false }, native: { id: "", active: false } },
-        ios: { app_open: { id: "", active: false }, interstitial: { id: "", active: false }, native: { id: "", active: false } }
-      };
-    }
+    // 5. Ads Configuration (fetched above in Promise.all, with the same fallback)
 
     return res.status(200).json({
       success: true,
