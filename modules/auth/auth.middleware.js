@@ -99,8 +99,16 @@ module.exports = async function authMiddleware(req, res, next) {
     }
 
     // Cache miss — fetch from DB
+    // Only the fields actually read off req.user anywhere in the codebase
+    // (verified via a full-repo audit): _id (default), accountStatus, role,
+    // email, and suspensionDetails (needed below for the auto-unsuspend
+    // save). Previously loaded the ENTIRE document — including unbounded
+    // arrays like auditLogs/fcmTokens/refreshTokens/sessions — on every
+    // cache-miss and re-serialized all of it into Redis every 30s.
     if (!user) {
-      const dbUser = await User.findById(userId).lean();
+      const dbUser = await User.findById(userId)
+        .select("accountStatus role email suspensionDetails")
+        .lean();
       if (!dbUser) {
         return res
           .status(401)
@@ -120,6 +128,29 @@ module.exports = async function authMiddleware(req, res, next) {
 
       // Safely Hydrate to Mongoose Document
       user = User.hydrate(dbUser);
+    }
+
+    // ✅ Auto-unsuspend if suspension time has passed
+    if (
+      user.accountStatus === "suspended" &&
+      user.suspensionDetails?.isSuspended &&
+      user.suspensionDetails.suspendUntil &&
+      new Date() >= new Date(user.suspensionDetails.suspendUntil)
+    ) {
+      user.accountStatus = "active";
+      user.suspensionDetails.isSuspended = false;
+      user.suspensionDetails.reason = null;
+      user.suspensionDetails.suspendedBy = null;
+      user.suspensionDetails.suspendedAt = null;
+      user.suspensionDetails.suspendUntil = null;
+      
+      await user.save();
+
+      if (redis) {
+        try {
+          await redis.del(AUTH_KEY);
+        } catch (e) {}
+      }
     }
 
     req.user = user;

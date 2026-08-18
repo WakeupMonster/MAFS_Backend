@@ -16,12 +16,12 @@ const productDisplayHelper = require("../utils/productDisplayHelper");
  * Implements the "Two-Bucket" system (Free Quota vs. Wallet) with AEST timezone compliance.
  */
 
-
 class UsageService {
     constructor() {
         this.configCache = null;
         this.configCacheExpires = 0;
     }
+
 
     async useItem(userId, type) {
         if (!this.configCache || Date.now() > this.configCacheExpires) {
@@ -55,27 +55,17 @@ class UsageService {
     async getUsageStatus(userId) {
         const cache = require("../../../config/cache");
 
-        // Short-lived cache to prevent repeated calls within same swipe flow
-        const STATUS_CACHE_KEY = `usage:status:${userId}`;
-        try {
-            const cached = await cache.get(STATUS_CACHE_KEY);
-            if (cached) return JSON.parse(cached);
-        } catch (e) { /* ignore cache miss */ }
-
-        if (!this.configCache || Date.now() > this.configCacheExpires) {
-            this.configCache = await SubscriptionConfig.getOrCreate();
-            this.configCacheExpires = Date.now() + (5 * 60 * 1000); // 5 min TTL
-        }
-
-        const [config, activeSub, daily, weekly, monthly, wallet, boostTTL, user] = await Promise.all([
-            Promise.resolve(this.configCache),
+        // Direct DB read every time — same as catalog API, ensures instant admin updates
+        const [config, activeSub, daily, weekly, monthly, wallet, boostTTL, user, premium1MonthProduct] = await Promise.all([
+            SubscriptionConfig.getOrCreate(),
             Subscription.findActiveByUser(userId).lean(),
             UserDailyUsage.findOne({ userId, dateKey: dateHelpers.getDateKey() }).lean(),
             UserWeeklyUsage.findOne({ userId, weekKey: dateHelpers.getWeekKey() }).lean(),
             UserMonthlyUsage.findOne({ userId, monthKey: dateHelpers.getMonthKey() }).lean(),
             UserConsumableBalance.findOne({ userId }).lean(),
             cache.ttl(`boost:${userId}`), // Instantly gets the expiry timer from Redis
-            User.findById(userId).select("giveaway").lean()
+            User.findById(userId).select("giveaway").lean(),
+            Product.findOne({ productKey: 'premium_1month' }).lean()
         ]);
 
         const isPremium = !!activeSub;
@@ -188,31 +178,54 @@ class UsageService {
                     boosts: wallet?.boostsBalance || 0
                 },
 
-                premiumFeatures: {
-                    seeWhoLikedYou: isPremium && config.premiumFeatures.seeWhoLikedYou,
-                    passport: isPremium && config.premiumFeatures.passport,
-                    advancedFilters: isPremium && config.premiumFeatures.advancedFilters,
-                    noAds: isPremium && config.premiumFeatures.noAds
-                },
+                // premiumFeatures: {
+                //     seeWhoLikedYou: isPremium && config.premiumFeatures.seeWhoLikedYou,
+                //     passport: isPremium && config.premiumFeatures.passport,
+                //     advancedFilters: isPremium && config.premiumFeatures.advancedFilters,
+                //     noAds: isPremium && config.premiumFeatures.noAds
+                // },
 
                 // ➕ NEW: Dynamic Features array (Single Source of Truth)
                 PremiumFeatures: await featureService.getDynamicFeaturesForUser(userId, isPremium),
 
                 showAds: !isPremium || !config.premiumFeatures.noAds,
-                giveaway: user?.giveaway ? {
-                    isEligibleForFreeTrial: user.giveaway.isEligibleForFreeTrial || false,
-                    freeTrialDurationDays: user.giveaway.freeTrialDurationDays || 30,
-                    description: user.giveaway.description || "First 1000 users milestone",
-                    offerExpiresAt: user.giveaway.offerExpiresAt || null,
-                    claimedAt: user.giveaway.claimedAt || null
-                } : null
+                milestone: {
+                    target: config.milestone.targetUserCount,
+                    currentCount: config.milestone.currentCount,
+                    isActive: config.milestone.isActive,
+                    ...(user?.giveaway ? {
+                        isEligibleForFreeTrial: user.giveaway.isEligibleForFreeTrial || false,
+                        freeTrialDurationDays: user.giveaway.freeTrialDurationDays || 30,
+                        description: user.giveaway.description || "First 1000 users milestone",
+                        offerExpiresAt: user.giveaway.offerExpiresAt || null,
+                        claimedAt: user.giveaway.claimedAt || null
+                    } : {}),
+                    catalog: premium1MonthProduct ? (() => {
+                        const product = { ...premium1MonthProduct };
+                        delete product.badgeColor;
+                        delete product.badgeText;
+                        delete product.features;
+
+                        return {
+                            ...product,
+                            // Trial overrides for milestone
+                            appleProductId: "com.keenasmustard.premium.1month.trial",
+                            googleProductId: "com.keenasmustard.premium.1month",
+                            googleBasePlanId: "monthly-base",
+                            googleOfferToken: "free-trial-30-days",
+                            allocations: {
+                                likes: config.premiumLimits.swipesPerDay,
+                                superKeens: config.premiumLimits.superKeensPerDay,
+                                boosts: config.premiumLimits.boostsPerMonth,
+                                rewinds: config.premiumLimits.rewindsPerDay
+                            }
+                        };
+                    })() : null
+                }
             }
         };
 
-        // Cache result for 10 seconds to avoid repeated calls
-        try {
-            await cache.set(STATUS_CACHE_KEY, JSON.stringify(statusResult), { EX: 10 });
-        } catch (e) { /* ignore cache error */ }
+
 
         return statusResult;
     }

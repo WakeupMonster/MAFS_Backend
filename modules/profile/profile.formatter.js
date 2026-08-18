@@ -3,15 +3,8 @@ const {
 } = require("../../common/utils/onBoardingSteps");
 // const UsageService = require("../subscription/services/usage.service");
 
-const calculateAge = (dob) => {
-  if (!dob) return null;
-  const today = new Date();
-  const birthDate = new Date(dob);
-  let age = today.getFullYear() - birthDate.getFullYear();
-  const m = today.getMonth() - birthDate.getMonth();
-  if (m < 0 || (m === 0 && today.getDate() < birthDate.getDate())) age--;
-  return age;
-};
+// Shared, Australia/Sydney-aware age calculation — see common/utils/calculate.age.js.
+const { calculateAge } = require("../../common/utils/calculate.age");
 
 // const planNames = {
 //   free: "MAFS Free",

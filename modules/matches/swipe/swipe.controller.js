@@ -6,6 +6,13 @@ const service = require("./swipe.service");
 const Swipe = require("./swipe.model");
 const redis = require("../../../config/cache");
 const Profile = require("../../profile/profile.model");
+const { calculateAge: calculateAgeShared } = require("../../../common/utils/calculate.age");
+const ChatMessage = require("../chat/chat.message.model");
+const Block = require("../../profile/user.block");
+const Report = require("../../profile/user.report");
+const BlockedContact = require("../../BlockedContact/blockedContacts.model");
+const User = require("../../auth/auth.model");
+const { generatePhoneHashes } = require("../../../common/utils/phone.util");
 
 module.exports.getFeed = async (req, res) => {
   try {
@@ -178,9 +185,15 @@ module.exports.getMatches = async (req, res) => {
   try {
     const userId = req.user._id;
     const MATCHES_KEY = `matches:${userId.toString()}`;
+    // Optional, backward-compatible pagination. Existing invalidation call sites
+    // (redis.del on MATCHES_KEY elsewhere in this file / swipe.service.js) only ever
+    // target the unpaginated key, so paginated requests deliberately skip the cache
+    // entirely rather than needing those sites updated too.
+    const page = req.query.page ? parseInt(req.query.page) : null;
+    const limit = page !== null ? Math.min(parseInt(req.query.limit) || 20, 100) : null;
 
     // Try to load from Redis cache first
-    if (redis) {
+    if (redis && page === null) {
       try {
         const cachedMatches = await redis.get(MATCHES_KEY);
         if (cachedMatches) {
@@ -194,10 +207,12 @@ module.exports.getMatches = async (req, res) => {
       }
     }
 
-    // Fetch all matches (no populate needed — we only use raw user IDs)
-    const matches = await Match.find({ users: userId })
-      .sort({ lastMessageAt: -1, matchedAt: -1 })
-      .lean();
+    // Fetch matches (no populate needed — we only use raw user IDs)
+    let matchesQuery = Match.find({ users: userId }).sort({ lastMessageAt: -1, matchedAt: -1 });
+    if (page !== null) {
+      matchesQuery = matchesQuery.skip((page - 1) * limit).limit(limit);
+    }
+    const matches = await matchesQuery.lean();
 
     // Collect all partner IDs in one pass
     const partnerIds = matches
@@ -246,8 +261,8 @@ module.exports.getMatches = async (req, res) => {
       conversations: conversations.filter(Boolean),
     };
 
-    // Cache to Redis with 15s TTL
-    if (redis) {
+    // Cache to Redis with 15s TTL (unpaginated responses only — see note above)
+    if (redis && page === null) {
       try {
         await redis.set(MATCHES_KEY, finalData, { EX: 15 });
       } catch (err) {
@@ -279,18 +294,21 @@ function calculateDistance(lat1, lon1, lat2, lon2) {
   return Math.round(R * c);
 }
 
+// Delegates to the shared, Australia/Sydney-aware age calculation
+// (common/utils/calculate.age.js); kept the 0-for-missing-dob fallback
+// to preserve this function's existing call contract.
 function calculateAge(dob) {
   if (!dob) return 0;
-  const diff = Date.now() - new Date(dob).getTime();
-  return Math.floor(diff / 31557600000); // Years in ms
+  return calculateAgeShared(dob);
 }
 
 module.exports.getKeenData = async (req, res, actionType) => {
   try {
     const userId = req.user._id;
 
-    const { page = 1, limit = 20 } = req.query;
-    const skip = (parseInt(page) - 1) * parseInt(limit);
+    const { page = 1 } = req.query;
+    const limit = Math.min(parseInt(req.query.limit) || 20, 100);
+    const skip = (parseInt(page) - 1) * limit;
 
     // Parallelize independent DB lookups to improve latency and high-traffic event loop utilization
     const [myProfile, mySwipedIds, matchedUserIds] = await Promise.all([
@@ -305,8 +323,42 @@ module.exports.getKeenData = async (req, res, actionType) => {
         )
     ]);
 
+    let excludeIds = [...mySwipedIds, ...matchedUserIds];
 
-    const excludeIds = [...mySwipedIds, ...matchedUserIds];
+    // ✅ Inline exclusion for Keen/SuperKeen: blocks, reports, contact blocks
+    const [myBlocked, blockedMe, myReports] = await Promise.all([
+      Block.find({ blockerId: userId }).distinct("blockedId"),
+      Block.find({ blockedId: userId }).distinct("blockerId"),
+      Report.find({ reporterId: userId }).distinct("reportedId"),
+    ]);
+    excludeIds.push(
+      ...myBlocked.map(id => id.toString()),
+      ...blockedMe.map(id => id.toString()),
+      ...myReports.map(id => id.toString())
+    );
+
+    // Contact block exclusion: users whose phone I blocked
+    const blockedContacts = await BlockedContact.find({ userId }).select("blockedPhone").lean();
+    if (blockedContacts.length) {
+      let allBlockedHashes = [];
+      for (const bc of blockedContacts) {
+        if (bc.blockedPhone) {
+          allBlockedHashes.push(...generatePhoneHashes(bc.blockedPhone));
+        }
+      }
+      if (allBlockedHashes.length) {
+        const blockedUsers = await User.find({ phoneHash: { $in: allBlockedHashes } }).distinct("_id");
+        excludeIds.push(...blockedUsers.map(id => id.toString()));
+      }
+    }
+
+    // Mutual contact block: users who blocked MY phone number
+    const myUser = await User.findById(userId).select("phone phoneHash").lean();
+    if (myUser && (myUser.phone || myUser.phoneHash)) {
+      const myHashes = myUser.phone ? generatePhoneHashes(myUser.phone) : [myUser.phoneHash];
+      const usersWhoBlockedMe = await BlockedContact.find({ blockedPhoneHash: { $in: myHashes } }).distinct("userId");
+      excludeIds.push(...usersWhoBlockedMe.map(id => id.toString()));
+    }
 
     // 2. Swipes dhundna (Populate ko Profile collection par point kar rahe hain)
     const keens = await Swipe.find({
@@ -316,13 +368,14 @@ module.exports.getKeenData = async (req, res, actionType) => {
     })
       .sort({ createdAt: -1 })
       .skip(skip)
-      .limit(parseInt(limit))
+      .limit(limit)
       .populate({
         path: 'swiperId',
         model: 'Profile',   // <--- YE SABSE IMPORTANT HAI (Profile collection se data lega)
         foreignField: 'userId', // <--- Profile model mein userId se match karega
         select: 'nickname dob photos location about'
-      });
+      })
+      .lean();
 
 
     const total = await Swipe.countDocuments({
@@ -391,8 +444,13 @@ exports.undo = async (req, res) => {
   try {
     const userId = req.user._id;
 
-    // 1️⃣ Find last swipe first to avoid wasting quota if no swipe exists
-    const lastSwipe = await Swipe.findOne({ swiperId: userId })
+    const { targetId: requestedTargetId } = req.body;
+
+    // 1️⃣ Find the specific swipe to undo
+    const lastSwipe = await Swipe.findOne({ 
+      swiperId: userId,
+      targetId: requestedTargetId
+    })
       .sort({ createdAt: -1 })
       .lean();
 
@@ -403,7 +461,30 @@ exports.undo = async (req, res) => {
       });
     }
 
-    // 2️⃣ REWIND QUOTA CHECK — AFTER verifying swipe exists
+    const { targetId, action } = lastSwipe;
+    const undone = { targetId, action };
+    let matchDissolved = false;
+
+    // 2️⃣ Check if Match has Activity (for like/superlike)
+    let match = null;
+    if (action === "like" || action === "superlike") {
+      match = await Match.findOne({
+        users: { $all: [userId, targetId] },
+      }).lean();
+
+      if (match) {
+        const messagesCount = await ChatMessage.countDocuments({ matchId: match._id });
+        if (messagesCount > 0) {
+          return res.status(409).json({
+            success: false,
+            code: "MATCH_HAS_ACTIVITY",
+            message: "Already matched"
+          });
+        }
+      }
+    }
+
+    // 3️⃣ REWIND QUOTA CHECK — AFTER verifying swipe exists and match has no activity
     try {
       await UsageService.useItem(userId, 'REWIND');
     } catch (error) {
@@ -416,33 +497,34 @@ exports.undo = async (req, res) => {
       throw error;
     }
 
-    const { targetId, action } = lastSwipe;
-    const undone = { targetId, action };
-
-    // 3️⃣ Conditional transaction — only when match might exist
+    // 4️⃣ Conditional transaction — only when match might exist
     if (action === "like" || action === "superlike") {
-      const match = await Match.findOne({
-        users: { $all: [userId, targetId] },
-      }).lean();
-
       if (match) {
-        // Transaction needed — deleting match + swipes atomically
+        matchDissolved = true;
+        // Transaction needed — deleting match + rewinding user's swipe atomically
         const session = await mongoose.startSession();
         try {
           await session.withTransaction(async () => {
             await Match.deleteOne({ _id: match._id }).session(session);
-            await Swipe.deleteMany({
-              $or: [
-                { swiperId: userId, targetId },
-                { swiperId: targetId, targetId: userId },
-              ],
-            }).session(session);
+            // Only delete the rewinding user's swipe — preserve the other user's
+            // original like/superlike so it reappears in Keens/Super Keens tab
+            await Swipe.deleteOne({ swiperId: userId, targetId }).session(session);
+            // Clean up orphaned chat messages for the dissolved match
+            await ChatMessage.deleteMany({ matchId: match._id }).session(session);
           });
         } finally {
           await session.endSession();
         }
 
-        // Clear ALL caches for both users
+        // Real-time Event (CRITICAL): Emit a socket event targeting userB
+        const chatEvents = require("../../../events/chat.events");
+        chatEvents.emit("match_deleted", {
+          matchId: match._id,
+          userId1: userId.toString(),
+          userId2: targetId.toString(),
+        });
+
+        // Clear ALL caches for both users (feed, exclude, matches, AND chat lists)
         if (redis) {
           await Promise.all([
             redis.del(`feed:${userId.toString()}`),
@@ -451,6 +533,8 @@ exports.undo = async (req, res) => {
             redis.del(`feed:exclude:${targetId.toString()}`),
             redis.del(`matches:${userId}`),
             redis.del(`matches:${targetId}`),
+            redis.del(`chat:list:${userId.toString()}`),
+            redis.del(`chat:list:${targetId.toString()}`),
           ]);
         }
       } else {
@@ -463,6 +547,8 @@ exports.undo = async (req, res) => {
           ]);
         }
       }
+
+      // No refund logic here as per client request
     } else {
       // "pass" undo — simplest case, no transaction, no match check
       await Swipe.deleteOne({ _id: lastSwipe._id });
@@ -474,14 +560,15 @@ exports.undo = async (req, res) => {
       }
     }
 
-    // 4️⃣ Usage status (served from Redis cache via FIX 6A)
+    // 5️⃣ Usage status (served from Redis cache via FIX 6A)
     const status = await UsageService.getUsageStatus(userId);
 
     return res.json({
       success: true,
-      message: "Swipe undone successfully",
+      message: "Swipe undone successfully. Consumables are not refunded.",
       data: {
         undoneAction: undone,
+        matchDissolved,
         isPremium: status.data.isPremium,
         showAds: status.data.showAds,
         premiumFeatures: status.data.premiumFeatures,

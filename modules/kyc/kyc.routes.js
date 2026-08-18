@@ -18,7 +18,7 @@ const express = require('express');
 const router = express.Router();
 const kycController = require('./kyc.controller');
 const multer = require('multer');
-const upload = multer();
+const upload = multer({ limits: { fileSize: 10 * 1024 * 1024 } }); // 10MB per file
 
 // Submit KYC with files
 router.post(

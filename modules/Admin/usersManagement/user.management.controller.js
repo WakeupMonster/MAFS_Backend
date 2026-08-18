@@ -5,11 +5,13 @@ const { updateUserSchema } = require("./user.management.validation");
 const { stringify } = require("csv-stringify");
 const { destroy } = require("../../upload/cloudinary.service");
 const { calculateAge } = require("../../../common/utils/calculate.age");
+const { APP_TZ, startOfDay, endOfDay, startOfYesterday, endOfYesterday } = require("../../../common/utils/time");
 const {
   getSafeAgePipeline,
   resolveDatePreset,
   mapNestedProfileUpdates,
 } = require("./user.management.helpers");
+const UsageService = require("../../subscription/services/usage.service");
 
 /*
 For Data Table & Search or filters:- 
@@ -27,6 +29,293 @@ API 4: POST api/v1/admin/user-management/export
 */
 
 /* ========: GET ALL USERS – ADMIN DATATABLE (REDIS) & Search or filters:API 1: GET api/v1/admin/user-management/user-list ====== */
+// module.exports.GETAllUsers = async (req, res) => {
+//   try {
+//     const {
+//       page: reqPage,
+//       limit: reqLimit,
+//       search,
+//       accountStatus,
+//       isPremium,
+//       isBanned,
+//       last24Hours,
+//       gender,
+//       isDeactivated,
+//       isScheduledForDeletion,
+//       isGhosting,
+//       preset,
+//       from,
+//       to,
+//     } = req.query;
+
+//     const page = Math.max(parseInt(reqPage) || 1, 1);
+//     const limit = Math.min(parseInt(reqLimit) || 10, 100);
+//     const skip = (page - 1) * limit;
+//     const searchTrimmed = search?.trim();
+
+//     const baseMatch = { role: "USER", isFake: { $ne: true } };
+
+//     // --- GHOSTING FILTER LOGIC (Dynamic inactivity threshold aligned with dashboard) ---
+//     if (isGhosting === "true") {
+//       let thresholdDate;
+//       if (preset === "last7") {
+//         thresholdDate = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+//       } else if (preset === "last30") {
+//         thresholdDate = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+//       } else if (preset === "last90") {
+//         thresholdDate = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000);
+//       } else if (preset === "custom" && from) {
+//         thresholdDate = new Date(from);
+//       } else {
+//         // Default fallback (including "today" and "yesterday" presets): 2 months inactivity
+//         thresholdDate = new Date();
+//         thresholdDate.setMonth(thresholdDate.getMonth() - 2);
+//       }
+
+//       baseMatch.accountStatus = "active";
+//       baseMatch.createdAt = { $lt: thresholdDate };
+//       baseMatch.$or = [
+//         { lastLoginAt: { $lt: thresholdDate } },
+//         { lastLoginAt: null },
+//       ];
+//     }
+
+//     if (accountStatus) baseMatch.accountStatus = accountStatus;
+//     if (isPremium) baseMatch.isPremium = isPremium === "true";
+//     if (isBanned !== undefined)
+//       baseMatch["banDetails.isBanned"] = isBanned === "true";
+//     if (isDeactivated !== undefined)
+//       baseMatch["deactivationDetails.isDeactivated"] = isDeactivated === "true";
+//     if (isScheduledForDeletion !== undefined) {
+//       baseMatch["deletionDetails.isScheduledForDeletion"] =
+//         isScheduledForDeletion === "true";
+//     }
+//     if (last24Hours === "true") {
+//       const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
+//       baseMatch.createdAt = { $gte: twentyFourHoursAgo };
+//     } else if (isGhosting !== "true") {
+//       // General date filtering for other filters (e.g. Female signups from dashboard)
+//       if (from && to) {
+//         baseMatch.createdAt = { $gte: new Date(from), $lte: new Date(to) };
+//       } else if (preset) {
+//         // IMPORTANT: Do NOT use now.setHours() — it mutates the Date object.
+//         // Create fresh Date instances for each boundary to avoid corruption.
+//         const now = new Date();
+
+//         if (preset === "today") {
+//           const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0);
+//           const endOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999);
+//           baseMatch.createdAt = { $gte: startOfToday, $lte: endOfToday };
+//         } else if (preset === "yesterday") {
+//           const y = new Date(now);
+//           y.setDate(y.getDate() - 1);
+//           const startOfYesterday = new Date(y.getFullYear(), y.getMonth(), y.getDate(), 0, 0, 0, 0);
+//           const endOfYesterday = new Date(y.getFullYear(), y.getMonth(), y.getDate(), 23, 59, 59, 999);
+//           baseMatch.createdAt = { $gte: startOfYesterday, $lte: endOfYesterday };
+//         } else if (preset === "last7") {
+//           const start = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+//           baseMatch.createdAt = { $gte: start, $lte: now };
+//         } else if (preset === "last30") {
+//           const start = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+//           baseMatch.createdAt = { $gte: start, $lte: now };
+//         } else if (preset === "last90") {
+//           const start = new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000);
+//           baseMatch.createdAt = { $gte: start, $lte: now };
+//         } else if (preset === "custom" && from) {
+//           baseMatch.createdAt = { $gte: new Date(from) };
+//         }
+//       }
+//     }
+
+//     const pipeline = [{ $match: baseMatch }];
+
+//     // OPTIMIZATION: If we need to filter/search by profile fields, we MUST lookup early.
+//     // If not, we defer the lookup until AFTER pagination for massive performance gains.
+//     const needsEarlyProfileLookup = !!(gender || searchTrimmed);
+
+//     if (needsEarlyProfileLookup) {
+//       pipeline.push(
+//         {
+//           $lookup: {
+//             from: "profiles",
+//             localField: "_id",
+//             foreignField: "userId",
+//             as: "profile",
+//           },
+//         },
+//         { $unwind: { path: "$profile", preserveNullAndEmptyArrays: true } },
+//         getSafeAgePipeline(),
+//       );
+
+//       if (gender) {
+//         pipeline.push({ $match: { "profile.gender": gender } });
+//       }
+
+//       if (searchTrimmed) {
+//         const searchRegex = new RegExp(
+//           searchTrimmed.replace(/[.*+?^${}()|[\\/]\\]/g, "\\$&"),
+//           "i",
+//         );
+//         const searchConditions = [
+//           { email: searchRegex },
+//           { phone: searchRegex },
+//           { "profile.nickname": searchRegex },
+//           { "profile.gender": { $regex: `^${searchTrimmed}$`, $options: "i" } },
+//           { "profile.location.city": searchRegex },
+//           { "profile.location.country": searchRegex },
+//         ];
+
+//         if (!isNaN(parseInt(searchTrimmed))) {
+//           searchConditions.push({
+//             "profile.calculatedAge": parseInt(searchTrimmed),
+//           });
+//         }
+//         pipeline.push({ $match: { $or: searchConditions } });
+//       }
+//     }
+
+//     const dataPipeline = [
+//       { $sort: { createdAt: -1 } },
+//       { $skip: skip },
+//       { $limit: limit },
+//       // If we didn't lookup profiles earlier, we do it now (only for the 10 paginated users!)
+//       ...(!needsEarlyProfileLookup
+//         ? [
+//           {
+//             $lookup: {
+//               from: "profiles",
+//               localField: "_id",
+//               foreignField: "userId",
+//               as: "profile",
+//             },
+//           },
+//           {
+//             $unwind: {
+//               path: "$profile",
+//               preserveNullAndEmptyArrays: true,
+//             },
+//           },
+//           getSafeAgePipeline(),
+//         ]
+//         : []),
+//       {
+//         $project: {
+//           _id: 1,
+//           role: 1,
+//           account: {
+//             status: "$accountStatus",
+//             isPremium: "$isPremium",
+//             phone: "$phone",
+//             email: "$email",
+//             authMethod: "$authMethod",
+//             banDetails: "$banDetails",
+//             deactivationDetails: "$deactivationDetails",
+//             deletionDetails: "$deletionDetails",
+//             suspensionDetails: {
+//               $mergeObjects: [
+//                 "$suspensionDetails",
+//                 {
+//                   suspendedByName: {
+//                     $ifNull: [
+//                       "$suspendedByProfile.nickname",
+//                       "$suspendedByProfile.fullName",
+//                     ],
+//                   },
+//                   suspendedByEmail: "$suspendedByUser.email",
+//                 },
+//               ],
+//             },
+//             createdAt: "$createdAt",
+//           },
+//           profile: {
+//             profileId: "$profile._id",
+//             nickname: "$profile.nickname",
+//             dob: "$profile.dob",
+//             age: "$profile.calculatedAge",
+//             gender: "$profile.gender",
+//             height: "$profile.height",
+//             about: "$profile.about",
+//             jobTitle: "$profile.jobTitle",
+//             company: "$profile.company",
+//             totalCompletion: "$profile.onboardingProgress.totalCompletion",
+//           },
+//           location: "$profile.location",
+//           photos: { $arrayElemAt: ["$profile.photos.url", 0] },
+//           lastProfileUpdate: "$profile.lastProfileUpdate",
+//           createdAt: 1,
+//           lastLoginAt: 1,
+//         },
+//       },
+//     ];
+
+//     // ── Global KPI Stats (unaffected by search/filter/pagination) ──
+//     const globalBase = { role: "USER", isFake: { $ne: true } };
+//     const [
+//       globalTotal, globalActive, globalPremium, globalBanned, globalSuspended
+//     ] = await Promise.all([
+//       User.countDocuments(globalBase),
+//       User.countDocuments({ ...globalBase, accountStatus: "active" }),
+//       User.countDocuments({ ...globalBase, isPremium: true }),
+//       User.countDocuments({ ...globalBase, accountStatus: "banned" }),
+//       User.countDocuments({ ...globalBase, accountStatus: "suspended" }),
+//     ]);
+
+//     // ── Filtered user list + filtered total for pagination ──
+//     let users = [];
+//     let total = 0;
+
+//     if (!needsEarlyProfileLookup) {
+//       const [usersData, t] = await Promise.all([
+//         User.aggregate([...pipeline, ...dataPipeline]),
+//         User.countDocuments(baseMatch),
+//       ]);
+//       users = usersData;
+//       total = t;
+//     } else {
+//       const [usersData, t] = await Promise.all([
+//         User.aggregate([...pipeline, ...dataPipeline]),
+//         User.aggregate([...pipeline, { $count: "count" }]),
+//       ]);
+//       users = usersData;
+//       total = t[0]?.count || 0;
+//     }
+
+//     const responseData = {
+//       pagination: {
+//         page,
+//         limit,
+//         total,
+//         totalPages: Math.ceil(total / limit),
+//       },
+//       kpiStats: {
+//         totalUsers: globalTotal,
+//         activeTotal: globalActive,
+//         premiumTotal: globalPremium,
+//         bannedTotal: globalBanned,
+//         suspendedTotal: globalSuspended,
+//       },
+//       message: "Users fetched successfully",
+//       data: users,
+//     };
+
+//     return res.status(200).json({
+//       success: true,
+//       cached: false,
+//       ...responseData,
+//     });
+//   } catch (error) {
+//     console.error("GET USER LIST ERROR:", error);
+//     res.status(500).json({ success: false, message: "Failed to fetch users" });
+//   }
+// };
+
+/* ======: For GET SINGLE USER DETAILS – ADMIN:====API 2: GET api/v1/admin/user-management/:userId =========== */
+
+
+
+
+
+
 module.exports.GETAllUsers = async (req, res) => {
   try {
     const {
@@ -96,20 +385,14 @@ module.exports.GETAllUsers = async (req, res) => {
       if (from && to) {
         baseMatch.createdAt = { $gte: new Date(from), $lte: new Date(to) };
       } else if (preset) {
-        // IMPORTANT: Do NOT use now.setHours() — it mutates the Date object.
-        // Create fresh Date instances for each boundary to avoid corruption.
+        // Calendar-day presets ("today"/"yesterday") are resolved against
+        // Australia/Sydney (APP_TZ), not server-local/UTC time — see common/utils/time.js.
         const now = new Date();
 
         if (preset === "today") {
-          const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0);
-          const endOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999);
-          baseMatch.createdAt = { $gte: startOfToday, $lte: endOfToday };
+          baseMatch.createdAt = { $gte: startOfDay(now), $lte: endOfDay(now) };
         } else if (preset === "yesterday") {
-          const y = new Date(now);
-          y.setDate(y.getDate() - 1);
-          const startOfYesterday = new Date(y.getFullYear(), y.getMonth(), y.getDate(), 0, 0, 0, 0);
-          const endOfYesterday = new Date(y.getFullYear(), y.getMonth(), y.getDate(), 23, 59, 59, 999);
-          baseMatch.createdAt = { $gte: startOfYesterday, $lte: endOfYesterday };
+          baseMatch.createdAt = { $gte: startOfYesterday(), $lte: endOfYesterday() };
         } else if (preset === "last7") {
           const start = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
           baseMatch.createdAt = { $gte: start, $lte: now };
@@ -151,7 +434,7 @@ module.exports.GETAllUsers = async (req, res) => {
 
       if (searchTrimmed) {
         const searchRegex = new RegExp(
-          searchTrimmed.replace(/[.*+?^${}()|[\\/]\\]/g, "\\$&"),
+          searchTrimmed.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"),
           "i",
         );
         const searchConditions = [
@@ -307,7 +590,10 @@ module.exports.GETAllUsers = async (req, res) => {
   }
 };
 
-/* ======: For GET SINGLE USER DETAILS – ADMIN:====API 2: GET api/v1/admin/user-management/:userId =========== */
+
+
+
+
 module.exports.GETSingleUserDetails = async (req, res) => {
   try {
     const { userId } = req.params;
@@ -461,6 +747,18 @@ module.exports.GETSingleUserDetails = async (req, res) => {
     const s = swipeStatsResult[0] || {};
     const pendingReports = reportsReceived.filter(r => r.status === "new").length;
 
+    // Fetch unified usage data directly from UsageService
+    const usageStatus = await UsageService.getUsageStatus(userId);
+
+    // Calculate total available (Quota Remaining + Wallet Balance)
+    const skRemaining = usageStatus?.data?.allocations?.superKeens?.remaining;
+    const walletSK = usageStatus?.data?.wallet?.superKeens || 0;
+    const totalSuperKeens = skRemaining === -1 ? -1 : (Math.max(0, skRemaining || 0) + walletSK);
+
+    const boostRemaining = usageStatus?.data?.allocations?.boosts?.remaining;
+    const walletBoosts = usageStatus?.data?.wallet?.boosts || 0;
+    const totalBoosts = boostRemaining === -1 ? -1 : (Math.max(0, boostRemaining || 0) + walletBoosts);
+
     // 4. Construct exact payload
     const finalData = {
       _id: b._id,
@@ -531,8 +829,18 @@ module.exports.GETSingleUserDetails = async (req, res) => {
         platform: (b.currentSubscription && b.currentSubscription.platform) || (b.latestSubscription && b.latestSubscription.platform) || null,
         startedAt: (b.currentSubscription && b.currentSubscription.startedAt) || (b.latestSubscription && b.latestSubscription.startedAt) || null,
         expiresAt: (b.currentSubscription && b.currentSubscription.expiresAt) || (b.latestSubscription && b.latestSubscription.expiresAt) || null,
-        availableSuperKeens: b.consumableBalances ? b.consumableBalances.superKeensBalance : 0,
-        availableBoosts: b.consumableBalances ? b.consumableBalances.boostsBalance : 0,
+        availableSuperKeens: totalSuperKeens,
+        availableBoosts: totalBoosts,
+        details: {
+          superKeens: {
+            baseLimit: skRemaining === -1 ? "Unlimited" : (skRemaining || 0),
+            granted: walletSK
+          },
+          boosts: {
+            baseLimit: boostRemaining === -1 ? "Unlimited" : (boostRemaining || 0),
+            granted: walletBoosts
+          }
+        },
         isCurrentlyActive: (() => {
           const c = b.currentSubscription;
           if (!c) return false;
@@ -610,10 +918,13 @@ module.exports.GETSingleUserDetails = async (req, res) => {
       await User.findByIdAndUpdate(userId, {
         $push: {
           auditLogs: {
-            action: "view_profile",
-            reason: "Admin viewed profile details",
-            actedBy: req.user?._id,
-            actedAt: new Date(),
+            $each: [{
+              action: "view_profile",
+              reason: "Admin viewed profile details",
+              actedBy: req.user?._id,
+              actedAt: new Date(),
+            }],
+            $slice: -100,  // Keep only the 100 most recent audit logs
           },
         },
       });
@@ -752,6 +1063,7 @@ module.exports.UPDATESingleUserDetail = async (req, res) => {
         ],
       },
     });
+    if (user.auditLogs.length > 100) user.auditLogs = user.auditLogs.slice(-100);
     await user.save({ session });
 
     const response = {
@@ -843,6 +1155,7 @@ module.exports.UPDATEUserStatus = async (req, res) => {
       actedBy: req.user?._id,
       actedAt: new Date(),
     });
+    if (user.auditLogs.length > 100) user.auditLogs = user.auditLogs.slice(-100);
     await user.save();
 
     return res.status(200).json({
@@ -905,6 +1218,7 @@ module.exports.DELETEPhoto = async (req, res) => {
         actedAt: new Date(),
         details: { publicId },
       });
+      if (userObj.auditLogs.length > 100) userObj.auditLogs = userObj.auditLogs.slice(-100);
       await userObj.save();
     }
 
@@ -961,8 +1275,8 @@ module.exports.streamUsersExport = async (req, res) => {
     // ✅ FIX 1: Helper function for consistent date formatting
     const formatDate = (d) => {
       if (!d) return "";
-      return new Date(d).toLocaleString("en-IN", {
-        timeZone: "Asia/Kolkata",
+      return new Date(d).toLocaleString("en-AU", {
+        timeZone: APP_TZ,
         day: "2-digit",
         month: "short",
         year: "numeric",

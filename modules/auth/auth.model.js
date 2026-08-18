@@ -41,13 +41,14 @@ const userSchema = new mongoose.Schema(
   {
     // ============ PHONE AUTHENTICATION ============
     phone: { type: String, unique: true, sparse: true },
-    phoneHash: { type: String, index: true },
+    phoneHash: { type: String, unique: true, sparse: true },
     isPhoneVerified: { type: Boolean, default: false },
     phoneOtp: { type: String },
     phoneOtpExpires: { type: Date },
 
     // ============ EMAIL AUTHENTICATION ============
     email: { type: String, unique: true, sparse: true },
+    pendingEmail: { type: String },
     isEmailVerified: { type: Boolean, default: false },
     emailOtp: { type: String },
     emailOtpExpires: { type: Date },
@@ -257,12 +258,15 @@ const userSchema = new mongoose.Schema(
 );
 
 // --- INDEXES ---
-userSchema.index({ "social.google.id": 1 });
-userSchema.index({ "social.facebook.id": 1 });
-userSchema.index({ "social.apple.id": 1 });
+// unique+sparse: prevents two different accounts from linking the same social provider
+// id at the same time (matches the phone/email/phoneHash pattern above).
+userSchema.index({ "social.google.id": 1 }, { unique: true, sparse: true });
+userSchema.index({ "social.facebook.id": 1 }, { unique: true, sparse: true });
+userSchema.index({ "social.apple.id": 1 }, { unique: true, sparse: true });
 userSchema.index({ isPhoneVerified: 1 });
 userSchema.index({ isEmailVerified: 1 });
 refreshTokenSchema.index({ expiresAt: 1 });
+refreshTokenSchema.index({ tokenHash: 1 });
 // Active premium users
 userSchema.index({ isPremium: 1 });
 userSchema.index({ premiumExpiresAt: 1 });

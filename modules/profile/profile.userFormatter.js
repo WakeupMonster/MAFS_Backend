@@ -1,12 +1,7 @@
-const calculateAge = (dob) => {
-  if (!dob) return "";
-  const today = new Date();
-  const birthDate = new Date(dob);
-  let age = today.getFullYear() - birthDate.getFullYear();
-  const m = today.getMonth() - birthDate.getMonth();
-  if (m < 0 || (m === 0 && today.getDate() < birthDate.getDate())) age--;
-  return age;
-};
+// Shared, Australia/Sydney-aware age calculation — see common/utils/calculate.age.js.
+// (kept the "" empty-string return for missing dob to preserve this formatter's existing API contract)
+const { calculateAge: calculateAgeShared } = require("../../common/utils/calculate.age");
+const calculateAge = (dob) => (dob ? calculateAgeShared(dob) : "");
 
 function calculateDistance(lat1, lon1, lat2, lon2) {
   const R = 6371;

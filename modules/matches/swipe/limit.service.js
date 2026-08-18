@@ -1,6 +1,7 @@
 // File: modules/matches/swipe/limits.service.js
 const redis = require('../../../config/cache')
 const { ApiError } = require('../../../common/errors/ApiError');
+const { dateKey, endOfDay } = require('../../../common/utils/time');
 
 class SwipeLimiter {
   constructor() {
@@ -12,7 +13,7 @@ class SwipeLimiter {
 
   // Generate Redis key for user's daily limits
   getUserLimitKey(userId, type) {
-    const today = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
+    const today = dateKey(); // YYYY-MM-DD in Australia/Sydney
     return `${this.redisPrefix}${userId}:${type}:${today}`;
   }
 
@@ -33,9 +34,7 @@ class SwipeLimiter {
       // If this is the first time setting the key, set expiry to end of day
       if (count === 1) {
         const now = new Date();
-        const endOfDay = new Date(now);
-        endOfDay.setHours(23, 59, 59, 999);
-        const ttlSeconds = Math.ceil((endOfDay - now) / 1000);
+        const ttlSeconds = Math.ceil((endOfDay(now) - now) / 1000);
         await this.redis.expire(key, ttlSeconds);
       }
 

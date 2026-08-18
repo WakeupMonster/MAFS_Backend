@@ -1,5 +1,6 @@
 const Profile = require("../../../modules/profile/profile.model");
 const User = require("../../../modules/auth/auth.model");
+const { startOfDay, endOfDay, startOfYesterday, endOfYesterday } = require("../../../common/utils/time");
 const {
   // eslint-disable-next-line no-unused-vars
   formatProfileResponse,
@@ -470,19 +471,6 @@ const updateProfileStatus = async (req, res) => {
           console.error("Failed to send push notification to reporter:", pushErr);
         }
 
-        // Send to ntfy.sh for testing
-        try {
-          await fetch("https://ntfy.sh/my-test-notifications", {
-            method: "POST",
-            body: replyMessage,
-            headers: {
-              "Title": "Support Update"
-            }
-          });
-        } catch (ntfyErr) {
-          console.error("Failed to send to ntfy:", ntfyErr);
-        }
-
         // Also add to user audit log for visibility
         auditEntry.details = { reportId, replyMessage };
         message = "Reply sent to the reporter.";
@@ -577,12 +565,12 @@ const updateProfileStatus = async (req, res) => {
     if (action !== "reply" && action !== "bulk-reply") {
       // For reply, we still might want an audit log on the user level
       user.auditLogs.push(auditEntry);
-      await user.save();
     } else {
       // Optional: Log reply as well in user audit logs
       user.auditLogs.push(auditEntry);
-      await user.save();
     }
+    if (user.auditLogs.length > 100) user.auditLogs = user.auditLogs.slice(-100);
+    await user.save();
 
     res.status(200).json({
       success: true,
@@ -614,17 +602,14 @@ const getReportedProfiles = async (req, res) => {
     let startDate, endDate;
     const now = new Date();
 
+    // "today"/"yesterday" calendar boundaries are resolved against
+    // Australia/Sydney (APP_TZ), not server-local/UTC time — see common/utils/time.js.
     if (presetParam === "today") {
-      startDate = new Date(now);
-      startDate.setHours(0, 0, 0, 0);
-      endDate = new Date(now);
-      endDate.setHours(23, 59, 59, 999);
+      startDate = startOfDay(now);
+      endDate = endOfDay(now);
     } else if (presetParam === "yesterday") {
-      startDate = new Date(now);
-      startDate.setDate(startDate.getDate() - 1);
-      startDate.setHours(0, 0, 0, 0);
-      endDate = new Date(startDate);
-      endDate.setHours(23, 59, 59, 999);
+      startDate = startOfYesterday();
+      endDate = endOfYesterday();
     } else if (presetParam === "last7") {
       startDate = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
       endDate = new Date(now);

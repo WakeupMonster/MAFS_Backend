@@ -16,14 +16,14 @@ const {
   unblockUser,
 } = require("./contacts.controller");
 
-router.post("/import", auth, apiLimiter("contact_import", 3, 3600), validate(importContactsSchema), importContacts);
+router.post("/import", auth, apiLimiter("contact_import", 3, 300), validate(importContactsSchema), importContacts); // 3 req / 5 mins
 
-router.post("/block", auth, apiLimiter("contact_block", 10, 3600), blockContacts);
+router.post("/block", auth, apiLimiter("contact_block", 5, 300), blockContacts); // 5 req / 5 mins
 
-router.get("/blocked", auth, apiLimiter("contact_blocked_list", 20, 60), getBlockedContacts);
+router.get("/blocked", auth, apiLimiter("contact_blocked_list", 20, 300), getBlockedContacts); // 20 req / 5 mins
 
-router.delete("/unblock", auth, apiLimiter("contact_unblock", 10, 3600), unblockByPhone);
+router.delete("/unblock", auth, apiLimiter("contact_unblock", 20, 300), unblockByPhone); // 20 req / 5 mins
 
-router.delete("/unblock/user", auth, apiLimiter("contact_unblock_user", 10, 3600), unblockUser);
+router.delete("/unblock/user", auth, apiLimiter("contact_unblock_user", 20, 300), unblockUser); // 20 req / 5 mins
 
 module.exports = router;

@@ -63,16 +63,18 @@ module.exports.verifyUserProfile = async (req, res) => {
       profile.verification.verifiedAt = new Date();
       profile.verification.rejectionReason = null;
 
-      if (!profile.onboarding) profile.onboarding = {};
-      profile.onboarding.isComplete = true;
+      // if (!profile.onboarding) profile.onboarding = {};
+      // profile.onboarding.isComplete = true;
     } else {
       profile.verification.status = "rejected";
       profile.verification.verifiedBy = adminId;
       profile.verification.verifiedAt = new Date();
       profile.verification.rejectionReason = reason;
 
-      if (!profile.onboarding) profile.onboarding = {};
-      profile.onboarding.isComplete = false;
+      // if (!profile.onboarding) profile.onboarding = {};
+      // if (profile.onboarding.isComplete !== true) {
+      //   profile.onboarding.isComplete = false;
+      // }
     }
 
     await profile.save();
@@ -100,6 +102,7 @@ module.exports.verifyUserProfile = async (req, res) => {
           isReApprove: isReApprove,
         },
       });
+      if (user.auditLogs.length > 100) user.auditLogs = user.auditLogs.slice(-100);
       await user.save();
     }
 
@@ -221,6 +224,7 @@ module.exports.banUser = async (req, res) => {
       actedAt: new Date(),
       details: { category: category || "General" },
     });
+    if (user.auditLogs.length > 100) user.auditLogs = user.auditLogs.slice(-100);
     await user.save();
 
     // Invalidate caches
@@ -291,6 +295,7 @@ module.exports.unbanUser = async (req, res) => {
       actedAt: new Date(),
       details: { category: category || "Administrative" },
     });
+    if (user.auditLogs.length > 100) user.auditLogs = user.auditLogs.slice(-100);
     await user.save();
 
     // Invalidate caches
@@ -384,6 +389,7 @@ module.exports.suspendUser = async (req, res) => {
       actedAt: new Date(),
       details: { durationHours, suspendUntil },
     });
+    if (user.auditLogs.length > 100) user.auditLogs = user.auditLogs.slice(-100);
     await user.save();
 
     // Cache invalidation
@@ -454,6 +460,7 @@ module.exports.unsuspendUser = async (req, res) => {
       actedAt: new Date(),
       details: { category: category || "Administrative" },
     });
+    if (user.auditLogs.length > 100) user.auditLogs = user.auditLogs.slice(-100);
     await user.save(); // Cache invalidation
 
     if (redis) {
@@ -648,8 +655,8 @@ module.exports.getPendingVerifications = async (req, res, next) => {
     if (sortBy === "alphabetical") sortQuery = { nickname: 1 };
 
     // 2. DYNAMIC MATCHING
-    const baseMatchStage = { "user.role": "USER" };
-    const dataMatchStage = { "user.role": "USER" };
+    const baseMatchStage = { "user.role": "USER", "user.isFake": { $ne: true } };
+    const dataMatchStage = { "user.role": "USER", "user.isFake": { $ne: true } };
 
     if (status && status !== "all") {
       dataMatchStage["verification.status"] = status;

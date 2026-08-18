@@ -1,6 +1,7 @@
 const appleService = require("../services/apple.service");
 const googleService = require("../services/google.service");
 const mongoose = require("mongoose");
+const { startOfDay } = require("../../../common/utils/time");
 const subscriptionService = require("../services/subscription.service");
 const logger = require("../utils/logger");
 const Subscription = require("../../../modules/subscription/models/Subscription");
@@ -14,7 +15,7 @@ const productDisplayHelper = require("../utils/productDisplayHelper");
 
 const verifyPurchase = async (req, res, next) => {
   try {
-    const { platform, productId, transactionId, purchaseToken } = req.body;
+    const { platform, productId, transactionId, purchaseToken, environment, isSandbox } = req.body;
     const userId = req.user._id;
 
     let purchaseData;
@@ -69,6 +70,8 @@ const verifyPurchase = async (req, res, next) => {
         transactionId: result.transactionId,
         purchaseDate: result.purchaseDate,
         expiresDate: result.expiresDate,
+        environment: environment || result.environment,
+        isSandbox: isSandbox,
       };
     } else if (platform === "android") {
       // Step 1: Query the product to determine if it's a subscription or consumable
@@ -92,9 +95,12 @@ const verifyPurchase = async (req, res, next) => {
           platform: "android",
           productId: productId,
           purchaseToken: purchaseToken,
+          transactionId: result.orderId || transactionId,
           orderId: result.orderId,
           purchaseDate: parseInt(result.purchaseTimeMillis) || Date.now(),
           expiresDate: null, // Consumables have no expiry
+          environment: environment || (result.orderId?.includes("MOCK") ? "sandbox" : "production"),
+          isSandbox: isSandbox !== undefined ? isSandbox : (result.orderId?.includes("MOCK") || false),
         };
 
         // Acknowledge one-time purchase
@@ -111,9 +117,12 @@ const verifyPurchase = async (req, res, next) => {
           platform: "android",
           productId: productId,
           purchaseToken: purchaseToken,
+          transactionId: result.orderId || transactionId,
           orderId: result.orderId,
           purchaseDate: parseInt(result.startTimeMillis),
           expiresDate: parseInt(result.expiryTimeMillis),
+          environment: environment || (result.orderId?.includes("MOCK") ? "sandbox" : "production"),
+          isSandbox: isSandbox !== undefined ? isSandbox : (result.orderId?.includes("MOCK") || false),
         };
 
         console.log("📍 Step: Acknowledging purchase...");
@@ -124,20 +133,22 @@ const verifyPurchase = async (req, res, next) => {
 
     console.log("📍 Step: Preparing handlePurchase...", { userId, productId });
 
-    // ➕ Initiative 3: Milestone Claim Logic
+    // ➕ Initiative 3: Milestone Claim Logic (Updated: Safe Fallback)
     if (req.body.source === 'FREE_TRIAL') {
       console.log("📍 Step: Handling Free Trial logic...");
       const User = require("../../auth/auth.model");
       const user = await User.findById(userId);
 
-      if (!user || !user.giveaway || !user.giveaway.isEligibleForFreeTrial ||
-        (user.giveaway.offerExpiresAt && user.giveaway.offerExpiresAt < new Date())) {
-        throw new Error("You are not eligible or the offer has expired.");
+      // Agar user sach me eligible tha, toh uska giveaway status update kar do
+      if (user && user.giveaway && user.giveaway.isEligibleForFreeTrial) {
+        user.giveaway.claimedAt = new Date();
+        user.giveaway.isEligibleForFreeTrial = false;
+        await user.save();
       }
 
-      user.giveaway.claimedAt = new Date();
-      user.giveaway.isEligibleForFreeTrial = false;
-      await user.save();
+      // Note: Agar user eligible nahi tha (hacker bypass), tab bhi hum error THROW nahi kar rahe hain.
+      // Apple ne purchase approve kar di hai, isliye hum quietly usko premium de denge taaki App reject na ho.
+
       if (purchaseData) {
         purchaseData.source = "FREE_TRIAL";
       }
@@ -237,10 +248,15 @@ const restorePurchases = async (req, res, next) => {
   try {
     const { platform, purchases } = req.body;
     const userId = req.user._id;
-    const restoredItems = [];
 
-    for (const item of purchases) {
-      try {
+    // Each item is verified against Apple/Google (an external API call) then written via
+    // subscriptionService.handlePurchase(), which is already safe under concurrency —
+    // consumables use an idempotency-keyed atomic $inc, subscriptions use an atomic upsert
+    // keyed on originalTransactionId/purchaseToken. Running items in parallel instead of
+    // one-at-a-time cuts restore time roughly proportional to purchase count, with each
+    // item's success/failure kept fully independent (same as the original per-item try/catch).
+    const settled = await Promise.allSettled(
+      purchases.map(async (item) => {
         let purchaseData;
 
         if (platform === "ios") {
@@ -256,6 +272,8 @@ const restorePurchases = async (req, res, next) => {
             transactionId: result.transactionId,
             purchaseDate: result.purchaseDate,
             expiresDate: result.expiresDate,
+            environment: item.environment || result.environment,
+            isSandbox: item.isSandbox,
           };
         } else {
           // Android restore routing based on product type
@@ -277,9 +295,12 @@ const restorePurchases = async (req, res, next) => {
               platform: "android",
               productId: item.productId,
               purchaseToken: item.purchaseToken,
+              transactionId: result.orderId || item.transactionId,
               orderId: result.orderId,
               purchaseDate: parseInt(result.purchaseTimeMillis) || Date.now(),
               expiresDate: null,
+              environment: item.environment || (result.orderId?.includes("MOCK") ? "sandbox" : "production"),
+              isSandbox: item.isSandbox !== undefined ? item.isSandbox : (result.orderId?.includes("MOCK") || false),
             };
           } else {
             const result = await googleService.verifySubscription(
@@ -291,9 +312,12 @@ const restorePurchases = async (req, res, next) => {
               platform: "android",
               productId: item.productId,
               purchaseToken: item.purchaseToken,
+              transactionId: result.orderId || item.transactionId,
               orderId: result.orderId,
               purchaseDate: parseInt(result.startTimeMillis),
               expiresDate: parseInt(result.expiryTimeMillis),
+              environment: item.environment || (result.orderId?.includes("MOCK") ? "sandbox" : "production"),
+              isSandbox: item.isSandbox !== undefined ? item.isSandbox : (result.orderId?.includes("MOCK") || false),
             };
           }
         }
@@ -301,16 +325,24 @@ const restorePurchases = async (req, res, next) => {
         const result = await subscriptionService.handlePurchase(purchaseData);
 
         if (result.type === "SUBSCRIPTION") {
-          restoredItems.push({
+          return {
             productId: item.productId,
             status: result.subscription.status,
             expiresAt: result.subscription.expiresAt,
-          });
+          };
         }
-      } catch (err) {
-        logger.warn(`Failed to restore item ${item.productId}: ${err.message}`);
+        return null;
+      }),
+    );
+
+    const restoredItems = [];
+    settled.forEach((outcome, idx) => {
+      if (outcome.status === "fulfilled") {
+        if (outcome.value) restoredItems.push(outcome.value);
+      } else {
+        logger.warn(`Failed to restore item ${purchases[idx]?.productId}: ${outcome.reason?.message}`);
       }
-    }
+    });
 
     // v3: Fetch full status after restoration
     const fullStatus = await UsageService.getUsageStatus(userId);
@@ -354,7 +386,7 @@ const getStatus = async (req, res, next) => {
 const getCatalog = async (req, res, next) => {
   try {
     const [products, config] = await Promise.all([
-      Product.find({ isActive: true }).sort({ sortOrder: 1 }),
+      Product.find({ isActive: true, productKey: { $ne: "premium_1month_trial" } }).sort({ sortOrder: 1 }),
       SubscriptionConfig.getOrCreate(),
     ]);
 
@@ -402,30 +434,43 @@ const getCatalog = async (req, res, next) => {
       success: true,
       message: "Catalog fetched",
       data: {
-        subscriptions: subscriptions.map((sub) => ({
-          ...sub.toObject(),
-          features,
-          allocations: {
-            likes: config.premiumLimits.swipesPerDay, // -1 = Unlimited
-            superKeens: config.premiumLimits.superKeensPerDay,
-            boosts: config.premiumLimits.boostsPerMonth,
-            rewinds: config.premiumLimits.rewindsPerDay, // -1 = Unlimited
-          },
-        })),
+        subscriptions: subscriptions.map((sub) => {
+          const subObj = sub.toObject();
+          delete subObj.badgeColor;
+          delete subObj.badgeText;
+          delete subObj.features;
+
+          return {
+            ...subObj,
+            allocations: {
+              likes: config.premiumLimits.swipesPerDay, // -1 = Unlimited
+              superKeens: config.premiumLimits.superKeensPerDay,
+              boosts: config.premiumLimits.boostsPerMonth,
+              rewinds: config.premiumLimits.rewindsPerDay, // -1 = Unlimited
+            },
+          };
+        }),
         consumables: {
           superKeens: consumables
             .filter((c) => c.consumableType === "SUPER_KEEN")
-            .map((c) => c.toObject()),
+            .map((c) => {
+              const cObj = c.toObject();
+              delete cObj.badgeColor;
+              delete cObj.badgeText;
+              delete cObj.features;
+              return cObj;
+            }),
           boosts: consumables
             .filter((c) => c.consumableType === "BOOST")
-            .map((c) => c.toObject()),
+            .map((c) => {
+              const cObj = c.toObject();
+              delete cObj.badgeColor;
+              delete cObj.badgeText;
+              delete cObj.features;
+              return cObj;
+            }),
         },
-        milestone: {
-          target: config.milestone.targetUserCount,
-          currentCount: config.milestone.currentCount,
-          isActive: config.milestone.isActive,
-        },
-        freeFeatures,
+        // freeFeatures,
         PremiumFeatures: allDynamicFeatures // Dynamic features with full metadata
       },
     });
@@ -520,8 +565,9 @@ const getStats = async (req, res, next) => {
 
     const totalSubscribers = await Subscription.countDocuments();
 
-    const todayStart = new Date();
-    todayStart.setHours(0, 0, 0, 0);
+    // Calendar-day boundary resolved against Australia/Sydney (APP_TZ),
+    // not server-local/UTC time — see common/utils/time.js.
+    const todayStart = startOfDay();
 
     const todayNew = await Subscription.countDocuments({
       createdAt: { $gte: todayStart },
@@ -1063,8 +1109,8 @@ const getRevenueAnalytics = async (req, res, next) => {
     } else {
       switch (period) {
         case "today":
-          start = new Date();
-          start.setHours(0, 0, 0, 0);
+          // Calendar-day boundary resolved against Australia/Sydney (APP_TZ) — see common/utils/time.js.
+          start = startOfDay();
           break;
         case "week":
           start = new Date();
@@ -1310,21 +1356,21 @@ const getAtRiskUsers = async (req, res, next) => {
     const totalPages = Math.ceil(total / limitNum);
 
     const enrichedUsers = await Promise.all(users.map(async u => ({
-        userId: u.userId,
-        plan: u.planType,
-        displayName: await productDisplayHelper.resolveDisplayName(u.productId, u.customDisplayName, u.source),
-        platform: u.platform,
-        retryCount: u.retryCount,
-        gracePeriodEndsAt: u.gracePeriodEndsAt,
-        daysRemaining: Math.max(
-          0,
-          Math.ceil(
-            (new Date(u.gracePeriodEndsAt) - new Date()) /
-            (1000 * 60 * 60 * 24),
-          ),
+      userId: u.userId,
+      plan: u.planType,
+      displayName: await productDisplayHelper.resolveDisplayName(u.productId, u.customDisplayName, u.source),
+      platform: u.platform,
+      retryCount: u.retryCount,
+      gracePeriodEndsAt: u.gracePeriodEndsAt,
+      daysRemaining: Math.max(
+        0,
+        Math.ceil(
+          (new Date(u.gracePeriodEndsAt) - new Date()) /
+          (1000 * 60 * 60 * 24),
         ),
-        startedAt: u.startedAt,
-      })));
+      ),
+      startedAt: u.startedAt,
+    })));
 
     return res.json({
       success: true,

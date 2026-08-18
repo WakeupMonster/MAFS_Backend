@@ -22,7 +22,8 @@ const MasterDataSchema = new mongoose.Schema({
   label: { type: String, required: true },
   value: { type: String, required: true }, // Isse hum "id" ki tarah response mein bhejenge
   subtitle: { type: String, default: null }, // Specifically for Relationship Goals
-  link: { type: String, default: null }
+  link: { type: String, default: null },
+  order: { type: Number, default: 0 } // Display order control within category
 });
 
 module.exports = mongoose.model("MasterData", MasterDataSchema);

@@ -12,8 +12,11 @@ const appleWebhook = async (req, res) => {
   try {
     const hash = generatePayloadHash(req.body);
 
-    // v3: Verify signature (True Production mode)
-    const decoded = await appleService.verifyAndDecodeJWS(req.body.signedPayload);
+    // Reuse the payload already decoded/verified by verifyAppleWebhook
+    // middleware when present; fall back to decoding here for cases where
+    // the middleware skipped verification (e.g. dev mode) so this handler
+    // still works standalone.
+    const decoded = req.appleDecodedPayload || (await appleService.verifyAndDecodeJWS(req.body.signedPayload));
 
     let event;
     try {
@@ -213,12 +216,6 @@ const googleWebhook = async (req, res) => {
     return res.status(500).send("Error");
   }
 };
-
-
-
-
-
-
 async function _processGoogleWebhook(notification, eventName, event, isConsumable = false) {
   try {
     let data;

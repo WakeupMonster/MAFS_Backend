@@ -2,7 +2,7 @@ const cron = require("node-cron");
 const runPremiumExpiryReminderJob = require("./premiumExpiryReminder.job");
 
 // Safe Timezone check
-let TZ = "Asia/Kolkata";
+let TZ = process.env.APP_TIMEZONE || "Australia/Sydney";
 try {
   Intl.DateTimeFormat(undefined, { timeZone: TZ });
 } catch (e) {

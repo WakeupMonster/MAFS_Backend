@@ -1,6 +1,6 @@
 const User = require("../auth/auth.model");
 const BlockedContact = require("./blockedContacts.model");
-const { normalizePhone, hashPhone } = require("../../common/utils/phone.util");
+const { normalizePhone, hashPhone, generatePhoneHashes } = require("../../common/utils/phone.util");
 const redis = require("../../config/cache");
 
 exports.importContacts = async (req, res) => {
@@ -68,10 +68,23 @@ exports.blockContacts = async (req, res) => {
     });
   }
 
+  // Prevent self-blocking: filter out user's own phone number
+  const currentUser = await User.findById(userId).select("phone phoneHash").lean();
+  if (currentUser) {
+    const myPhoneHashes = new Set(
+      currentUser.phone ? generatePhoneHashes(currentUser.phone) : (currentUser.phoneHash ? [currentUser.phoneHash] : [])
+    );
+    for (let i = parsed.length - 1; i >= 0; i--) {
+      if (myPhoneHashes.has(parsed[i].hash)) {
+        parsed.splice(i, 1);
+      }
+    }
+  }
+
   if (!parsed.length) {
     return res
       .status(400)
-      .json({ success: false, message: "No valid contacts provided" });
+      .json({ success: false, message: "Cannot block your own number or no valid contacts provided" });
   }
 
   const hashes = parsed.map((p) => p.hash);
@@ -100,7 +113,25 @@ exports.blockContacts = async (req, res) => {
 
   await BlockedContact.insertMany(newDocs, { ordered: false }).catch(() => { });
 
-  if (redis) await redis.del(`feed:${userId.toString()}`);
+  if (redis) {
+    const ops = [
+      redis.del(`feed:${userId.toString()}`),
+      redis.del(`feed:exclude:${userId.toString()}`)
+    ];
+    
+    // Mutual exclusion: Clear cache for the users who were just blocked
+    let allPossibleHashes = [];
+    for (const p of parsed) {
+      allPossibleHashes.push(...generatePhoneHashes(p.phone));
+    }
+    const usersToClear = await User.find({ phoneHash: { $in: allPossibleHashes } }).select('_id').lean();
+    for (const u of usersToClear) {
+      ops.push(redis.del(`feed:${u._id.toString()}`));
+      ops.push(redis.del(`feed:exclude:${u._id.toString()}`));
+    }
+    
+    await Promise.all(ops);
+  }
 
   res.json({
     success: true,
@@ -140,7 +171,25 @@ module.exports.unblockByPhone = async (req, res) => {
     return res.json({ success: true, message: "Contact is not blocked" });
   }
 
-  if (redis) await redis.del(`feed:${userId.toString()}`);
+  if (redis) {
+    const ops = [
+      redis.del(`feed:${userId.toString()}`),
+      redis.del(`feed:exclude:${userId.toString()}`)
+    ];
+    
+    // Mutual exclusion: Clear cache for the user who was just unblocked
+    const possibleHashes = generatePhoneHashes(normalized);
+    const usersToClear = await User.find({ phoneHash: { $in: possibleHashes } }).select('_id').lean();
+    for (const u of usersToClear) {
+      ops.push(redis.del(`feed:${u._id.toString()}`));
+      ops.push(redis.del(`feed:exclude:${u._id.toString()}`));
+      // Also remove them from feed:seen so they reappear immediately
+      ops.push(redis.sRem(`feed:seen:${userId.toString()}`, u._id.toString()));
+      ops.push(redis.sRem(`feed:seen:${u._id.toString()}`, userId.toString()));
+    }
+    
+    await Promise.all(ops);
+  }
 
   res.json({ success: true, message: "Contact unblocked successfully" });
 };
@@ -162,15 +211,35 @@ exports.unblockUser = async (req, res) => {
       });
     }
 
-    const result = await BlockedContact.deleteOne({
-      _id: blockedId, // who should be unblocked
-    });
-
-    if (result.deletedCount === 0) {
+    const blockedDoc = await BlockedContact.findById(blockedId).lean();
+    if (!blockedDoc) {
       return res.json({
         success: true,
         message: "Contact is not blocked",
       });
+    }
+
+    await BlockedContact.deleteOne({
+      _id: blockedId, // who should be unblocked
+    });
+
+    if (redis) {
+      const ops = [
+        redis.del(`feed:${req.user._id.toString()}`),
+        redis.del(`feed:exclude:${req.user._id.toString()}`)
+      ];
+      
+      const possibleHashes = blockedDoc.blockedPhone ? generatePhoneHashes(blockedDoc.blockedPhone) : [blockedDoc.blockedPhoneHash];
+      const usersToClear = await User.find({ phoneHash: { $in: possibleHashes } }).select('_id').lean();
+      for (const u of usersToClear) {
+        ops.push(redis.del(`feed:${u._id.toString()}`));
+        ops.push(redis.del(`feed:exclude:${u._id.toString()}`));
+        // Reappear in feed
+        ops.push(redis.sRem(`feed:seen:${req.user._id.toString()}`, u._id.toString()));
+        ops.push(redis.sRem(`feed:seen:${u._id.toString()}`, req.user._id.toString()));
+      }
+      
+      await Promise.all(ops);
     }
 
     res.json({

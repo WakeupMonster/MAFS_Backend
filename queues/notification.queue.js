@@ -1,8 +1,14 @@
 const { Queue } = require('bullmq');
-const { redisClient } = require('../config/cache'); // Aapka existing redis file
 
+// BullMQ needs an ioredis-shaped {host, port} config — node-redis's
+// `.options` is {url, socket} and gets silently ignored by ioredis,
+// which then falls back to localhost:6379 with no auth. Same pattern
+// already used correctly in workers/notification.worker.js.
 const notificationQueue = new Queue('notification-queue', {
-  connection: redisClient.options // BullMQ ko redis ka connection de rahe hain
+  connection: {
+    host: process.env.REDIS_HOST || '127.0.0.1',
+    port: Number(process.env.REDIS_PORT) || 6379,
+  }
 });
 
 const addNotificationJob = async (type, data) => {

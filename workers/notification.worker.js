@@ -57,10 +57,13 @@ const worker = new Worker('notification-queue', async (job) => {
                 await notificationService.sendNewMatchNotification(data.userId1, data.userId2);
                 break;
             case NOTIFICATION_TYPES.NEW_MESSAGE:
-                await notificationService.sendNewMessageNotification(data.senderId, data.receiverId, data.messageText);
+                await notificationService.sendNewMessageNotification(data.senderId, data.receiverId, data.messageText, data.matchId, data.messageId);
                 break;
             case NOTIFICATION_TYPES.NEW_LIKE:
                 await notificationService.sendLikeNotification(data.senderId, data.receiverId);
+                break;
+            case NOTIFICATION_TYPES.NEW_SUPER_LIKE:
+                await notificationService.sendSuperLikeNotification(data.senderId, data.receiverId);
                 break;
             case NOTIFICATION_TYPES.GIVEAWAY_WINNER:
                 await notificationService.sendGiveawayWinnerNotification(data.userId, data.prizeTitle);

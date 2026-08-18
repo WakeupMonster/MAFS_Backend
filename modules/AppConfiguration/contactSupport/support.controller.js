@@ -303,6 +303,7 @@ module.exports.getAllTickets = async (req, res) => {
 //     });
 //   }
 // };
+
 module.exports.getMyTicketById = async (req, res) => {
   try {
     const { ticketId } = req.params;
@@ -476,14 +477,14 @@ module.exports.replyToTicket = async (req, res) => {
           <div style="margin-top: 20px; border-top: 1px solid #eee; padding-top: 15px;">
             <p style="font-size: 13px; font-weight: bold; color: #666; margin-bottom: 8px;">ATTACHMENTS:</p>
             ${ticket.adminAttachments
-              .map(
-                (file, idx) => `
+            .map(
+              (file, idx) => `
               <a href="${file.url}" target="_blank" style="display: inline-block; margin-right: 10px; padding: 5px 12px; background: #f0f4f8; border-radius: 6px; text-decoration: none; color: #00adef; font-size: 12px; font-weight: bold;">
                 View Attachment ${idx + 1}
               </a>
             `,
-              )
-              .join("")}
+            )
+            .join("")}
           </div>
         `;
       }
@@ -493,11 +494,11 @@ module.exports.replyToTicket = async (req, res) => {
         reply,
         attachmentsHtml,
       });
-      try {
-        await sendEmail(ticket.userId.email, emailSubject, emailHtml);
-      } catch (emailErr) {
+      
+      // 🚀 Fire and forget: don't block the admin API response
+      sendEmail(ticket.userId.email, emailSubject, emailHtml).catch(emailErr => {
         console.error("Email sending failed for ticket reply:", emailErr);
-      }
+      });
     }
 
     return res.json({

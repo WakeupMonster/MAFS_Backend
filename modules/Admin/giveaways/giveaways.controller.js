@@ -847,15 +847,27 @@ module.exports.markPrizeAsDelivered = async (req, res) => {
 
     console.log(prize.title, "prize title");
 
-    winHistory.deliveryStatus = "DELIVERED";
-    winHistory.deliveredAt = new Date();
+    const updatePayload = {
+      deliveryStatus: "DELIVERED",
+      deliveredAt: new Date(),
+    };
+    if (actualDeliveredValue) updatePayload.actualDeliveredValue = actualDeliveredValue;
+    if (couponCode) updatePayload.couponCode = couponCode.trim();
+    if (giftCardExpiryDate) updatePayload.giftCardExpiryDate = giftCardExpiryDate;
 
-    if (actualDeliveredValue)
-      winHistory.actualDeliveredValue = actualDeliveredValue;
-    if (couponCode) winHistory.couponCode = couponCode.trim();
-    if (giftCardExpiryDate) winHistory.giftCardExpiryDate = giftCardExpiryDate;
+    // 🔒 Atomic Update Guard: Prevents double-send from concurrent requests (Double-click)
+    const updatedWinHistory = await GiveawayWinHistory.findOneAndUpdate(
+      { _id: winHistoryId, deliveryStatus: { $ne: "DELIVERED" } },
+      { $set: updatePayload },
+      { new: true }
+    );
 
-    await winHistory.save();
+    if (!updatedWinHistory) {
+       return res.status(400).json({ success: false, message: "Prize already delivered or currently processing" });
+    }
+    
+    // Assign back to winHistory so remaining email/notification logic has the updated fields
+    Object.assign(winHistory, updatedWinHistory.toObject());
 
     await notificationService.sendPrizeDeliveredNotification(winHistory.userId);
 
@@ -1130,7 +1142,10 @@ module.exports.getPendingDeliveries = async (req, res) => {
 
 module.exports.getDeliveredPrizes = async (req, res) => {
   try {
-    const records = await GiveawayWinHistory.find({
+    const page = req.query.page ? parseInt(req.query.page) : null;
+    const limit = req.query.limit ? parseInt(req.query.limit) : 10;
+
+    let query = GiveawayWinHistory.find({
       deliveryStatus: "DELIVERED",
     })
       .populate("userId", "phone email")
@@ -1138,6 +1153,24 @@ module.exports.getDeliveredPrizes = async (req, res) => {
       .populate("prizeId", "title value")
       .sort({ deliveredAt: -1 });
 
+    if (page !== null) {
+      const skip = (page - 1) * limit;
+      const total = await GiveawayWinHistory.countDocuments({ deliveryStatus: "DELIVERED" });
+      const records = await query.skip(skip).limit(limit);
+
+      return res.json({
+        success: true,
+        pagination: {
+          totalItems: total,
+          page,
+          limit,
+          totalPages: Math.ceil(total / limit)
+        },
+        data: records,
+      });
+    }
+
+    const records = await query;
     res.json({
       success: true,
       count: records.length,
@@ -1154,12 +1187,33 @@ module.exports.getDeliveredPrizes = async (req, res) => {
 
 module.exports.getAllClaims = async (req, res) => {
   try {
-    const records = await GiveawayWinHistory.find()
+    const page = req.query.page ? parseInt(req.query.page) : null;
+    const limit = req.query.limit ? parseInt(req.query.limit) : 10;
+
+    let query = GiveawayWinHistory.find()
       .populate("userId", "phone email")
       .populate("campaignId", "date")
       .populate("prizeId", "title value")
       .sort({ createdAt: -1 });
 
+    if (page !== null) {
+      const skip = (page - 1) * limit;
+      const total = await GiveawayWinHistory.countDocuments();
+      const records = await query.skip(skip).limit(limit);
+
+      return res.json({
+        success: true,
+        pagination: {
+          totalItems: total,
+          page,
+          limit,
+          totalPages: Math.ceil(total / limit)
+        },
+        data: records,
+      });
+    }
+
+    const records = await query;
     res.json({
       success: true,
       count: records.length,
@@ -1185,12 +1239,33 @@ module.exports.getGiveawayAuditReport = async (req, res) => {
       };
     }
 
-    const records = await GiveawayWinHistory.find(filter)
+    const page = req.query.page ? parseInt(req.query.page) : null;
+    const limit = req.query.limit ? parseInt(req.query.limit) : 10;
+
+    let query = GiveawayWinHistory.find(filter)
       .populate("userId", "phone email")
       .populate("campaignId", "date")
       .populate("prizeId", "title value")
       .sort({ createdAt: -1 });
 
+    if (page !== null) {
+      const skip = (page - 1) * limit;
+      const total = await GiveawayWinHistory.countDocuments(filter);
+      const records = await query.skip(skip).limit(limit);
+
+      return res.json({
+        success: true,
+        pagination: {
+          totalItems: total,
+          page,
+          limit,
+          totalPages: Math.ceil(total / limit)
+        },
+        data: records,
+      });
+    }
+
+    const records = await query;
     res.json({
       success: true,
       totalRecords: records.length,
@@ -1221,6 +1296,31 @@ module.exports.bulkCreateCampaignByRanges = async (req, res) => {
 
     const campaignsToInsert = [];
     const skippedDates = [];
+
+    // PRE-FETCH EXISTING CAMPAIGNS FOR THE ENTIRE BULK DATE RANGE TO PREVENT N+1 LOOP QUERIES
+    let minStart = null;
+    let maxEnd = null;
+    for (const range of ranges) {
+      const s = dayjs.tz(range.startDate, CURRENT_TZ).startOf("day").toDate();
+      const e = dayjs.tz(range.endDate, CURRENT_TZ).endOf("day").toDate();
+      if (!minStart || s < minStart) minStart = s;
+      if (!maxEnd || e > maxEnd) maxEnd = e;
+    }
+
+    let existingCampaignDates = [];
+    if (minStart && maxEnd) {
+      const existingCampaigns = await GiveawayCampaign.find({
+        date: { $gte: minStart, $lte: maxEnd }
+      }).select("date").lean();
+      existingCampaignDates = existingCampaigns.map(c => c.date.getTime());
+    }
+
+    const hasCampaignInWeek = (date, existingDates) => {
+      const { weekStart, weekEnd } = getWeekBoundaries(date);
+      const startT = weekStart.getTime();
+      const endT = weekEnd.getTime();
+      return existingDates.some(t => t >= startT && t <= endT);
+    };
 
     for (const range of ranges) {
       const { startDate, endDate, prizeId, supportiveItems } = range;
@@ -1276,10 +1376,8 @@ module.exports.bulkCreateCampaignByRanges = async (req, res) => {
         const { weekStart: bulkWeekStart, weekEnd: bulkWeekEnd } =
           getWeekBoundaries(campaignDate);
 
-        // Check DB for existing campaign in this week
-        const existsInWeekDB = await GiveawayCampaign.findOne({
-          date: { $gte: bulkWeekStart, $lte: bulkWeekEnd },
-        }).lean();
+        // Check memory cache for existing campaign in this week (Prevents N+1 DB Queries)
+        const existsInWeekDB = hasCampaignInWeek(campaignDate, existingCampaignDates);
 
         // Also check if we already queued a campaign for this week in the current batch
         const existsInBatch = campaignsToInsert.some((c) => {
@@ -1665,7 +1763,7 @@ module.exports.getCampaignWinners = async (req, res) => {
             { $count: "count" },
           ],
           pending: [
-            { $match: { drawStatus: { $in: ["REVEALED"] } } },
+            { $match: { drawStatus: { $in: ["PENDING"] } } },
             { $count: "count" },
           ],
           withWinner: [

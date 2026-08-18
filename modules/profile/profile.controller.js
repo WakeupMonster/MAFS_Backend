@@ -6,6 +6,8 @@ const redis = require("../../config/cache");
 const User = require("../auth/auth.model");
 const BlockedContact = require("../BlockedContact/blockedContacts.model");
 const Block = require("../profile/user.block");
+const { Match } = require("../matches/swipe/swipe.model");
+const Swipe = require("../matches/swipe/swipe.model");
 const { formatProfileResponse } = require("./profile.formatter");
 const UserSubscription = require("../auth/UserSubscription.model");
 const { formatPublictargetProfile } = require("./profile.userFormatter");
@@ -14,6 +16,7 @@ const {
 } = require("../../common/utils/onBoardingSteps");
 const getFormattedUser = require("../../common/utils/getFormattedUser");
 const { getMasterDataMap } = require("../../common/utils/masterData.util");
+const { calculateAge } = require("../../common/utils/calculate.age");
 const mongoose = require('mongoose');
 
 async function getFullUserData(userId, existingProfile = null) {
@@ -56,6 +59,8 @@ async function clearProfileCache(userId) {
       cache.del(`profile:${userId}`),
       cache.del(`profile:status:${userId}`),
       cache.del(`profile:static:${userId}`),
+      cache.del(`feed:${userId}`),
+      cache.del(`feed:exclude:${userId}`),
     ]);
   } catch (err) {
     console.log("Cache clear warning:", err.message);
@@ -76,11 +81,12 @@ exports.updateProfile = async (req, res) => {
     if (updateData.profile) {
       const p = updateData.profile;
 
-      // DOB Age validation (18+)
+      // DOB Age validation (18+) — calendar-accurate, resolved against
+      // Australia/Sydney "today" (see common/utils/time.js), not a fixed-ms divisor.
       if (p.dob) {
         const parsedDate = new Date(p.dob).getTime();
         if (!isNaN(parsedDate)) {
-          const age = Math.floor((Date.now() - parsedDate) / 31557600000);
+          const age = calculateAge(p.dob);
           if (age < 18) {
             return res.status(400).json({
               success: false,
@@ -184,6 +190,33 @@ exports.updateProfile = async (req, res) => {
           : [disc.showMeGender];
     }
 
+    if (updateData.onboarding || updateData.nextstep !== undefined || updateData.currentScreenSlug !== undefined || updateData.isComplete !== undefined) {
+      const ob = updateData.onboarding || {};
+      const nextstep = ob.nextstep !== undefined ? ob.nextstep : updateData.nextstep;
+      const currentScreenSlug = ob.currentScreenSlug !== undefined ? ob.currentScreenSlug : updateData.currentScreenSlug;
+      const isComplete = ob.isComplete !== undefined ? ob.isComplete : updateData.isComplete;
+      
+      console.log("=== /update API: onboarding data received ===", { nextstep, currentScreenSlug, isComplete });
+
+      profile.onboarding = profile.onboarding || {};
+      if (isComplete !== undefined) {
+        let parsedIsComplete = isComplete;
+        if (typeof isComplete === 'string') parsedIsComplete = isComplete.toLowerCase() === 'true';
+        if (typeof isComplete === 'number') parsedIsComplete = isComplete === 1;
+        profile.onboarding.isComplete = parsedIsComplete;
+      }
+      if (nextstep !== undefined) profile.onboarding.nextstep = nextstep;
+      if (currentScreenSlug !== undefined) profile.onboarding.currentScreenSlug = currentScreenSlug;
+      profile.onboarding.updatedAt = new Date();
+      
+      // FORCE COMPLETE LOGIC: Never allow false if 11 steps & URLs are present
+      if (profile.onboarding.nextstep >= 11 && profile.verification?.selfieUrl && profile.verification?.docUrl) {
+        profile.onboarding.isComplete = true;
+      }
+      
+      profile.markModified('onboarding');
+    }
+
     profile.lastProfileUpdate = new Date();
     await profile.save();
 
@@ -253,7 +286,7 @@ exports.getMyProfile = async (req, res) => {
 
     res.json({
       success: true,
-      message: "Profile fetched successfull.",
+      message: "Profile fetched successfull..",
       data: { user: await formatProfileResponse(data.user, data.profile, data.blockedContacts, data.blockedUser, data.subData, req) }
     });
   } catch (err) {
@@ -283,35 +316,98 @@ exports.uploadPhotos = async (req, res) => {
       uploadStream(file.buffer, {
         folder: `mafs/users/${userId}/photos`,
         transformation: [
-          { width: 1080, height: 1350, crop: "fill", quality: "auto:good" },
+          { width: 1080, height: 1350, crop: "fill", quality: 80 },
         ],
       }),
     );
 
     const newPhotosResults = await Promise.all(uploadPromises);
 
-    newPhotosResults.forEach((result, index) => {
-      profile.photos.push({
-        url: result.secure_url,
-        publicId: result.public_id,
-        width: result.width,
-        height: result.height,
-        format: result.format,
-        bytes: result.bytes,
-        uploadedAt: new Date(),
-        order: profile.photos.length + 1,
-        isPrimary: profile.photos.length === 0 && index === 0,
+    let { nextstep, currentScreenSlug, isComplete, onboarding } = req.body;
+    if (onboarding) {
+      try {
+        const ob = typeof onboarding === 'string' ? JSON.parse(onboarding) : onboarding;
+        if (ob.nextstep !== undefined) nextstep = ob.nextstep;
+        if (ob.currentScreenSlug !== undefined) currentScreenSlug = ob.currentScreenSlug;
+        if (ob.isComplete !== undefined) isComplete = ob.isComplete;
+      } catch (e) {
+        console.error("Failed to parse onboarding JSON from photos FormData");
+      }
+    }
+    console.log("=== /photos API: onboarding data received ===", { nextstep, currentScreenSlug, isComplete });
+
+    const hasOnboardingUpdate = !!(nextstep || currentScreenSlug || isComplete !== undefined);
+
+    // RACE FIX: manual version-checked update so two concurrent requests for the same user
+    // (e.g. upload + delete + reorder firing together from two devices) can't silently
+    // overwrite each other's photos array — the losing attempt refetches fresh state and
+    // retries instead of clobbering data. Cloudinary upload already happened above and is
+    // NOT repeated on retry. NOTE: Mongoose's default __v is only used for atomic array ops,
+    // not full-document saves, so we check/increment __v ourselves via a conditional updateOne.
+    const MAX_SAVE_ATTEMPTS = 3;
+    let saved = false;
+    for (let attempt = 1; attempt <= MAX_SAVE_ATTEMPTS; attempt++) {
+      profile = attempt === 1 ? profile : await Profile.findOne({ userId });
+      if (!profile) {
+        return res.status(404).json({ success: false, message: "Profile not found" });
+      }
+
+      if (profile.photos.length + newPhotosResults.length > 6) {
+        return res
+          .status(400)
+          .json({ success: false, message: `Maximum 6 photos allowed.` });
+      }
+
+      const originalVersion = profile.__v;
+
+      newPhotosResults.forEach((result, index) => {
+        profile.photos.push({
+          url: result.secure_url,
+          publicId: result.public_id,
+          width: result.width,
+          height: result.height,
+          format: result.format,
+          bytes: result.bytes,
+          uploadedAt: new Date(),
+          order: profile.photos.length + 1,
+          isPrimary: profile.photos.length === 0 && index === 0,
+        });
       });
-    });
 
-    //  if (!profile.onboarding.isComplete) {
-    //   const { nextstep, currentScreenSlug } = req.body;
-    //   profile.onboarding.nextstep = nextstep;
-    //   profile.onboarding.currentScreenSlug = currentScreenSlug;
-    //   profile.onboarding.updatedAt = new Date();
-    // }
+      const setFields = {
+        photos: profile.photos.map((p) => (p.toObject ? p.toObject() : p)),
+      };
 
-    await profile.save();
+      if (hasOnboardingUpdate) {
+        profile.onboarding = profile.onboarding || {};
+        if (nextstep) profile.onboarding.nextstep = nextstep;
+        if (currentScreenSlug) profile.onboarding.currentScreenSlug = currentScreenSlug;
+        if (isComplete !== undefined) {
+          profile.onboarding.isComplete = isComplete === 'true' || isComplete === true;
+        }
+        profile.onboarding.updatedAt = new Date();
+        setFields.onboarding = profile.onboarding.toObject ? profile.onboarding.toObject() : profile.onboarding;
+      }
+
+      const updateResult = await Profile.updateOne(
+        { _id: profile._id, __v: originalVersion },
+        { $set: setFields, $inc: { __v: 1 } },
+      );
+
+      if (updateResult.matchedCount === 1) {
+        saved = true;
+        break;
+      }
+      // matchedCount === 0 means someone else saved in between — loop refetches fresh
+    }
+
+    if (!saved) {
+      return res.status(409).json({
+        success: false,
+        message: "Could not save photos due to a conflicting update, please try again.",
+      });
+    }
+
     const [data, masterMap] = await Promise.all([
       getFullUserData(userId, profile),
       clearProfileCache(userId),
@@ -345,7 +441,7 @@ exports.deletePhoto = async (req, res) => {
   try {
     const userId = req.user._id;
     const { publicId } = req.body;
-    const profile = await Profile.findOne({ userId });
+    let profile = await Profile.findOne({ userId });
 
     const photoIndex = profile?.photos.findIndex(
       (p) => p.publicId === publicId,
@@ -356,13 +452,50 @@ exports.deletePhoto = async (req, res) => {
         .json({ success: false, message: "Photo not found" });
 
     await destroy(publicId);
-    profile.photos.splice(photoIndex, 1);
-    profile.photos.forEach((photo, index) => {
-      photo.order = index + 1;
-      photo.isPrimary = index === 0;
-    });
 
-    await profile.save();
+    // RACE FIX: manual version-checked update (see uploadPhotos for full rationale) so a
+    // concurrent upload/reorder on the same profile can't silently clobber this delete.
+    // destroy() already ran above and is NOT repeated on retry.
+    const MAX_SAVE_ATTEMPTS = 3;
+    let saved = false;
+    for (let attempt = 1; attempt <= MAX_SAVE_ATTEMPTS; attempt++) {
+      profile = attempt === 1 ? profile : await Profile.findOne({ userId });
+      if (!profile) {
+        return res.status(404).json({ success: false, message: "Photo not found" });
+      }
+
+      const idx = profile.photos.findIndex((p) => p.publicId === publicId);
+      if (idx === -1) {
+        // Already gone (deleted by a concurrent request) — desired end state achieved.
+        saved = true;
+        break;
+      }
+
+      const originalVersion = profile.__v;
+      profile.photos.splice(idx, 1);
+      profile.photos.forEach((photo, index) => {
+        photo.order = index + 1;
+        photo.isPrimary = index === 0;
+      });
+
+      const updateResult = await Profile.updateOne(
+        { _id: profile._id, __v: originalVersion },
+        { $set: { photos: profile.photos.map((p) => (p.toObject ? p.toObject() : p)) }, $inc: { __v: 1 } },
+      );
+
+      if (updateResult.matchedCount === 1) {
+        saved = true;
+        break;
+      }
+    }
+
+    if (!saved) {
+      return res.status(409).json({
+        success: false,
+        message: "Could not delete photo due to a conflicting update, please try again.",
+      });
+    }
+
     const data = await getFullUserData(userId, profile);
     await clearProfileCache(userId);
 
@@ -410,7 +543,7 @@ exports.reorderPhotos = async (req, res) => {
     }
 
     // ✅ 3. Profile find karo
-    const profile = await Profile.findOne({ userId });
+    let profile = await Profile.findOne({ userId });
     if (!profile) {
       return res.status(404).json({
         success: false,
@@ -418,50 +551,82 @@ exports.reorderPhotos = async (req, res) => {
       });
     }
 
-    // ✅ 4. Position photos count se zyada toh nahi
-    if (position > profile.photos.length) {
-      return res.status(400).json({
-        success: false,
-        message: `toPosition cannot be greater than ${profile.photos.length}`,
-      });
+    // RACE FIX: manual version-checked update (see uploadPhotos for full rationale) so a
+    // concurrent upload/delete on the same profile can't silently clobber this reorder.
+    // All validation is re-checked against the freshly-fetched doc on every attempt.
+    const MAX_SAVE_ATTEMPTS = 3;
+    let saved = false;
+    for (let attempt = 1; attempt <= MAX_SAVE_ATTEMPTS; attempt++) {
+      profile = attempt === 1 ? profile : await Profile.findOne({ userId });
+      if (!profile) {
+        return res.status(404).json({
+          success: false,
+          message: "Profile not found",
+        });
+      }
+
+      // ✅ 4. Position photos count se zyada toh nahi
+      if (position > profile.photos.length) {
+        return res.status(400).json({
+          success: false,
+          message: `toPosition cannot be greater than ${profile.photos.length}`,
+        });
+      }
+
+      // ✅ 5. Photo find karo — current index nikalo
+      const currentIndex = profile.photos.findIndex(
+        (p) => p.publicId.toString() === cleanedPhotoId,
+      );
+
+      if (currentIndex === -1) {
+        return res.status(400).json({
+          success: false,
+          message: "Photo not found in profile",
+        });
+      }
+
+      const newIndex = position - 1; // position 1 = index 0
+
+      // ✅ 6. Same position pe hai toh kuch mat karo
+      if (currentIndex === newIndex) {
+        return res.status(400).json({
+          success: false,
+          message: "Photo is already at this position",
+        });
+      }
+
+      // ✅ 7. INSERT LOGIC — NIKALO aur DAALO
+      const photosArray = [...profile.photos];
+      const [movedPhoto] = photosArray.splice(currentIndex, 1); // NIKALO
+      photosArray.splice(newIndex, 0, movedPhoto); // DAALO
+
+      // ✅ 8. Order aur isPrimary update karo
+      const updatedPhotos = photosArray.map((photo, index) => ({
+        ...photo.toObject(),
+        order: index + 1,
+        isPrimary: index === 0,
+      }));
+
+      profile.photos = updatedPhotos;
+
+      const originalVersion = profile.__v;
+      const updateResult = await Profile.updateOne(
+        { _id: profile._id, __v: originalVersion },
+        { $set: { photos: updatedPhotos }, $inc: { __v: 1 } },
+      );
+
+      if (updateResult.matchedCount === 1) {
+        saved = true;
+        break;
+      }
     }
 
-    // ✅ 5. Photo find karo — current index nikalo
-    const currentIndex = profile.photos.findIndex(
-      (p) => p.publicId.toString() === cleanedPhotoId,
-    );
-
-    if (currentIndex === -1) {
-      return res.status(400).json({
+    if (!saved) {
+      return res.status(409).json({
         success: false,
-        message: "Photo not found in profile",
+        message: "Could not reorder photos due to a conflicting update, please try again.",
       });
     }
-
-    const newIndex = position - 1; // position 1 = index 0
-
-    // ✅ 6. Same position pe hai toh kuch mat karo
-    if (currentIndex === newIndex) {
-      return res.status(400).json({
-        success: false,
-        message: "Photo is already at this position",
-      });
-    }
-
-    // ✅ 7. INSERT LOGIC — NIKALO aur DAALO
-    const photosArray = [...profile.photos];
-    const [movedPhoto] = photosArray.splice(currentIndex, 1); // NIKALO
-    photosArray.splice(newIndex, 0, movedPhoto); // DAALO
-
-    // ✅ 8. Order aur isPrimary update karo
-    const updatedPhotos = photosArray.map((photo, index) => ({
-      ...photo.toObject(),
-      order: index + 1,
-      isPrimary: index === 0,
-    }));
-
-    profile.photos = updatedPhotos;
-    await profile.save();
 
     // ✅ 9. Response
     const [data] = await Promise.all([
@@ -577,14 +742,34 @@ exports.uploadSelfie = async (req, res) => {
       transformation: [{ width: 600, height: 600, crop: "fill" }]
     });
 
+    let { nextstep, currentScreenSlug, isComplete, onboarding } = req.body;
+    if (onboarding) {
+      try {
+        const ob = typeof onboarding === 'string' ? JSON.parse(onboarding) : onboarding;
+        if (ob.nextstep !== undefined) nextstep = ob.nextstep;
+        if (ob.currentScreenSlug !== undefined) currentScreenSlug = ob.currentScreenSlug;
+        if (ob.isComplete !== undefined) isComplete = ob.isComplete;
+      } catch (e) {
+        console.error("Failed to parse onboarding JSON from selfie FormData");
+      }
+    }
+    console.log("=== /selfie API: onboarding data received ===", { nextstep, currentScreenSlug, isComplete });
+    let updateOps = {
+      "verification.selfieUrl": result.secure_url,
+      "verification.status": "pending"
+    };
+    if (nextstep) updateOps["onboarding.nextstep"] = nextstep;
+    if (currentScreenSlug) updateOps["onboarding.currentScreenSlug"] = currentScreenSlug;
+    if (isComplete !== undefined) {
+      updateOps["onboarding.isComplete"] = isComplete === 'true' || isComplete === true;
+    }
+    if (nextstep || currentScreenSlug || isComplete !== undefined) {
+      updateOps["onboarding.updatedAt"] = new Date();
+    }
+
     const profile = await Profile.findOneAndUpdate(
       { userId },
-      {
-        $set: {
-          "verification.selfieUrl": result.secure_url,
-          "verification.status": "pending"
-        }
-      },
+      { $set: updateOps },
       { new: true, upsert: true }
     );
     await clearProfileCache(userId);
@@ -609,15 +794,36 @@ exports.uploadIDDocument = async (req, res) => {
       folder: `mafs/users/${userId}/kyc`
     });
 
+    let { nextstep, currentScreenSlug, isComplete, onboarding } = req.body;
+    console.log("=== /id-document API FULL req.body ===", req.body);
+    if (onboarding) {
+      try {
+        const ob = typeof onboarding === 'string' ? JSON.parse(onboarding) : onboarding;
+        if (ob.nextstep !== undefined) nextstep = ob.nextstep;
+        if (ob.currentScreenSlug !== undefined) currentScreenSlug = ob.currentScreenSlug;
+        if (ob.isComplete !== undefined) isComplete = ob.isComplete;
+      } catch (e) {
+        console.error("Failed to parse onboarding JSON from id-document FormData");
+      }
+    }
+    console.log("=== /id-document API: onboarding data extracted ===", { nextstep, currentScreenSlug, isComplete });
+    let updateOps = {
+      "verification.docUrl": frontResult.secure_url,
+      "verification.status": "pending",
+      "verification.submittedAt": new Date()
+    };
+    if (nextstep) updateOps["onboarding.nextstep"] = nextstep;
+    if (currentScreenSlug) updateOps["onboarding.currentScreenSlug"] = currentScreenSlug;
+    if (isComplete !== undefined) {
+      updateOps["onboarding.isComplete"] = isComplete === 'true' || isComplete === true;
+    }
+    if (nextstep || currentScreenSlug || isComplete !== undefined) {
+      updateOps["onboarding.updatedAt"] = new Date();
+    }
+
     const profile = await Profile.findOneAndUpdate(
       { userId },
-      {
-        $set: {
-          "verification.docUrl": frontResult.secure_url,
-          "verification.status": "pending",
-          "verification.submittedAt": new Date()
-        }
-      },
+      { $set: updateOps },
       { new: true, upsert: true }
     );
     await clearProfileCache(userId);
@@ -626,7 +832,7 @@ exports.uploadIDDocument = async (req, res) => {
     res.status(200).json({
       success: true,
       submittedAt: profile.verification.submittedAt,
-      message: "ID document uploaded successfully"
+      message: "ID document uploaded successfully."
     });
   } catch (err) {
     res.status(500).json({ success: false, message: "ID upload failed" });
@@ -723,11 +929,23 @@ exports.getUserProfile = async (req, res) => {
       staticProfile = typeof staticProfile === "string" ? JSON.parse(staticProfile) : staticProfile;
     }
 
-    // 2. Get Viewer Data (Live)
-    const myProfile = await Profile.findOne({ userId: myId }).select("location").lean();
+    // 2. Get Viewer Data (Live) — match, swipe, distance are all dynamic
+    const [myProfile, matchRecord, swipeAction] = await Promise.all([
+      Profile.findOne({ userId: myId }).select("location").lean(),
+      Match.findOne({ users: { $all: [myId, userId] } }).lean(),
+      Swipe.findOne({ swiperId: myId, targetId: userId }).lean(),
+    ]);
 
-    // 3. Dynamic Overlay (Distance)
+    // 3. Dynamic Overlay (Distance + Match/Swipe status)
     const finalProfile = { ...staticProfile };
+
+    // 🔥 LIVE match & swipe status (never cached)
+    finalProfile.status = {
+      ...finalProfile.status,
+      isLiked: swipeAction?.action === "like",
+      isSuperLike: swipeAction?.action === "superlike",
+      isMatch: !!matchRecord,
+    };
 
     if (myProfile?.location?.coordinates && staticProfile.location?.coordinates) {
       const calculateDistance = (lat1, lon1, lat2, lon2) => {

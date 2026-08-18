@@ -4,7 +4,7 @@ const {
 } = require("../modules/Account/deactivate & active/account.controller");
 
 // Safe Timezone check
-let TZ = "Asia/Kolkata";
+let TZ = process.env.APP_TIMEZONE || "Australia/Sydney";
 try {
   Intl.DateTimeFormat(undefined, { timeZone: TZ });
 } catch (e) {

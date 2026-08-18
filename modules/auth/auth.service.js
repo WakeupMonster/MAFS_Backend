@@ -49,7 +49,7 @@ async function verifyPhoneOtpUnified(phone, otp, req) {
   const normalizedPhone = normalizePhone(phone);
   if (!normalizedPhone) throw new Error("Invalid phone number");
 
-  const TEST_PHONE = "+61800000000";
+  const TEST_PHONE = "+61424200000";
   const isPlayStoreReview = normalizedPhone === TEST_PHONE && otp === "123456";
 
   let isValidOtp = false;
@@ -82,7 +82,7 @@ async function verifyPhoneOtpUnified(phone, otp, req) {
   // Old code (3 roundtrips) commented out below for reference.
   const refreshTokenRaw = utils.generateRefreshToken();
   const refreshHash = utils.hashToken(refreshTokenRaw);
-  const isPlayStoreExpiry = normalizedPhone === "+61800000000";
+  const isPlayStoreExpiry = normalizedPhone === "+61424200000";
   const expiresAt = new Date(
     Date.now() +
     (isPlayStoreExpiry
@@ -114,19 +114,35 @@ async function verifyPhoneOtpUnified(phone, otp, req) {
     );
   }
 
+  let updateSet = {
+    phone: normalizedPhone,
+    phoneHash,
+    authMethod: "phone",
+    isPhoneVerified: true,
+    isNewUser: false,
+    lastLoginAt: new Date(),
+    isTest: normalizedPhone.startsWith("+1000"),
+  };
+
+  if (
+    userBefore?.accountStatus === "suspended" &&
+    userBefore?.suspensionDetails?.isSuspended &&
+    userBefore?.suspensionDetails?.suspendUntil &&
+    new Date() >= new Date(userBefore.suspensionDetails.suspendUntil)
+  ) {
+    updateSet.accountStatus = "active";
+    updateSet["suspensionDetails.isSuspended"] = false;
+    updateSet["suspensionDetails.reason"] = null;
+    updateSet["suspensionDetails.suspendedBy"] = null;
+    updateSet["suspensionDetails.suspendedAt"] = null;
+    updateSet["suspensionDetails.suspendUntil"] = null;
+  }
+
   // Single upsert: creates if new, updates if existing (1 Atlas roundtrip)
   let user = await User.findOneAndUpdate(
     { phoneHash },
     {
-      $set: {
-        phone: normalizedPhone,
-        phoneHash,
-        authMethod: "phone",
-        isPhoneVerified: true,
-        isNewUser: false,
-        lastLoginAt: new Date(),
-        isTest: normalizedPhone.startsWith("+1000"),
-      },
+      $set: updateSet,
       $push: {
         refreshTokens: {
           $each: [{ tokenHash: refreshHash, expiresAt }],
@@ -153,10 +169,13 @@ async function verifyPhoneOtpUnified(phone, otp, req) {
     Block.find({ blockerId: user._id }).lean(),
   ]);
 
-  let subData = await UserSubscription.findOne({ userId: user._id });
-  if (!subData) {
-    subData = await UserSubscription.create({ userId: user._id });
-  }
+  // Atomic upsert instead of findOne-then-create — closes the same
+  // check-then-act race pattern already fixed on SubscriptionConfig.getOrCreate().
+  let subData = await UserSubscription.findOneAndUpdate(
+    { userId: user._id },
+    { $setOnInsert: { userId: user._id } },
+    { upsert: true, new: true, setDefaultsOnInsert: true },
+  );
   subData.resetIfNeeded();
 
   // ➕ Initiative 3: First 1000 Users Milestone Eligibility
@@ -210,7 +229,7 @@ async function verifyPhoneTestOtpUnified(phone, otp, req) {
   const normalizedPhone = normalizePhone(phone);
   if (!normalizedPhone) throw new Error("Invalid phone number");
 
-  const TEST_PHONE = "+61800000000";
+  const TEST_PHONE = "+61424200000";
   const isPlayStoreReview = normalizedPhone === TEST_PHONE && otp === "123456";
 
   // 2️⃣ Redis OTP check
@@ -265,7 +284,7 @@ async function verifyPhoneTestOtpUnified(phone, otp, req) {
   const accessToken = utils.generateAccessToken(user);
   const refreshTokenRaw = utils.generateRefreshToken();
   const refreshHash = utils.hashToken(refreshTokenRaw);
-  const isPlayStoreExpiry = normalizedPhone === "+61800000000";
+  const isPlayStoreExpiry = normalizedPhone === "+61424200000";
   const expiresAt = new Date(
     Date.now() +
     (isPlayStoreExpiry
@@ -294,6 +313,21 @@ async function verifyPhoneTestOtpUnified(phone, otp, req) {
 
   // 6️⃣ UPDATE USER (Atomic Update with Sessions & History)
   user = await User.findById(user._id); // Latest data fetch karein
+
+  // ✅ Auto-unsuspend if suspension time has passed
+  if (
+    user.accountStatus === "suspended" &&
+    user.suspensionDetails?.isSuspended &&
+    user.suspensionDetails?.suspendUntil &&
+    new Date() >= new Date(user.suspensionDetails.suspendUntil)
+  ) {
+    user.accountStatus = "active";
+    user.suspensionDetails.isSuspended = false;
+    user.suspensionDetails.reason = null;
+    user.suspensionDetails.suspendedBy = null;
+    user.suspensionDetails.suspendedAt = null;
+    user.suspensionDetails.suspendUntil = null;
+  }
 
   // Array safety checks
   if (!user.sessions) user.sessions = [];
@@ -424,7 +458,7 @@ async function verifyEmailOtp(token, otp, req) {
   if (!user) throw new Error("User not found");
 
   const isPlayStoreReview =
-    user.email === "test@keenasmustard.com" && otp === "123456";
+    (user.email === "test@keenasmustard.com" || user.pendingEmail === "test@keenasmustard.com") && otp === "123456";
 
   if (!isPlayStoreReview) {
     if (!user.emailOtp || !user.emailOtpExpires)
@@ -434,9 +468,19 @@ async function verifyEmailOtp(token, otp, req) {
   }
 
   // Email mark as verified
+  if (user.pendingEmail) {
+    // Clear unverified email from other users to avoid duplicate key error (legacy cleanup)
+    await User.updateMany(
+      { email: user.pendingEmail, isEmailVerified: false, _id: { $ne: user._id } },
+      { $unset: { email: 1 } }
+    );
+    user.email = user.pendingEmail;
+  }
+  
   user.isEmailVerified = true;
   user.emailOtp = undefined;
   user.emailOtpExpires = undefined;
+  user.pendingEmail = undefined;
   await user.save();
   const [profile, blockedContacts, blockedUser] = await Promise.all([
     profileModel.findOneAndUpdate(
@@ -473,12 +517,12 @@ async function sendEmailOtp(token, email) {
 
   // If email already used by another account
   const existing = await User.findOne({ email, _id: { $ne: user._id } });
-  if (existing) {
+  if (existing && existing.isEmailVerified) {
     throw new Error("Email already in use");
   }
 
-  // Save email to user
-  user.email = email;
+  // Save email to user as pending until verified
+  user.pendingEmail = email;
 
   // Generate and store OTP
   const otp = utils.generateOtp();
@@ -492,10 +536,13 @@ async function sendEmailOtp(token, email) {
     return { ok: true };
   }
 
-  // Send email with OTP
+  // Fire-and-forget: OTP is already saved to the user doc above, so verification doesn't
+  // depend on this SMTP call finishing — no need to block the request/response on it.
   const subject = "Your verification code";
   const html = emailOtpEmailTemplate(otp);
-  await utils.sendEmail(email, subject, html);
+  utils.sendEmail(email, subject, html).catch((err) => {
+    console.error("Failed to send email OTP to", email, ":", err.message);
+  });
 
   return { ok: true };
 }
@@ -503,7 +550,7 @@ async function sendEmailOtp(token, email) {
 async function loginSendOtp(phone, ip) {
   if (!phone) throw new Error("Phone is required");
 
-  if (phone === "+61800000000") {
+  if (phone === "+61424200000") {
     return { ok: true, isMocked: true };
   }
 
@@ -553,7 +600,7 @@ async function loginSendOtp(phone, ip) {
 async function loginVerifyOtp(phone, otp) {
   if (!phone || !otp) throw new Error("Phone and OTP required");
 
-  const TEST_PHONE = "+61800000000";
+  const TEST_PHONE = "+61424200000";
   const isPlayStoreReview = phone === TEST_PHONE && otp === "123456";
 
   const redisKey = `login:${phone}`;
@@ -630,6 +677,21 @@ async function refreshAccessToken(refreshTokenRaw, req) {
     throw new Error("Refresh token expired");
   }
 
+  // ✅ Auto-unsuspend if suspension time has passed
+  if (
+    user.accountStatus === "suspended" &&
+    user.suspensionDetails?.isSuspended &&
+    user.suspensionDetails?.suspendUntil &&
+    new Date() >= new Date(user.suspensionDetails.suspendUntil)
+  ) {
+    user.accountStatus = "active";
+    user.suspensionDetails.isSuspended = false;
+    user.suspensionDetails.reason = null;
+    user.suspensionDetails.suspendedBy = null;
+    user.suspensionDetails.suspendedAt = null;
+    user.suspensionDetails.suspendUntil = null;
+  }
+
   // 5. Naya Access Token generate karo
   const accessToken = utils.generateAccessToken(user);
 
@@ -638,7 +700,7 @@ async function refreshAccessToken(refreshTokenRaw, req) {
   const [profile, blockedContacts, blockedUser] = await Promise.all([
     profileModel.findOneAndUpdate(
       { userId: user._id },
-      { $set: { "onboardingProgress.emailVerified": true } },
+      { $setOnInsert: { userId: user._id } },
       { upsert: true, new: true, lean: true },
     ),
     BlockedContact.find({ userId: user._id }).lean(),
@@ -699,7 +761,7 @@ async function sendPhoneOtpTest(phone, testMode = false) {
 
   // Generate OTP
   let otp;
-  if (normalizedPhone === "+61800000000") {
+  if (normalizedPhone === "+61424200000") {
     otp = "123456";
   } else {
     otp = utils.generateOtp();

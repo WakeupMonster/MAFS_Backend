@@ -57,7 +57,7 @@ module.exports.sendOtp = async (req, res, next) => {
 
     await user.save();
 
-    const TEST_PHONE = "+61800000000";
+    const TEST_PHONE = "+61424200000";
     if (normalizedPhone === TEST_PHONE) {
       return res.json({
         success: true,
@@ -325,7 +325,7 @@ module.exports.resendPhoneOtp = async (req, res) => {
       throw new AppError("PHONE_REQUIRED", "Phone number is required", 400);
     }
 
-    const TEST_PHONE = "+61800000000";
+    const TEST_PHONE = "+61424200000";
     if (phone === TEST_PHONE) {
       return res.json({
         success: true,
@@ -333,7 +333,7 @@ module.exports.resendPhoneOtp = async (req, res) => {
       });
     }
 
-    const isLimited = await rateLimit(`resend:phone:${ip}`, 3, 60);
+    const isLimited = await rateLimit(`resend:phone:${ip}`, 10, 300);
     if (isLimited) {
       return res.status(429).json({
         success: false,
@@ -402,8 +402,8 @@ module.exports.resendEmailOtp = async (req, res) => {
     // 2. Rate limiting (Optional but good)
     const isLimited = await rateLimit(
       `resend:email:${getClientIp(req)}`,
-      3,
-      60,
+      10,
+      300,
     );
     if (isLimited) {
       return res.status(429).json({

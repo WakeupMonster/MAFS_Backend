@@ -27,9 +27,41 @@ function hashPhone(phone) {
     .digest("hex");
 }
 
+function generatePhoneHashes(phone) {
+  const normalized = normalizePhone(phone);
+  if (!normalized) return [];
+
+  const hashes = new Set([hashPhone(normalized)]);
+  const digitsOnly = normalized.replace(/\D/g, "");
+
+  // If local 10-digit number, it might be an Indian number (+91)
+  if (digitsOnly.length === 10) {
+    hashes.add(hashPhone(`+91${digitsOnly}`));
+  }
+  
+  // If local 9-digit number, it might be an Australian number (+61)
+  if (digitsOnly.length === 9) {
+    hashes.add(hashPhone(`+61${digitsOnly}`));
+  }
+
+  // If it already has a country code, also generate hashes for the last 10/9 digits
+  if (digitsOnly.length > 10) {
+    const last10 = digitsOnly.slice(-10);
+    hashes.add(hashPhone(`+91${last10}`));
+    hashes.add(hashPhone(`+${last10}`)); // Fallback for 10-digit blocked without country code
+    
+    const last9 = digitsOnly.slice(-9);
+    hashes.add(hashPhone(`+61${last9}`));
+    hashes.add(hashPhone(`+${last9}`)); // Fallback for 9-digit blocked without country code
+  }
+
+  return Array.from(hashes);
+}
+
 module.exports = {
   normalizePhone,
-  hashPhone
+  hashPhone,
+  generatePhoneHashes
 };
 
 

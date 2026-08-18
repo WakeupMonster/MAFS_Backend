@@ -34,9 +34,9 @@ const getTransporter = async () => {
   });
 
   // Format fromName for proper branding capitalization
-  let rawFromName = smtp?.fromName || "Keen As Mustard Admin";
+  let rawFromName = smtp?.fromName || "Keen as mustard Admin";
   if (rawFromName.toLowerCase() === "keen as mustard admin") {
-    rawFromName = "Keen As Mustard Admin";
+    rawFromName = "Keen as mustard Admin";
   }
 
   return {

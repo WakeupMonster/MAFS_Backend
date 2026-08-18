@@ -8,12 +8,13 @@ const {
 const {
   verifyAppleWebhook,
   verifyGoogleWebhook,
+  verifyRevenueCatWebhook,
 } = require("../middlewares/webhookAuth.middleware");
 const { webhookLimiter } = require("../middlewares/rateLimiter.middleware");
 
 router.post("/apple", webhookLimiter, verifyAppleWebhook, appleWebhook);
 router.post("/google", webhookLimiter, verifyGoogleWebhook, googleWebhook);
-router.post("/revenuecat", webhookLimiter, revenuecatWebhook);
+router.post("/revenuecat", webhookLimiter, verifyRevenueCatWebhook, revenuecatWebhook);
 
 const {
   testAppleWebhook,

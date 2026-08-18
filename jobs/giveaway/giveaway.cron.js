@@ -25,7 +25,7 @@ const cron = require("node-cron");
 const runGiveawayJob = require("./giveaway.worker");
 
 // Safe Timezone check
-let CURRENT_TZ = "Australia/Sydney";
+let CURRENT_TZ = (process.env.APP_TIMEZONE || "Australia/Sydney").replace(/^"|"$/g, '');
 try {
   Intl.DateTimeFormat(undefined, { timeZone: CURRENT_TZ });
 } catch (e) {
@@ -43,7 +43,7 @@ try {
 
 const cronSchedule = process.env.NODE_ENV === "development"
   ? "*/1 * * * *"
-  : "*/1 * * * *";
+  : "0 18 * * 5";
 
 cron.schedule(cronSchedule, async () => {
   console.log(`🎯 Giveaway CRON triggered in Timezone: ${CURRENT_TZ}`);

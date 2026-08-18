@@ -9,7 +9,7 @@ const {
 const { apiLimiter } = require("../../../common/middlewares/apiLimiter");
 
 /** @section Public Auth Routes These are accessible without a token */
-router.post("/login", apiLimiter("admin_login", 5, 300), adminController.adminLogin);
+router.post("/login", apiLimiter("admin_login", 10, 300), adminController.adminLogin); // 10 req / 5 mins
 
 // Security: Admin registration is disabled in production to prevent unauthorized account creation
 if (process.env.NODE_ENV !== "production") {
@@ -17,9 +17,9 @@ if (process.env.NODE_ENV !== "production") {
 }
 
 /*============= POST API'S FORGET PASSWORD =====================*/
-router.post("/request-otp", apiLimiter("admin_otp", 3, 300), adminController.sendEmailOTP);
-router.post("/verify-otp", apiLimiter("admin_verify_otp", 5, 300), adminController.verifyEmailOTP);
-router.patch("/forgot-password", apiLimiter("admin_forgot_pwd", 3, 300), adminController.adminForgotPassword);
+router.post("/request-otp", apiLimiter("admin_otp", 10, 300), adminController.sendEmailOTP); // 10 req / 5 mins
+router.post("/verify-otp", apiLimiter("admin_verify_otp", 10, 300), adminController.verifyEmailOTP); // 10 req / 5 mins
+router.patch("/forgot-password", apiLimiter("admin_forgot_pwd", 10, 300), adminController.adminForgotPassword); // 10 req / 5 mins
 
 /*
  * ============= ATUHORIZED OR ENSURE ROLE IS ADMIN or not =============

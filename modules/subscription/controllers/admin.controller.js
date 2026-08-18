@@ -1,5 +1,6 @@
 /* eslint-disable no-unused-vars */
 const mongoose = require("mongoose");
+const { startOfDay, endOfDay, startOfYesterday, endOfYesterday } = require("../../../common/utils/time");
 const SubscriptionConfig = require("../models_v3/SubscriptionConfig");
 const Product = require("../models_v3/Product");
 const Subscription = require("../models/Subscription"); // Base subscription records
@@ -117,7 +118,22 @@ exports.listSubscribers = async (req, res, next) => {
     try {
         const { page = 1, limit = 20, status, planType, platform, search } = req.query;
         const filter = {};
-        if (status) filter.status = status;
+        if (status) {
+            if (status === "EXPIRED") {
+                filter.$and = filter.$and || [];
+                filter.$and.push({
+                    $or: [
+                        { status: "EXPIRED" },
+                        { expiresAt: { $lte: new Date() } }
+                    ]
+                });
+            } else if (status === "ACTIVE") {
+                filter.status = "ACTIVE";
+                filter.expiresAt = { $gt: new Date() };
+            } else {    
+                filter.status = status;
+            }
+        }
         if (planType) {
             const upperPlan = planType.toUpperCase();
             if (['1_MONTH', '1 MONTH', 'MONTHLY', 'ONE_MONTH', '1 MONTHS'].includes(upperPlan)) {
@@ -193,7 +209,8 @@ exports.listSubscribers = async (req, res, next) => {
         // 5. Response ko enrich karo aur structure saaf karo
         const enrichedSubs = await Promise.all(subscriptions.map(async (sub) => {
             const userProfile = sub.userId ? profileMap[sub.userId._id.toString()] : null;
-            const isActuallyExpired = sub.expiresAt && new Date(sub.expiresAt) < new Date();
+            const hasAccess = Subscription.hasPremiumAccess(sub);
+            const isActuallyExpired = !hasAccess;
             const displayName = await productDisplayHelper.resolveDisplayName(sub.productId, sub.customDisplayName, sub.source);
 
             const responseObj = {
@@ -205,6 +222,7 @@ exports.listSubscribers = async (req, res, next) => {
                     photo: userProfile?.photos?.[0]?.url || null
                 },
                 ...sub,
+                status: (sub.status === 'ACTIVE' && !hasAccess) ? 'EXPIRED' : sub.status,
                 displayName,
                 isExpired: isActuallyExpired,
             };
@@ -215,15 +233,16 @@ exports.listSubscribers = async (req, res, next) => {
         }));
 
         const now = new Date();
-        const [total, totalActive, totalRevoked] = await Promise.all([
+        const [total, totalActive, totalExpired, totalRevoked] = await Promise.all([
             Subscription.countDocuments(filter),
             Subscription.countDocuments({ status: "ACTIVE", expiresAt: { $gt: now } }),
             Subscription.countDocuments({
                 $or: [
-                    { status: { $ne: "ACTIVE" } },
+                    { status: "EXPIRED" },
                     { expiresAt: { $lte: now } }
                 ]
-            })
+            }),
+            Subscription.countDocuments({ status: "REVOKED" })
         ]);
 
         return res.json({
@@ -234,6 +253,7 @@ exports.listSubscribers = async (req, res, next) => {
                 limit: Number(limit),
                 totalPages: Math.ceil(total / limit),
                 totalActive,
+                totalExpired,
                 totalRevoked
             },
             data: enrichedSubs
@@ -247,20 +267,33 @@ exports.getUserSubscriptionDetail = async (req, res, next) => {
     try {
         const { userId } = req.params;
 
-        const [user, profile, subscription, transactions, wallet] = await Promise.all([
+        const [user, profile, transactions, wallet] = await Promise.all([
             User.findById(userId).select("phone email role accountStatus").lean(),
             Profile.findOne({ userId }).select("fullName nickname photos").lean(),
-            Subscription.findOne({ userId }).sort({ createdAt: -1 }).lean(),
             // Return ALL transactions (not just 10)
             SubscriptionTransaction.find({ userId }).sort({ occurredAt: -1 }).lean(),
             UserConsumableBalance.findOne({ userId }).lean()
         ]);
 
+        // Prioritize finding an ACTIVE subscription. If none exists, get the latest one.
+        let subscription = await Subscription.findActiveByUser(userId).lean();
+        if (!subscription) {
+            subscription = await Subscription.findOne({ userId }).sort({ createdAt: -1 }).lean();
+        }
+
+        // App logic override for delayed webhooks/cron
+        if (subscription && subscription.status === 'ACTIVE' && !Subscription.hasPremiumAccess(subscription)) {
+            subscription.status = 'EXPIRED';
+        }
+
         // Fetch subscription history (all past subscriptions except the current one)
-        const subscriptionHistory = await Subscription.find({
+        const subHistoryQuery = {
             userId: userId,
             ...(subscription?._id ? { _id: { $ne: subscription._id } } : {})
-        }).sort({ createdAt: -1 }).lean();
+        };
+        console.log("DEBUG: subHistoryQuery =", subHistoryQuery);
+        const subscriptionHistory = await Subscription.find(subHistoryQuery).sort({ createdAt: -1 }).lean();
+        console.log("DEBUG: subscriptionHistory found =", subscriptionHistory.length);
 
         // Add displayName to subscription, history, and transactions
         const [enrichedSubscription, enrichedHistory, enrichedTransactions] = await Promise.all([
@@ -268,6 +301,18 @@ exports.getUserSubscriptionDetail = async (req, res, next) => {
             productDisplayHelper.enrichWithDisplayName(subscriptionHistory),
             productDisplayHelper.enrichWithDisplayName(transactions)
         ]);
+
+        // Fetch unified usage data from UsageService (same source as App's /status API)
+        const usageStatus = await UsageService.getUsageStatus(userId);
+
+        // Calculate total available (Quota Remaining + Wallet Balance)
+        const skRemaining = usageStatus?.data?.allocations?.superKeens?.remaining;
+        const walletSK = usageStatus?.data?.wallet?.superKeens || 0;
+        const totalSuperKeens = skRemaining === -1 ? -1 : (Math.max(0, skRemaining || 0) + walletSK);
+
+        const boostRemaining = usageStatus?.data?.allocations?.boosts?.remaining;
+        const walletBoosts = usageStatus?.data?.wallet?.boosts || 0;
+        const totalBoosts = boostRemaining === -1 ? -1 : (Math.max(0, boostRemaining || 0) + walletBoosts);
 
         return res.json({
             success: true,
@@ -282,7 +327,21 @@ exports.getUserSubscriptionDetail = async (req, res, next) => {
                 subscriptionHistory: enrichedHistory,
                 transactions: enrichedTransactions,
                 recentTransactions: enrichedTransactions, // Keep backward compatibility
-                wallet
+                wallet: {
+                    ...(wallet || {}),
+                    superKeensBalance: totalSuperKeens,
+                    boostsBalance: totalBoosts,
+                    details: {
+                        superKeens: {
+                            baseLimit: skRemaining === -1 ? "Unlimited" : (skRemaining || 0),
+                            granted: walletSK
+                        },
+                        boosts: {
+                            baseLimit: boostRemaining === -1 ? "Unlimited" : (boostRemaining || 0),
+                            granted: walletBoosts
+                        }
+                    }
+                }
             }
         });
     } catch (err) {
@@ -549,8 +608,9 @@ exports.getDashboardStats = async (req, res, next) => {
         // timeFilter - recent.
 
         const now = new Date();
-        const startOfToday = new Date();
-        startOfToday.setHours(0, 0, 0, 0);
+        // Calendar-day boundaries are resolved against Australia/Sydney
+        // (APP_TZ), not server-local/UTC time — see common/utils/time.js.
+        const startOfToday = startOfDay(now);
 
         const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
         const startOfLastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
@@ -570,12 +630,8 @@ exports.getDashboardStats = async (req, res, next) => {
             if (timeFilter === 'today' || timeFilter === 'daily' || timeFilter === '1') {
                 startDate = startOfToday;
             } else if (timeFilter === 'yesterday') {
-                const yesterday = new Date(now);
-                yesterday.setDate(yesterday.getDate() - 1);
-                yesterday.setHours(0, 0, 0, 0);
-                startDate = yesterday;
-                endDate = new Date(yesterday);
-                endDate.setHours(23, 59, 59, 999);
+                startDate = startOfYesterday();
+                endDate = endOfYesterday();
             } else if (timeFilter === 'weekly' || timeFilter === 'last7' || timeFilter === '7') {
                 startDate = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
             } else if (timeFilter === 'last15' || timeFilter === '15') {

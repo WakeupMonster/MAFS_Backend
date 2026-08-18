@@ -194,6 +194,12 @@ exports.getTransactions = async (req, res, next) => {
 
     const finalizedTransactions = await productDisplayHelper.enrichWithDisplayName(mappedTransactions);
 
+    finalizedTransactions.forEach(txn => {
+      if (txn.displayName && txn.displayName !== "Unknown Product") {
+        txn.productId = txn.displayName;
+      }
+    });
+
     return res.json({
       success: true,
       pagination: {
@@ -378,9 +384,13 @@ exports.exportTransactionsCSV = async (req, res, next) => {
       };
     }
 
+    // Hard cap so a single export can't load an unbounded result set into
+    // memory (OOM risk). Response format/columns are unchanged either way.
+    const MAX_EXPORT_ROWS = 100000;
     const transactions = await SubscriptionTransaction.find(filter)
       .populate("userId", "nickname email phone")
       .sort({ occurredAt: -1 })
+      .limit(MAX_EXPORT_ROWS)
       .lean();
 
     const userIds = transactions

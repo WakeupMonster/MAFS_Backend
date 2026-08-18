@@ -47,7 +47,7 @@ const runUnsuspendUsersJob = () => {
   console.log("[UNSUSPEND JOB] ✅ Cron job registered, waiting for 11:30 PM IST...");
 
 // Safe Timezone check
-  let TZ = "Asia/Kolkata";
+  let TZ = process.env.APP_TIMEZONE || "Australia/Sydney";
   try {
     Intl.DateTimeFormat(undefined, { timeZone: TZ });
   } catch (e) {

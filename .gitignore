@@ -6,3 +6,5 @@ config/firebase-service-account.json
 keys/
 # Local testing scripts
 test_push_cli.js
+# Apple keys
+certs/

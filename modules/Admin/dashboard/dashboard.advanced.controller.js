@@ -11,6 +11,7 @@ const Block = require("../../profile/user.block");
 const { formatCompactNumber } = require("../../../common/utils/formatCompactNumber");
 const helpers = require("./dashboard.helpers");
 const queries = require("./dashboard.queries");
+const { startOfDay } = require("../../../common/utils/time");
 
 exports.getAdvancedDashboardMetrics = async (req, res) => {
   try {
@@ -20,8 +21,8 @@ exports.getAdvancedDashboardMetrics = async (req, res) => {
 
     let chartStartDate = startDate;
     if (preset === "today" || preset === "yesterday") {
-      chartStartDate = new Date(endDate.getTime() - 6 * 24 * 60 * 60 * 1000);
-      chartStartDate.setHours(0, 0, 0, 0);
+      // Calendar-day boundary resolved against Australia/Sydney (APP_TZ) — see common/utils/time.js.
+      chartStartDate = startOfDay(new Date(endDate.getTime() - 6 * 24 * 60 * 60 * 1000));
     }
 
     const startOfYear = new Date(now.getFullYear(), 0, 1);

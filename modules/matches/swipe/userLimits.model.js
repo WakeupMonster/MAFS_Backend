@@ -1,5 +1,6 @@
 // File: modules/matches/swipe/userLimits.model.js
 const mongoose = require('mongoose');
+const { isSameAppDay } = require('../../../common/utils/time');
 
 const UserLimitSchema = new mongoose.Schema({
   userId: { 
@@ -29,14 +30,14 @@ const UserLimitSchema = new mongoose.Schema({
   toObject: { virtuals: true }
 });
 
-// Reset counters daily
+// Reset counters daily — day boundary is Australia/Sydney midnight (APP_TZ),
+// not server-local time — see common/utils/time.js.
 UserLimitSchema.methods.resetIfNeeded = function() {
   const now = new Date();
-  const lastReset = new Date(this.lastReset);
-  
+
   // Check if it's a new day (comparing dates only, not time)
-  const isNewDay = now.toDateString() !== lastReset.toDateString();
-  
+  const isNewDay = !isSameAppDay(now, this.lastReset);
+
   if (isNewDay) {
     this.dailyLikes = 0;
     this.dailySuperlikes = 0;

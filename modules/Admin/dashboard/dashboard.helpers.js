@@ -1,6 +1,7 @@
 /**
  * Pure helper functions for the Admin Advanced Dashboard Metrics.
  */
+const { startOfDay, endOfDay } = require("../../../common/utils/time");
 
 /**
  * Parses the date range based on preset parameters or custom dates.
@@ -15,16 +16,15 @@ function parseDateRange(query, now) {
 
   let startDate, endDate;
 
+  // "today"/"yesterday" calendar boundaries are resolved against
+  // Australia/Sydney (APP_TZ), not server-local/UTC time — see common/utils/time.js.
   if (presetParam === "today") {
-    startDate = new Date(now);
-    startDate.setHours(0, 0, 0, 0);
+    startDate = startOfDay(now);
     endDate = new Date(now);
   } else if (presetParam === "yesterday") {
-    startDate = new Date(now);
-    startDate.setDate(startDate.getDate() - 1);
-    startDate.setHours(0, 0, 0, 0);
-    endDate = new Date(startDate);
-    endDate.setHours(23, 59, 59, 999);
+    const yesterdayRef = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+    startDate = startOfDay(yesterdayRef);
+    endDate = endOfDay(yesterdayRef);
   } else if (presetParam === "last7") {
     startDate = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
     endDate = new Date(now);

@@ -1,6 +1,7 @@
 const AdminEmailCampaign = require("./adminEmailCampaign.model");
 const emailQueue = require("../../../queues/email.queue");
 const EmailLog = require("./emailLog.model");
+const redis = require("../../../config/cache");
 
 module.exports.createEmailCampaign = async (req, res) => {
   try {
@@ -18,6 +19,35 @@ module.exports.createEmailCampaign = async (req, res) => {
         success: false,
         message: "Missing required fields",
       });
+    }
+
+    // 🔒 Same atomic duplicate guard used for push campaigns — prevents a double-click
+    // or network retry on "Send" from creating two email campaigns.
+    const idempotencyKey = `email_campaign_lock:${Buffer.from(campaignName + finalSubject + target).toString("base64")}`;
+
+    if (redis && redis.redisClient && redis.redisClient.isOpen) {
+      const lockAcquired = await redis.redisClient.set(idempotencyKey, "LOCKED", { NX: true, EX: 60 });
+      if (!lockAcquired) {
+        return res.status(409).json({
+          success: false,
+          message: "Duplicate campaign detected. This campaign was already sent within the last 60 seconds.",
+        });
+      }
+    } else {
+      const sixtySecondsAgo = new Date(Date.now() - 60 * 1000);
+      const duplicateCampaign = await AdminEmailCampaign.findOne({
+        campaignName,
+        subject: finalSubject,
+        target,
+        createdAt: { $gte: sixtySecondsAgo },
+      }).lean();
+
+      if (duplicateCampaign) {
+        return res.status(409).json({
+          success: false,
+          message: "Duplicate campaign detected. This campaign was already sent within the last 60 seconds.",
+        });
+      }
     }
 
     const campaign = await AdminEmailCampaign.create({

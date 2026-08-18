@@ -14,8 +14,7 @@ const GiveawaySettings = require("../../modules/Admin/giveaways/giveawaySettings
 dayjs.extend(utc);
 dayjs.extend(timezone);
 
-const CURRENT_TZ = process.env.GIVEAWAY_TIMEZONE || "Australia/Sydney";
-const IST_TZ = "Asia/Kolkata";
+const CURRENT_TZ = (process.env.GIVEAWAY_TIMEZONE || "Australia/Sydney").replace(/^"|"$/g, '');
 
 module.exports = async function runGiveawayWorker() {
   console.log("🎯 Giveaway worker started at:", new Date().toISOString());

@@ -1,3 +1,5 @@
+const { formatForDisplay } = require("./time");
+
 module.exports.reporterReplyEmailTemplate = ({ reporterName, reportedUserName, reportReason, adminReply, reportDate, fromName }) => `
 <!DOCTYPE html>
 <html>
@@ -20,7 +22,7 @@ module.exports.reporterReplyEmailTemplate = ({ reporterName, reportedUserName, r
               
               <div style="background-color: #f8fafc; padding: 15px; border-radius: 8px; border: 1px solid #e2e8f0; margin-bottom: 25px;">
                 <p style="margin: 0 0 8px 0; font-size: 13px; color: #64748b;"><strong>Report Reason:</strong> ${reportReason}</p>
-                <p style="margin: 0; font-size: 13px; color: #64748b;"><strong>Report Date:</strong> ${new Date(reportDate).toDateString()}</p>
+                <p style="margin: 0; font-size: 13px; color: #64748b;"><strong>Report Date:</strong> ${formatForDisplay(reportDate, "dd LLL yyyy")}</p>
               </div>
               
               <hr style="border: 0; border-top: 1px solid #e2e8f0; margin: 20px 0;" />

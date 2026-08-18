@@ -47,14 +47,15 @@ const subscriptionConfigSchema = new mongoose.Schema({
     collection: 'subscription_configs'
 });
 
-// Ensure only one config document exists (Singleton pattern)
+// Ensure only one config document exists (Singleton pattern).
+// Atomic upsert instead of findOne-then-create — closes the race where two
+// concurrent callers both see no document and both create one.
 subscriptionConfigSchema.statics.getOrCreate = async function () {
-    let config = await this.findOne();
-    if (!config) {
-        config = await this.create({});
-    }
-
-    return config;
+    return this.findOneAndUpdate(
+        {},
+        { $setOnInsert: {} },
+        { upsert: true, new: true, setDefaultsOnInsert: true }
+    );
 };
 
 module.exports = mongoose.model('SubscriptionConfig', subscriptionConfigSchema);

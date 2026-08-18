@@ -3,8 +3,10 @@ const ChatMessage = require("./chat.message.model");
 const { Match } = require("../swipe/swipe.model");
 const { isBlocked } = require("../../profile/block.service");
 const { DateTime } = require("luxon");
+const { APP_TZ } = require("../../../common/utils/time");
 const redis = require("../../../config/cache");
 const Profile = require("../../../modules/profile/profile.model");
+const chatEvents = require("../../../events/chat.events");
 
 // 1. SEND MESSAGE (Sabse important jo missing tha)
 module.exports.sendMessage = async (req, res) => {
@@ -66,10 +68,10 @@ module.exports.sendMessage = async (req, res) => {
       isMine: true,
       status: "sent",
       sentAt: DateTime.fromJSDate(new Date(newMessage.createdAt))
-        .setZone("Asia/Kolkata")
+        .setZone(APP_TZ)
         .toString(),
       sentAtFormatted: DateTime.fromJSDate(new Date(newMessage.createdAt))
-        .setZone("Asia/Kolkata")
+        .setZone(APP_TZ)
         .toFormat("hh:mm a"),
     };
 
@@ -89,7 +91,8 @@ module.exports.getChatMessages = async (req, res) => {
     // const { matchId } = req.query;
     const { matchId } = req.params;
 
-    const { page = 1, limit = 20 } = req.query;
+    const { page = 1 } = req.query;
+    const limit = Math.min(parseInt(req.query.limit) || 20, 100);
 
     const match = await Match.findById(matchId).lean();
     if (!match) {
@@ -121,15 +124,8 @@ module.exports.getChatMessages = async (req, res) => {
 
     // If blocked, but ONLY by them (I didn't block them), deny access.
     // If I blocked them (blockedByMe = true), allow me to read my own history.
-    if (blockStatus.isBlocked && !blockStatus.blockedByMe) {
-      return res.status(403).json({
-        success: false,
-        message: "You cannot view messages",
-        errorType: "BLOCKED", // ✅ NEW
-        isBlockedByMe: blockStatus.blockedByMe, // ✅ NEW — frontend needs this
-        blockedBy: blockStatus.blockedBy,
-      });
-    }
+    // 🔥 NEW FIX: DO NOT return 403 error. Return history so user can see it, but flag as blocked.
+    // We will pass these flags in the final response below.
 
     const messages = await ChatMessage.find({
       matchId,
@@ -148,10 +144,10 @@ module.exports.getChatMessages = async (req, res) => {
       status: msg.readAt ? "read" : msg.deliveredAt ? "delivered" : "sent",
 
       sentAt: DateTime.fromJSDate(new Date(msg.createdAt))
-        .setZone("Asia/Kolkata")
+        .setZone(APP_TZ)
         .toString(),
       sentAtFormatted: DateTime.fromJSDate(new Date(msg.createdAt))
-        .setZone("Asia/Kolkata")
+        .setZone(APP_TZ)
         .toFormat("hh:mm a"),
     }));
 
@@ -159,6 +155,9 @@ module.exports.getChatMessages = async (req, res) => {
     return res.json({
       success: true,
       data: formattedMessages,
+      isBlocked: blockStatus.isBlocked,
+      isBlockedByMe: blockStatus.blockedByMe,
+      isBlockedByThem: blockStatus.isBlocked && !blockStatus.blockedByMe,
     });
   } catch (err) {
     res.status(500).json({ success: false, message: "Server error" });
@@ -287,9 +286,14 @@ module.exports.getChatList = async (req, res) => {
   const startTime = Date.now();
   const userId = req.user._id;
   const CHAT_LIST_KEY = `chat:list:${userId.toString()}`;
+  // Optional, backward-compatible pagination. Existing invalidation call sites (redis.del on
+  // CHAT_LIST_KEY across the codebase) only ever target the unpaginated key, so paginated
+  // requests deliberately skip the cache entirely rather than needing those sites updated too.
+  const page = req.query.page ? parseInt(req.query.page) : null;
+  const limit = page !== null ? Math.min(parseInt(req.query.limit) || 20, 100) : null;
   console.log(`[CHAT LIST START] User: ${userId} requesting chat list`);
   try {
-    if (redis) {
+    if (redis && page === null) {
       try {
         const cached = await redis.get(CHAT_LIST_KEY);
         if (cached) {
@@ -304,15 +308,17 @@ module.exports.getChatList = async (req, res) => {
 
     // 1️⃣ Fetch matches sorted by priority: Last Message OR New Match (TOP REORDER BASE)
     const matchesTimeStart = Date.now();
-    const matches = await Match.find({
+    let matchesQuery = Match.find({
       users: userId,
-    })
-      .sort({ lastMessageAt: -1, matchedAt: -1 })
-      .lean();
+    }).sort({ lastMessageAt: -1, matchedAt: -1 });
+    if (page !== null) {
+      matchesQuery = matchesQuery.skip((page - 1) * limit).limit(limit);
+    }
+    const matches = await matchesQuery.lean();
     const matchesTimeTaken = Date.now() - matchesTimeStart;
 
     if (!matches || matches.length === 0) {
-      if (redis) {
+      if (redis && page === null) {
         try {
           await redis.set(CHAT_LIST_KEY, JSON.stringify([]), { EX: 15 });
         } catch (err) {
@@ -414,7 +420,7 @@ module.exports.getChatList = async (req, res) => {
               time: match.lastMessageAt,
               formattedTime: match.lastMessageAt
                 ? DateTime.fromJSDate(new Date(match.lastMessageAt))
-                    .setZone("Asia/Kolkata")
+                    .setZone(APP_TZ)
                     .toFormat("hh:mm a")
                 : null,
             }
@@ -429,7 +435,7 @@ module.exports.getChatList = async (req, res) => {
       `[CHAT LIST END] User: ${userId} | Matches: ${matches.length} | Time: ${totalTime}ms (MatchFind: ${matchesTimeTaken}ms, ProfileFind: ${profilesTimeTaken}ms, UnreadAggr: ${unreadTimeTaken}ms, RedisOnline: ${redisTimeTaken}ms)`
     );
 
-    if (redis) {
+    if (redis && page === null) {
       try {
         await redis.set(CHAT_LIST_KEY, JSON.stringify(chatList), { EX: 15 });
       } catch (err) {
@@ -450,8 +456,10 @@ module.exports.getChatList = async (req, res) => {
   }
 };
 const { uploadStream } = require("../../upload/cloudinary.service");
+const crypto = require("crypto");
 
 module.exports.uploadChatMediaController = async (req, res) => {
+  const start = Date.now();
   try {
     const userId = req.user._id;
     const { matchId } = req.body; // Remove receiverId from body for security
@@ -465,7 +473,7 @@ module.exports.uploadChatMediaController = async (req, res) => {
     }
 
     // 1. Validate match and participants
-    const match = await Match.findById(matchId);
+    const match = await Match.findById(matchId).lean();
     if (!match) {
       return res.status(404).json({
         success: false,
@@ -495,44 +503,62 @@ module.exports.uploadChatMediaController = async (req, res) => {
       });
     }
 
-    // 4. 🔥 Upload all files to Cloudinary (Bypassed if load testing)
-    // Note: Middleware already checked per-type size limits
-    let media;
-    if (process.env.NODE_ENV === "test" || req.headers["x-bypass-cloudinary"] === "true") {
-      media = files.map((file) => ({
-        url: "https://res.cloudinary.com/demo/image/upload/sample.jpg",
-        publicId: "sample",
-        originalName: file.originalname || "test.jpg",
-        type: file.mimetype && file.mimetype.startsWith("video/") ? "video" : "image",
-      }));
-    } else {
-      media = await Promise.all(
-        files.map(async (file) => {
-          const result = await uploadStream(file.buffer, {
-            folder: `mafs/chat/${matchId}`,
-            resource_type: "auto",
-            transformation: [
-              // { quality: "auto:good" }
-              { quality: "auto", fetch_format: "auto" }
-            ],
-          });
+    // 4. 🔥 PREDICT URLS & RESPOND FAST (Background Upload)
+    const media = [];
+    const uploadTasks = [];
 
-          return {
-            url: result.secure_url,
-            publicId: result.public_id,
-            originalName: file.originalname,
-            type:
-              result.resource_type === "video"
-                ? "video"
-                : file.mimetype === "image/gif"
-                  ? "gif"
-                  : "image",
-          };
-        }),
-      );
+    const getExtension = (mimetype) => {
+      if (mimetype === "image/gif") return "gif";
+      if (mimetype.startsWith("video/")) return "mp4";
+      return "jpg"; 
+    };
+
+    if (process.env.NODE_ENV === "test" || req.headers["x-bypass-cloudinary"] === "true") {
+      files.forEach((file) => {
+        media.push({
+          url: "https://res.cloudinary.com/demo/image/upload/sample.jpg",
+          publicId: "sample",
+          originalName: file.originalname || "test.jpg",
+          type: file.mimetype && file.mimetype.startsWith("video/") ? "video" : "image",
+        });
+      });
+    } else {
+      files.forEach((file) => {
+        const randomStr = crypto.randomBytes(6).toString("hex");
+        const folder = `mafs/chat/${matchId}`;
+        const publicId = `${Date.now()}_${randomStr}`;
+        const fullPublicId = `${folder}/${publicId}`;
+        
+        const type = file.mimetype.startsWith("video/") ? "video" : file.mimetype === "image/gif" ? "gif" : "image";
+        const ext = getExtension(file.mimetype);
+        
+        const cloudName = process.env.CLOUDINARY_CLOUD_NAME;
+        // Construct predictable Cloudinary URL. Must use the Cloudinary
+        // resource-type segment (image/video/raw) here, not the display
+        // `type` — Cloudinary has no "gif" resource type, so a GIF's URL
+        // was previously built as .../gif/upload/... which 404s even
+        // though the file itself uploads fine under resource_type:"image".
+        const cloudinaryResourceType = type === "video" ? "video" : "image";
+        const url = `https://res.cloudinary.com/${cloudName}/${cloudinaryResourceType}/upload/${fullPublicId}.${ext}`;
+
+        media.push({
+          url,
+          publicId: fullPublicId,
+          originalName: file.originalname,
+          type
+        });
+
+        // Add to background task queue
+        uploadTasks.push({
+          buffer: file.buffer,
+          folder,
+          publicId,
+          resourceType: cloudinaryResourceType,
+        });
+      });
     }
 
-    // 5. 🔥 Save chat message in DB
+    // 5. 🔥 Save chat message in DB (Synchronous to return response fast)
     const message = await ChatMessage.create({
       matchId,
       sender: userId,
@@ -542,18 +568,18 @@ module.exports.uploadChatMediaController = async (req, res) => {
       status: "SENT",
     });
 
-    // 6. 🔥 VVIP: Match model update karo
-    await Match.findByIdAndUpdate(matchId, {
+    // 6. 🔥 VVIP: Match model update & Cache invalidation (Parallel)
+    Match.findByIdAndUpdate(matchId, {
       lastMessage: "📷 Media",
       lastMessageAt: new Date(),
       lastMessageBy: userId,
-    });
+    }).catch(err => console.error("Match update error:", err));
 
     if (redis) {
       Promise.all([
         redis.del(`chat:list:${userId.toString()}`),
         redis.del(`chat:list:${receiverId.toString()}`),
-      ]).catch((err) => console.error("Error clearing chat list cache in uploadChatMediaController:", err));
+      ]).catch((err) => console.error("Error clearing chat cache:", err));
     }
 
     const formattedMessage = {
@@ -563,24 +589,67 @@ module.exports.uploadChatMediaController = async (req, res) => {
       isMine: true,
       status: "sent",
       sentAt: DateTime.fromJSDate(new Date(message.createdAt))
-        .setZone("Asia/Kolkata")
+        .setZone(APP_TZ)
         .toString(),
       sentAtFormatted: DateTime.fromJSDate(new Date(message.createdAt))
-        .setZone("Asia/Kolkata")
+        .setZone(APP_TZ)
         .toFormat("hh:mm a"),
     };
 
-    return res.json({
+    console.log(`[CHAT UPLOAD FAST RESP] Time: ${Date.now() - start}ms`);
+
+    // 🚀 RESPOND IMMEDIATELY TO FRONTEND
+    res.json({
       success: true,
       message: "Media message sent successfully",
       data: formattedMessage,
     });
+
+    // 🚀 BACKGROUND FIRE-AND-FORGET UPLOAD
+    if (uploadTasks.length > 0) {
+      (async () => {
+        try {
+          await Promise.all(
+            uploadTasks.map((task) =>
+              uploadStream(task.buffer, {
+                folder: task.folder,
+                public_id: task.publicId, // Set explicitly so URL matches
+                resource_type: task.resourceType,
+                transformation: [{ quality: "auto", fetch_format: "auto" }],
+              })
+            )
+          );
+          // console.log(`[BACKGROUND UPLOAD DONE] Match: ${matchId}`);
+          
+          // 🔥 NEW: Broadcast new_message since frontend won't emit send_message for media
+          chatEvents.emit("media_upload_complete", {
+             matchId,
+             receiverId,
+             messageId: message._id
+          });
+        } catch (uploadErr) {
+          console.error(`[BACKGROUND UPLOAD ERROR] Match: ${matchId}`, uploadErr);
+          
+          // 🔥 NEW: Emit failure back to sender
+          chatEvents.emit("media_upload_failed", {
+             matchId,
+             senderId: userId,
+             clientMessageId: req.body.clientMessageId,
+             error: uploadErr.message
+          });
+        }
+      })();
+    }
   } catch (err) {
     console.error("❌ uploadChatMediaController error:", err);
-    return res.status(500).json({
-      success: false,
-      message: err.message || "Failed to upload chat media",
-    });
+    // Use standard Express res inside try block, but since we might have sent res already if error occurs later
+    // we ensure not to send headers twice.
+    if (!res.headersSent) {
+      return res.status(500).json({
+        success: false,
+        message: err.message || "Failed to upload chat media",
+      });
+    }
   }
 };
 

@@ -14,8 +14,11 @@ const ChatRoomSchema = new Schema(
   { timestamps: true }
 );
 
-// Create index properly
-ChatRoomSchema.index({ unique: true });
+// Supports lookups/cleanup by participant (e.g. account-deletion cleanup).
+// (Previous `ChatRoomSchema.index({ unique: true })` indexed a field named
+// "unique" that doesn't exist on this schema — a no-op index; matchId above
+// already has its own `unique: true` constraint.)
+ChatRoomSchema.index({ participants: 1 });
 
 module.exports = mongoose.model("ChatRoom", ChatRoomSchema);
 // lastmessage, unread count, delete for, createdAt

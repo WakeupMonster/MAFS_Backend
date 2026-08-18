@@ -4,6 +4,7 @@ const User = require("../modules/auth/auth.model");
 const Subscription = require("../modules/subscription/models/Subscription");
 const notificationService = require("../modules/notifications/notification.service");
 const { connection } = require("../queues/bull");
+const { startOfDay, endOfDay } = require("../common/utils/time");
 
 const BATCH_SIZE = 500;
 
@@ -41,18 +42,15 @@ const worker = new Worker(
     let subQuery = {};
 
     if (isPremiumExpiry) {
-      const today = todayTimestamp ? new Date(todayTimestamp) : new Date();
-      today.setHours(0, 0, 0, 0);
+      // Calendar-day boundaries resolved against Australia/Sydney (APP_TZ) — see common/utils/time.js.
+      const today = startOfDay(todayTimestamp ? new Date(todayTimestamp) : new Date());
 
       const daysBeforeExpiry = campaign.expiryRule?.daysBeforeExpiry || 0;
       const targetDate = new Date(today);
       targetDate.setDate(today.getDate() + daysBeforeExpiry);
 
-      const start = new Date(targetDate);
-      start.setHours(0, 0, 0, 0);
-
-      const end = new Date(targetDate);
-      end.setHours(23, 59, 59, 999);
+      const start = startOfDay(targetDate);
+      const end = endOfDay(targetDate);
 
       subQuery = {
         status: { $in: ["ACTIVE", "CANCELLED"] },

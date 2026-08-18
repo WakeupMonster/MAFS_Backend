@@ -30,13 +30,13 @@ const initCronJobs = () => {
         { $set: { status: "EXPIRED" } }
       );
 
-      // Safe Sync: Checks for other active plans (incl. Grace/Retry) before revoking premium
+      // Safe Sync: Bulk check active plans and bulk revoke
       const uniqueUserIds = [...new Set(toExpire.map(s => s.userId.toString()))];
 
-      for (const uid of uniqueUserIds) {
+      if (uniqueUserIds.length > 0) {
         try {
-          const anyActiveSub = await Subscription.findOne({
-            userId: uid,
+          const usersWithActivePlans = await Subscription.distinct("userId", {
+            userId: { $in: uniqueUserIds },
             $or: [
               { status: { $in: ["ACTIVE", "CANCELLED"] }, expiresAt: { $gt: new Date() } },
               { status: "GRACE", isInGracePeriod: true },
@@ -44,11 +44,17 @@ const initCronJobs = () => {
             ]
           });
 
-          if (!anyActiveSub) {
-            await UsageService._syncPremiumState(uid, false);
+          const activeIdsStr = usersWithActivePlans.map(id => id.toString());
+          const usersToRevoke = uniqueUserIds.filter(uid => !activeIdsStr.includes(uid));
+
+          if (usersToRevoke.length > 0) {
+            await User.updateMany(
+              { _id: { $in: usersToRevoke } },
+              { $set: { isPremium: false, premiumExpiresAt: null } }
+            );
           }
         } catch (err) {
-          logger.error("[CRON] Safe sync error for user:", uid, err.message);
+          logger.error("[CRON] Safe sync bulk error:", err.message);
         }
       }
 
@@ -82,12 +88,32 @@ const initCronJobs = () => {
         { $set: { status: "EXPIRED" } }
       );
 
-      // v3 Sync: Update isPremium flags for all affected users
-      const userIds = toExpire.map((s) => s.userId);
-      for (const uid of userIds) {
-        UsageService._syncPremiumState(uid, false).catch((err) =>
-          logger.error("[CRON] Sync error for user:", uid, err.message)
-        );
+      // v3 Sync: Bulk check active plans and bulk revoke
+      const uniqueUserIds = [...new Set(toExpire.map(s => s.userId.toString()))];
+
+      if (uniqueUserIds.length > 0) {
+        try {
+          const usersWithActivePlans = await Subscription.distinct("userId", {
+            userId: { $in: uniqueUserIds },
+            $or: [
+              { status: { $in: ["ACTIVE", "CANCELLED"] }, expiresAt: { $gt: new Date() } },
+              { status: "GRACE", isInGracePeriod: true },
+              { isInBillingRetry: true }
+            ]
+          });
+
+          const activeIdsStr = usersWithActivePlans.map(id => id.toString());
+          const usersToRevoke = uniqueUserIds.filter(uid => !activeIdsStr.includes(uid));
+
+          if (usersToRevoke.length > 0) {
+            await User.updateMany(
+              { _id: { $in: usersToRevoke } },
+              { $set: { isPremium: false, premiumExpiresAt: null } }
+            );
+          }
+        } catch (err) {
+          logger.error("[CRON] Safe sync bulk error for CANCELLED:", err.message);
+        }
       }
 
       logger.info(
@@ -167,13 +193,13 @@ const initCronJobs = () => {
         { $set: { status: "EXPIRED", isInBillingRetry: false } }
       );
 
-      // Safe Sync: Checks for other active plans
+      // Safe Sync: Bulk check active plans and bulk revoke (CRON 5)
       const uniqueUserIds = [...new Set(toExpire.map(s => s.userId.toString()))];
 
-      for (const uid of uniqueUserIds) {
+      if (uniqueUserIds.length > 0) {
         try {
-          const anyActiveSub = await Subscription.findOne({
-            userId: uid,
+          const usersWithActivePlans = await Subscription.distinct("userId", {
+            userId: { $in: uniqueUserIds },
             $or: [
               { status: { $in: ["ACTIVE", "CANCELLED"] }, expiresAt: { $gt: new Date() } },
               { status: "GRACE", isInGracePeriod: true },
@@ -181,11 +207,17 @@ const initCronJobs = () => {
             ]
           });
 
-          if (!anyActiveSub) {
-            await UsageService._syncPremiumState(uid, false);
+          const activeIdsStr = usersWithActivePlans.map(id => id.toString());
+          const usersToRevoke = uniqueUserIds.filter(uid => !activeIdsStr.includes(uid));
+
+          if (usersToRevoke.length > 0) {
+            await User.updateMany(
+              { _id: { $in: usersToRevoke } },
+              { $set: { isPremium: false, premiumExpiresAt: null } }
+            );
           }
         } catch (err) {
-          logger.error("[CRON] Safe sync error for user (CRON 5):", uid, err.message);
+          logger.error("[CRON] Safe sync bulk error (CRON 5):", err.message);
         }
       }
 

@@ -1,5 +1,6 @@
 // existing: modules/matches/swipe/userSubscription.model.js
 const mongoose = require("mongoose");
+const { isSameAppDay } = require("../../common/utils/time");
 
 const PLAN_CONFIG = {
   free: { dailyLikes: 30, dailySuperlikes: 3, dailyRewinds: 0 },
@@ -44,10 +45,12 @@ UserSubscriptionSchema.methods.getLimits = function () {
 };
 
 // Aapka existing reset logic (Method)
+// Daily reset boundary is Australia/Sydney midnight (APP_TZ), not server-local
+// time — see common/utils/time.js. Was previously using toDateString(), which
+// resolves in server-local time and drifts the reset window on UTC hosts.
 UserSubscriptionSchema.methods.resetIfNeeded = function () {
   const now = new Date();
-  const lastReset = new Date(this.lastReset);
-  if (now.toDateString() !== lastReset.toDateString()) {
+  if (!isSameAppDay(now, this.lastReset)) {
     this.dailyLikesUsed = 0;
     this.dailySuperlikesUsed = 0;
     this.lastReset = now;

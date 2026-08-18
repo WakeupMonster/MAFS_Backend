@@ -1,5 +1,6 @@
 const redis = require("../../config/cache");
 const utils = require("../../modules/auth/auth.utils");
+const { smsQueue } = require("../queues");
 
 const DEFAULT_TTL = 180;
 const MAX_ATTEMPTS = 5;
@@ -46,7 +47,16 @@ module.exports.sendOtp = async ({
 
   try {
     await redis.set(key, hash, { EX: ttl });
-    await sendFn(target, messageFn(otp));
+
+    if (type === "sms") {
+      // Dispatch via queue instead of an inline Twilio call so the request
+      // doesn't block on Twilio's response time. The OTP hash is already
+      // safely in Redis above regardless of how/when the SMS actually sends.
+      await smsQueue.add("send-otp", { phone: target, message: messageFn(otp) });
+    } else {
+      await sendFn(target, messageFn(otp));
+    }
+
     return { ok: true };
   } catch (err) {
     await redis.del(key);

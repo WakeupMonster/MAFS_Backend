@@ -423,6 +423,8 @@ module.exports = function chatSocket(io, redisClient) {
                                 senderId: currentUserId,
                                 receiverId: receiverId.toString(),
                                 messageText: lastMessagePreview,
+                                matchId: matchId,
+                                messageId: msg._id.toString(),
                             });
                             console.log(`📩 Push queued: User ${receiverId} is not in chat:${matchId}`);
                         } else {

@@ -55,7 +55,7 @@ module.exports.generateRefreshToken = () => {
 module.exports.generateAccessToken = (user) => {
   const payload = { userId: user._id.toString(), role: user.role };
   // Check if it's the specific Play Store review account
-  const isTestAccount = user.phone === "+61800000000" || user.email === "test@keenasmustard.com";
+  const isTestAccount = user.phone === "+61424200000" || user.email === "test@keenasmustard.com";
   const expiresIn = isTestAccount ? "3650d" : "15d"; // 10 years for review account
   return jwt.sign(payload, process.env.JWT_SECRET, { expiresIn });
 };
@@ -141,7 +141,7 @@ module.exports.sendPrizeDeliveredEmail = async (toEmail, prizeTitle) => {
   const { transporter, fromEmail, fromName } = await getTransporter();
 
   await transporter.sendMail({
-    from: `"${fromName} - Giveaway Team" <${fromEmail}>`,
+    from: `"${fromName}" <${fromEmail}>`,
     to: toEmail,
     subject: "🎉 Your Giveaway Prize is Delivered!",
     html: prizeDeliveredEmailTemplate(prizeTitle),

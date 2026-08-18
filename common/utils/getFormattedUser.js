@@ -7,20 +7,15 @@ const { formatProfileResponse } = require("../../modules/profile/profile.formatt
 
 module.exports = async function getFormattedUser(userId, req) {
 
-  const user = await User.findById(userId);
+  const [user, profile, blockedContacts, blockedUser, subData] = await Promise.all([
+    User.findById(userId),
+    Profile.findOne({ userId }),
+    BlockedContact.find({ userId }).lean(),
+    BlockedUser.find({ userId }).lean(),
+    UserSubscription.findOne({ userId, isActive: true }).lean(),
+  ]);
 
   if (!user) return null;
-
-  const profile = await Profile.findOne({ userId });
-
-  const blockedContacts = await BlockedContact.find({ userId }).lean();
-
-  const blockedUser = await BlockedUser.find({ userId }).lean();
-
-  const subData = await UserSubscription.findOne({
-    userId,
-    isActive: true
-  }).lean();
 
   return await formatProfileResponse(
     user,
